@@ -1,0 +1,12 @@
+# Message broker settings (eg. RabbitMQ)
+msg_broker:
+  host: localhost
+  port: 5672
+  virtual_host: /
+  username: guest
+  password: guest
+
+# Number of worker processes
+# WARNING: If changing number of worker processes, the following process must be followed:
+# TODO step by step process
+worker_processes: 1

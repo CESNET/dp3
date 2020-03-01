@@ -1,0 +1,9 @@
+record_life_length:
+  warden: 14
+  misp: 180
+  highly_active: 14
+  long_active: 28
+
+record_life_threshold:
+  highly_active: 1000
+  long_active: 30

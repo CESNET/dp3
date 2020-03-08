@@ -16,7 +16,7 @@ MODULES_FOLDER = "modules"
 BASE_MODULE_CLASS_NAME = "BaseModule"
 
 
-def load_modules(module_names_list, modules_folder):
+def load_modules(module_names_list):
     # [:-3] is for removing '.py' suffix from module filenames
     available_modules = [filename[:-3] for filename in os.listdir(os.path.join(os.getcwd(), MODULES_FOLDER))]
 
@@ -79,7 +79,7 @@ def main(cfg_file, process_index):
     ##############################################
     # Load all plug-in modules
 
-    module_list = load_modules(config['enabled_modules'], config['cfg_files.modules'])
+    module_list = load_modules(config['enabled_modules'])
 
     # Lock used to control when the program stops.
     g.daemon_stop_lock = threading.Lock()

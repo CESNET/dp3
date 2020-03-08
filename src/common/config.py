@@ -110,7 +110,11 @@ def read_config_dir(dir_path, recursive=False):
             # place configuration files in directory into another dictionary level named by config dictionary name
             loaded_config = {config_path: loaded_config}
         elif os.path.isfile(config_full_path) and config_path.endswith(".yml"):
-            loaded_config = read_config(config_full_path)
+            try:
+                loaded_config = read_config(config_full_path)
+            except TypeError:
+                # configuration file is empty
+                continue
         else:
             continue
         # TODO check if some configuration files do not have same keys (eg. modules)?

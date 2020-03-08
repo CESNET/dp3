@@ -1,0 +1,88 @@
+"""
+auxiliary/utility functions and classes
+"""
+import re
+import datetime
+from importlib import import_module
+
+# *** IP conversion functions ***
+ipv4_re = re.compile(r"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$")
+
+
+def ipstr2int(s):
+    res = ipv4_re.match(s)
+    if res is None:
+        raise ValueError('Invalid IPv4 format: {!r}'.format(s))
+    a1, a2, a3, a4 = res.groups()
+    # Check if octets are between 0 and 255 is omitted for better performance
+    return int(a1) << 24 | int(a2) << 16 | int(a3) << 8 | int(a4)
+
+
+def int2ipstr(i):
+    return '.'.join((str(i >> 24), str((i >> 16) & 0xff), str((i >> 8) & 0xff), str(i & 0xff)))
+
+
+# *** Time conversion ***
+# Regex for RFC 3339 time format
+timestamp_re = re.compile(r"^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))$")
+
+
+def parse_rfc_time(time_str):
+    """Parse time in RFC 3339 format and return it as naive datetime in UTC."""
+    res = timestamp_re.match(time_str)
+    if res is not None:
+        year, month, day, hour, minute, second = (int(n or 0) for n in res.group(*range(1, 7)))
+        us_str = (res.group(7) or "0")[:6].ljust(6, "0")
+        us = int(us_str)
+        zonestr = res.group(8)
+        zoneoffset = 0 if zonestr in ('z', 'Z') else int(zonestr[:3])*60 + int(zonestr[4:6])
+        zonediff = datetime.timedelta(minutes=zoneoffset)
+        return datetime.datetime(year, month, day, hour, minute, second, us) - zonediff
+    else:
+        raise ValueError("Wrong timestamp format")
+
+
+# *** object (de)serialization ***
+# Functions that allow to (de)serialize some objects we need to pass for example via TaskQueue.
+# Inspired by bson.json_util, but for different set of types (and much simpler).
+def conv_to_json(obj):
+    """Convert special types to JSON (use as "default" param of json.dumps)
+
+    Supported types/objects:
+    - datetime
+    - timedelta
+    """
+    if isinstance(obj, datetime.datetime):
+        if obj.tzinfo:
+            raise NotImplementedError(
+                "Can't serialize timezone-aware datetime object (NERD policy is to use naive datetimes in UTC everywhere)")
+        return {"$datetime": obj.strftime("%Y-%m-%dT%H:%M:%S.%f")}
+    if isinstance(obj, datetime.timedelta):
+        return {"$timedelta": "{},{},{}".format(obj.days, obj.seconds, obj.microseconds)}
+    raise TypeError("%r is not JSON serializable" % obj)
+
+
+def conv_from_json(dct):
+    """Convert special JSON keys created by conv_to_json back to Python objects (use as "object_hook" param of json.loads)
+
+    Supported types/objects:
+    - datetime
+    - timedelta
+    """
+    if "$datetime" in dct:
+        val = dct["$datetime"]
+        return datetime.datetime.strptime(val, "%Y-%m-%dT%H:%M:%S.%f")
+    if "$timedelta" in dct:
+        days, seconds, microseconds = dct["$timedelta"].split(",")
+        return datetime.timedelta(int(days), int(seconds), int(microseconds))
+    return dct
+
+
+# *** pretty print ***
+def get_func_name(func_or_method):
+    """Get name of function or method as pretty string."""
+    try:
+        fname = func_or_method.__func__.__qualname__
+    except AttributeError:
+        fname = func_or_method.__name__
+    return func_or_method.__module__ + '.' + fname

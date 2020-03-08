@@ -10,3 +10,16 @@ msg_broker:
 # WARNING: If changing number of worker processes, the following process must be followed:
 # TODO step by step process
 worker_processes: 1
+
+# Number of worker threads per process.
+# This may be higher than number of CPUs, because this is not primarily intended
+# to utilize computational power of multiple CPUs (which Python cannot do well
+# anyway due to the GIL), but to mask long I/O operations (e.g. queries to
+# external services via network)
+worker_threads: 16
+
+# List of secondary modules, which should be enabled in processing pipeline. Name of module filename without '.py'
+# extension must be used!
+enabled_modules:
+  - "test_module"
+

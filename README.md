@@ -6,7 +6,7 @@
 
 **development**: `$ pipenv install`
 
-**production**: `$ pipenv --ignore-pipfile` 
+**production**: `$ pipenv install --ignore-pipfile` 
 
 Generated virtualenv is located at `~/.local/share/virtualenvs`, but should be activated automatically. Deactivate virtualenv with `$ exit`
 

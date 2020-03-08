@@ -2,7 +2,7 @@ import unittest
 import os
 from copy import deepcopy
 
-from common.config import HierarchicalDict, read_config_dir
+from src.common.config import HierarchicalDict, read_config_dir
 
 
 class TestHierarchicalDict(unittest.TestCase):
@@ -144,21 +144,23 @@ class TestReadConfig(unittest.TestCase):
             'port': 27017,
             'dbname': "nerd"
         },
-        'record_life_length': {
-            'warden': 14,
-            'misp': 180,
-            'highly_active': 14,
-            'long_active': 28
-        },
-        'record_life_threshold': {
-            'highly_active': 1000,
-            'long_active': 30
-        },
-        'rate-limit': {
-            'tokens-per-sec': 1,
-            'bucket-size': 60,
-            'redis': {
-                'db-index': 1
+        'modules': {
+            'record_life_length': {
+                'warden': 14,
+                'misp': 180,
+                'highly_active': 14,
+                'long_active': 28
+            },
+            'record_life_threshold': {
+                'highly_active': 1000,
+                'long_active': 30
+            },
+            'rate-limit': {
+                'tokens-per-sec': 1,
+                'bucket-size': 60,
+                'redis': {
+                    'db-index': 1
+                }
             }
         }
     }

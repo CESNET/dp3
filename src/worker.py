@@ -10,6 +10,7 @@ from common.config import read_config_dir, read_config
 from common import scheduler
 from task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 from task_processing.task_executor import TaskExecutor
+from task_processing.task_distributor import TaskDistributor
 import g
 
 MODULES_FOLDER = "modules"
@@ -20,7 +21,7 @@ def load_modules(module_names_list):
     # [:-3] is for removing '.py' suffix from module filenames
     available_modules = [filename[:-3] for filename in os.listdir(os.path.join(os.getcwd(), MODULES_FOLDER))]
 
-    # check if all modules desired are in modules folder
+    # check if all desired modules are in modules folder
     assert all(module in available_modules for module in module_names_list), "some of desired modules is not " \
                                                                              "available (not in modules folder)"
     # do imports of desired modules from 'modules' folder
@@ -71,10 +72,11 @@ def main(cfg_file, process_index):
     log.info("***** NERD worker {}/{} start *****".format(process_index, num_processes))
 
     g.config = config
-    g.config_base_path = os.path.dirname(os.path.abspath(cfg_file)) # TODO is this needed?
+    g.config_base_path = os.path.dirname(os.path.abspath(cfg_file))
     g.scheduler = scheduler.Scheduler()
     # g.db = # TODO db instance init
-    g.te = TaskExecutor(config, g.db, process_index, num_processes)
+    te = TaskExecutor(config, g.db, process_index, num_processes)
+    g.td = TaskDistributor(config, process_index, num_processes, te.process_task)
 
     ##############################################
     # Load all plug-in modules

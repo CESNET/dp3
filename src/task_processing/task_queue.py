@@ -44,6 +44,7 @@ from requests.auth import HTTPBasicAuth
 
 
 from src.common.utils import conv_from_json, conv_to_json
+import src.g as g
 
 # This sets logging level of all components in this file
 LOG_LEVEL = logging.INFO
@@ -52,8 +53,6 @@ LOG_LEVEL = logging.INFO
 # Exchange and queue names
 # They must be pre-declared ('direct' exchange type) and binded.
 # Numbers from 0 to number_of_workers-1 are used as routing/binding keys.
-# TODO: are exchanges needed? Shouldn't we use default exchange and just set queue-name as the routing key?
-# TODO: It is possible, but have to refactor init and put_task a bit
 DEFAULT_EXCHANGE = 'nerd-main-task-exchange'
 DEFAULT_PRIORITY_EXCHANGE = 'nerd-priority-task-exchange'
 DEFAULT_QUEUE = 'nerd-worker-{}'
@@ -166,19 +165,39 @@ class TaskQueueWriter(RobustAMQPConnection):
         self.exchange = exchange
         self.exchange_pri = priority_exchange
 
-    def put_task(self, etype, eid, requested_changes, priority=False):
-        """Put task (update_request) to the queue of corresponding worker"""
+    def put_task(self, etype="", ekey="", attr_updates=None, events=None, create=None, delete=False, src="", tags=None, priority=False):
+        """
+        Put task (update_request) to the queue of corresponding worker
+        :param etype: entity type (eg. 'ip')
+        :param ekey: entity key
+        :param attr_updates:
+        :param events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the future if needed)
+        :param create: true = create a new record if it doesn't exist yet; false = don't create a record if it
+                    doesn't exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the entity type
+        :param delete: delete the record
+        :param src: name of source module, mostly for logging
+        :param tags: tags for logging (number of tasks per time interval by tag)
+        :param priority: if true, the task is places into priority queue
+        :return: None
+        """
         if not self.channel:
             self.connect()
 
-        # Prepare message and routing key
+        # Prepare message
         msg = {
             'etype': etype,
-            'eid': eid,
-            'op': requested_changes
+            'ekey': ekey,
+            'attr_updates': [] if attr_updates is None else attr_updates,
+            'events': [] if events is None else events,
+            'create': g.config.get('auto_create_record', True) if create is None else create,
+            'delete': delete,
+            'src': src,
+            'tags': [] if tags is None else tags
         }
+
+        # Prepare routing key
         body = json.dumps(msg, default=conv_to_json).encode('utf8')
-        key = etype + ':' + str(eid)
+        key = etype + ':' + str(ekey)
         routing_key = HASH(key) % self.workers  # index of the worker to send the task to
 
         exchange = self.exchange_pri if priority else self.exchange
@@ -257,13 +276,11 @@ class TaskQueueReader(RobustAMQPConnection):
         self.cache_pri = collections.deque()
         self.cache_full = threading.Event()  # signalize there's something in the cache
 
-
     def __del__(self): #TODO is this needed?
         self.log.debug("Destructor called")
         self._stop_consuming_thread()
         self._stop_processing_thread()
         super().__del__()
-
 
     def start(self):
         """Start receiving tasks."""
@@ -284,7 +301,6 @@ class TaskQueueReader(RobustAMQPConnection):
         self._processing_thread = threading.Thread(None, self._msg_processing_thread_func)
         self._processing_thread.start()
 
-
     def stop(self):
         """Stop receiving tasks."""
         if not self.running:
@@ -294,14 +310,12 @@ class TaskQueueReader(RobustAMQPConnection):
         self._stop_processing_thread()
         self.log.info("TaskQueueReader stopped")
 
-
     def ack(self, msg_tag):
         """Acknowledge processing of the message/task
 
         :param msg_tag: Message tag received as the first param of the callback function.
         """
         self.channel.basic.ack(delivery_tag=msg_tag)
-
 
     def _consuming_thread_func(self):
         # Register consumers and start consuming loop, reconnect on error
@@ -326,7 +340,6 @@ class TaskQueueReader(RobustAMQPConnection):
         self.cache_pri.append(message)
         self.cache_full.set()
 
-
     def _msg_processing_thread_func(self):
         # Reads local queues and passes tasks to the user callback.
         while self.running:
@@ -350,9 +363,9 @@ class TaskQueueReader(RobustAMQPConnection):
             # Parse and check validity of received message
             try:
                 task = json.loads(body, object_hook=conv_from_json)
-                etype = task['etype']
-                eid = task['eid']
-                op = task['op']
+                etype, ekey, attr_updates = task['etype'], task['ekey'], task['attr_updates']
+                events, create, delete = task['events'], task['create'], task['delete']
+                src, tags = task['src'], task['tags']
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error("Erroneous message received from main task queue. Error: {}, Message: '{}'".format(str(e), body))
@@ -360,7 +373,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 continue
 
             # Pass message to user's callback function
-            self.callback(tag, etype, eid, op)
+            self.callback(tag, etype, ekey, attr_updates, events, create, delete, src, tags)
 
     def _stop_consuming_thread(self):
         if self._consuming_thread:

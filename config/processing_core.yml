@@ -23,3 +23,5 @@ worker_threads: 16
 enabled_modules:
   - "test_module"
 
+# Flag, which determines, if a new record should be created, if it doesn't exist yet, while processing task.
+auto_create_record: True

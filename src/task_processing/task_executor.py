@@ -4,11 +4,12 @@ import inspect
 from collections import deque, Iterable, OrderedDict, Counter
 import logging
 
-from .task_distributor import TaskDistributor
 from src.common.utils import get_func_name
 
+ENTITY_TYPES = ['ip', 'asn', 'bgppref', 'ipblock', 'org']
 
-class TaskExecutor(TaskDistributor):
+
+class TaskExecutor:
     """
     TaskExecutor manages updates of entity records, which are being read from task queue (via parent TaskDistributor)
 
@@ -64,13 +65,24 @@ class TaskExecutor(TaskDistributor):
       ('array_upsert', 'events', {date: "2017-07-17", cat: "ReconScanning"} , [('add', 'n', 1)])
     """
 
-    OPERATION_FUNCTION_PREFIX = "_perform_op_"
+    _OPERATION_FUNCTION_PREFIX = "_perform_op_"
 
     def __init__(self, config, db, process_index, num_processes):
         # initialize task distribution
         super().__init__(config, process_index, num_processes)
 
-        self.log = logging.getLogger("TaskDistributor")
+        self.log = logging.getLogger("TaskExecutor")
+
+        # TODO handler attribute mapping - check after implementation of register_handler()
+        # Mapping of names of attributes to a list of functions that should be
+        # called when the attribute is updated
+        # (One such mapping for each entity type)
+        self._attr2func = {etype: {} for etype in ENTITY_TYPES}
+        # Set of attributes that may be updated by a function
+        self._func2attr = {etype: {} for etype in ENTITY_TYPES}
+        # Mapping of functions to set of attributes the function watches, i.e.
+        # is called when the attribute is changed
+        self._func_triggers = {etype: {} for etype in ENTITY_TYPES}
 
         self.db = db
 
@@ -81,10 +93,10 @@ class TaskExecutor(TaskDistributor):
         #   'append' _perform_op_append,
         #   ...
         # }
-        self.operations_mapping = {}
+        self._operations_mapping = {}
         for class_function in inspect.getmembers(TaskExecutor, predicate=inspect.isfunction):
-            if class_function[0].startswith(TaskExecutor.OPERATION_FUNCTION_PREFIX):
-                self.operations_mapping[class_function[0][len(TaskExecutor.OPERATION_FUNCTION_PREFIX):]] = class_function[1]
+            if class_function[0].startswith(TaskExecutor._OPERATION_FUNCTION_PREFIX):
+                self._operations_mapping[class_function[0][len(TaskExecutor._OPERATION_FUNCTION_PREFIX):]] = class_function[1]
 
     def _parse_record_from_key_hierarchy(self, rec, key):
         # Process keys with hierarchy, i.e. containing dots (like "events.scan.count")
@@ -251,7 +263,7 @@ class TaskExecutor(TaskDistributor):
         try:
             # call operation function, which handles operation
             # Return tuple (updated attribute, new value)
-            return self.operations_mapping[op](self, rec, key, updreq)
+            return self._operations_mapping[op](self, rec, key, updreq)
         except KeyError:
             print("ERROR: perform_update: Unknown operation {}".format(op), file=sys.stderr)
             return None
@@ -320,16 +332,25 @@ class TaskExecutor(TaskDistributor):
                 funcs_to_call |= set(a2f.get(attr, ()))
         return may_change
 
-    def _process_update_req(self, etype, eid, update_requests):
+    def _delete_record_from_db(self, etype, ekey):
+        pass
+
+    def process_task(self, task):
         """
         Main processing function - update attributes or trigger an event.
 
-        Arguments:
-        etype - entity type
-        eid - entity ID
-        update_requests - list of n-tuples as described above
+        :param: task is 8-tuple, which consists of:
+            etype: entity type (eg. 'ip')
+            ekey: entity key ('192.0.2.42')
+            attr_updates: TODO
+            events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the future if needed)
+            create: true = create a new record if it doesn't exist yet; false = don't create a record if it
+                    doesn't exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the entity type
+            delete: delete the record
+            src: name of source module, mostly for logging
+            tags: tags for logging (number of tasks per time interval by tag)
 
-        Return True if a new record was created, False otherwise.
+        :return: True if a new record was created, False otherwise.
         """
         # Load record corresponding to the key from database.
         # If record doesn't exist, create new.
@@ -339,17 +360,23 @@ class TaskExecutor(TaskDistributor):
         #     updates (2-tuples (key, new_value) or (event, param) which triggered the function.
         #   may_change - set of attributes that may be changed by planned function calls
 
+        etype, ekey, attr_updates, events, create, delete, src, tags = task
+
+        if delete:
+            self._delete_record_from_db(etype, ekey)
+            # TODO what next after deletion?
+
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
-        rec, new_rec_created = self.create_record_if_does_not_exist(etype, eid, update_requests)
+        rec, new_rec_created = self.create_record_if_does_not_exist(etype, ekey, attr_updates)
 
         # TODO refactor the rest of the method, mainly split into smaller peaces and rework 'may_change' mechanism,
         # TODO because it is probably broken
 
         # Short-circuit if update_requests is empty (used to only create a record if it doesn't exist)
-        if not update_requests:
+        if not attr_updates:
             return False
 
-        requests_to_process = update_requests
+        requests_to_process = attr_updates
 
         # *** Now we have the record, process the requested updates ***
 
@@ -429,7 +456,7 @@ class TaskExecutor(TaskDistributor):
             if loop_counter > 20:
                 self.log.warning(
                     "Too many iterations when updating ({}:{}), something went wrong! Update chain stopped.".format(
-                        etype, eid))
+                        etype, ekey))
                 break
 
             func, updates = call_queue.popleft()
@@ -447,10 +474,10 @@ class TaskExecutor(TaskDistributor):
             # self.log.debug("Calling: {}(({}, {}), rec, {})".format(get_func_name(func), etype, eid, updates))
             #            t_handler1 = time.time()
             try:
-                reqs = func((etype, eid), rec, updates)
+                reqs = func((etype, ekey), rec, updates)
             except Exception as e:
                 self.log.exception("Unhandled exception during call of {}(({}, {}), rec, {}). Traceback follows:"
-                                   .format(get_func_name(func), etype, eid, updates))
+                                   .format(get_func_name(func), etype, ekey, updates))
                 reqs = []
             #            t_handler2 = time.time()
             #            t_handlers[get_func_name(func)] = t_handler2 - t_handler1
@@ -478,10 +505,10 @@ class TaskExecutor(TaskDistributor):
 
         # Remove or update processed database record
         if deletion:
-            self.db.delete(etype, eid)
-            self.log.debug("Entity '{}' of type '{}' was removed from the database.".format(eid, etype))
+            self.db.delete(etype, ekey)
+            self.log.debug("Entity '{}' of type '{}' was removed from the database.".format(ekey, etype))
         else:
-            self.db.put(etype, eid, rec)
+            self.db.put(etype, ekey, rec)
 
         #        t4 = time.time()
         #        #if t4 - t1 > 1.0:

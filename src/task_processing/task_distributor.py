@@ -3,15 +3,14 @@ import threading
 import queue
 from datetime import datetime
 import time
+from copy import deepcopy, copy
 
 from .task_queue import TaskQueueReader, TaskQueueWriter
 import src.g as g
 
-ENTITY_TYPES = ['ip', 'asn', 'bgppref', 'ipblock', 'org']
-
 
 class TaskDistributor:
-    def __init__(self, config, process_index, num_processes):
+    def __init__(self, config, process_index, num_processes, process_task_callback):
         assert (isinstance(process_index, int) and isinstance(num_processes, int)), "num_processes and process_index " \
                                                                                     "must be int"
         assert (num_processes >= 1), "number of processed muse be positive number"
@@ -26,17 +25,6 @@ class TaskDistributor:
 
         self.running = False
 
-        # TODO handler attribute mapping - check after implementation of register_handler()
-        # Mapping of names of attributes to a list of functions that should be
-        # called when the attribute is updated
-        # (One such mapping for each entity type)
-        self._attr2func = {etype: {} for etype in ENTITY_TYPES}
-        # Set of attributes that may be updated by a function
-        self._func2attr = {etype: {} for etype in ENTITY_TYPES}
-        # Mapping of functions to set of attributes the function watches, i.e.
-        # is called when the attribute is changed
-        self._func_triggers = {etype: {} for etype in ENTITY_TYPES}
-
         # List of worker threads for processing the update requests
         self._worker_threads = []
         self.num_threads = g.config.get('worker_threads', 8)
@@ -49,7 +37,7 @@ class TaskDistributor:
         self._task_queue_reader = TaskQueueReader(self._distribute_task, self.process_index, self.rabbit_params)
         # Writer - allows modules to write new tasks
         self._task_queue_writer = TaskQueueWriter(self.num_processes, self.rabbit_params)
-
+        self.process_task_callback = process_task_callback
         # Object to store thread-local data (e.g. worker-thread index) (each thread sees different object contents)
         self._current_thread_data = threading.local()
 
@@ -117,20 +105,20 @@ class TaskDistributor:
         # Cleanup
         self._worker_threads = []
 
-    def _distribute_task(self, msg_id, etype, eid, updreq):
+    def _distribute_task(self, msg_id, etype, ekey, attr_updates, events, create, delete, src, tags):
         """
         Puts given task into local queue of the corresponding thread.
 
         Called by TaskQueueReader when a new task is received from the global queue.
 
         :param msg_id: unique ID of the message, used to acknowledge it
-        :param etype: entity type (e.g. 'ip', 'asn')
-        :param eid: entity identifier (e.g. '1.2.3.4', 2852)
-        :param updreq: list of update requests (n-tuples)
+        :param etype: entity key (e.g. 'ip', 'asn')
+        :param ekey: entity identifier (e.g. '1.2.3.4', 2852)
+        :param attr_updates: list of update requests (n-tuples)
         """
         # Distribute tasks to worker threads by hash of (etype,ekey)
-        index = hash((etype, eid)) % self.num_threads
-        self._queues[index].put((msg_id, etype, eid, updreq))
+        index = hash((etype, ekey)) % self.num_threads
+        self._queues[index].put((msg_id, etype, ekey, attr_updates, events, create, delete, src, tags))
 
     def _worker_func(self, thread_index):
         """
@@ -159,7 +147,8 @@ class TaskDistributor:
             except queue.Empty:
                 continue # check self.running again
 
-            msg_id, etype, eid, updreq = task
+            # * means fill the rest (to prevent ValueError - too many values to unpack)
+            msg_id, etype, eid, attr_updates, *_ = task
 
             # Acknowledge receipt of the task (regardless of success/failre of its processing)
             self._task_queue_reader.ack(msg_id)
@@ -168,14 +157,14 @@ class TaskDistributor:
             # self.log.debug("Processing task {}: {}/{} {}".format(msg_id, etype, eid, updreq))
             start_time = datetime.now()
             try:
-                created = self._process_update_req(etype, eid, updreq.copy())
+                created = self.process_task_callback(deepcopy(task))
             except Exception:
                 self.log.error("Error has occurred during processing task: {}".format(task))
                 raise
             duration = (datetime.now() - start_time).total_seconds()
             #self.log.debug("Task {} finished in {:.3f} seconds.".format(msg_id, duration))
             if duration > 1.0:
-                self.log.debug("Task {} took {} seconds: {}/{} {}{}".format(msg_id, duration, etype, eid, updreq, " (new record created)" if created else ""))
+                self.log.debug("Task {} took {} seconds: {}/{} {}{}".format(msg_id, duration, etype, eid, attr_updates, " (new record created)" if created else ""))
 
     def _watchdog(self):
         """
@@ -218,6 +207,3 @@ class TaskDistributor:
                 # Print info and reset counter to 5 seconds
                 self.log.info("{} worker threads alive".format(len(alive_workers)))
                 ttl = 5
-
-    def _process_update_req(self, etype, eid, update_requests):
-        pass

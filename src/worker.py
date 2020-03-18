@@ -8,6 +8,7 @@ import signal
 
 from common.config import read_config_dir, read_config
 from common import scheduler
+from database.database import EntityDatabase
 from task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 from task_processing.task_executor import TaskExecutor
 from task_processing.task_distributor import TaskDistributor
@@ -74,7 +75,7 @@ def main(cfg_file, process_index):
     g.config = config
     g.config_base_path = os.path.dirname(os.path.abspath(cfg_file))
     g.scheduler = scheduler.Scheduler()
-    # g.db = # TODO db instance init
+    g.db = EntityDatabase(config)
     te = TaskExecutor(config, g.db, process_index, num_processes)
     g.td = TaskDistributor(config, process_index, num_processes, te.process_task)
 

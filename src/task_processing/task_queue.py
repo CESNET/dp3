@@ -44,7 +44,7 @@ from requests.auth import HTTPBasicAuth
 
 
 from src.common.utils import conv_from_json, conv_to_json
-import src.g as g
+import g
 
 # This sets logging level of all components in this file
 LOG_LEVEL = logging.INFO
@@ -57,7 +57,6 @@ DEFAULT_EXCHANGE = 'nerd-main-task-exchange'
 DEFAULT_PRIORITY_EXCHANGE = 'nerd-priority-task-exchange'
 DEFAULT_QUEUE = 'nerd-worker-{}'
 DEFAULT_PRIORITY_QUEUE = 'nerd-worker-{}-pri'
-COMPULSORY_QUEUES = [DEFAULT_QUEUE, DEFAULT_PRIORITY_QUEUE]
 
 # Hash function used to distribute tasks to worker processes. Takes string, returns int.
 # (last 4 bytes of MD5)
@@ -92,7 +91,6 @@ class RobustAMQPConnection:
         }
         self.connection = None
         self.channel = None
-
         # check if compulsory queues are declared
         resp = requests.get("http://localhost:15672/api/queues", auth=HTTPBasicAuth(rabbit_config.get('username', 'guest'),
                                                                                     rabbit_config.get('password', 'guest')))
@@ -100,7 +98,11 @@ class RobustAMQPConnection:
             assert False, "could not check RabbitMQ declared queues"
         queues = json.loads(resp.text)
         queues_names = [queue['name'] for queue in queues]
-        assert all(compulsory_queue in queues_names for compulsory_queue in COMPULSORY_QUEUES), "RabbitMQ server does " \
+        compulsory_queues = []
+        for i in range(0, g.config.get('worker_processes')):
+            compulsory_queues.append(DEFAULT_QUEUE.format(i))
+            compulsory_queues.append(DEFAULT_PRIORITY_QUEUE.format(i))
+        assert all(compulsory_queue in queues_names for compulsory_queue in compulsory_queues), "RabbitMQ server does " \
                                                                                                 "not have declared needed queues"
 
     def __del__(self):
@@ -170,7 +172,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         Put task (update_request) to the queue of corresponding worker
         :param etype: entity type (eg. 'ip')
         :param ekey: entity key
-        :param attr_updates:
+        :param attr_updates: TODO
         :param events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the future if needed)
         :param create: true = create a new record if it doesn't exist yet; false = don't create a record if it
                     doesn't exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the entity type

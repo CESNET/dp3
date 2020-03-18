@@ -111,7 +111,7 @@ def main(cfg_file, process_index):
         module.start()
 
     # start TaskExecutor
-    g.te.start()
+    g.td.start()
 
     # Run scheduler
     g.scheduler.start()

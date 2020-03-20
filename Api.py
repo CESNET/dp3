@@ -1,13 +1,15 @@
-from flask import Flask, request, render_template, abort
-import AttrSpec
+from flask import Flask, request, render_template
+from Record import Record
 import SQLiteWrapper
+import AttrSpec
 
 app = Flask(__name__)
 application = app
 application.debug = True
 
-# Path to yaml file containing attribute specification
-attrspec_path = "PATH TO ATTRSPEC FILE"
+# Dictionary containing attribute specification
+# Initialized by AttrSpec.load_spec()
+attr_spec = {}
 
 
 # REST endpoint to push a single data point
@@ -15,22 +17,21 @@ attrspec_path = "PATH TO ATTRSPEC FILE"
 # Other fields should be contained in query parameters
 @app.route("/post/<string:record_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
 def push_single(record_type, entity_id, attr_name):
-    # Construct a record from endpoint path and query parameters
-    d = {
+    # Construct a record from path and query parameters
+    r = {
         "type": record_type,
         "id": entity_id,
         "attr": attr_name
     }
     for k in request.args:
-        d[k] = request.args[k]
+        r[k] = request.args[k]
 
-    # Make valid data point using the AttrSpec template and send it to SQLite database
     try:
-        record = AttrSpec.make_record(d)
-        SQLiteWrapper.insert(record)
+        # Make valid data point using the AttrSpec template and send it to SQLite database
+        SQLiteWrapper.insert(Record(r, attr_spec))
         return "Success", 201
-    except:
-        return "Invalid record", 400
+    except Exception as e:
+        return "Some error(s) occurred:\n" + str(e) + "\n", 400
 
 
 # REST endpoint to push multiple data points
@@ -38,28 +39,29 @@ def push_single(record_type, entity_id, attr_name):
 # Example: {"records": [{rec1},{rec2},{rec3},...]}
 @app.route("/post", methods=["POST"])
 def push_multiple():
-    invalid = 0
     request_json = request.get_json()
 
     # Request must be valid JSON (dict) and contain a list of records
     if type(request_json) is not dict or \
        "records" not in request_json or \
        type(request_json["records"]) is not list:
-        abort(400)
+        return "Request is not a dict, or does not contain a list of records", 400
 
-    # Make valid data points using the AttrSpec template and send them to SQLite database
+    errors = ""
+
     for r in request_json["records"]:
         try:
-            record = AttrSpec.make_record(r)
-            SQLiteWrapper.insert(record)
-        except:
-            invalid += 1
+            # Make valid data point using the AttrSpec template and send it to SQLite database
+            SQLiteWrapper.insert(Record(r, attr_spec))
+        except Exception as e:
+            errors += str(e) + "\n"
 
     # Set correct response based on the results
-    response = "Success"
-    if invalid > 0:
-        response = "Skipped {} of {} records.\n".format(invalid, len(request_json["records"]))
-    return response, 201
+    response = "Success", 201
+    if errors != "":
+        # TODO what status code should we return here?
+        response = "Some error(s) occurred:\n" + errors, 202
+    return response
 
 
 # REST endpoint to check whether the API is running
@@ -72,12 +74,12 @@ def home():
 if __name__ == "__main__":
     try:
         # Initialize attribute specification
-        AttrSpec.load_yaml(attrspec_path)
+        attr_spec = AttrSpec.load_spec()
 
         # Initialize SQLite
         SQLiteWrapper.init()
 
         # Run the API
         app.run()
-    except:
-        print("Failed to initialize")
+    except (TypeError, ValueError, ConnectionError) as e:
+        print(e)

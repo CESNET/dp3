@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 # Path to directory containing db file
-db_dir = "PATH TO DB DIRECTORY"
+db_dir = "C:/Users/bfu1/Desktop/ADiCT/"
 
 # Name of the db file
 db_name = "Datapoints.db"
@@ -14,7 +14,7 @@ query_template_create = '''CREATE TABLE Datapoints (
                                 t1 TEXT,
                                 t2 TEXT,
                                 type TEXT,
-                                v TEXT,
+                                v BLOB,
                                 c REAL,
                                 src TEXT,
                                 PRIMARY KEY(attr, id, t1)
@@ -27,8 +27,11 @@ query_template_insert = '''INSERT INTO Datapoints (attr, id, t1, t2, type, v, c,
 
 # Create the db if it doesnt exist yet
 def init():
-    if db_name not in os.listdir(db_dir):
-        process_query(query_template_create)
+    try:
+        if db_name not in os.listdir(db_dir):
+            process_query(query_template_create)
+    except sqlite3.Error as e:
+        raise ConnectionError(e)
 
 
 # Insert record (dict) to db
@@ -46,19 +49,14 @@ def insert(record):
         )
         process_query(query)
     except sqlite3.Error as e:
-        print(e)
-        raise
+        raise ConnectionError(e)
 
 
 # Connect to the db and process given query
 def process_query(query):
-    try:
-        connection = sqlite3.connect(db_dir + db_name)
-        cursor = connection.cursor()
-        cursor.execute(query)
-        connection.commit()
-        cursor.close()
-        connection.close()
-    except sqlite3.Error as e:
-        print(e)
-        raise
+    connection = sqlite3.connect(db_dir + db_name)
+    cursor = connection.cursor()
+    cursor.execute(query)
+    connection.commit()
+    cursor.close()
+    connection.close()

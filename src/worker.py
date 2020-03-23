@@ -76,8 +76,8 @@ def main(cfg_file, process_index):
     g.config_base_path = os.path.dirname(os.path.abspath(cfg_file))
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config)
-    te = TaskExecutor(config, g.db, process_index, num_processes)
-    g.td = TaskDistributor(config, process_index, num_processes, te.process_task)
+    te = TaskExecutor(g.db)
+    g.td = TaskDistributor(config, process_index, num_processes, te)
 
     ##############################################
     # Load all plug-in modules
@@ -131,7 +131,7 @@ def main(cfg_file, process_index):
     log.info("Stopping running components ...")
     g.running = False
     g.scheduler.stop()
-    g.te.stop()
+    g.td.stop()
     for module in module_list:
         module.stop()
 

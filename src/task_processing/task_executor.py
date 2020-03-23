@@ -5,6 +5,7 @@ from collections import deque, Iterable, OrderedDict, Counter
 import logging
 
 from src.common.utils import get_func_name
+from src.database.record import Record
 
 ENTITY_TYPES = ['ip', 'asn', 'bgppref', 'ipblock', 'org']
 
@@ -67,13 +68,11 @@ class TaskExecutor:
 
     _OPERATION_FUNCTION_PREFIX = "_perform_op_"
 
-    def __init__(self, config, db, process_index, num_processes):
+    def __init__(self, db):
         # initialize task distribution
-        super().__init__(config, process_index, num_processes)
 
         self.log = logging.getLogger("TaskExecutor")
 
-        # TODO handler attribute mapping - check after implementation of register_handler()
         # Mapping of names of attributes to a list of functions that should be
         # called when the attribute is updated
         # (One such mapping for each entity type)
@@ -83,9 +82,10 @@ class TaskExecutor:
         # Mapping of functions to set of attributes the function watches, i.e.
         # is called when the attribute is changed
         self._func_triggers = {etype: {} for etype in ENTITY_TYPES}
+        # cache for may_change set calculation - is cleared when register_handler() is called
+        self._may_change_cache = self._init_may_change_cache()
 
         self.db = db
-
         # get all update operations functions into callable dictionary, where key is operation name and value is
         # callable function, which executes the operation, will look like:
         # {
@@ -97,6 +97,40 @@ class TaskExecutor:
         for class_function in inspect.getmembers(TaskExecutor, predicate=inspect.isfunction):
             if class_function[0].startswith(TaskExecutor._OPERATION_FUNCTION_PREFIX):
                 self._operations_mapping[class_function[0][len(TaskExecutor._OPERATION_FUNCTION_PREFIX):]] = class_function[1]
+
+    def _init_may_change_cache(self):
+        """
+        Initializes _may_change_cache with all supported Entity types
+        :return: None
+        """
+        may_change_cache = {}
+        for etype in ENTITY_TYPES:
+            may_change_cache[etype] = {}
+        return may_change_cache
+
+    def register_handler(self, func, etype, triggers, changes):
+        """
+        Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
+        once! Type check is already done in TaskDistributor.
+        :param func: function or bound method (callback)
+        :param etype: entity type (only changes of attributes of this etype trigger the func)
+        :param triggers: set/list/tuple of attributes whose update trigger the call of the method (update of any one of the attributes will do)
+        :param changes: set/list/tuple of attributes the method call may update (may be None)
+        :return: None
+        """
+        # need to clear calculations in set, because may be wrong now
+        self._may_change_cache = self._init_may_change_cache()
+        # _func2attr[etype]: function -> list of attrs it may change
+        # _func_triggers[etype]: function -> list of attrs that trigger it
+        # _attr2func[etype]: attribute -> list of functions its change triggers
+        # There are separate mappings for each entity type.
+        self._func2attr[etype][func] = tuple(changes) if changes is not None else ()
+        self._func_triggers[etype][func] = set(triggers)
+        for attr in triggers:
+            if attr in self._attr2func[etype]:
+                self._attr2func[etype][attr].append(func)
+            else:
+                self._attr2func[etype][attr] = [func]
 
     def _parse_record_from_key_hierarchy(self, rec, key):
         # Process keys with hierarchy, i.e. containing dots (like "events.scan.count")
@@ -244,16 +278,16 @@ class TaskExecutor:
         del array[i]
         return [(key + '[' + str(i) + ']', None)]
 
-    def _perform_update(self, rec, updreq):
+    def _perform_update(self, rec: Record, updreq: tuple):
         """
         Update a record according to given update request.
 
-        updreq - n-tuple (op, key, params...)
-
-        Return array with specifications of performed updates - pairs (updated_key,
-        new_value) or None.
-        (None is returned when nothing was changed, e.g. because op=add_to_set and
-        value was already present, or removal of non-existent item was requested)
+        :param rec: Instance of Record, which is used for communication with database
+        :param updreq: 3-tuple in form of (operation, key, value)
+        :return: array with specifications of performed updates - pairs (updated_key,
+                new_value) or None.
+            (None is returned when nothing was changed, e.g. because op=add_to_set and
+            value was already present, or removal of non-existent item was requested)
         """
         op = updreq[0]
         key = updreq[1]
@@ -268,51 +302,38 @@ class TaskExecutor:
             print("ERROR: perform_update: Unknown operation {}".format(op), file=sys.stderr)
             return None
 
-    def is_update_request_weak(self, update_requests):
-        # Check whether a new record should not be created in case every operation is 'weak' (starts with '*')
-        weak_op = True
-        for ndx, updreq in enumerate(update_requests):
-            op = updreq[0]
-            if op[0] != '*':
-                weak_op = False
-            else:
-                # Remove starting symbol '*'
-                update_requests[ndx] = [updreq[0][1:]] + updreq[
-                                                         1:]  # first item without first char + all other items
-        return weak_op
-
-    def create_record_if_does_not_exist(self, etype, eid, update_requests):
+    def _create_record_if_does_not_exist(self, etype: str, ekey: str, attr_updates: list, events: list, create: bool):
         """
         Create new record, if it does not exist, do not create new record if operation is weak.
 
-        Arguments:
-        etype - entity type
-        eid - entity ID
-        update_requests - list of n-tuples as described above
+        :param etype: - entity type
+        :param ekey: - entity key
+        :param attr_updates: list of n-tuples as described above
+        :param events: list of task events
+        :param create: boolean flag, which determines, whether new record should be created or not if not in database yet
         """
         new_rec_created = False
-        rec = self.db.get(etype, eid)
-        if rec is None:
-            if self.is_update_request_weak(update_requests):
-                update_requests.clear()
+        rec = Record(self.db, etype, ekey)
+        if not rec.exists():
+            if not create:
+                attr_updates.clear()
                 self.log.debug(
-                    "Received only weak operations for non-existent entity {} of type {}. Aborting record creation.".format(
-                        etype, eid))
+                    "Received task with 'create' = false for non-existent entity {} of type {}. Aborting record "
+                    "creation.".format(etype, ekey))
             else:
                 now = datetime.utcnow()
-                rec = {
-                    '_id': eid,
+                rec.update({
+                    'id': ekey,
                     'ts_added': now,
                     'ts_last_update': now,
-                }
+                })
                 new_rec_created = True
-                # New record was created -> add "!NEW" event to update_request
+                # New record was created -> add "!NEW" event
                 # self.log.debug("New record ({},{}) was created, injecting event '!NEW'".format(etype,eid))
-                update_requests.insert(0, ('event', '!NEW'))
+                events.insert(0, "!NEW")
         return rec, new_rec_created
 
-    # TODO cache results (clear cache when register_handler is called)
-    def get_all_possible_changes(self, etype, attr):
+    def get_all_possible_changes(self, etype, trigger_attr_name):
         """
         Returns all attributes (as a set) that may be changed by a "chain reaction"
         of changes triggered by update of given attribute (or event).
@@ -320,20 +341,52 @@ class TaskExecutor:
         Warning: There must be no loops in the sequence of attributes and
         triggered functions.
         """
-        may_change = set()  # Attributes that may be changed
-        funcs_to_call = set(self._attr2func[etype].get(attr, ()))
+        # first try to find result in cache, if it does not exist, calculate it
+        try:
+            return self._may_change_cache[etype][trigger_attr_name]
+        except KeyError:
+            pass
+        # Attributes that may be changed
+        may_change = set()
+        # get all functions, which are hooked on attribute change
+        funcs_to_call = set(self._attr2func[etype].get(trigger_attr_name, ()))
         f2a = self._func2attr[etype]
         a2f = self._attr2func[etype]
+        # iteratively find to every function attributes, which may be changed by the function and to all those attribs
+        # find their hooked functions, which are added to funcs_to_call (so their attributes will be checked too)
         while funcs_to_call:
             func = funcs_to_call.pop()
             attrs_to_change = f2a[func]
             may_change.update(attrs_to_change)
-            for attr in attrs_to_change:
-                funcs_to_call |= set(a2f.get(attr, ()))
+            for attr_name in attrs_to_change:
+                funcs_to_call |= set(a2f.get(attr_name, ()))
+        self._may_change_cache[etype][trigger_attr_name] = may_change
         return may_change
 
-    def _delete_record_from_db(self, etype, ekey):
-        pass
+    def _delete_record_from_db(self, etype: str, ekey: str) -> None:
+        self.db.delete(etype, ekey)
+
+    def _update_call_queue(self, call_queue: deque, etype: str, attr_name: str, updated: list) -> None:
+        """
+        Add all functions, which are hooked to the attribute/event, to the call queue
+        :param call_queue: call_queue for storing function callbacks
+        :param updated: tuple with attribute's name and it's new value
+        :return: None
+        """
+        for func in self._attr2func[etype].get(attr_name, []):
+            for f, updates in call_queue:
+                if f == func:
+                    # ... just add upd to list of updates that triggered it
+                    attrib_names = [update[0] for update in updates]
+                    # if the attribute was already updated earlier, then remove it before extend, it should
+                    # be there only once
+                    if updated[0] in attrib_names:
+                        del updates[attrib_names.index(updated[0])]
+                    updates.extend(updated)
+                    break
+            else:
+                # Otherwise put the function to the queue
+                call_queue.append((func, updated))
 
     def process_task(self, task):
         """
@@ -343,37 +396,31 @@ class TaskExecutor:
             etype: entity type (eg. 'ip')
             ekey: entity key ('192.0.2.42')
             attr_updates: TODO
-            events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the future if needed)
-            create: true = create a new record if it doesn't exist yet; false = don't create a record if it
-                    doesn't exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the entity type
+            events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the
+                    future if needed)
+            create: true = create a new record if it doesn't exist yet; false = don't create a record if it doesn't
+                    exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the
+                    entity type
             delete: delete the record
             src: name of source module, mostly for logging
             tags: tags for logging (number of tasks per time interval by tag)
 
         :return: True if a new record was created, False otherwise.
         """
-        # Load record corresponding to the key from database.
-        # If record doesn't exist, create new.
-        # Also create associated auxiliary objects:
-        #   call_queue - queue of functions that should be called to update the record.
-        #     queue.Queue of tuples (function, list_of_update_spec), where list_of_update_spec is a list of
-        #     updates (2-tuples (key, new_value) or (event, param) which triggered the function.
-        #   may_change - set of attributes that may be changed by planned function calls
-
         etype, ekey, attr_updates, events, create, delete, src, tags = task
 
+        # whole record should be deleted from database
         if delete:
             self._delete_record_from_db(etype, ekey)
+            self.log.debug("Entity '{}' of type '{}' was removed from the database.".format(ekey, etype))
             # TODO what next after deletion?
+            return False
 
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
-        rec, new_rec_created = self.create_record_if_does_not_exist(etype, ekey, attr_updates)
-
-        # TODO refactor the rest of the method, mainly split into smaller peaces and rework 'may_change' mechanism,
-        # TODO because it is probably broken
+        rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)
 
         # Short-circuit if update_requests is empty (used to only create a record if it doesn't exist)
-        if not attr_updates:
+        if not attr_updates and not events:
             return False
 
         requests_to_process = attr_updates
@@ -386,71 +433,54 @@ class TaskExecutor:
 
         loop_counter = 0  # counter used to stop when looping too long - probably some cycle in attribute dependencies
 
-        deletion = False
         # *** call_queue loop ***
         while True:
-            # *** If any update requests are pending, process them ***
-            # (i.e. perform requested changes, add calls to hooked functions to
-            # the call_queue and update the set of attributes that may change)
+            # *** If any events or update requests are pending, process them ***
+            # (i.e. events, perform requested changes, add calls to hooked functions to the call_queue and update
+            # the set of attributes that may change)
             if requests_to_process:
-                # Process update requests (perform updates, put hooked functions to call_queue and update may_change set)
-                # self.log.debug("UpdateManager: New update requests for ({},{}): {}".format(etype, eid, requests_to_process))
-                for updreq in requests_to_process:
-                    op = updreq[0]
-                    attr = updreq[1]
-                    assert (op != 'event' or attr[0] == '!'), "if op=event, attr must begin with '!'"
-
-                    if op == 'event':
-                        # self.log.debug("Initial update: Event ({}:{}).{} (param={})".format(etype,eid,attr,val))
-                        updated = [(attr, None)]
-
-                        # Check whether the event is !DELETE, clear queues and add calls to functions hooked to the !DELETE event
-                        if attr == '!DELETE':
-                            deletion = True
-                            requests_to_process.clear()
-                            call_queue.clear()
-                            for func in self._attr2func[etype].get(attr, []):
-                                call_queue.append((func, updated))
-                            break
+                # add all functions, which are hooked to events, to call queue
+                for event in events:
+                    if isinstance(event, str):
+                        event_name = event
+                        updated = [(event_name, None)]
                     else:
-                        # self.log.debug("Initial update: Attribute update: ({}:{}).{} [{}] {}".format(etype,eid,attr,op,val))
-                        updated = self._perform_update(rec, updreq)
-                        if not updated:
-                            # self.log.debug("Attribute value wasn't changed.")
+                        # in case of future event format extension, event should be dict with event name under 'name'
+                        try:
+                            event_name = event['name']
+                            updated = [(event_name, None)]
+                        except (KeyError, TypeError):
+                            self.log.warning("Event {event} has wrong structure!".format(event=event))
                             continue
+                    self._update_call_queue(call_queue, etype, event_name, updated)
 
-                    # Add to the call_queue all functions directly hooked to the attribute/event
-                    for func in self._attr2func[etype].get(attr, []):
-                        # If the function is already in the queue...
-                        for f, updates in call_queue:
-                            if f == func:
-                                # ... just add upd to list of updates that triggered it
-                                # TODO FIXME: what if one attribute is updated several times? It should be in the list only once, with the latest value.
-                                updates.extend(updated)
-                                break
-                        # Otherwise put the function to the queue
-                        else:
-                            call_queue.append((func, updated))
+                    # Compute all attribute changes that may occur due to this event and add them to the set of
+                    # attributes to change
+                    may_change |= self.get_all_possible_changes(etype, event_name)
+                    # self.log.debug("may_change: {}".format(may_change))
 
-                    # Compute all attribute changes that may occur due to this event and add
-                    # them to the set of attributes to change
-                    # self.log.debug("get_all_possible_changes: {} -> {}".format(str(attr), repr(self.get_all_possible_changes(etype, attr))))
-                    may_change |= self.get_all_possible_changes(etype, attr)
+                # perform all update requests
+                for update_request in requests_to_process:
+                    attrib_name = update_request[1]
+                    updated = self._perform_update(rec, update_request)
+                    if not updated:
+                        continue
+
+                    # Add all functions, which are hooked to the attribute to the call queue
+                    self._update_call_queue(call_queue, etype, attrib_name, updated)
+
+                    # Compute all attribute changes that may occur due to this update and add them to the set of
+                    # attributes to change
+                    may_change |= self.get_all_possible_changes(etype, attrib_name)
                     # self.log.debug("may_change: {}".format(may_change))
 
                 # All requests were processed, clear the list
                 requests_to_process.clear()
+                events.clear()
 
             if not call_queue:
                 break  # No more work to do
 
-            # *** Do all function calls planned in the call queue ***
-
-            #             self.log.debug("call_queue loop iteration {}:\n  call_queue: {}\n  may_change: {}".format(
-            #                 loop_counter,
-            #                 list(map(lambda x: (get_func_name(x[0]), x[1]), call_queue)),
-            #                 may_change)
-            #             )
             # safety check against infinite looping
             loop_counter += 1
             if loop_counter > 20:
@@ -459,62 +489,43 @@ class TaskExecutor:
                         etype, ekey))
                 break
 
-            func, updates = call_queue.popleft()
+            handler_function, updates = call_queue.popleft()
 
-            # If the function watches some attributes that may be updated later due
-            # to expected subsequent events, postpone its call.
-            if may_change & self._func_triggers[etype][func]:  # nonempty intersection of two sets
-                # Put the function call back to the end of the queue
+            # if the function watches some attributes that may be updated later due to expected subsequent events,
+            # postpone its call
+            if may_change & self._func_triggers[etype][handler_function]:  # nonempty intersection of two sets
+                # put the function call back to the end of the queue
                 # self.log.debug("call_queue: Postponing call of {}({})".format(get_func_name(func), updates))
-                call_queue.append((func, updates))
+                call_queue.append((handler_function, updates))
                 continue
 
-            # Call the event handler function.
-            # Set of requested updates of the record should be returned
-            # self.log.debug("Calling: {}(({}, {}), rec, {})".format(get_func_name(func), etype, eid, updates))
-            #            t_handler1 = time.time()
+            # call the event handler function of some secondary module
+            # set of requested updates of the record should be returned
             try:
-                reqs = func((etype, ekey), rec, updates)
+                requested_updates = handler_function(etype, ekey, rec, updates)
             except Exception as e:
                 self.log.exception("Unhandled exception during call of {}(({}, {}), rec, {}). Traceback follows:"
-                                   .format(get_func_name(func), etype, ekey, updates))
-                reqs = []
-            #            t_handler2 = time.time()
-            #            t_handlers[get_func_name(func)] = t_handler2 - t_handler1
+                                   .format(get_func_name(handler_function), etype, ekey, updates))
+                requested_updates = []
 
-            # Set requested updates to requests_to_process
-            if reqs:
-                requests_to_process.extend(reqs)
+            # set requested updates to requests_to_process
+            if requested_updates:
+                requests_to_process.extend(requested_updates)
 
-            # TODO FIXME - toto asi predpoklada, ze urcity atribut muze byt menen jen jednou handler funkci
+            # FIXME - toto asi predpoklada, ze urcity atribut muze byt menen jen jednou handler funkci
             # (coz jsem mozna nekde zadal jako nutnou podminku; kazdopadne jestli to tak je, musi to byt nekde velmi jasne uvedeno)
+            # TODO think of the way, that attribute could be changed by multiple handler functions
             # Remove set of possible attribute changes of that function from
             # may_change (they were either already changed (or are in requests_to_process) or they won't be changed)
-            # self.log.debug("Removing {} from may_change.".format(self._func2attr[etype][func]))
-            may_change -= set(self._func2attr[etype][func])
+            may_change -= set(self._func2attr[etype][handler_function])
             # self.log.debug("New may_change: {}".format(may_change))
 
         # self.log.debug("call_queue loop end")
-        # FIXME: Temporarily disabled, removing from may_change doesn't work well, the whole algorithm must be reworked
-        # assert(len(may_change) == 0)
+        assert(len(may_change) == 0)
 
-        # Set ts_last_update
         rec['ts_last_update'] = datetime.utcnow()
 
-        #        t3 = time.time()
-
-        # Remove or update processed database record
-        if deletion:
-            self.db.delete(etype, ekey)
-            self.log.debug("Entity '{}' of type '{}' was removed from the database.".format(ekey, etype))
-        else:
-            self.db.put(etype, ekey, rec)
-
-        #        t4 = time.time()
-        #        #if t4 - t1 > 1.0:
-        #        #    self.log.info("Entity ({}:{}): load: {:.3f}s, process: {:.3f}s, store: {:.3f}s".format(etype, eid, t2-t1, t3-t2, t4-t3))
-        #        #    self.log.info("  handlers:" + ", ".join("{}: {:.3f}s".format(fname, t) for fname, t in t_handlers))
-        #
-        #        self.t_handlers.update(t_handlers)
+        # Update processed database record
+        rec.push_changes_to_db()
 
         return new_rec_created

@@ -3,14 +3,16 @@ import threading
 import queue
 from datetime import datetime
 import time
-from copy import deepcopy, copy
+from collections import Iterable
+from copy import deepcopy
 
 from .task_queue import TaskQueueReader, TaskQueueWriter
-import src.g as g
+from .task_executor import ENTITY_TYPES
+import g
 
 
 class TaskDistributor:
-    def __init__(self, config, process_index, num_processes, process_task_callback):
+    def __init__(self, config, process_index, num_processes, task_executor):
         assert (isinstance(process_index, int) and isinstance(num_processes, int)), "num_processes and process_index " \
                                                                                     "must be int"
         assert (num_processes >= 1), "number of processed muse be positive number"
@@ -27,7 +29,7 @@ class TaskDistributor:
 
         # List of worker threads for processing the update requests
         self._worker_threads = []
-        self.num_threads = g.config.get('worker_threads', 8)
+        self.num_threads = config.get('worker_threads', 8)
 
         # Internal queues for each worker
         self._queues = [queue.Queue(10) for _ in range(self.num_threads)]
@@ -37,7 +39,7 @@ class TaskDistributor:
         self._task_queue_reader = TaskQueueReader(self._distribute_task, self.process_index, self.rabbit_params)
         # Writer - allows modules to write new tasks
         self._task_queue_writer = TaskQueueWriter(self.num_processes, self.rabbit_params)
-        self.process_task_callback = process_task_callback
+        self.task_executor = task_executor
         # Object to store thread-local data (e.g. worker-thread index) (each thread sees different object contents)
         self._current_thread_data = threading.local()
 
@@ -46,23 +48,46 @@ class TaskDistributor:
         # Register watchdog to scheduler
         g.scheduler.register(self._watchdog, second="*/30")
 
-    def register_handler(self):
-        # TODO
-        pass
+    def register_handler(self, func, etype, triggers, changes):
+        """
+        Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
+        once!
+        :param func: function or bound method (callback)
+        :param etype: entity type (only changes of attributes of this etype trigger the func)
+        :param triggers: set/list/tuple of attributes whose update trigger the call of the method (update of any one of the attributes will do)
+        :param changes: set/list/tuple of attributes the method call may update (may be None)
+        :return: None
+        """
+        if etype not in ENTITY_TYPES:
+            raise ValueError("Unknown entity type '{}'".format(etype))
+        # Check types (because common error is to pass string instead of 1-tuple)
+        if not isinstance(triggers, Iterable) or isinstance(triggers, str):
+            raise TypeError('Argument "triggers" must be iterable and must not be str.')
+        if changes is not None and (not isinstance(changes, Iterable) or isinstance(changes, str)):
+            raise TypeError('Argument "changes" must be iterable and must not be str.')
+        self.task_executor.register_handler(func, etype, triggers, changes)
 
-    def request_update(self, ekey, update_requests):
+    def request_update(self, etype="", ekey="", attr_updates=None, events=None, create=None, delete=False, src="", tags=None):
         """
         Request an update of one or more attributes of an entity record.
 
         Put given requests into the main task queue to be processed by some of the workers.
         Requests may request changes of some attribute or they may issue events.
 
-        Arguments:
-        ekey -- Entity type and key (2-tuple)
-        update_requests -- list of update_request n-tuples (see the comments in the beginning of file)
+        :param etype: entity type (eg. 'ip')
+        :param ekey: entity key
+        :param attr_updates: TODO
+        :param events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the future if needed)
+        :param create: true = create a new record if it doesn't exist yet; false = don't create a record if it
+                    doesn't exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the entity type
+        :param delete: delete the record
+        :param src: name of source module, mostly for logging
+        :param tags: tags for logging (number of tasks per time interval by tag)
+        :param priority: if true, the task is places into priority queue
+        :return: None
         """
         # Put task to priority queue, so this can never block due to full queue
-        self._task_queue_writer.put_task(ekey[0], ekey[1], update_requests, priority=True)
+        self._task_queue_writer.put_task(etype, ekey, attr_updates, events, create, delete, src, tags, priority=True)
 
     def start(self):
         """Run the worker threads and start consuming from TaskQueue."""
@@ -125,7 +150,7 @@ class TaskDistributor:
         Main worker function.
 
         Run as a separate thread. Read its local task queue and calls
-        "_process_task" function to process each task.
+        processing function of TaskExecutor to process each task.
 
         Tasks are assigned to workers based on hash of entity key, so each
         entity is always processed by the same worker. Therefore, all requests
@@ -154,10 +179,10 @@ class TaskDistributor:
             self._task_queue_reader.ack(msg_id)
 
             # Process the task
-            # self.log.debug("Processing task {}: {}/{} {}".format(msg_id, etype, eid, updreq))
             start_time = datetime.now()
             try:
-                created = self.process_task_callback(deepcopy(task))
+                # [1:] because process_task() doesn't need msg_id
+                created = self.task_executor.process_task(deepcopy(task[1:]))
             except Exception:
                 self.log.error("Error has occurred during processing task: {}".format(task))
                 raise

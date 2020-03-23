@@ -12,6 +12,8 @@ class EntityDatabase:
 
     This is a trivial in-memory database based on Python dict - useful only for
     debugging/testing.
+
+    TODO add support for history data points
     """
     # List of known/supported entity types - currently only IP addresses (both IPv4 and IPv6 are treated the same)
     _SUPPORTED_TYPES = ['ip']
@@ -51,6 +53,13 @@ class EntityDatabase:
         # record) such as :
         # https://stackoverflow.com/questions/4253960/sql-how-to-properly-check-if-a-record-exists
         return False if self.get(etype, ekey) is None else True
+
+    def delete(self, etype, ekey):
+        self._check_etype_support(etype)
+        try:
+            del self._db[ekey]
+        except KeyError:
+            pass
 
     def close(self):
         # close the connection

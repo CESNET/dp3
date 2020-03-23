@@ -29,14 +29,14 @@ class Record:
         # loads attribute from database into internal structure
         self._record[key] = self._db_connection.get_attrib(self.etype, self.ekey, key)
 
-    def __getitem__(self, attrib):
+    def __getitem__(self, key):
         # overrides functionality, when "Record[key]" is called
-        attrib = self._record.get(attrib)
+        value = self._record.get(key)
         # if attribute is not loaded into internal structure yet, load it from database
-        if attrib is None:
-            self._load_from_db(attrib)
+        if value is None:
+            self._load_from_db(key)
 
-        return self._record.get(attrib)
+        return self._record.get(key)
 
     def __setitem__(self, key, value):
         # overrides functionality, when "Record[key] = value" is called
@@ -49,6 +49,7 @@ class Record:
         return self._db_connection.exists(self.etype, self.ekey)
 
     def update(self, dict_update):
+        # behaves like classic dict.update()
         self._record.update(dict_update)
         self._record_changes.update(dict_update)
 
@@ -61,3 +62,10 @@ class Record:
             self._load_from_db(key)
 
         return self._record.get(key, default_val)
+
+    def push_changes_to_db(self):
+        # send all updates to database
+        self._db_connection.update(self.etype, self.ekey, self._record_changes)
+        # reset record changes, because they were pushed to database, but leave record cache, it may be needed
+        # (but probably won't)
+        self._record_changes = {}

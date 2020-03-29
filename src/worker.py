@@ -20,11 +20,13 @@ BASE_MODULE_CLASS_NAME = "BaseModule"
 
 def load_modules(module_names_list):
     # [:-3] is for removing '.py' suffix from module filenames
-    available_modules = [filename[:-3] for filename in os.listdir(os.path.join(os.getcwd(), MODULES_FOLDER))]
+    available_modules = [filename[:-3] for filename in os.listdir(os.path.join(os.getcwd(), MODULES_FOLDER)) if
+                         filename.endswith(".py")]
 
     # check if all desired modules are in modules folder
-    assert all(module in available_modules for module in module_names_list), "some of desired modules is not " \
-                                                                             "available (not in modules folder)"
+    missing_modules = (set(module_names_list) - set(available_modules))
+    assert not missing_modules, f"some of desired modules are not available (not in modules folder), specifically: " \
+                                f"{missing_modules}"
     # do imports of desired modules from 'modules' folder
     imported_modules = [import_module(MODULES_FOLDER + "." + module_name) for module_name in module_names_list]
     # final list will contain main classes from all desired modules, which has BaseModule as parent
@@ -41,7 +43,7 @@ def load_modules(module_names_list):
     return modules_main_objects
 
 
-def main(cfg_file, process_index):
+def main(cfg_dir, process_index):
     ##############################################
     # Initialize logging mechanism
     LOGFORMAT = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
@@ -56,10 +58,10 @@ def main(cfg_file, process_index):
 
     ##############################################
     # Load configuration
-    log.debug("Loading config file {}".format(cfg_file))
+    log.debug(f"Loading config file {cfg_dir}")
 
     # whole configuration should be loaded
-    config = read_config_dir(cfg_file, recursive=True)
+    config = read_config_dir(cfg_dir, recursive=True)
 
     num_processes = config.get('worker_processes')
     assert (isinstance(num_processes,
@@ -73,7 +75,7 @@ def main(cfg_file, process_index):
     log.info("***** NERD worker {}/{} start *****".format(process_index, num_processes))
 
     g.config = config
-    g.config_base_path = os.path.dirname(os.path.abspath(cfg_file))
+    g.config_base_path = os.path.dirname(os.path.abspath(cfg_dir))
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config)
     te = TaskExecutor(g.db)

@@ -96,7 +96,8 @@ def read_config(filepath):
 
 def read_config_dir(dir_path, recursive=False):
     """
-    Same as read_config but it loads whole configuration directory of YAML files
+    Same as read_config but it loads whole configuration directory of YAML files, so only files ending with ".yml" are
+    loaded.
 
     If recursive is set, then the configuration directory will be read recursively (including configuration files
     inside directories)

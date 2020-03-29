@@ -5,6 +5,10 @@ class UnknownEntityType(ValueError):
     pass
 
 
+class AttributeValueNotSet(ValueError):
+    pass
+
+
 class EntityDatabase:
     """
     Abstract layer above the entity database. It provides an interface for
@@ -29,14 +33,25 @@ class EntityDatabase:
         if etype not in EntityDatabase._SUPPORTED_TYPES:
             raise UnknownEntityType("There is no collection for entity type " + str(etype))
 
-    def get(self, etype, ekey):
+    def get_record(self, etype, ekey):
         self._check_etype_support(etype)
         return self._db[etype].get(ekey, None)
 
     def get_attrib(self, etype, ekey, attrib):
+        """
+        Returns attribute's value of database record.
+        :param etype: type of entity
+        :param ekey: entity id
+        :param attrib: attribute's name
+        :return: attribute's value
+        :raise AttributeValueNotSet when the attribute has no value set yet
+        """
         self._check_etype_support(etype)
-        record = self.get(etype, ekey)
-        return None if record is None else record.get(attrib)
+        record = self.get_record(etype, ekey)
+        try:
+            return record[attrib]
+        except KeyError:
+            raise AttributeValueNotSet(f"Attribute {attrib} is not set!")
 
     def update(self, etype, ekey, updates):
         self._check_etype_support(etype)
@@ -50,14 +65,33 @@ class EntityDatabase:
     def exists(self, etype, ekey):
         self._check_etype_support(etype)
         # In real Database Manager class should be implemented with better performance (not just simply get whole
-        # record) such as :
+        # record) such as:
         # https://stackoverflow.com/questions/4253960/sql-how-to-properly-check-if-a-record-exists
-        return False if self.get(etype, ekey) is None else True
+        return False if self.get_record(etype, ekey) is None else True
 
-    def delete(self, etype, ekey):
+    def delete_record(self, etype, ekey):
+        """
+        Delete whole record.
+        :param etype: entity type
+        :param ekey: id of record, which should be deleted
+        :return: None
+        """
         self._check_etype_support(etype)
         try:
-            del self._db[ekey]
+            del self._db[etype][ekey]
+        except KeyError:
+            pass
+
+    def delete_attribute(self, etype, ekey, attib_name):
+        """
+        Delete attribute from record.
+        :param etype: entity type
+        :param ekey: id of record
+        :param attib_name: name of attribute, which should be deleted
+        :return: None
+        """
+        try:
+            del self._db[etype][ekey][attib_name]
         except KeyError:
             pass
 

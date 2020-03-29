@@ -1,10 +1,11 @@
 import logging
 
+from .database import AttributeValueNotSet
 
 class Record:
     """
-    Internal cache for database record and its updates to prevent loading whole record from database,
-    but just record's attributes, which are meant to be updated
+    Internal cache for database record and its updates to prevent loading whole record from database.
+    Only record's attributes, which are really needed, will be loaded.
     """
     def __init__(self, db, etype, ekey):
         self._db_connection = db
@@ -19,52 +20,97 @@ class Record:
         # structure, which will hold all attributes, which were updated, all their updated values
         self._record_changes = {}
 
-    def __del__(self):
-        # TODO Maybe should push _record_changes to db before closing the connection
-        pass
-        # destructor, close connection to database - This should probably do database object itself
-        # self._db_connection.close()
+    def _load_from_db(self, attrib_name):
+        """
+        Loads attribute from database into cache.
+        WARNING: If the attribute has no value set in database yet, the cache remains the same
+        :param attrib_name: attribute's name
+        :return: None
+        """
+        try:
+            self._record[attrib_name] = self._db_connection.get_attrib(self.etype, self.ekey, attrib_name)
+        except AttributeValueNotSet:
+            pass
 
-    def _load_from_db(self, key):
-        # loads attribute from database into internal structure
-        self._record[key] = self._db_connection.get_attrib(self.etype, self.ekey, key)
-
-    def __getitem__(self, key):
-        # overrides functionality, when "Record[key]" is called
-        value = self._record.get(key)
-        # if attribute is not loaded into internal structure yet, load it from database
+    def __getitem__(self, attrib_name):
+        """
+        Overrides functionality, when "Record[key]" is called. Gets value from record.
+        :param attrib_name: key to value, which wants to be obtained from record
+        :return: value, which is saved under the key in record
+        :raise KeyError when the attrib_name does not exist in database under in the record
+        """
+        value = self._record.get(attrib_name)
+        # if attribute is not loaded into cache yet, load it from database
         if value is None:
-            self._load_from_db(key)
+            self._load_from_db(attrib_name)
 
-        return self._record.get(key)
+        return self._record[attrib_name]
 
-    def __setitem__(self, key, value):
-        # overrides functionality, when "Record[key] = value" is called
-        self._record[key] = value
+    def __setitem__(self, attrib_name, value):
+        """
+        Overrides functionality, when "Record[key] = value" is called. Sets value in record.
+        :param attrib_name: attribute's name in record
+        :param value: new value under the key
+        :return: None
+        """
+        self._record[attrib_name] = value
         # cache the changes
-        self._record_changes[key] = value
+        self._record_changes[attrib_name] = value
+
+    def __contains__(self, attrib_name):
+        """
+        Overrides functionality, when "key in Record" is called.
+        :param attrib_name: key name
+        :return: True if attribute is in record, False otherwise
+        """
+        if attrib_name in self._record:
+            return True
+        # if attribute not in cache, try to load it from database (if does not exist in database, cache will not be
+        # updated)
+        self._load_from_db(attrib_name)
+        return attrib_name in self._record
+
+    def __delitem__(self, attrib_name):
+        """
+        Overrides functionality, when "del Record[key]" is called. Deletes attribute from record.
+        :param attrib_name: attribute's name, which should be deleted
+        :return: None
+        """
+        try:
+            del self._record[attrib_name]
+        except KeyError:
+            pass
+        self._db_connection.delete_attribute(self.etype, self.ekey, attrib_name)
 
     def exists(self):
-        # checks, whether record exists in database
+        """
+        Checks, whether record exists in the database.
+        :return: True if exists record exists in the database, False otherwise
+        """
         return self._db_connection.exists(self.etype, self.ekey)
 
     def update(self, dict_update):
-        # behaves like classic dict.update()
+        """
+        Behaves like classic dict.update()
+        """
         self._record.update(dict_update)
         self._record_changes.update(dict_update)
 
-    def get(self, key, default_val, load_from_db=True):
+    def get(self, attrib_name, default_val=None, load_from_db=True):
         """
-        Behaves same as Dict's get, but can force loading record from database with 'load_from_db' flag
+        Behaves same as Dict's get, but can request loading record from database with 'load_from_db' flag, if not cached
         """
-        value = self._record.get(key)
+        value = self._record.get(attrib_name)
         if value is None and load_from_db:
-            self._load_from_db(key)
+            self._load_from_db(attrib_name)
 
-        return self._record.get(key, default_val)
+        return self._record.get(attrib_name, default_val)
 
     def push_changes_to_db(self):
-        # send all updates to database
+        """
+        Send all updates to database.
+        :return: None
+        """
         self._db_connection.update(self.etype, self.ekey, self._record_changes)
         # reset record changes, because they were pushed to database, but leave record cache, it may be needed
         # (but probably won't)

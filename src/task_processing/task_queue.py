@@ -50,13 +50,13 @@ import g
 LOG_LEVEL = logging.INFO
 #LOG_LEVEL = logging.DEBUG
 
-# Exchange and queue names
+# Exchange and queue names - TODO pp prefix as processing platform, rename later
 # They must be pre-declared ('direct' exchange type) and binded.
 # Numbers from 0 to number_of_workers-1 are used as routing/binding keys.
-DEFAULT_EXCHANGE = 'nerd-main-task-exchange'
-DEFAULT_PRIORITY_EXCHANGE = 'nerd-priority-task-exchange'
-DEFAULT_QUEUE = 'nerd-worker-{}'
-DEFAULT_PRIORITY_QUEUE = 'nerd-worker-{}-pri'
+DEFAULT_EXCHANGE = 'pp-main-task-exchange'
+DEFAULT_PRIORITY_EXCHANGE = 'pp-priority-task-exchange'
+DEFAULT_QUEUE = 'pp-worker-{}'
+DEFAULT_PRIORITY_QUEUE = 'pp-worker-{}-pri'
 
 # Hash function used to distribute tasks to worker processes. Takes string, returns int.
 # (last 4 bytes of MD5)
@@ -92,7 +92,7 @@ class RobustAMQPConnection:
         self.connection = None
         self.channel = None
         # check if compulsory queues are declared
-        resp = requests.get("http://localhost:15672/api/queues", auth=HTTPBasicAuth(rabbit_config.get('username', 'guest'),
+        """resp = requests.get("http://localhost:15672/api/queues", auth=HTTPBasicAuth(rabbit_config.get('username', 'guest'),
                                                                                     rabbit_config.get('password', 'guest')))
         if resp.status_code != 200:
             assert False, "could not check RabbitMQ declared queues"
@@ -103,7 +103,7 @@ class RobustAMQPConnection:
             compulsory_queues.append(DEFAULT_QUEUE.format(i))
             compulsory_queues.append(DEFAULT_PRIORITY_QUEUE.format(i))
         assert all(compulsory_queue in queues_names for compulsory_queue in compulsory_queues), "RabbitMQ server does " \
-                                                                                                "not have declared needed queues"
+                                                                                                "not have declared needed queues"""
 
     def __del__(self):
         self.disconnect()
@@ -167,13 +167,14 @@ class TaskQueueWriter(RobustAMQPConnection):
         self.exchange = exchange
         self.exchange_pri = priority_exchange
 
-    def put_task(self, etype="", ekey="", attr_updates=None, events=None, create=None, delete=False, src="", tags=None, priority=False):
+    def put_task(self, etype="", ekey="", attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None, priority=False):
         """
         Put task (update_request) to the queue of corresponding worker
         :param etype: entity type (eg. 'ip')
         :param ekey: entity key
         :param attr_updates: TODO
         :param events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the future if needed)
+        :param data_points: list of attribute data points, which will be saved in the database
         :param create: true = create a new record if it doesn't exist yet; false = don't create a record if it
                     doesn't exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the entity type
         :param delete: delete the record
@@ -191,6 +192,7 @@ class TaskQueueWriter(RobustAMQPConnection):
             'ekey': ekey,
             'attr_updates': [] if attr_updates is None else attr_updates,
             'events': [] if events is None else events,
+            'data_points': [] if data_points is None else data_points,
             'create': g.config.get('auto_create_record', True) if create is None else create,
             'delete': delete,
             'src': src,
@@ -366,8 +368,8 @@ class TaskQueueReader(RobustAMQPConnection):
             try:
                 task = json.loads(body, object_hook=conv_from_json)
                 etype, ekey, attr_updates = task['etype'], task['ekey'], task['attr_updates']
-                events, create, delete = task['events'], task['create'], task['delete']
-                src, tags = task['src'], task['tags']
+                events, data_points, create = task['events'], task['data_points'], task['create']
+                delete, src, tags = task['delete'], task['src'], task['tags']
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error("Erroneous message received from main task queue. Error: {}, Message: '{}'".format(str(e), body))
@@ -375,7 +377,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 continue
 
             # Pass message to user's callback function
-            self.callback(tag, etype, ekey, attr_updates, events, create, delete, src, tags)
+            self.callback(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags)
 
     def _stop_consuming_thread(self):
         if self._consuming_thread:

@@ -14,7 +14,8 @@ from task_processing.task_executor import TaskExecutor
 from task_processing.task_distributor import TaskDistributor
 import g
 
-MODULES_FOLDER = "modules"
+MODULES_FOLDER = "modules" if os.getcwd().endswith("src") else "src/modules"
+MODULES_IMPORT_PATH = "modules" if os.getcwd().endswith("src") else "src.modules"
 BASE_MODULE_CLASS_NAME = "BaseModule"
 
 
@@ -28,7 +29,7 @@ def load_modules(module_names_list):
     assert not missing_modules, f"some of desired modules are not available (not in modules folder), specifically: " \
                                 f"{missing_modules}"
     # do imports of desired modules from 'modules' folder
-    imported_modules = [import_module(MODULES_FOLDER + "." + module_name) for module_name in module_names_list]
+    imported_modules = [import_module(MODULES_IMPORT_PATH + "." + module_name) for module_name in module_names_list]
     # final list will contain main classes from all desired modules, which has BaseModule as parent
     modules_main_objects = []
     for module in imported_modules:

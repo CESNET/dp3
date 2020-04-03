@@ -1,0 +1,11 @@
+{
+  "etype": "ip",
+  "ekey": "1.2.3.4",
+  "attr_updates": [["set", "test_attr", "new value of test attr"]],
+  "events": [],
+  "data_points": [],
+  "create": true,
+  "delete": false,
+  "src": "put_task.py",
+  "tags": []
+}

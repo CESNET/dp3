@@ -67,7 +67,7 @@ class TaskDistributor:
             raise TypeError('Argument "changes" must be iterable and must not be str.')
         self.task_executor.register_handler(func, etype, triggers, changes)
 
-    def request_update(self, etype="", ekey="", attr_updates=None, events=None, create=None, delete=False, src="", tags=None):
+    def request_update(self, etype="", ekey="", attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None):
         """
         Request an update of one or more attributes of an entity record.
 
@@ -78,6 +78,7 @@ class TaskDistributor:
         :param ekey: entity key
         :param attr_updates: TODO
         :param events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the future if needed)
+        :param data_points: list of data points, which will be saved in the database
         :param create: true = create a new record if it doesn't exist yet; false = don't create a record if it
                     doesn't exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the entity type
         :param delete: delete the record
@@ -87,7 +88,7 @@ class TaskDistributor:
         :return: None
         """
         # Put task to priority queue, so this can never block due to full queue
-        self._task_queue_writer.put_task(etype, ekey, attr_updates, events, create, delete, src, tags, priority=True)
+        self._task_queue_writer.put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, priority=True)
 
     def start(self):
         """Run the worker threads and start consuming from TaskQueue."""
@@ -130,7 +131,7 @@ class TaskDistributor:
         # Cleanup
         self._worker_threads = []
 
-    def _distribute_task(self, msg_id, etype, ekey, attr_updates, events, create, delete, src, tags):
+    def _distribute_task(self, msg_id, etype, ekey, attr_updates, events, data_points, create, delete, src, tags):
         """
         Puts given task into local queue of the corresponding thread.
 
@@ -143,7 +144,7 @@ class TaskDistributor:
         """
         # Distribute tasks to worker threads by hash of (etype,ekey)
         index = hash((etype, ekey)) % self.num_threads
-        self._queues[index].put((msg_id, etype, ekey, attr_updates, events, create, delete, src, tags))
+        self._queues[index].put((msg_id, etype, ekey, attr_updates, events, data_points, create, delete, src, tags))
 
     def _worker_func(self, thread_index):
         """

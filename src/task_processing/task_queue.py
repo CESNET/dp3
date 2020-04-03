@@ -91,8 +91,14 @@ class RobustAMQPConnection:
         }
         self.connection = None
         self.channel = None
+
         # check if compulsory queues are declared
-        """resp = requests.get("http://localhost:15672/api/queues", auth=HTTPBasicAuth(rabbit_config.get('username', 'guest'),
+        try:
+            g.config.get('worker_processes')
+        except AttributeError:
+            # when task_queue is initialized from standalone modules, it has no access to g, so skip queue check
+            return
+        resp = requests.get("http://localhost:15672/api/queues", auth=HTTPBasicAuth(rabbit_config.get('username', 'guest'),
                                                                                     rabbit_config.get('password', 'guest')))
         if resp.status_code != 200:
             assert False, "could not check RabbitMQ declared queues"
@@ -103,7 +109,7 @@ class RobustAMQPConnection:
             compulsory_queues.append(DEFAULT_QUEUE.format(i))
             compulsory_queues.append(DEFAULT_PRIORITY_QUEUE.format(i))
         assert all(compulsory_queue in queues_names for compulsory_queue in compulsory_queues), "RabbitMQ server does " \
-                                                                                                "not have declared needed queues"""
+                                                                                                "not have declared needed queues"
 
     def __del__(self):
         self.disconnect()
@@ -198,6 +204,8 @@ class TaskQueueWriter(RobustAMQPConnection):
             'src': src,
             'tags': [] if tags is None else tags
         }
+
+        self.log.debug(f"Received new task: {msg}")
 
         # Prepare routing key
         body = json.dumps(msg, default=conv_to_json).encode('utf8')

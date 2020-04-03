@@ -43,18 +43,19 @@ def load_modules(module_names_list):
     return modules_main_objects
 
 
-def main(cfg_dir, process_index):
+def main(cfg_dir, process_index, verbose):
     ##############################################
     # Initialize logging mechanism
     LOGFORMAT = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
     LOGDATEFORMAT = "%Y-%m-%dT%H:%M:%S"
 
-    logging.basicConfig(level=logging.INFO, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
     log = logging.getLogger()
 
     # Disable INFO and DEBUG messages from requests.urllib3 library, which is used by some modules
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("amqpstorm").setLevel(logging.WARNING)
 
     ##############################################
     # Load configuration
@@ -155,7 +156,8 @@ if __name__ == "__main__":
     # TODO change default path based on new platform name and maybe do not load whole config at start??
     parser.add_argument('-c', '--config', metavar='DIRECTORY_NAME', default='/etc/nerd/nerdd.yml',
         help='Path to configuration directory (default: /etc/nerd/nerdd.yml)')
+    parser.add_argument('-v', '--verbose', action="store_true", help="Verbose mode", default=False)
     args = parser.parse_args()
 
     # Run main code
-    main(args.config, args.process_index)
+    main(args.config, args.process_index, args.verbose)

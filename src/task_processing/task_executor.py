@@ -398,6 +398,7 @@ class TaskExecutor:
             attr_updates: TODO
             events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the
                     future if needed)
+            data_points: list of attribute data points, which will be saved in the database
             create: true = create a new record if it doesn't exist yet; false = don't create a record if it doesn't
                     exist (like "weak" in NERD); not set = use global configuration flag "auto_create_record" of the
                     entity type
@@ -407,20 +408,19 @@ class TaskExecutor:
 
         :return: True if a new record was created, False otherwise.
         """
-        etype, ekey, attr_updates, events, create, delete, src, tags = task
+        etype, ekey, attr_updates, events, data_points, create, delete, src, tags = task
 
         # whole record should be deleted from database
         if delete:
             self._delete_record_from_db(etype, ekey)
             self.log.debug("Entity '{}' of type '{}' was removed from the database.".format(ekey, etype))
-            # TODO what next after deletion?
             return False
 
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)
 
-        # Short-circuit if update_requests is empty (used to only create a record if it doesn't exist)
-        if not attr_updates and not events:
+        # Short-circuit if attr_updates, events or data_points is empty (used to only create a record if it doesn't exist)
+        if not attr_updates and not events and not data_points:
             return False
 
         requests_to_process = attr_updates

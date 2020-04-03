@@ -410,6 +410,8 @@ class TaskExecutor:
         """
         etype, ekey, attr_updates, events, data_points, create, delete, src, tags = task
 
+        self.log.debug(f"Received new task {etype}/{ekey}, starting processing!")
+
         # whole record should be deleted from database
         if delete:
             self._delete_record_from_db(etype, ekey)

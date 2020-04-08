@@ -3,6 +3,7 @@ import sys
 import inspect
 from collections import deque, Iterable, OrderedDict, Counter
 import logging
+from copy import deepcopy
 
 from src.common.utils import get_func_name
 from src.database.record import Record
@@ -333,13 +334,16 @@ class TaskExecutor:
                 events.insert(0, "!NEW")
         return rec, new_rec_created
 
-    def get_all_possible_changes(self, etype, trigger_attr_name):
+    def get_all_possible_changes(self, etype: str, trigger_attr_name: str) -> set:
         """
         Returns all attributes (as a set) that may be changed by a "chain reaction"
         of changes triggered by update of given attribute (or event).
 
         Warning: There must be no loops in the sequence of attributes and
         triggered functions.
+        :param etype: type of entity (e.g. 'ip')
+        :param trigger_attr_name: name of attribute or event, which update triggered the call
+        :return set of attribute names
         """
         # first try to find result in cache, if it does not exist, calculate it
         try:
@@ -376,12 +380,12 @@ class TaskExecutor:
         for func in self._attr2func[etype].get(attr_name, []):
             for f, updates in call_queue:
                 if f == func:
-                    # ... just add upd to list of updates that triggered it
-                    attrib_names = [update[0] for update in updates]
                     # if the attribute was already updated earlier, then remove it before extend, it should
                     # be there only once
+                    attrib_names = [update[0] for update in updates]
                     if updated[0] in attrib_names:
                         del updates[attrib_names.index(updated[0])]
+                    # ... just add upd to list of updates that triggered it
                     updates.extend(updated)
                     break
             else:
@@ -440,7 +444,30 @@ class TaskExecutor:
             # *** If any events or update requests are pending, process them ***
             # (i.e. events, perform requested changes, add calls to hooked functions to the call_queue and update
             # the set of attributes that may change)
-            if requests_to_process:
+            if requests_to_process or events or data_points:
+                # process all data points
+                for data_point in data_points:
+                    data_to_save = deepcopy(data_point)
+                    # remove values, which are not directly saved to database
+                    try:
+                        for key in ('type', 'id', 'attr'):
+                            data_to_save.pop(key)
+
+                        # 'id' is saved as 'eid'
+                        data_to_save['eid'] = data_point['id']
+                        # TODO src may not arrive in the body, but still should be saved in database, but it will be
+                        # saved just as null probably, so not really needed, depends on later database implementation
+                        # if not data_to_save.get("src"):
+                        #    data_to_save['src'] = ""
+                        self.db.create_new_data_point(etype, data_point['attr'], data_to_save)
+
+                        # TODO time aggregation and current value changed? For now always True --> update current value
+                        requests_to_process.append(('set', data_point['attr'], data_point['v']))
+                    except KeyError as e:
+                        src = data_point.get("src", "")
+                        self.log.error(f"Data point has wrong structure! Error on {str(e)}, source: {src}.")
+                        continue
+
                 # add all functions, which are hooked to events, to call queue
                 for event in events:
                     if isinstance(event, str):
@@ -459,7 +486,6 @@ class TaskExecutor:
                     # Compute all attribute changes that may occur due to this event and add them to the set of
                     # attributes to change
                     may_change |= self.get_all_possible_changes(etype, event_name)
-                    # self.log.debug("may_change: {}".format(may_change))
 
                 # perform all update requests
                 for update_request in requests_to_process:
@@ -474,7 +500,6 @@ class TaskExecutor:
                     # Compute all attribute changes that may occur due to this update and add them to the set of
                     # attributes to change
                     may_change |= self.get_all_possible_changes(etype, attrib_name)
-                    # self.log.debug("may_change: {}".format(may_change))
 
                 # All requests were processed, clear the list
                 requests_to_process.clear()

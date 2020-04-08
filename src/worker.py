@@ -74,7 +74,7 @@ def main(cfg_dir, process_index, verbose):
     ##############################################
     # Create instances of core components
     # Save them to "g" ("global") module so they can be easily accessed from everywhere
-    log.info("***** NERD worker {}/{} start *****".format(process_index, num_processes))
+    log.info("***** Worker {}/{} start *****".format(process_index, num_processes))
 
     g.config = config
     g.config_base_path = os.path.dirname(os.path.abspath(cfg_dir))

@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 
 class UnknownEntityType(ValueError):
@@ -16,18 +17,19 @@ class EntityDatabase:
 
     This is a trivial in-memory database based on Python dict - useful only for
     debugging/testing.
-
-    TODO add support for history data points
     """
     # List of known/supported entity types - currently only IP addresses (both IPv4 and IPv6 are treated the same)
     _SUPPORTED_TYPES = ['ip']
 
     def __init__(self, config):
-        self._db = {}
+        self._db_entities = {}
+        self._db_data_points = {}
         self._log = logging.getLogger("EntityDatabase")
         # init all entity structures
         for etype in EntityDatabase._SUPPORTED_TYPES:
-            self._db[etype] = {}
+            self._db_entities[etype] = {}
+            # must be saved as list, because there may be multiple data points under same id (key)
+            self._db_data_points[etype] = defaultdict(list)
 
     def _check_etype_support(self, etype):
         if etype not in EntityDatabase._SUPPORTED_TYPES:
@@ -35,7 +37,7 @@ class EntityDatabase:
 
     def get_record(self, etype, ekey):
         self._check_etype_support(etype)
-        return self._db[etype].get(ekey, None)
+        return self._db_entities[etype].get(ekey, None)
 
     def get_attrib(self, etype, ekey, attrib):
         """
@@ -53,14 +55,29 @@ class EntityDatabase:
         except KeyError:
             raise AttributeValueNotSet(f"Attribute {attrib} is not set!")
 
+    def create_new_record(self, etype, ekey, body=None):
+        self._check_etype_support(etype)
+        self._db_entities[etype][ekey] = {'id': ekey} if body is None else body
+
+    def create_new_data_point(self, etype, attr_name, data_point):
+        """
+        Creates new data point in database
+        :param etype: entity type (e.g. 'ip')
+        :param attr_name: name of attribute, to which the data point corresponds
+        :param data_point: body of data point
+        :return: None
+        """
+        self._check_etype_support(etype)
+        self._db_data_points[etype][attr_name].append(data_point)
+
     def update(self, etype, ekey, updates):
         self._check_etype_support(etype)
         # updates are passed in form of dictionary
         try:
-            # record should be always created before update, but to be sure, it is in try block
-            self._db[etype][ekey].update(updates)
+            self._db_entities[etype][ekey].update(updates)
         except KeyError:
-            self._db[etype][ekey] = updates
+            # when new record gets created
+            self._db_entities[etype][ekey] = updates
 
     def exists(self, etype, ekey):
         self._check_etype_support(etype)
@@ -78,7 +95,7 @@ class EntityDatabase:
         """
         self._check_etype_support(etype)
         try:
-            del self._db[etype][ekey]
+            del self._db_entities[etype][ekey]
         except KeyError:
             pass
 
@@ -91,7 +108,7 @@ class EntityDatabase:
         :return: None
         """
         try:
-            del self._db[etype][ekey][attib_name]
+            del self._db_entities[etype][ekey][attib_name]
         except KeyError:
             pass
 

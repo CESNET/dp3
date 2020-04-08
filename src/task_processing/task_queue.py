@@ -234,16 +234,16 @@ class TaskQueueWriter(RobustAMQPConnection):
                     break
                 else: # message NACK'd
                     if err_printed != 1:
-                        self.log.debug("Message rejected (queue of worker {} is probably full), will retry every 100ms".format(routing_key))
+                        self.log.debug(f"Message rejected (queue of worker {routing_key} is probably full), will retry every 100ms")
                         err_printed = 1
                     time.sleep(0.1)
             except amqpstorm.AMQPChannelError as e:
                 if err_printed != 2:
-                    self.log.warning("Can't deliver a message to worker {} (will retry every 5 seconds): {}".format(routing_key, e))
+                    self.log.warning(f"Can't deliver a message to worker {routing_key} (will retry every 5 seconds): {e}")
                     err_printed = 2
                 time.sleep(5)
             except amqpstorm.AMQPConnectionError as e:
-                self.log.error("RabbitMQ connection error (will try to reconnect): {}".format(e))
+                self.log.error(f"RabbitMQ connection error (will try to reconnect): {e}")
                 self.connect()
 
 
@@ -257,7 +257,8 @@ class TaskQueueReader(RobustAMQPConnection):
 
         Each received message must be acknowledged by calling .ack(msg_tag).
 
-        :param callback: Function called when a message is received, prototype: func(msg_tag, etype, eid, ops)
+        :param callback: Function called when a message is received, prototype:
+                    func(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags)
         :param worker_index: index of this worker (filled into DEFAULT_QUEUE string using .format() method)
         :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
             host, port, virtual_host, username, password
@@ -380,7 +381,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 delete, src, tags = task['delete'], task['src'], task['tags']
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
-                self.log.error("Erroneous message received from main task queue. Error: {}, Message: '{}'".format(str(e), body))
+                self.log.error(f"Erroneous message received from main task queue. Error: {str(e)}, Message: '{body}'")
                 self.ack(tag)
                 continue
 

@@ -1,8 +1,8 @@
 from yaml import safe_load
 from flask import Flask, request, render_template
 from record import Record
-from task_queue import TaskQueueWriter
-from attrspec import load_spec
+from processing_platform.src.task_processing.task_queue import TaskQueueWriter
+from processing_platform.src.common.attrspec import load_spec
 
 
 app = Flask(__name__)
@@ -10,7 +10,7 @@ application = app
 application.debug = True
 
 # Path to yaml file containing attribute specification
-path_attr_spec = "../processing_platform/src/common/attrspec.yml"
+path_attr_spec = "../processing_platform/src/common/attr_spec.yml"
 
 # Path to yaml file containing platform configuration
 path_platform_config = "../processing_platform/config/processing_core.yml"
@@ -22,6 +22,9 @@ attr_spec = {}
 # Dictionary containing platform configuration
 # Initialized by init_platform_connection()
 platform_config = {}
+
+# TaskQueueWriter instance used for sending tasks to the processing core
+global task_writer
 
 
 # Convert records to tasks and push them to RMQ task queue
@@ -132,7 +135,6 @@ def home():
 
 # Load platform configuration and check required fields
 def init_platform_connection(path):
-    global task_writer
     platform_config = safe_load(open(path))
     if "msg_broker" not in platform_config.keys() or \
        "worker_processes" not in platform_config.keys():

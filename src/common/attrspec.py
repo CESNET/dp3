@@ -2,9 +2,6 @@ import yaml
 import ipaddress
 import re
 
-# Path to yaml file containing attribute specification
-path_attr_spec = "C:/Users/bfu1/Desktop/ADiCT/AttrSpec.yml"
-
 # List of primitive data types
 supported_data_types = [
     "tag",
@@ -16,6 +13,11 @@ supported_data_types = [
     "ipv4",
     "ipv6",
     "special"
+]
+
+# List of supported entity types
+supported_entity_types = [
+    "ip"
 ]
 
 # Default specification fields
@@ -38,24 +40,24 @@ default_expire_time = "inf"
 
 # Check whether given data type represents an array
 def is_array(data_type):
-    for t in supported_data_types:
-        if re.match(rf"^array<{t}>$", data_type):
+    if re.match(r"^array<\w+>$", data_type):
+        if data_type.split("<")[1].split(">")[0] in supported_data_types:
             return True
     return False
 
 
 # Check whether given data type represents a set
 def is_set(data_type):
-    for t in supported_data_types:
-        if re.match(rf"^set<{t}>$", data_type):
+    if re.match(r"^set<\w+>$", data_type):
+        if data_type.split("<")[1].split(">")[0] in supported_data_types:
             return True
     return False
 
 
 # Check whether given data type represents a link
 def is_link(data_type):
-    for t in supported_data_types:
-        if re.match(rf"^link<{t}>$", data_type):
+    if re.match(r"^link<\w+>$", data_type):
+        if data_type.split("<")[1].split(">")[0] in supported_entity_types:
             return True
     return False
 
@@ -78,35 +80,51 @@ def valid_ipv6(address):
         return False
 
 
+# Dictionary containing validator functions for primitive data types
+validators = {
+    "tag": lambda v: True,
+    "binary": lambda v: v in {True, False},
+    "string": lambda v: type(v) is str,
+    "int": lambda v: type(v) is int,
+    "float": lambda v: type(v) is float,
+    "ipv4": valid_ipv4,
+    "ipv6": valid_ipv6,
+    "special": lambda v: v is not None
+}
+
+
 # Validate array object
-def valid_array(obj, validator):
+def valid_array(obj, data_type):
     if type(obj) is not list:
         return False
+    f = validators[data_type]
     for item in obj:
-        if not validator(item):
+        if not f(item):
             return False
     return True
 
 
 # Validate set object
-def valid_set(obj, validator):
+def valid_set(obj, data_type):
     if type(obj) is not list:
         return False
+    f = validators[data_type]
     for item in obj:
-        if not validator(item) or obj.count(item) > 1:
+        if not f(item) or obj.count(item) > 1:
             return False
     return True
 
 
 # TODO Validate link object
-def valid_link(obj):
-    return False
+def valid_link(obj, entity_type):
+    # obj must be a valid key for given entity type
+    return True
 
 
 # Load attribute specification (from yaml) and return it as a dict ('attr_id' -> AttrSpec)
 # Raise TypeError or ValueError if the specification of some attribute is invalid
-def load_spec():
-    spec = yaml.safe_load(open(path_attr_spec))
+def load_spec(path):
+    spec = yaml.safe_load(open(path))
     attr_spec = {}
     for attr in spec:
         attr_spec[attr] = AttrSpec(attr, spec[attr])
@@ -118,9 +136,9 @@ def load_spec():
 class AttrSpec:
     # Initialize member variables and validate attribute specification
     # Raise TypeError or ValueError if the specification is invalid (e.g. data type is not supported)
-    def __init__(self, id, spec):
-        self.id = id
-        self.name = spec.get("name", id)
+    def __init__(self, attr_id, spec):
+        self.id = attr_id
+        self.name = spec.get("name", attr_id)
         self.description = spec.get("description", default_description)
         self.color = spec.get("color", default_color)
         self.data_type = spec.get("data_type", default_data_type)
@@ -132,33 +150,40 @@ class AttrSpec:
         self.history_params = spec.get("history_params", default_history_params)
         self.timestamp_format = spec.get("timestamp_format", default_timestamp_format)
 
-        # Dictionary containing validator functions for primitive data types
-        validators = {
-            "tag": lambda v: True,
-            "binary": lambda v: v in {True, False, None},
-            "category": lambda v: v in self.categories,
-            "string": lambda v: type(v) is str,
-            "int": lambda v: type(v) is int,
-            "float": lambda v: type(v) is float,
-            "ipv4": valid_ipv4,
-            "ipv6": valid_ipv6,
-            "special": lambda v: v is not None
-        }
+        # Set which operation to perform when queueing task for this attribute
+        # TODO choose appropriate operation according to data type
+        self.attr_update_op = "set"
+
+        # Check data type of specification fields
+        if type(self.name) is not str or \
+           type(self.description) is not str or \
+           type(self.color) is not str or not re.match(r"#([0-9a-fA-F]){6}", self.color) or \
+           type(self.data_type) is not str or \
+           type(self.timestamp) is not bool or \
+           type(self.history) is not bool or \
+           type(self.confidence) is not bool or \
+           type(self.multi_value) is not bool or \
+           type(self.timestamp_format) is not str:
+            raise TypeError("Invalid specification of attribute '{}'".format(self.id))
 
         # Initialize attribute's validator function according to its data type
-        if self.data_type in supported_data_types:
+        if self.data_type == "category":
+            self.validator = lambda v: v in self.categories
+
+        elif self.data_type in supported_data_types:
             self.validator = validators[self.data_type]
 
         elif is_array(self.data_type):
             dtype = self.data_type.split("<")[1].split(">")[0]
-            self.validator = lambda v: valid_array(v, validators[dtype])
+            self.validator = lambda v: valid_array(v, dtype)
 
         elif is_set(self.data_type):
             dtype = self.data_type.split("<")[1].split(">")[0]
-            self.validator = lambda v: valid_set(v, validators[dtype])
+            self.validator = lambda v: valid_set(v, dtype)
 
         elif is_link(self.data_type):
-            self.validator = lambda v: valid_link(v)
+            etype = self.data_type.split("<")[1].split(">")[0]
+            self.validator = lambda v: valid_link(v, etype)
 
         else:
             raise ValueError("Type '{}' is not supported".format(self.data_type))

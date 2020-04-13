@@ -43,7 +43,7 @@ def validate_record(record, attr_spec):
     # Check 'value' field of the record (value must match its data type)
     # Validator functions for supported data types are specified in AttrSpec module
     if not spec.validator(record["v"]):
-        raise ValueError("Validation of 'value' failed.")
+        raise ValueError("Value of 'value' is invalid")
 
 
 class Record:

@@ -1,0 +1,27 @@
+attr1:
+   name: attribute1
+   description: This is an attribute.
+   data_type: tag
+attr2:
+   name: attribute1
+   description: This is an attribute.
+   data_type: string
+attr3:
+   name: attribute3
+   description: This is another attribute.
+   data_type: int
+attr4:
+   name: attribute4
+   data_type: float
+attr5:
+   name: attribute5
+   data_type: ipv4
+attr6:
+   name: attribute6
+   data_type: ipv6
+attr7:
+   name: attribute7
+   data_type: set<int>
+   history: True
+   history_params:
+      max_age: 0

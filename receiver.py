@@ -23,14 +23,14 @@ path_platform_config = f"{conf_dir}/processing_core.yml"
 
 # Dictionary containing attribute specification
 # Initialized by AttrSpec.load_spec()
-attr_spec = {}
+attr_spec = None
 
 # Dictionary containing platform configuration
 # Initialized by init_platform_connection()
-platform_config = {}
+platform_config = None
 
 # TaskQueueWriter instance used for sending tasks to the processing core
-global task_writer
+task_writer = None
 
 
 def dummy_put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, priority):
@@ -46,6 +46,12 @@ def dummy_put_task(etype, ekey, attr_updates, events, data_points, create, delet
 
 # Convert records to tasks and push them to RMQ task queue
 def push_records(records):
+    global attr_spec
+    global task_writer
+
+    if task_writer is None:
+        init_platform_connection(path_platform_config)
+
     tasks = {}
     # Cycle through records and make tasks for each entity
     for r in records:
@@ -92,6 +98,11 @@ def push_records(records):
 # Other fields should be contained in query parameters
 @app.route("/post/<string:record_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
 def push_single(record_type, entity_id, attr_name):
+    global attr_spec
+
+    if attr_spec is None:
+        attr_spec = load_spec(path_attr_spec)
+
     # Construct a record from path and query parameters
     r = {
         "type": record_type,
@@ -114,6 +125,11 @@ def push_single(record_type, entity_id, attr_name):
 # Example: {"records": [{rec1},{rec2},{rec3},...]}
 @app.route("/post", methods=["POST"])
 def push_multiple():
+    global attr_spec
+
+    if attr_spec is None:
+        attr_spec = load_spec(path_attr_spec)
+
     request_json = request.get_json()
 
     # Request must be valid JSON (dict) and contain a list of records
@@ -152,6 +168,9 @@ def home():
 
 # Load platform configuration and check required fields
 def init_platform_connection(path):
+    global platform_config
+    global task_writer
+
     platform_config = safe_load(open(path, "r"))
     if "msg_broker" not in platform_config.keys() or \
        "worker_processes" not in platform_config.keys():
@@ -162,13 +181,6 @@ def init_platform_connection(path):
 
 if __name__ == "__main__":
     try:
-        # Initialize attribute specification
-        attr_spec = load_spec(path_attr_spec)
-
-        # Initialize connection to message broker (RabbitMQ)
-        init_platform_connection(path_platform_config)
-
-        # Run the API
         app.run()
     except Exception as e:
         print(e)

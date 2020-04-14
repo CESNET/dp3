@@ -33,17 +33,6 @@ platform_config = None
 task_writer = None
 
 
-def dummy_put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, priority):
-    response = etype + " " + ekey + "\nAttr updates:\n"
-    for i in attr_updates:
-        response += str(i) + "\n"
-    response += "Data points:\n"
-    for i in data_points:
-        response += str(i) + "\n"
-
-    open("/home/shared/barnama1/tasks.txt", "a+").write(response)
-
-
 # Convert records to tasks and push them to RMQ task queue
 def push_records(records):
     global attr_spec
@@ -79,7 +68,7 @@ def push_records(records):
     # Enqueue the tasks
     for k in tasks.keys():
         etype, ekey = k
-        dummy_put_task(
+        task_writer.put_task(
             etype,
             ekey,
             tasks[k]["attr_updates"],
@@ -176,7 +165,7 @@ def init_platform_connection(path):
        "worker_processes" not in platform_config.keys():
         raise KeyError("Invalid platform configuration")
     task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
-    #task_writer.connect()
+    task_writer.connect()
 
 
 if __name__ == "__main__":

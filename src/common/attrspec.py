@@ -124,7 +124,7 @@ def valid_link(obj, entity_type):
 # Load attribute specification (from yaml) and return it as a dict ('attr_id' -> AttrSpec)
 # Raise TypeError or ValueError if the specification of some attribute is invalid
 def load_spec(path):
-    spec = yaml.safe_load(open(path))
+    spec = yaml.safe_load(open(path, "r"))
     attr_spec = {}
     for attr in spec:
         attr_spec[attr] = AttrSpec(attr, spec[attr])

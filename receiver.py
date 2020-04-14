@@ -152,7 +152,7 @@ def home():
 
 # Load platform configuration and check required fields
 def init_platform_connection(path):
-    platform_config = safe_load(open(path))
+    platform_config = safe_load(open(path, "r"))
     if "msg_broker" not in platform_config.keys() or \
        "worker_processes" not in platform_config.keys():
         raise KeyError("Invalid platform configuration")

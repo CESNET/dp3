@@ -1,19 +1,25 @@
+import os
+import sys
+sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
+
 from yaml import safe_load
 from flask import Flask, request, render_template
 from record import Record
-from processing_platform.src.task_processing.task_queue import TaskQueueWriter
-from processing_platform.src.common.attrspec import load_spec
-
+from src.task_processing.task_queue import TaskQueueWriter
+from src.common.attrspec import load_spec
 
 app = Flask(__name__)
 application = app
 application.debug = True
 
+# Directory containing config files
+conf_dir = "/ADiCT/processing_platform/config"
+
 # Path to yaml file containing attribute specification
-path_attr_spec = "../processing_platform/src/common/attr_spec.yml"
+path_attr_spec = f"{conf_dir}/attributes_specification.yml"
 
 # Path to yaml file containing platform configuration
-path_platform_config = "../processing_platform/config/processing_core.yml"
+path_platform_config = f"{conf_dir}/processing_core.yml"
 
 # Dictionary containing attribute specification
 # Initialized by AttrSpec.load_spec()
@@ -25,6 +31,17 @@ platform_config = {}
 
 # TaskQueueWriter instance used for sending tasks to the processing core
 global task_writer
+
+
+def dummy_put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, priority):
+    response = etype + " " + ekey + "\nAttr updates:\n"
+    for i in attr_updates:
+        response += str(i) + "\n"
+    response += "Data points:\n"
+    for i in data_points:
+        response += str(i) + "\n"
+
+    open("/home/shared/barnama1/tasks.txt", "a+").write(response)
 
 
 # Convert records to tasks and push them to RMQ task queue
@@ -56,7 +73,7 @@ def push_records(records):
     # Enqueue the tasks
     for k in tasks.keys():
         etype, ekey = k
-        task_writer.put_task(
+        dummy_put_task(
             etype,
             ekey,
             tasks[k]["attr_updates"],
@@ -139,8 +156,8 @@ def init_platform_connection(path):
     if "msg_broker" not in platform_config.keys() or \
        "worker_processes" not in platform_config.keys():
         raise KeyError("Invalid platform configuration")
-    task_writer = TaskQueueWriter(platform_config["msg_broker"], platform_config["worker_processes"])
-    task_writer.connect()
+    task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
+    #task_writer.connect()
 
 
 if __name__ == "__main__":

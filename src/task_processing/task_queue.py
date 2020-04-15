@@ -186,7 +186,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         :param delete: delete the record
         :param src: name of source module, mostly for logging
         :param tags: tags for logging (number of tasks per time interval by tag)
-        :param priority: if true, the task is places into priority queue
+        :param priority: if true, the task is placed into priority queue (should only be used internally by workers)
         :return: None
         """
         if not self.channel:

@@ -2,6 +2,7 @@ import logging
 
 from .database import AttributeValueNotSet
 
+
 class Record:
     """
     Internal cache for database record and its updates to prevent loading whole record from database.

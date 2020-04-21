@@ -21,50 +21,30 @@ class TaskExecutor:
 
     def _perform_op_<name_of_operation>(self, rec, key, updreq):
         ...
+        return [key, rec[key]]   # second value is rec[key], if the value was updated, else it's None
 
     TODO this should be probably placed to corresponding function and the whole description should be in wiki instead
-    Update request specification = list of n-tuples:
-    - [(op, key, params...), ...]
-      - ('set', key, value)        - set new value to given key (rec[key] = value)
-      - ('append', key, value)     - append new value to array at key (rec[key].append(key))
-      - ('add_to_set', key, value) - append new value to array at key if it isn't present in the array yet (if value not in rec[key]: rec[key].append(value))
-      - ('extend_set', key, iterable) - append values from iterable to array at key if the value isn't present in the array yet (for value in iterable: if value not in rec[key]: rec[key].append(value))
-      - ('rem_from_set', key, iterable) - remove all values at key which are specified in an array
-      - ('add', key, value)        - add given numerical value to that stored at key (rec[key] += value)
-      - ('sub', key, value)        - subtract given numerical value from that stored at key (rec[key] -= value)
-      - ('setmax', key, value)     - set new value of the key to larger of the given value and the current value (rec[key] = max(value, rec[key]))
-      - ('setmin', key, value)     - set new value of the key to smaller of the given value and the current value (rec[key] = min(value, rec[key]))
-      - ('remove', key)            - remove given key (and all subkeys) from the record (parameter is ignored) (do nothing if the key doesn't exist)
-      - ('next_step', key, key_base, min, step) - set value of 'key' to the smallest value of 'rec[key_base] + N*step' that is greater than 'min' (used by updater to set next update time); key_base MUST exist in the record!
-      - ('array_update', key, query, actions) - apply given actions to specified array item under key, see below for details.
-      - ('array_upsert', key, query, actions) - apply given actions to specified array item under key (insert new item if no one matches), see below for details.
-      - ('array_remove', key, query) - remove array item satisfying given query (do nothing if no one matches).
-      - ('event', !name)    - do nothing with record, only trigger functions hooked on the event name
-    The tuple is passed to functions watching for updates of given keys / events
-    with given name. Event names must begin with '!' (attribute keys mustn't).
-    Update manager performs the requested update and calls functions hooked on
-    the attribute/event.
+    Update request specification = dictionary with keys 'attr' (attribute's name) and 'op' (name of required operation),
+    other attributes of update request differs based on operation type. List of operations and their additional attribs
+    (aa) follows:
+      - 'set', aa: val                - set new value to given key (rec[attr] = val)
+      - 'unset'                       - Unset attribute's value, which means set it to NULL/None (do nothing if the attrib doesn't exist)
+      - 'add', aa: val                - add given numerical value to that stored at key (rec[attr] += val)
+      - 'sub', aa: val                - subtract given numerical value from that stored at key (rec[attr] -= val)
+      - 'setmax', aa: val             - set new value of the key to larger of the given value and the current value (rec[attr] = max(val, rec[attr]))
+      - 'setmin', aa: val             - set new value of the key to smaller of the given value and the current value (rec[attr] = min(val, rec[attr]))
+      - 'next_step', base_attr, min, step - set value of 'attr' to the smallest value of 'rec[base_attr] + N*step' that is greater than 'min' (used by updater to set next update time); base_attr MUST exist in the record!
+      - 'array_append', aa: val       - append new value to array at key (rec[attr].append(val))
+      - 'array_insert', aa: i, val    - insert value at (before) the i-th position of the array. (rec[attr].insert(i, val))
+      - 'array_remove', aa: val       - remove value from the array (do nothing if val is not present)
+      - 'set_add', aa: value          - append new value to array at key if it isn't present in the array yet (if value not in rec[key]: rec[key].append(value))
+      - 'rem_from_set', aa: val       - remove all values at key which are specified in an array
+
     A hooked function receives a list of updates that triggered its call,
     i.e. a list of 2-tuples (attr_name, new_value) or (event_name, param)
     (if more than one update triggers the same function, it's called only once).
 
-    Special actions "array_update"/"array_upsert":
-      - ('array_update', key, query, actions)
-    "key" must be path to an array of objects (dicts),
-    the item whose values match those in "query" dict is selected
-    all "actions" are performed with the selected object (keys inside those actions should be relative to the object root).
-    If the array does not contain any matching item:
-      - array_update: record is not changed
-      - array_upsert: "query" is added as a new array item.
     If there are multiple matching events, only the first one is used.
-    "actions" may contain actions of type "array_update"/"array_upsert" (recursion), it must not contain events.
-    Rationale:
-      Because of DB constraints, keys should always be fixed values. Therefore we often use
-      arrays of subobjects where one or more attributes of the subobject act as a key.
-      This action type allows to work with such structures.
-    Examples:
-      ('array_update', 'bl', {n: "blacklistname"} , [('set', 'v', 1), ('set', 't', req_time), ('append', 'h', req_time)])
-      ('array_upsert', 'events', {date: "2017-07-17", cat: "ReconScanning"} , [('add', 'n', 1)])
     """
 
     _OPERATION_FUNCTION_PREFIX = "_perform_op_"
@@ -148,138 +128,86 @@ class TaskExecutor:
         return rec
 
     def _perform_op_set(self, rec, key, updreq):
-        rec[key] = updreq[2]
-        return [(updreq[1], rec[key])]
+        rec[key] = updreq['val']
+        return [(key, rec[key])]
 
-    def _perform_op_append(self, rec, key, updreq):
+    def _perform_op_unset(self, rec, key, updreq):
+        if key in rec:
+            del rec[key]
+            return [(updreq[1], None)]
+        return None
+
+    def _perform_op_add(self, rec, key, updreq):
         if key not in rec:
-            rec[key] = [updreq[2]]
+            rec[key] = updreq['val']
         else:
-            rec[key].append(updreq[2])
-        return[(updreq[1], rec[key])]
+            rec[key] += updreq['val']
+        return [(key, rec[key])]
 
-    def _perform_op_add_to_set(self, rec, key, updreq):
-        value = updreq[2]
+    def _perform_op_sub(self, rec, key, updreq):
+        if key not in rec:
+            rec[key] = -updreq['val']
+        else:
+            rec[key] -= updreq['val']
+        return [(key, rec[key])]
+
+    def _perform_op_setmax(self, rec, key, updreq):
+        if key not in rec:
+            rec[key] = updreq['val']
+        else:
+            rec[key] = max(updreq['val'], rec[key])
+        return [(key, rec[key])]
+
+    def _perform_op_setmin(self, rec, key, updreq):
+        if key not in rec:
+            rec[key] = updreq['val']
+        else:
+            rec[key] = min(updreq['val'], rec[key])
+        return [(key, rec[key])]
+
+    def _perform_op_next_step(self, rec, key, updreq):
+        key_base = updreq['base_attr']
+        minimum = updreq['min']
+        step = updreq['step']
+        base = rec[key_base]
+        rec[key] = base + ((minimum - base) // step + 1) * step
+        return [(key, rec[key])]
+
+    def _perform_op_array_append(self, rec, key, updreq):
+        if key not in rec:
+            rec[key] = [updreq['val']]
+        else:
+            rec[key].append(updreq['val'])
+        return[(key, rec[key])]
+
+    def _perform_op_array_insert(self, rec, key, updreq):
+        if not isinstance(rec[key], list):
+            return None
+        rec[key] = rec[key].insert(updreq['i'], updreq['val'])
+        return [(key, rec[key])]
+
+    def _perform_op_array_remove(self, rec, key, updreq):
+        if key not in rec:
+            return None
+        rec[key].remove(updreq['val'])
+        return [(key, None)]
+
+    def _perform_op_set_add(self, rec, key, updreq):
+        value = updreq['val']
         if key not in rec:
             rec[key] = [value]
         elif value not in rec[key]:
             rec[key].append(value)
         else:
             return None
-        return [(updreq[1], rec[key])]
+        return [(key, rec[key])]
 
-    def _perform_op_extend_set(self, rec, key, updreq):
-        value = updreq[2]
-        if key not in rec:
-            rec[key] = list(value)
-        else:
-            changed = False
-            for val in value:
-                if val not in rec[key]:
-                    rec[key].append(val)
-                    changed = True
-            if not changed:
-                return None
-        return [(updreq[1], rec[key])]
-
-    def _perform_op_rem_from_set(self, rec, key, updreq):
+    def _perform_op_set_remove(self, rec, key, updreq):
         if key in rec:
-            rec[key] = list(set(rec[key]) - set(updreq[2]))
-        return [(updreq[1], rec[key])]
+            rec[key] = list(set(rec[key]) - set(updreq['val']))
+        return [(key, rec[key])]
 
-    def _perform_op_add(self, rec, key, updreq):
-        if key not in rec:
-            rec[key] = updreq[2]
-        else:
-            rec[key] += updreq[2]
-        return [(updreq[1], rec[key])]
-
-    def _perform_op_sub(self, rec, key, updreq):
-        if key not in rec:
-            rec[key] = -updreq[2]
-        else:
-            rec[key] -= updreq[2]
-        return [(updreq[1], rec[key])]
-
-    def _perform_op_setmax(self, rec, key, updreq):
-        if key not in rec:
-            rec[key] = updreq[2]
-        else:
-            rec[key] = max(updreq[2], rec[key])
-        return [(updreq[1], rec[key])]
-
-    def _perform_op_setmin(self, rec, key, updreq):
-        if key not in rec:
-            rec[key] = updreq[2]
-        else:
-            rec[key] = min(updreq[2], rec[key])
-        return [(updreq[1], rec[key])]
-
-    def _perform_op_remove(self, rec, key, updreq):
-        if key in rec:
-            del rec[key]
-            return [(updreq[1], None)]
-        return None
-
-    def _perform_op_next_step(self, rec, key, updreq):
-        key_base = updreq[2]
-        minimum = updreq[3]
-        step = updreq[4]
-        base = rec[key_base]
-        rec[key] = base + ((minimum - base) // step + 1) * step
-        return [(updreq[1], rec[key])]
-
-    def _op_array_update_or_upsert(self, rec, key, updreq, op):
-        query = updreq[2]
-        actions = updreq[3]
-        if key not in rec:
-            if op == "array_upsert":
-                rec[key] = []
-            else:
-                return None  # Array doesn't exist and insert not requested
-        array = rec[key]
-        # Find the matching item in the array
-        for i, item in enumerate(array):
-            if all(item[a] == v for a, v in query.items()):
-                break
-        else:
-            if op == "array_upsert":
-                i = len(array)
-                item = query
-                array.append(query)
-            else:
-                return None  # No matching element found and insert not requested
-        # Now, "item" is the selected array item ("i" its index), apply all actions to it
-        updates_performed = []
-        for action in actions:
-            upds = self._perform_update(item, action)  # recursion
-            # List of all actions must be returned, convert relative keys to absolute
-            for inner_key, new_val in upds:
-                updates_performed.append((key + '[' + str(i) + '].' + inner_key, new_val))
-        return updates_performed
-
-    def _perform_op_array_update(self, rec, key, updreq):
-        self._op_array_update_or_upsert(rec, key, updreq, "array_update")
-
-    def _perform_op_array_upsert(self, rec, key, updreq):
-        self._op_array_update_or_upsert(rec, key, updreq, "array_upsert")
-
-    def _perform_op_array_remove(self, rec, key, updreq):
-        query = updreq[2]
-        if key not in rec:
-            return None
-        array = rec[key]
-        # Find the matching item in the array
-        for i, item in enumerate(array):
-            if all(item[a] == v for a, v in query.items()):
-                break
-        else:
-            return None
-        # Remove it
-        del array[i]
-        return [(key + '[' + str(i) + ']', None)]
-
-    def _perform_update(self, rec: Record, updreq: tuple):
+    def _perform_update(self, rec: Record, updreq: dict):
         """
         Update a record according to given update request.
 
@@ -290,8 +218,8 @@ class TaskExecutor:
             (None is returned when nothing was changed, e.g. because op=add_to_set and
             value was already present, or removal of non-existent item was requested)
         """
-        op = updreq[0]
-        key = updreq[1]
+        op = updreq['op']
+        key = updreq['attr']
 
         rec = self._parse_record_from_key_hierarchy(rec, key)
 
@@ -303,7 +231,7 @@ class TaskExecutor:
             print("ERROR: perform_update: Unknown operation {}".format(op), file=sys.stderr)
             return None
 
-    def _create_record_if_does_not_exist(self, etype: str, ekey: str, attr_updates: list, events: list, create: bool):
+    def _create_record_if_does_not_exist(self, etype: str, ekey: str, attr_updates: list, events: list, create: bool) -> (Record, bool):
         """
         Create new record, if it does not exist, do not create new record if operation is weak.
 
@@ -392,14 +320,15 @@ class TaskExecutor:
                 # Otherwise put the function to the queue
                 call_queue.append((func, updated))
 
-    def process_task(self, task):
+    def process_task(self, task: tuple):
         """
         Main processing function - update attributes or trigger an event.
 
         :param: task is 8-tuple, which consists of:
             etype: entity type (eg. 'ip')
             ekey: entity key ('192.0.2.42')
-            attr_updates: TODO
+            attr_updates: dictionary specifying attrbute, which will be updated, operation and its arguments
+                        e.g. {"attr": "some_attribute", "op": "set", "val": "example"}
             events: list of events to issue (just plain strings, as event parameters are not needed, may be added in the
                     future if needed)
             data_points: list of attribute data points, which will be saved in the database
@@ -462,7 +391,7 @@ class TaskExecutor:
                         self.db.create_new_data_point(etype, data_point['attr'], data_to_save)
 
                         # TODO time aggregation and current value changed? For now always True --> update current value
-                        requests_to_process.append(('set', data_point['attr'], data_point['v']))
+                        requests_to_process.append({'attr': data_point['attr'], 'op': "set", 'val': data_point['v']})
                     except KeyError as e:
                         src = data_point.get("src", "")
                         self.log.error(f"Data point has wrong structure! Error on {str(e)}, source: {src}.")
@@ -489,7 +418,7 @@ class TaskExecutor:
 
                 # perform all update requests
                 for update_request in requests_to_process:
-                    attrib_name = update_request[1]
+                    attrib_name = update_request['attr']
                     updated = self._perform_update(rec, update_request)
                     if not updated:
                         continue

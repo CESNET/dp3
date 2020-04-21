@@ -37,6 +37,7 @@ import time
 import json
 import threading
 import collections
+import os
 
 import amqpstorm
 import requests
@@ -44,6 +45,7 @@ from requests.auth import HTTPBasicAuth
 
 
 from src.common.utils import conv_from_json, conv_to_json
+from src.common.config import read_config
 import g
 
 # This sets logging level of all components in this file
@@ -150,7 +152,7 @@ class RobustAMQPConnection:
 
 
 class TaskQueueWriter(RobustAMQPConnection):
-    def __init__(self, workers=1, rabbit_config={}, exchange=DEFAULT_EXCHANGE, priority_exchange=DEFAULT_PRIORITY_EXCHANGE):
+    def __init__(self, workers=1, rabbit_config={}, exchange=DEFAULT_EXCHANGE, priority_exchange=DEFAULT_PRIORITY_EXCHANGE, config_path=None):
         """
         Create an object for writing tasks into the main Task Queue.
 
@@ -169,6 +171,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         self.log = logging.getLogger('TaskQueueWriter')
         self.log.setLevel(LOG_LEVEL)
 
+        self.config_core = read_config(os.path.join(config_path, "processing_core.yml")) if config_path is not None else None
         self.workers = workers
         self.exchange = exchange
         self.exchange_pri = priority_exchange
@@ -192,6 +195,17 @@ class TaskQueueWriter(RobustAMQPConnection):
         if not self.channel:
             self.connect()
 
+        # create can be loaded from configuration, which may not be available, if TaskQueueWriter is instanced from
+        # some standalone module. It has no access to 'g' (or rather it does not contain config)
+        try:
+            create_f = g.config.get('auto_create_record', True) if create is None else create
+        except AttributeError:
+            if self.config_core is None:
+                self.log.error(f"Task {etype}/{ekey} received, but 'create' attribute not specified and configuration "
+                               f"is not available. You should provide it TaskQueueWriter constructor.")
+                return
+            else:
+                create_f = self.config_core.get('auto_create_record', True) if create is None else create
         # Prepare message
         msg = {
             'etype': etype,
@@ -199,7 +213,7 @@ class TaskQueueWriter(RobustAMQPConnection):
             'attr_updates': [] if attr_updates is None else attr_updates,
             'events': [] if events is None else events,
             'data_points': [] if data_points is None else data_points,
-            'create': g.config.get('auto_create_record', True) if create is None else create,
+            'create': create_f,
             'delete': delete,
             'src': src,
             'tags': [] if tags is None else tags
@@ -218,7 +232,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         # ('mandatory' flag means that we want to guarantee it's delivered to someone. If it can't be delivered (no
         #  consumer or full queue), wait a while and try again. Always print just one error message for each
         #  unsuccessful message to be send.)
-        self.log.debug("Sending a task with routing_key={} to exchange '{}'".format(routing_key, exchange))
+        self.log.debug(f"Sending a task with routing_key={routing_key} to exchange '{exchange}'")
         err_printed = 0
         while True:
             try:

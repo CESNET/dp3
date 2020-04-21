@@ -1,7 +1,7 @@
 {
   "etype": "ip",
   "ekey": "1.2.3.4",
-  "attr_updates": [["set", "test_attr", "new value of test attr"]],
+  "attr_updates": [{"attr": "test_attr", "op":  "set", "val":  "new value of test attr"}],
   "events": [],
   "data_points": [],
   "create": true,

@@ -14,7 +14,7 @@ from task_processing.task_executor import TaskExecutor
 from task_processing.task_distributor import TaskDistributor
 import g
 
-MODULES_FOLDER = "modules" if os.getcwd().endswith("src") else "src/modules"
+MODULES_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'modules'))
 MODULES_IMPORT_PATH = "modules" if os.getcwd().endswith("src") else "src.modules"
 BASE_MODULE_CLASS_NAME = "BaseModule"
 

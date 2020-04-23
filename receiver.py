@@ -119,7 +119,7 @@ def push_multiple():
     if attr_spec is None:
         attr_spec = load_spec(path_attr_spec)
 
-    request_json = request.get_json()
+    request_json = request.get_json(force=True) # force = ignore mimetype
 
     # Request must be valid JSON (dict) and contain a list of records
     if type(request_json) is not dict or \

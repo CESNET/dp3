@@ -13,11 +13,13 @@ default_src = ""
 # Validate record fields according to given attribute specification
 def validate_record(record, attr_spec):
     # Check mandatory fields
-    if type(record["type"]) is not str or \
-       type(record["id"]) is not str or \
-       type(record["attr"]) is not str:
-        raise TypeError("Data type of mandatory field(s) is invalid")
-
+    if type(record["type"]) is not str:
+        raise ValueError('"type" field missing or invalid type')
+    if type(record["id"]) is not str:
+        raise ValueError('"type" field missing or invalid type')
+    if type(record["attr"]) is not str:
+        raise ValueError('"type" field missing or invalid type')
+    
     # Check whether 'attr_spec' contains the attribute
     if record["attr"] not in attr_spec:
         raise ValueError("No specification found for attribute '{}'".format(record["attr"]))
@@ -25,6 +27,9 @@ def validate_record(record, attr_spec):
     spec = attr_spec[record["attr"]]
 
     if spec.timestamp is True:
+        if type(record["attr"]) is not str:
+            raise ValueError('"type" field missing or invalid type')
+        
         # Try parsing timestamp values
         t1 = time.strptime(record["t1"], spec.timestamp_format)
         t2 = time.strptime(record["t2"], spec.timestamp_format)
@@ -41,9 +46,12 @@ def validate_record(record, attr_spec):
             raise ValueError("Value of 'confidence' is invalid")
 
     # Check 'value' field of the record (value must match its data type)
-    # Validator functions for supported data types are specified in AttrSpec module
+    # Check field existence
+    if spec.data_type != "tag" and record["v"] is None:
+        raise ValueError('"v" field missing')
+    # Check data type - validator functions for supported data types are specified in AttrSpec module
     if not spec.validator(record["v"]):
-        raise ValueError("Value of 'value' is invalid")
+        raise ValueError('Invalid type or value of "v" field')
 
 
 class Record:

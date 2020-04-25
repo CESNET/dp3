@@ -1,12 +1,13 @@
 import os
 import sys
+import logging
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 
-from yaml import safe_load
 from flask import Flask, request, render_template
 from record import Record
 from src.task_processing.task_queue import TaskQueueWriter
 from src.common.attrspec import load_spec
+from src.common.config import read_config
 
 app = Flask(__name__)
 application = app
@@ -21,16 +22,32 @@ path_attr_spec = f"{conf_dir}/attributes_specification.yml"
 # Path to yaml file containing platform configuration
 path_platform_config = f"{conf_dir}/processing_core.yml"
 
-# Dictionary containing attribute specification
-# Initialized by AttrSpec.load_spec()
-attr_spec = None
-
 # Dictionary containing platform configuration
-# Initialized by init_platform_connection()
-platform_config = None
+platform_config = read_config(path_platform_config)
+
+# Dictionary containing attribute specification
+attr_spec = None
 
 # TaskQueueWriter instance used for sending tasks to the processing core
 task_writer = None
+
+# Logging initialization
+log_format = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
+log_dateformat = "%Y-%m-%dT%H:%M:%S"
+logging.basicConfig(level=logging.DEBUG, format=log_format, datefmt=log_dateformat)
+log = logging.getLogger()
+
+
+# Connect to platform message broker
+def msg_broker_connect():
+    global platform_config
+
+    assert "msg_broker" in platform_config, "Configuration does not contain 'msg_broker'"
+    assert "worker_processes" in platform_config, "Configuration does not contain 'worker_processes'"
+
+    task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
+    task_writer.connect()
+    return task_writer
 
 
 # Convert records to tasks and push them to RMQ task queue
@@ -39,18 +56,18 @@ def push_records(records):
     global task_writer
 
     if task_writer is None:
-        init_platform_connection(path_platform_config)
+        msg_broker_connect()
 
     tasks = {}
     # Cycle through records and make tasks for each entity
     for r in records:
-        k = r["type"], r["id"]
-        if k not in tasks.keys():
-            tasks[k] = {"data_points": [], "attr_updates": []}
+        key = r["type"], r["id"]
+        if key not in tasks:
+            tasks[key] = {"data_points": [], "attr_updates": []}
 
         if attr_spec[r["attr"]].history is True:
             # If history is true, enqueue the record as data point
-            tasks[k]["data_points"].append({
+            tasks[key]["data_points"].append({
                 "attr": r["attr"],
                 "t1": r["t1"],
                 "t2": r["t2"],
@@ -59,21 +76,21 @@ def push_records(records):
             })
         else:
             # If history is false, enqueue the record as attribute update
-            tasks[k]["attr_updates"].append({
+            tasks[key]["attr_updates"].append({
                 "op": attr_spec[r["attr"]].attr_update_op,
                 "attr": r["attr"],
                 "val": r["v"]
             })
 
     # Enqueue the tasks
-    for k in tasks.keys():
-        etype, ekey = k
+    for key in tasks:
+        etype, ekey = key
         task_writer.put_task(
             etype,
             ekey,
-            tasks[k]["attr_updates"],
+            tasks[key]["attr_updates"],
             None,
-            tasks[k]["data_points"],
+            tasks[key]["data_points"],
             None,
             False,
             "receiver.py",
@@ -89,8 +106,7 @@ def push_records(records):
 def push_single(record_type, entity_id, attr_name):
     global attr_spec
 
-    if attr_spec is None:
-        attr_spec = load_spec(path_attr_spec)
+    log.info(f"Received new request from {request.remote_addr}")
 
     # Construct a record from path and query parameters
     r = {
@@ -98,15 +114,22 @@ def push_single(record_type, entity_id, attr_name):
         "id": entity_id,
         "attr": attr_name
     }
-    for k in request.args:
-        r[k] = request.args[k]
+    for key in request.args:
+        r[key] = request.args[key]
 
+    # If attribute specification wasn't yet initialized, do it now
+    if attr_spec is None:
+        attr_spec = load_spec(path_attr_spec)
+
+    # Make valid record using the AttrSpec template and push it to RMQ task queue
     try:
-        # Make valid record using the AttrSpec template and push it to RMQ task queue
         push_records([Record(r, attr_spec)])
-        return "Success", 201
+        response = "Success"
     except Exception as e:
-        return "Some error(s) occurred:\n" + str(e) + "\n", 400
+        response = f"Some errors occurred: {str(e)}"
+
+    log.info(response)
+    return f"{response}\n", 202
 
 
 # REST endpoint to push multiple data points
@@ -116,36 +139,55 @@ def push_single(record_type, entity_id, attr_name):
 def push_multiple():
     global attr_spec
 
-    if attr_spec is None:
-        attr_spec = load_spec(path_attr_spec)
-
-    request_json = request.get_json(force=True) # force = ignore mimetype
+    log.info(f"Received new request from {request.remote_addr}")
 
     # Request must be valid JSON (dict) and contain a list of records
-    if type(request_json) is not dict or \
-       "records" not in request_json or \
-       type(request_json["records"]) is not list:
-        return "Request is not a dict, or does not contain a list of records", 400
+    try:
+        request_json = request.get_json()
+    except:
+        request_json = None
 
     errors = ""
-    records = []
+    if request_json is None:
+        errors = "Invalid request (empty payload)"
+    elif type(request_json) is not dict:
+        errors = "Invalid request (payload is not dict)"
+    elif "records" not in request_json:
+        errors = "Invalid request (payload does not contain 'records' field)"
+    elif type(request_json["records"]) is not list:
+        errors = "Invalid request (type of 'records' is not list)"
 
+    if (errors != ""):
+        # Request is invalid, cannot continue
+        response = f"Some errors occurred: {errors}"
+        log.info(response)
+        return f"{response}\n", 202
+
+    # If attribute specification wasn't yet initialized, do it now
+    if attr_spec is None:
+        attr_spec =  load_spec(path_attr_spec)
+
+    # Make valid records using the AttrSpec template
+    records = []
     for r in request_json["records"]:
         try:
-            # Make valid record using the AttrSpec template
             records.append(Record(r, attr_spec))
         except Exception as e:
-            errors += str(e) + "\n"
+            errors += f"\nInvalid data point({str(e)})"
 
     # Push records to RMQ task queue
-    push_records(records)
+    try:
+        push_records(records)
+    except Exception as e:
+        errors += f"{str(e)}\n"
 
-    # Set correct response based on the results
-    response = "Success", 201
     if errors != "":
-        # TODO what status code should we return here?
-        response = "Some error(s) occurred:\n" + errors, 202
-    return response
+        response =  f"Some errors occurred: {errors}"
+    else:
+        response = "Success"
+
+    log.info(response)
+    return f"{response}\n", 202
 
 
 # REST endpoint to check whether the API is running
@@ -153,19 +195,6 @@ def push_multiple():
 @app.route("/")
 def home():
     return render_template("home.html")
-
-
-# Load platform configuration and check required fields
-def init_platform_connection(path):
-    global platform_config
-    global task_writer
-
-    platform_config = safe_load(open(path, "r"))
-    if "msg_broker" not in platform_config.keys() or \
-       "worker_processes" not in platform_config.keys():
-        raise KeyError("Invalid platform configuration")
-    task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
-    task_writer.connect()
 
 
 if __name__ == "__main__":

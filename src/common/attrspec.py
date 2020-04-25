@@ -31,6 +31,7 @@ default_confidence = False
 default_multi_value = False
 default_timestamp = False
 default_history = False
+default_update_op = "set"
 
 # Default history params
 default_max_age = None
@@ -115,10 +116,10 @@ def valid_set(obj, data_type):
     return True
 
 
-# TODO Validate link object
 def valid_link(obj, entity_type):
     # obj must be a valid key for given entity type
-    return True
+    # TODO add other entity types
+    return valid_ipv4(obj)
 
 
 # Load attribute specification (from yaml) and return it as a dict ('attr_id' -> AttrSpec)
@@ -149,22 +150,22 @@ class AttrSpec:
         self.multi_value = spec.get("multi_value", default_multi_value)
         self.history_params = spec.get("history_params", default_history_params)
         self.timestamp_format = spec.get("timestamp_format", default_timestamp_format)
-
-        # Set which operation to perform when queueing task for this attribute
-        # TODO choose appropriate operation according to data type
-        self.attr_update_op = "set"
+        self.attr_update_op = spec.get("attr_update_op", default_update_op)
 
         # Check data type of specification fields
-        if type(self.name) is not str or \
-           type(self.description) is not str or \
-           type(self.color) is not str or not re.match(r"#([0-9a-fA-F]){6}", self.color) or \
-           type(self.data_type) is not str or \
-           type(self.timestamp) is not bool or \
-           type(self.history) is not bool or \
-           type(self.confidence) is not bool or \
-           type(self.multi_value) is not bool or \
-           type(self.timestamp_format) is not str:
-            raise TypeError("Invalid specification of attribute '{}'".format(self.id))
+        assert type(self.name) is str, "Type of 'name' is not 'str'"
+        assert type(self.description) is str, "Type of 'description' is not 'str'"
+        assert type(self.color) is str, "Type of 'color' is not 'str'"
+        assert type(self.data_type) is str, "Type of 'data_type' is not 'str'"
+        assert type(self.timestamp) is bool, "Type of 'timestamp' is not 'bool'"
+        assert type(self.history) is bool, "Type of 'history' is not 'bool'"
+        assert type(self.confidence) is bool, "Type of 'confidence' is not 'bool'"
+        assert type(self.multi_value) is bool, "Type of 'multi_value' is not 'bool'"
+        assert type(self.timestamp_format) is str, "Type of 'timestamp_format' is not 'str'"
+        assert type(self.attr_update_op) is str, "Type of 'attr_update_op' is not 'str'"
+
+        # Check color format
+        assert re.match(r"#([0-9a-fA-F]){6}", self.color), "Format of 'color' is invalid"
 
         # Initialize attribute's validator function according to its data type
         if self.data_type == "category":
@@ -189,30 +190,24 @@ class AttrSpec:
             raise ValueError("Type '{}' is not supported".format(self.data_type))
 
         # If value is of category type, spec must contain a list of valid categories
-        if self.data_type == "category" and type(self.categories) is not list:
-            raise TypeError("Data type of 'categories' is invalid (should be list)")
+        assert self.data_type != "category" or type(self.categories) is list, "Type of 'categories' is invalid (must be list)"
 
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:
-            if type(self.history_params) is not dict:
-                raise TypeError("Data type of 'history_params' is invalid (should be dict)")
+            assert type(self.history_params) is dict, "Type of 'history_params' is invalid (must be dict)"
 
             if "max_age" in self.history_params:
-                if not re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["max_age"])):
-                    raise ValueError("Value of 'max_age' is invalid")
+                assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["max_age"])), "Format of 'max_age' is invalid"
             else:
                 self.history_params["max_age"] = default_max_age
 
             if "max_items" in self.history_params:
-                if type(self.history_params["max_items"]) is not int or self.history_params["max_items"] <= 0:
-                    raise ValueError("Value of 'max_items' is invalid")
+                assert type(self.history_params["max_items"]) is int, "Type of 'max_items' is invalid (must be int)"
+                assert self.history_params["max_items"] > 0, "Value of 'max_items' is invalid (must be greater than 0)"
             else:
                 self.history_params["max_items"] = default_max_items
 
             if "expire_time" in self.history_params:
-                if not re.match(r"(^0$|^inf$|^[0-9]+[smhd]$)", str(self.history_params["expire_time"])):
-                    raise ValueError("Value of 'expire_time' is invalid")
+                assert re.match(r"(^0$|^inf$|^[0-9]+[smhd]$)", str(self.history_params["expire_time"])), "Format of 'expire_time' is invalid"
             else:
                 self.history_params["expire_time"] = default_expire_time
-
-            # TODO other history params

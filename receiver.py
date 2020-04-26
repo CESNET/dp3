@@ -14,7 +14,7 @@ application = app
 application.debug = True
 
 # Directory containing config files
-conf_dir = "/ADiCT/processing_platform/config"
+conf_dir = "/home/barny/ADiCT/processing_platform/config"
 
 # Path to yaml file containing attribute specification
 path_attr_spec = f"{conf_dir}/attributes_specification.yml"
@@ -31,32 +31,38 @@ attr_spec = None
 # TaskQueueWriter instance used for sending tasks to the processing core
 task_writer = None
 
-# Logging initialization
-log_format = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
-log_dateformat = "%Y-%m-%dT%H:%M:%S"
-logging.basicConfig(level=logging.DEBUG, format=log_format, datefmt=log_dateformat)
-log = logging.getLogger()
+# Logger
+log = None
 
-
-# Connect to platform message broker
-def msg_broker_connect():
+# Load configuration, initialize logging and connect to platform message broker
+def initialize():
+    global attr_spec
     global platform_config
+    global log
 
-    assert "msg_broker" in platform_config, "Configuration does not contain 'msg_broker'"
-    assert "worker_processes" in platform_config, "Configuration does not contain 'worker_processes'"
+    # Logging initialization
+    log_format = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
+    log_dateformat = "%Y-%m-%dT%H:%M:%S"
+    logging.basicConfig(level=logging.DEBUG, format=log_format, datefmt=log_dateformat)
+    log = logging.getLogger()
+
+    # Attribute specification initialization
+    try:
+        attr_spec = load_spec(path_attr_spec)
+    except Exception as e:
+        log.error(f"Invalid attribute specification: {str(e)})")
+
+    assert "msg_broker" in platform_config, "configuration does not contain 'msg_broker'"
+    assert "worker_processes" in platform_config, "configuration does not contain 'worker_processes'"
 
     task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
     task_writer.connect()
-    return task_writer
 
 
 # Convert records to tasks and push them to RMQ task queue
 def push_records(records):
     global attr_spec
     global task_writer
-
-    if task_writer is None:
-        msg_broker_connect()
 
     tasks = {}
     # Cycle through records and make tasks for each entity
@@ -117,16 +123,12 @@ def push_single(record_type, entity_id, attr_name):
     for key in request.args:
         r[key] = request.args[key]
 
-    # If attribute specification wasn't yet initialized, do it now
-    if attr_spec is None:
-        attr_spec = load_spec(path_attr_spec)
-
     # Make valid record using the AttrSpec template and push it to RMQ task queue
     try:
         push_records([Record(r, attr_spec)])
         response = "Success"
     except Exception as e:
-        response = f"Some errors occurred: {str(e)}"
+        response = f"Error: {str(e)}"
 
     log.info(response)
     return f"{response}\n", 202
@@ -149,23 +151,19 @@ def push_multiple():
 
     errors = ""
     if request_json is None:
-        errors = "Invalid request (empty payload)"
+        errors = "not JSON or empty payload"
     elif type(request_json) is not dict:
-        errors = "Invalid request (payload is not dict)"
+        errors = "payload is not a dict"
     elif "records" not in request_json:
-        errors = "Invalid request (payload does not contain 'records' field)"
+        errors = "payload does not contain 'records' field"
     elif type(request_json["records"]) is not list:
-        errors = "Invalid request (type of 'records' is not list)"
+        errors = "type of 'records' is not list"
 
     if (errors != ""):
         # Request is invalid, cannot continue
-        response = f"Some errors occurred: {errors}"
+        response = f"Invalid request: {errors}"
         log.info(response)
-        return f"{response}\n", 202
-
-    # If attribute specification wasn't yet initialized, do it now
-    if attr_spec is None:
-        attr_spec =  load_spec(path_attr_spec)
+        return f"{response}\n", 400
 
     # Make valid records using the AttrSpec template
     records = []
@@ -173,16 +171,16 @@ def push_multiple():
         try:
             records.append(Record(r, attr_spec))
         except Exception as e:
-            errors += f"\nInvalid data point({str(e)})"
+            errors += f"\nInvalid data point: {str(e)}"
 
     # Push records to RMQ task queue
     try:
         push_records(records)
     except Exception as e:
-        errors += f"{str(e)}\n"
+        errors += f"\nFailed to push records: {str(e)}"
 
     if errors != "":
-        response =  f"Some errors occurred: {errors}"
+        response = "Passed with errors:" + errors
     else:
         response = "Success"
 
@@ -199,6 +197,8 @@ def home():
 
 if __name__ == "__main__":
     try:
+        # API needs to be initialized before running the web service
+        initialize()
         app.run()
     except Exception as e:
         print(e)

@@ -1,5 +1,10 @@
 import time
 
+# Error message templates
+err_msg_type = "type of '{}' is invalid (must be '{}')"
+err_msg_format = "format of '{}' is invalid"
+err_msg_value = "value of '{}' is invalid"
+
 # Default record fields
 default_type = None
 default_id = None
@@ -12,46 +17,31 @@ default_src = ""
 
 # Validate record fields according to given attribute specification
 def validate_record(record, attr_spec):
-    # Check mandatory fields
-    if type(record["type"]) is not str:
-        raise ValueError('"type" field missing or invalid type')
-    if type(record["id"]) is not str:
-        raise ValueError('"type" field missing or invalid type')
-    if type(record["attr"]) is not str:
-        raise ValueError('"type" field missing or invalid type')
+    # Check mandatory fields and their types
+    assert type(record["type"]) is str, err_msg_type.format("type", "str")
+    assert type(record["id"]) is str, err_msg_type.format("id", "str")
+    assert type(record["attr"]) is str, err_msg_type.format("attr", "str")
     
     # Check whether 'attr_spec' contains the attribute
-    if record["attr"] not in attr_spec:
-        raise ValueError("No specification found for attribute '{}'".format(record["attr"]))
+    assert record["attr"] in attr_spec, f"No specification found for attribute '{record['attr']}'"
 
     spec = attr_spec[record["attr"]]
 
     if spec.timestamp is True:
-        if type(record["attr"]) is not str:
-            raise ValueError('"type" field missing or invalid type')
-        
         # Try parsing timestamp values
         t1 = time.strptime(record["t1"], spec.timestamp_format)
         t2 = time.strptime(record["t2"], spec.timestamp_format)
 
         # Check valid time interval (T2 must be greater than or equal to T1)
-        if t2 < t1:
-            raise ValueError("Time interval is invalid (t2 < t1)")
+        assert t1 <= t2, err_msg_value.format("t2")
 
     if spec.confidence is True:
         # Confidence must be a valid float on interval [0,1]
-        if type(record["c"]) is not float:
-            raise TypeError("Type of 'confidence' is not 'float'")
-        if record["c"] < 0 or record["c"] > 1:
-            raise ValueError("Value of 'confidence' is invalid")
+        assert type(record["c"]) is float, err_msg_type.format("c", "float")
+        assert record["c"] >= 0 and record["c"] <= 1, err_msg_value.format("c")
 
-    # Check 'value' field of the record (value must match its data type)
-    # Check field existence
-    if spec.data_type != "tag" and record["v"] is None:
-        raise ValueError('"v" field missing')
-    # Check data type - validator functions for supported data types are specified in AttrSpec module
-    if not spec.validator(record["v"]):
-        raise ValueError('Invalid type or value of "v" field')
+    # Check data type of value field - validator functions are specified in AttrSpec module
+    assert spec.validator(record["v"]), err_msg_value.format("v")
 
 
 class Record:

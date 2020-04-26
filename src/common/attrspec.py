@@ -2,6 +2,11 @@ import yaml
 import ipaddress
 import re
 
+# Error message templates
+err_msg_type = "type of '{}' is invalid (must be '{}')"
+err_msg_format = "format of '{}' is invalid"
+err_msg_value = "value of '{}' is invalid"
+
 # List of primitive data types
 supported_data_types = [
     "tag",
@@ -153,19 +158,19 @@ class AttrSpec:
         self.attr_update_op = spec.get("attr_update_op", default_update_op)
 
         # Check data type of specification fields
-        assert type(self.name) is str, "Type of 'name' is not 'str'"
-        assert type(self.description) is str, "Type of 'description' is not 'str'"
-        assert type(self.color) is str, "Type of 'color' is not 'str'"
-        assert type(self.data_type) is str, "Type of 'data_type' is not 'str'"
-        assert type(self.timestamp) is bool, "Type of 'timestamp' is not 'bool'"
-        assert type(self.history) is bool, "Type of 'history' is not 'bool'"
-        assert type(self.confidence) is bool, "Type of 'confidence' is not 'bool'"
-        assert type(self.multi_value) is bool, "Type of 'multi_value' is not 'bool'"
-        assert type(self.timestamp_format) is str, "Type of 'timestamp_format' is not 'str'"
-        assert type(self.attr_update_op) is str, "Type of 'attr_update_op' is not 'str'"
+        assert type(self.name) is str, err_msg_type.format("name", "str")
+        assert type(self.description) is str, err_msg_type.format("description", "str")
+        assert type(self.color) is str, err_msg_type.format("color", "str")
+        assert type(self.data_type) is str, err_msg_type.format("data_type", "str")
+        assert type(self.timestamp) is bool, err_msg_type.format("timestamp", "bool")
+        assert type(self.history) is bool, err_msg_type.format("history", "bool")
+        assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
+        assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
+        assert type(self.timestamp_format) is str, err_msg_type.format("timestamp_format", "str")
+        assert type(self.attr_update_op) is str, err_msg_type.format("attr_update_op", "str")
 
         # Check color format
-        assert re.match(r"#([0-9a-fA-F]){6}", self.color), "Format of 'color' is invalid"
+        assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
 
         # Initialize attribute's validator function according to its data type
         if self.data_type == "category":
@@ -187,27 +192,27 @@ class AttrSpec:
             self.validator = lambda v: valid_link(v, etype)
 
         else:
-            raise ValueError("Type '{}' is not supported".format(self.data_type))
+            raise ValueError("type '{}' is not supported".format(self.data_type))
 
         # If value is of category type, spec must contain a list of valid categories
-        assert self.data_type != "category" or type(self.categories) is list, "Type of 'categories' is invalid (must be list)"
+        assert self.data_type != "category" or type(self.categories) is list, err_msg_type.format("category", "list")
 
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:
-            assert type(self.history_params) is dict, "Type of 'history_params' is invalid (must be dict)"
+            assert type(self.history_params) is dict, err_msg_type.format("history_params", "list")
 
             if "max_age" in self.history_params:
-                assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["max_age"])), "Format of 'max_age' is invalid"
+                assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["max_age"])), err_msg_format.format("max_age")
             else:
                 self.history_params["max_age"] = default_max_age
 
             if "max_items" in self.history_params:
-                assert type(self.history_params["max_items"]) is int, "Type of 'max_items' is invalid (must be int)"
-                assert self.history_params["max_items"] > 0, "Value of 'max_items' is invalid (must be greater than 0)"
+                assert type(self.history_params["max_items"]) is int, err_msg_type.format("max_items", "int")
+                assert self.history_params["max_items"] > 0, err_msg_value.format("max_items")
             else:
                 self.history_params["max_items"] = default_max_items
 
             if "expire_time" in self.history_params:
-                assert re.match(r"(^0$|^inf$|^[0-9]+[smhd]$)", str(self.history_params["expire_time"])), "Format of 'expire_time' is invalid"
+                assert re.match(r"(^0$|^inf$|^[0-9]+[smhd]$)", str(self.history_params["expire_time"])), err_msg_format.format("expire_time")
             else:
                 self.history_params["expire_time"] = default_expire_time

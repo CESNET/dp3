@@ -484,4 +484,6 @@ class TaskExecutor:
         # Update processed database record
         rec.push_changes_to_db()
 
+        self.log.debug(f"Finished processing of task {etype}/{ekey}!")
+
         return new_rec_created

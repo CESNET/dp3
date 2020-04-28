@@ -23,7 +23,7 @@ path_attr_spec = f"{conf_dir}/attributes_specification.yml"
 path_platform_config = f"{conf_dir}/processing_core.yml"
 
 # Dictionary containing platform configuration
-platform_config = read_config(path_platform_config)
+platform_config = None
 
 # Dictionary containing attribute specification
 attr_spec = None
@@ -45,6 +45,9 @@ def initialize():
     log_dateformat = "%Y-%m-%dT%H:%M:%S"
     logging.basicConfig(level=logging.DEBUG, format=log_format, datefmt=log_dateformat)
     log = logging.getLogger()
+
+    # Load platform configuration
+    platform_config = read_config(path_platform_config)
 
     # Attribute specification initialization
     try:

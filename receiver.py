@@ -35,16 +35,20 @@ task_writer = None
 log = None
 
 # Load configuration, initialize logging and connect to platform message broker
+# This need to be called before any request is made
+@app.before_first_request
 def initialize():
     global attr_spec
     global platform_config
     global log
+    global task_writer
 
     # Logging initialization
     log_format = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
     log_dateformat = "%Y-%m-%dT%H:%M:%S"
-    logging.basicConfig(level=logging.DEBUG, format=log_format, datefmt=log_dateformat)
+    logging.basicConfig(level=logging.WARNING, format=log_format, datefmt=log_dateformat)
     log = logging.getLogger()
+    log.setLevel(logging.INFO)
 
     # Load platform configuration
     platform_config = read_config(path_platform_config)
@@ -60,13 +64,11 @@ def initialize():
 
     task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
     task_writer.connect()
+    log.info("Initialization completed")
 
 
 # Convert records to tasks and push them to RMQ task queue
 def push_records(records):
-    global attr_spec
-    global task_writer
-
     tasks = {}
     # Cycle through records and make tasks for each entity
     for r in records:
@@ -113,8 +115,6 @@ def push_records(records):
 # Other fields should be contained in query parameters
 @app.route("/post/<string:record_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
 def push_single(record_type, entity_id, attr_name):
-    global attr_spec
-
     log.info(f"Received new request from {request.remote_addr}")
 
     # Construct a record from path and query parameters
@@ -142,13 +142,11 @@ def push_single(record_type, entity_id, attr_name):
 # Example: {"records": [{rec1},{rec2},{rec3},...]}
 @app.route("/post", methods=["POST"])
 def push_multiple():
-    global attr_spec
-
     log.info(f"Received new request from {request.remote_addr}")
 
     # Request must be valid JSON (dict) and contain a list of records
     try:
-        request_json = request.get_json()
+        request_json = request.get_json(force=True) # force = ignore mimetype
     except:
         request_json = None
 
@@ -200,8 +198,6 @@ def home():
 
 if __name__ == "__main__":
     try:
-        # API needs to be initialized before running the web service
-        initialize()
         app.run()
     except Exception as e:
         print(e)

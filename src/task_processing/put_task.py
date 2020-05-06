@@ -38,8 +38,8 @@ if args.verbose:
 logger.debug(f"Loading config dir {args.config}")
 config = read_config_dir(args.config)
 
-rabbit_params = config.get('rabbitmq', {})
-num_processes = config.get('worker_processes')
+rabbit_params = config['processing_core'].get('rabbitmq', {})
+num_processes = config['processing_core'].get('worker_processes')
 
 try:
     with open(args.task) as task_file:

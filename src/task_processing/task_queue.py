@@ -48,9 +48,6 @@ from src.common.utils import conv_from_json, conv_to_json
 from src.common.config import read_config
 import g
 
-# This sets logging level of all components in this file
-LOG_LEVEL = logging.INFO
-#LOG_LEVEL = logging.DEBUG
 
 # Exchange and queue names - TODO pp prefix as processing platform, rename later
 # They must be pre-declared ('direct' exchange type) and binded.
@@ -83,7 +80,6 @@ class RobustAMQPConnection:
             host, port, virtual_host, username, password
         """
         self.log = logging.getLogger('RobustAMQPConnection')
-        self.log.setLevel(LOG_LEVEL)
         self.conn_params = {
             'hostname': rabbit_config.get('host', 'localhost'),
             'port': int(rabbit_config.get('port', 5672)),
@@ -96,7 +92,7 @@ class RobustAMQPConnection:
 
         # check if compulsory queues are declared
         try:
-            g.config.get('worker_processes')
+            g.config['processing_core'].get('worker_processes')
         except AttributeError:
             # when task_queue is initialized from standalone modules, it has no access to g, so skip queue check
             return
@@ -107,7 +103,7 @@ class RobustAMQPConnection:
         queues = json.loads(resp.text)
         queues_names = [queue['name'] for queue in queues]
         compulsory_queues = []
-        for i in range(0, g.config.get('worker_processes')):
+        for i in range(0, g.config['processing_core'].get('worker_processes')):
             compulsory_queues.append(DEFAULT_QUEUE.format(i))
             compulsory_queues.append(DEFAULT_PRIORITY_QUEUE.format(i))
         assert all(compulsory_queue in queues_names for compulsory_queue in compulsory_queues), "RabbitMQ server does " \
@@ -169,7 +165,6 @@ class TaskQueueWriter(RobustAMQPConnection):
         super().__init__(rabbit_config)
 
         self.log = logging.getLogger('TaskQueueWriter')
-        self.log.setLevel(LOG_LEVEL)
 
         self.config_core = read_config(os.path.join(config_path, "processing_core.yml")) if config_path is not None else None
         self.workers = workers
@@ -197,15 +192,6 @@ class TaskQueueWriter(RobustAMQPConnection):
 
         # create can be loaded from configuration, which may not be available, if TaskQueueWriter is instanced from
         # some standalone module. It has no access to 'g' (or rather it does not contain config)
-        try:
-            create_f = g.config.get('auto_create_record', True) if create is None else create
-        except AttributeError:
-            if self.config_core is None:
-                self.log.error(f"Task {etype}/{ekey} received, but 'create' attribute not specified and configuration "
-                               f"is not available. You should provide it TaskQueueWriter constructor.")
-                return
-            else:
-                create_f = self.config_core.get('auto_create_record', True) if create is None else create
         # Prepare message
         msg = {
             'etype': etype,
@@ -213,7 +199,7 @@ class TaskQueueWriter(RobustAMQPConnection):
             'attr_updates': [] if attr_updates is None else attr_updates,
             'events': [] if events is None else events,
             'data_points': [] if data_points is None else data_points,
-            'create': create_f,
+            'create': create,
             'delete': delete,
             'src': src,
             'tags': [] if tags is None else tags
@@ -287,7 +273,6 @@ class TaskQueueReader(RobustAMQPConnection):
         super().__init__(rabbit_config)
 
         self.log = logging.getLogger('TaskQueueReader')
-        self.log.setLevel(LOG_LEVEL)
 
         self.callback = callback
         self.queue_name = queue.format(worker_index)
@@ -391,8 +376,10 @@ class TaskQueueReader(RobustAMQPConnection):
             try:
                 task = json.loads(body, object_hook=conv_from_json)
                 etype, ekey, attr_updates = task['etype'], task['ekey'], task['attr_updates']
-                events, data_points, create = task['events'], task['data_points'], task['create']
+                events, data_points = task['events'], task['data_points']
                 delete, src, tags = task['delete'], task['src'], task['tags']
+                # create does not have to be in task body, if it was not sent, then TaskExecutor will load it from config
+                create = task.get('create')
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error(f"Erroneous message received from main task queue. Error: {str(e)}, Message: '{body}'")

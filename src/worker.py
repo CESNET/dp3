@@ -8,7 +8,7 @@ import signal
 
 from common.config import read_config_dir, read_config
 from common import scheduler
-from database.database import EntityDatabase
+from database.db_dummy import EntityDatabase
 from task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 from task_processing.task_executor import TaskExecutor
 from task_processing.task_distributor import TaskDistributor
@@ -65,7 +65,7 @@ def main(cfg_dir, process_index, verbose):
     # whole configuration should be loaded
     config = read_config_dir(cfg_dir, recursive=True)
 
-    num_processes = config.get('worker_processes')
+    num_processes = config['processing_core'].get('worker_processes')
     assert (isinstance(num_processes,
                        int) and num_processes > 0), "Number of processes ('num_processes' in config) must be a positive integer"
     assert (isinstance(process_index, int) and process_index >= 0), "Process index can't be negative"
@@ -80,13 +80,13 @@ def main(cfg_dir, process_index, verbose):
     g.config_base_path = os.path.dirname(os.path.abspath(cfg_dir))
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config)
-    te = TaskExecutor(g.db)
+    te = TaskExecutor(g.db, config)
     g.td = TaskDistributor(config, process_index, num_processes, te)
 
     ##############################################
     # Load all plug-in modules
 
-    module_list = load_modules(config['enabled_modules'])
+    module_list = load_modules(config['processing_core']['enabled_modules'])
 
     # Lock used to control when the program stops.
     g.daemon_stop_lock = threading.Lock()

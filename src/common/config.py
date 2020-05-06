@@ -97,29 +97,29 @@ def read_config(filepath):
 def read_config_dir(dir_path, recursive=False):
     """
     Same as read_config but it loads whole configuration directory of YAML files, so only files ending with ".yml" are
-    loaded.
+    loaded. Each loaded configuration is located under key named after configuration filename.
 
     If recursive is set, then the configuration directory will be read recursively (including configuration files
     inside directories)
     """
     all_files_paths = os.listdir(dir_path)
     config = HierarchicalDict()
-    for config_path in all_files_paths:
-        config_full_path = os.path.join(dir_path, config_path)
+    for config_filename in all_files_paths:
+        config_full_path = os.path.join(dir_path, config_filename)
         if os.path.isdir(config_full_path) and recursive:
             loaded_config = read_config_dir(config_full_path, recursive)
-            # place configuration files in directory into another dictionary level named by config dictionary name
-            loaded_config = {config_path: loaded_config}
-        elif os.path.isfile(config_full_path) and config_path.endswith(".yml"):
+        elif os.path.isfile(config_full_path) and config_filename.endswith(".yml"):
             try:
                 loaded_config = read_config(config_full_path)
             except TypeError:
                 # configuration file is empty
                 continue
+            # remove '.yml' suffix of filename
+            config_filename = config_filename[:-4]
         else:
             continue
-        # TODO check if some configuration files do not have same keys (eg. modules)?
-        config.update(loaded_config)
+        # place configuration files into another dictionary level named by config dictionary name
+        config[config_filename] = loaded_config
     return config
 
 

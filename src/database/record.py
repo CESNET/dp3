@@ -1,6 +1,6 @@
 import logging
 
-from .database import AttributeValueNotSet
+from .db_dummy import AttributeValueNotSet
 
 
 class Record:

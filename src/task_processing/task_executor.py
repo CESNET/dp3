@@ -49,7 +49,7 @@ class TaskExecutor:
 
     _OPERATION_FUNCTION_PREFIX = "_perform_op_"
 
-    def __init__(self, db):
+    def __init__(self, db, config):
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
@@ -66,6 +66,7 @@ class TaskExecutor:
         # cache for may_change set calculation - is cleared when register_handler() is called
         self._may_change_cache = self._init_may_change_cache()
 
+        self.config = config
         self.db = db
         # get all update operations functions into callable dictionary, where key is operation name and value is
         # callable function, which executes the operation, will look like:
@@ -350,6 +351,9 @@ class TaskExecutor:
             self._delete_record_from_db(etype, ekey)
             self.log.debug("Entity '{}' of type '{}' was removed from the database.".format(ekey, etype))
             return False
+
+        if create is None:
+            create = self.config['processing_core'].get('auto_create_record', True)
 
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)

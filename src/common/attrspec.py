@@ -1,4 +1,3 @@
-import yaml
 import ipaddress
 import re
 
@@ -20,23 +19,13 @@ supported_data_types = [
     "special"
 ]
 
-# List of supported entity types
-supported_entity_types = [
-    "ip"
-]
-
 # Default specification fields
-default_data_type = None
-default_categories = None
-default_history_params = None
-default_timestamp_format = "%Y-%m-%d"  # %Y-%m-%dT%H:%M:%S.%f
 default_color = "#000000"
 default_description = ""
 default_confidence = False
 default_multi_value = False
 default_timestamp = False
 default_history = False
-default_update_op = "set"
 
 # Default history params
 default_max_age = None
@@ -63,7 +52,8 @@ def is_set(data_type):
 # Check whether given data type represents a link
 def is_link(data_type):
     if re.match(r"^link<\w+>$", data_type):
-        if data_type.split("<")[1].split(">")[0] in supported_entity_types:
+        # TODO
+        # if data_type.split("<")[1].split(">")[0] in supported_entity_types:
             return True
     return False
 
@@ -122,40 +112,27 @@ def valid_set(obj, data_type):
 
 
 def valid_link(obj, entity_type):
+    # TODO
     # obj must be a valid key for given entity type
-    # TODO add other entity types
-    return valid_ipv4(obj)
-
-
-# Load attribute specification (from yaml) and return it as a dict ('attr_id' -> AttrSpec)
-# Raise TypeError or ValueError if the specification of some attribute is invalid
-def load_spec(path):
-    spec = yaml.safe_load(open(path, "r"))
-    attr_spec = {}
-    for attr in spec:
-        attr_spec[attr] = AttrSpec(attr, spec[attr])
-
-    return attr_spec
+    return True
 
 
 # This class represents specification of an attribute of given id
 class AttrSpec:
     # Initialize member variables and validate attribute specification
     # Raise TypeError or ValueError if the specification is invalid (e.g. data type is not supported)
-    def __init__(self, attr_id, spec):
-        self.id = attr_id
-        self.name = spec.get("name", attr_id)
+    def __init__(self, spec):
+        self.id = spec.get("id", None)
+        self.name = spec.get("name", self.id)
         self.description = spec.get("description", default_description)
         self.color = spec.get("color", default_color)
-        self.data_type = spec.get("data_type", default_data_type)
-        self.categories = spec.get("categories", default_categories)
+        self.data_type = spec.get("data_type", None)
+        self.categories = spec.get("categories", None)
         self.timestamp = spec.get("timestamp", default_timestamp)
         self.history = spec.get("history", default_history)
         self.confidence = spec.get("confidence", default_confidence)
         self.multi_value = spec.get("multi_value", default_multi_value)
-        self.history_params = spec.get("history_params", default_history_params)
-        self.timestamp_format = spec.get("timestamp_format", default_timestamp_format)
-        self.attr_update_op = spec.get("attr_update_op", default_update_op)
+        self.history_params = spec.get("history_params", None)
 
         # Check data type of specification fields
         assert type(self.name) is str, err_msg_type.format("name", "str")
@@ -166,8 +143,6 @@ class AttrSpec:
         assert type(self.history) is bool, err_msg_type.format("history", "bool")
         assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
         assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
-        assert type(self.timestamp_format) is str, err_msg_type.format("timestamp_format", "str")
-        assert type(self.attr_update_op) is str, err_msg_type.format("attr_update_op", "str")
 
         # Check color format
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")

@@ -3,6 +3,8 @@ NERDd - config file reader
 """
 import yaml
 import os
+from common.attrspec import AttrSpec
+from common.entityspec import EntitySpec
 
 
 class NoDefault:
@@ -123,5 +125,59 @@ def read_config_dir(dir_path, recursive=False):
     return config
 
 
+def load_entity_spec(config_in):
+    """
+    Load and validate entity/attribute specification
+    Provided configuration must be a dict of following structure:
+    {
+        <entity type>: {
+            'entity': {
+                entity specification
+            },
+            'attribs': {
+                attribute specification
+            }
+        },
+        .
+        .
+        .
+        other entity types
+    }
+
+    Throws an exception if the specification is invalid
+    """
+    config_out = {}
+
+    err_msg_type = "Invalid configuration: type of '{}' is invalid (must be '{}')"
+    err_msg_missing_field = "Invalid configuration: mandatory field '{}' is missing"
+
+    assert type(config_in) is dict, err_msg_type.format('config', 'dict')
+
+    for entity_type in config_in:
+        spec = config_in[entity_type]
+
+        # Validate config structure
+        assert type(spec) is dict, err_msg_type.format(f'config[\"{entity_type}\"]', 'dict')
+        assert "entity" in spec, err_msg_missing_field.format('entity')
+        assert "attribs" in spec, err_msg_missing_field.format('attribs')
+        assert type(spec["entity"]) is dict, err_msg_type.format('entity', 'dict')
+        assert type(spec["attribs"]) is dict, err_msg_type.format('attribs', 'dict')
+
+        config_out[entity_type] = {"entity": {}, "attribs": {}}
+
+        # Init entity specification
+        try:
+            config_out[entity_type]["entity"] = EntitySpec(spec["entity"])
+        except Exception as e:
+            raise ValueError("Invalid entity specification: " + str(e))
+
+        # Init attribute specification
+        for attr in spec["attribs"]:
+            try:
+                config_out[entity_type]["attribs"][attr] = AttrSpec(spec["attribs"][attr])
+            except Exception as e:
+                raise ValueError("Invalid attribute specification: " + str(e))
+
+    return config_out
 
 

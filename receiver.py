@@ -14,7 +14,7 @@ application = app
 application.debug = True
 
 # Directory containing config files
-conf_dir = "/home/barny/ADiCT/processing_platform/config"
+conf_dir = "/ADiCT/processing_platform/config"
 
 # Path to yaml file containing attribute specification
 path_attr_spec = f"{conf_dir}/attributes_specification.yml"

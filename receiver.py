@@ -1,20 +1,20 @@
 import os
 import sys
 import logging
+import yaml
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 
 from flask import Flask, request, render_template
 from record import Record
 from src.task_processing.task_queue import TaskQueueWriter
-from src.common.attrspec import load_spec
-from src.common.config import read_config
+from src.common.config import read_config, load_entity_spec
 
 app = Flask(__name__)
 application = app
 application.debug = True
 
 # Directory containing config files
-conf_dir = "/ADiCT/processing_platform/config"
+conf_dir = "/home/barny/ADiCT/processing_platform/config"
 
 # Path to yaml file containing attribute specification
 path_attr_spec = f"{conf_dir}/attributes_specification.yml"
@@ -25,7 +25,7 @@ path_platform_config = f"{conf_dir}/processing_core.yml"
 # Dictionary containing platform configuration
 platform_config = None
 
-# Dictionary containing attribute specification
+# Dictionary containing entity / attribute specification
 attr_spec = None
 
 # TaskQueueWriter instance used for sending tasks to the processing core
@@ -38,7 +38,7 @@ log = None
 # This need to be called before any request is made
 @app.before_first_request
 def initialize():
-    global attr_spec
+    global entity_spec
     global platform_config
     global log
     global task_writer
@@ -53,11 +53,12 @@ def initialize():
     # Load platform configuration
     platform_config = read_config(path_platform_config)
 
-    # Attribute specification initialization
+    # Load entity / attribute specification
     try:
-        attr_spec = load_spec(path_attr_spec)
+        entity_spec = load_entity_spec(yaml.safe_load(open(path_attr_spec)))
     except Exception as e:
-        log.error(f"Invalid attribute specification: {str(e)})")
+        log.error(str(e))
+        # TODO what to do here?
 
     assert "msg_broker" in platform_config, "configuration does not contain 'msg_broker'"
     assert "worker_processes" in platform_config, "configuration does not contain 'worker_processes'"
@@ -113,13 +114,13 @@ def push_records(records):
 # REST endpoint to push a single data point
 # Record type, entity id and attribute name are part of the endpoint path
 # Other fields should be contained in query parameters
-@app.route("/post/<string:record_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
-def push_single(record_type, entity_id, attr_name):
+@app.route("/post/<string:entity_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
+def push_single(entity_type, entity_id, attr_name):
     log.info(f"Received new request from {request.remote_addr}")
 
     # Construct a record from path and query parameters
     r = {
-        "type": record_type,
+        "type": entity_type,
         "id": entity_id,
         "attr": attr_name
     }
@@ -128,7 +129,7 @@ def push_single(record_type, entity_id, attr_name):
 
     # Make valid record using the AttrSpec template and push it to RMQ task queue
     try:
-        push_records([Record(r, attr_spec)])
+        push_records([Record(r, attr_spec[entity_type]["attribs"])])
         response = "Success"
     except Exception as e:
         response = f"Error: {str(e)}"
@@ -170,7 +171,7 @@ def push_multiple():
     records = []
     for r in request_json["records"]:
         try:
-            records.append(Record(r, attr_spec))
+            records.append(Record(r, attr_spec[r["type"]]["attribs"]))
         except Exception as e:
             errors += f"\nInvalid data point: {str(e)}"
 

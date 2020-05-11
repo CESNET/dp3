@@ -208,6 +208,12 @@ def push_single_task():
     elif type(payload) is not dict:
         errors = "payload is not a dict"
 
+    if errors != "":
+        # Request is invalid, cannot continue
+        response = f"Invalid request: {errors}"
+        log.info(response)
+        return f"{response}\n", 400
+
     # Make valid task and push it to platforms task queue
     try:
         task = Task(payload, attr_spec)

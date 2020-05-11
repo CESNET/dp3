@@ -42,14 +42,17 @@ def validate_task(task, config):
 
     # Validate attribute updates
     for item in task["attr_updates"]:
+        # TODO
         pass
 
     # Validate events
     for item in task["events"]:
+        # TODO
         pass
 
     # Validate data points
     for item in task["data_points"]:
+        # TODO
         pass
 
     # Check data type of entity key - validator functions are specified in entityspec module

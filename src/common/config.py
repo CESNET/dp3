@@ -125,7 +125,7 @@ def read_config_dir(dir_path, recursive=False):
     return config
 
 
-def load_entity_spec(config_in):
+def load_attr_spec(config_in):
     """
     Load and validate entity/attribute specification
     Provided configuration must be a dict of following structure:
@@ -135,12 +135,12 @@ def load_entity_spec(config_in):
                 entity specification
             },
             'attribs': {
-                attribute specification
+                <attr id>: {
+                    attribute specification
+                },
+                other attributes
             }
         },
-        .
-        .
-        .
         other entity types
     }
 

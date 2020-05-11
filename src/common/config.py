@@ -167,16 +167,16 @@ def load_attr_spec(config_in):
 
         # Init entity specification
         try:
-            config_out[entity_type]["entity"] = EntitySpec(spec["entity"])
+            config_out[entity_type]["entity"] = EntitySpec(entity_type, spec["entity"])
         except Exception as e:
-            raise ValueError("Invalid entity specification: " + str(e))
+            raise AssertionError("Invalid entity specification: " + str(e))
 
         # Init attribute specification
         for attr in spec["attribs"]:
             try:
-                config_out[entity_type]["attribs"][attr] = AttrSpec(spec["attribs"][attr])
+                config_out[entity_type]["attribs"][attr] = AttrSpec(attr, spec["attribs"][attr])
             except Exception as e:
-                raise ValueError("Invalid attribute specification: " + str(e))
+                raise AssertionError("Invalid attribute specification: " + str(e))
 
     return config_out
 

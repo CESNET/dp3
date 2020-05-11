@@ -5,6 +5,7 @@ import re
 err_msg_type = "type of '{}' is invalid (must be '{}')"
 err_msg_format = "format of '{}' is invalid"
 err_msg_value = "value of '{}' is invalid"
+err_msg_missing_field = "mandatory field '{}' is missing"
 
 # List of primitive data types
 supported_data_types = [
@@ -119,10 +120,11 @@ def valid_link(obj, entity_type):
 
 # This class represents specification of an attribute of given id
 class AttrSpec:
-    # Initialize member variables and validate attribute specification
-    # Raise TypeError or ValueError if the specification is invalid (e.g. data type is not supported)
-    def __init__(self, spec):
-        self.id = spec.get("id", None)
+    # Class constructor
+    # Raises AssertionError if the specification is invalid
+    def __init__(self, id, spec):
+        # Set default values for missing fields
+        self.id = id
         self.name = spec.get("name", self.id)
         self.description = spec.get("description", default_description)
         self.color = spec.get("color", default_color)
@@ -134,7 +136,12 @@ class AttrSpec:
         self.multi_value = spec.get("multi_value", default_multi_value)
         self.history_params = spec.get("history_params", None)
 
+        # Check mandatory specification fields
+        assert self.id is not None, err_msg_missing_field.format("id")
+        assert self.data_type is not None, err_msg_missing_field.format("data_type")
+
         # Check data type of specification fields
+        assert type(self.id) is str, err_msg_type.format("id", "str")
         assert type(self.name) is str, err_msg_type.format("name", "str")
         assert type(self.description) is str, err_msg_type.format("description", "str")
         assert type(self.color) is str, err_msg_type.format("color", "str")
@@ -149,31 +156,34 @@ class AttrSpec:
 
         # Initialize attribute's validator function according to its data type
         if self.data_type == "category":
-            self.validator = lambda v: v in self.categories
+            self.value_validator = lambda v: v in self.categories
 
         elif self.data_type in supported_data_types:
-            self.validator = validators[self.data_type]
+            self.value_validator = validators[self.data_type]
 
         elif is_array(self.data_type):
             dtype = self.data_type.split("<")[1].split(">")[0]
-            self.validator = lambda v: valid_array(v, dtype)
+            self.value_validator = lambda v: valid_array(v, dtype)
 
         elif is_set(self.data_type):
             dtype = self.data_type.split("<")[1].split(">")[0]
-            self.validator = lambda v: valid_set(v, dtype)
+            self.value_validator = lambda v: valid_set(v, dtype)
 
         elif is_link(self.data_type):
             etype = self.data_type.split("<")[1].split(">")[0]
-            self.validator = lambda v: valid_link(v, etype)
+            self.value_validator = lambda v: valid_link(v, etype)
 
         else:
-            raise ValueError("type '{}' is not supported".format(self.data_type))
+            raise AssertionError("type '{}' is not supported".format(self.data_type))
 
         # If value is of category type, spec must contain a list of valid categories
-        assert self.data_type != "category" or type(self.categories) is list, err_msg_type.format("category", "list")
+        if self.data_type == "category":
+            assert self.categories is not None, err_msg_missing_field.format("category")
+            assert type(self.categories) is list, err_msg_type.format("category", "list")
 
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:
+            assert self.history_params is not None, err_msg_missing_field.format("history_params")
             assert type(self.history_params) is dict, err_msg_type.format("history_params", "list")
 
             if "max_age" in self.history_params:

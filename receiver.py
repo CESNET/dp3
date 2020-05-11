@@ -6,6 +6,7 @@ sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(
 
 from flask import Flask, request, render_template
 from record import Record
+from task import Task
 from src.task_processing.task_queue import TaskQueueWriter
 from src.common.config import read_config, load_attr_spec
 
@@ -50,21 +51,19 @@ def initialize():
     log = logging.getLogger()
     log.setLevel(logging.INFO)
 
-    # Load platform configuration
-    platform_config = read_config(path_platform_config)
-
-    # Load entity / attribute specification
+    # Load configuration and entity/attribute specification
     try:
+        platform_config = read_config(path_platform_config)
         attr_spec = load_attr_spec(yaml.safe_load(open(path_attr_spec)))
     except Exception as e:
         log.error(str(e))
+        return
         # TODO what to do here?
 
     assert "msg_broker" in platform_config, "configuration does not contain 'msg_broker'"
     assert "worker_processes" in platform_config, "configuration does not contain 'worker_processes'"
 
     task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
-    task_writer.connect()
     log.info("Initialization completed")
 
 
@@ -77,7 +76,7 @@ def push_records(records):
         if key not in tasks:
             tasks[key] = {"data_points": [], "attr_updates": []}
 
-        if attr_spec[r["attr"]].history is True:
+        if attr_spec[r["type"]]["attribs"][r["attr"]].history is True:
             # If history is true, enqueue the record as data point
             tasks[key]["data_points"].append({
                 "attr": r["attr"],
@@ -89,7 +88,7 @@ def push_records(records):
         else:
             # If history is false, enqueue the record as attribute update
             tasks[key]["attr_updates"].append({
-                "op": attr_spec[r["attr"]].attr_update_op,
+                "op": "set",
                 "attr": r["attr"],
                 "val": r["v"]
             })
@@ -97,6 +96,7 @@ def push_records(records):
     # Enqueue the tasks
     for key in tasks:
         etype, ekey = key
+
         task_writer.put_task(
             etype,
             ekey,
@@ -112,11 +112,11 @@ def push_records(records):
 
 
 # REST endpoint to push a single data point
-# Record type, entity id and attribute name are part of the endpoint path
+# Entity type, id and attribute name are part of the endpoint path
 # Other fields should be contained in query parameters
-@app.route("/post/<string:entity_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
-def push_single(entity_type, entity_id, attr_name):
-    log.info(f"Received new request from {request.remote_addr}")
+@app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
+def push_single_datapoint(entity_type, entity_id, attr_name):
+    log.info(f"Received new datapoint from {request.remote_addr}")
 
     # Construct a record from path and query parameters
     r = {
@@ -127,9 +127,9 @@ def push_single(entity_type, entity_id, attr_name):
     for key in request.args:
         r[key] = request.args[key]
 
-    # Make valid record using the AttrSpec template and push it to RMQ task queue
+    # Make valid record using the AttrSpec template and push it to platforms task queue
     try:
-        push_records([Record(r, attr_spec[entity_type]["attribs"])])
+        push_records([Record(r, attr_spec)])
         response = "Success"
     except Exception as e:
         response = f"Error: {str(e)}"
@@ -141,37 +141,37 @@ def push_single(entity_type, entity_id, attr_name):
 # REST endpoint to push multiple data points
 # Request payload must be a JSON dict containing a list of records
 # Example: {"records": [{rec1},{rec2},{rec3},...]}
-@app.route("/post", methods=["POST"])
-def push_multiple():
-    log.info(f"Received new request from {request.remote_addr}")
+@app.route("/datapoints", methods=["POST"])
+def push_multiple_datapoints():
+    log.info(f"Received new datapoint(s) from {request.remote_addr}")
 
     # Request must be valid JSON (dict) and contain a list of records
     try:
-        request_json = request.get_json(force=True) # force = ignore mimetype
+        payload = request.get_json(force=True) # force = ignore mimetype
     except:
-        request_json = None
+        payload = None
 
     errors = ""
-    if request_json is None:
+    if payload is None:
         errors = "not JSON or empty payload"
-    elif type(request_json) is not dict:
+    elif type(payload) is not dict:
         errors = "payload is not a dict"
-    elif "records" not in request_json:
+    elif "records" not in payload:
         errors = "payload does not contain 'records' field"
-    elif type(request_json["records"]) is not list:
+    elif type(payload["records"]) is not list:
         errors = "type of 'records' is not list"
 
-    if (errors != ""):
+    if errors != "":
         # Request is invalid, cannot continue
         response = f"Invalid request: {errors}"
         log.info(response)
         return f"{response}\n", 400
 
-    # Make valid records using the AttrSpec template
+    # Make valid records using attribute specification of given entity type
     records = []
-    for r in request_json["records"]:
+    for r in payload["records"]:
         try:
-            records.append(Record(r, attr_spec[r["type"]]["attribs"]))
+            records.append(Record(r, attr_spec))
         except Exception as e:
             errors += f"\nInvalid data point: {str(e)}"
 
@@ -179,10 +179,55 @@ def push_multiple():
     try:
         push_records(records)
     except Exception as e:
-        errors += f"\nFailed to push records: {str(e)}"
+        errors += f"\nFailed to push datapoints: {str(e)}"
 
     if errors != "":
-        response = "Passed with errors:" + errors
+        response = f"Error: {errors}"
+    else:
+        response = "Success"
+
+    log.info(response)
+    return f"{response}\n", 202
+
+
+# REST endpoint to push a single task
+# Task structure (JSON) should be contained directly in request payload
+@app.route("/tasks", methods=["POST"])
+def push_single_task():
+    log.info(f"Received new task from {request.remote_addr}")
+
+    # Request must be valid JSON (dict)
+    try:
+        payload = request.get_json(force=True)  # force = ignore mimetype
+    except:
+        payload = None
+
+    errors = ""
+    if payload is None:
+        errors = "not JSON or empty payload"
+    elif type(payload) is not dict:
+        errors = "payload is not a dict"
+
+    # Make valid task and push it to platforms task queue
+    try:
+        task = Task(payload, attr_spec)
+        task_writer.put_task(
+            task["etype"],
+            task["ekey"],
+            task["attr_updates"],
+            task["events"],
+            task["data_points"],
+            task["create"],
+            task["delete"],
+            task["src"],
+            task["tags"],
+            False
+        )
+    except Exception as e:
+        errors += f"\nInvalid task: {str(e)}"
+
+    if errors != "":
+        response = f"Error: {errors}"
     else:
         response = "Success"
 
@@ -193,8 +238,8 @@ def push_multiple():
 # REST endpoint to check whether the API is running
 # Returns a simple html template
 @app.route("/")
-def home():
-    return render_template("home.html")
+def ping():
+    return render_template("ping.html")
 
 
 if __name__ == "__main__":

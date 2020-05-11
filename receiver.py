@@ -7,7 +7,7 @@ sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(
 from flask import Flask, request, render_template
 from record import Record
 from src.task_processing.task_queue import TaskQueueWriter
-from src.common.config import read_config, load_entity_spec
+from src.common.config import read_config, load_attr_spec
 
 app = Flask(__name__)
 application = app
@@ -38,7 +38,7 @@ log = None
 # This need to be called before any request is made
 @app.before_first_request
 def initialize():
-    global entity_spec
+    global attr_spec
     global platform_config
     global log
     global task_writer
@@ -55,7 +55,7 @@ def initialize():
 
     # Load entity / attribute specification
     try:
-        entity_spec = load_entity_spec(yaml.safe_load(open(path_attr_spec)))
+        attr_spec = load_attr_spec(yaml.safe_load(open(path_attr_spec)))
     except Exception as e:
         log.error(str(e))
         # TODO what to do here?

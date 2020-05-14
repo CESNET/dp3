@@ -15,8 +15,7 @@ default_src = ""
 default_tags = []
 
 # Required timestamp format
-# TODO
-timestamp_format = ""
+timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
 
 # Validate record fields according to entity/attribute specification
 def validate_task(task, config):
@@ -35,28 +34,71 @@ def validate_task(task, config):
     assert type(task["tags"]) is list, err_msg_type.format("tags", "list")
 
     # Check specification of given entity type
-    assert task["etype"] in config, f"No specification found for entity type '{task['etype']}'"
+    assert task["etype"] in config, f"no specification found for entity type '{task['etype']}'"
 
     entity_spec = config[task["etype"]]["entity"]
     attr_spec = config[task["etype"]]["attribs"]
 
     # Validate attribute updates
+    assert type(task["attr_updates"]) is list, err_msg_type.format("attr_updates", "list")
     for item in task["attr_updates"]:
-        # TODO
-        pass
+        assert type(item) is dict, err_msg_type.format("attr update", "dict")
+
+        # Check specification for given attribute
+        assert item["attr"] in attr_spec, f"no specification found for attribute '{item['attr']}'"
+
+        # Check mandatory fields
+        assert "attr" in item, err_msg_missing_field.format("attr")
+        assert "op" in item, err_msg_missing_field.format("op")
+        assert "val" in item, err_msg_missing_field.format("val")
+
+        # Check data type of update fields
+        assert type(item["attr"]) is str, err_msg_type.format("attr", "str")
+        assert type(item["op"]) is str, err_msg_type.format("op", "str")
+        assert attr_spec[item["attr"]].value_validator(item["val"]), err_msg_type.format("val", attr_spec[item["attr"]].data_type)
 
     # Validate events
+    assert type(task["attr_updates"]) is list, err_msg_type.format("events", "list")
     for item in task["events"]:
-        # TODO
-        pass
+        assert type(item) is str, err_msg_type.format("event", "string")
+        # TODO should receiver validate events?
 
     # Validate data points
+    assert type(task["data_points"]) is list, err_msg_type.format("data_points", "list")
     for item in task["data_points"]:
-        # TODO
-        pass
+        assert type(item) is dict, err_msg_type.format("datapoint", "dict")
+
+        # Check mandatory fields
+        assert item["attr"] is not None, err_msg_missing_field.format("attr")
+        assert item["t1"] is not None, err_msg_missing_field.format("t1")
+
+        # Set missing optional fields to default values
+        if "t2" not in item:
+            item["t2"] = item["t1"]
+        if "c" not in item:
+            item["c"] = 1.0
+
+        # Check data type of data-point fields
+        assert type(item["attr"]) is str, err_msg_type.format("attr", "str")
+        assert type(item["t1"]) is str, err_msg_type.format("t1", "str")
+        assert type(item["t2"]) is str, err_msg_type.format("t2", "str")
+        assert type(item["c"]) is float, err_msg_type.format("c", "float")
+        assert attr_spec[item["attr"]].value_validator(item["v"]), err_msg_type.format("v", attr_spec[item["attr"]].data_type)
+
+        # Check timestamp format
+        try:
+            t1 = time.strptime(item["t1"], timestamp_format)
+            t2 = time.strptime(item["t2"], timestamp_format)
+        except:
+            raise TypeError("invalid timestamp")
+
+        # Check valid interval (T2 must be greater than or equal to T1)
+        assert t1 <= t2, err_msg_value.format("t2")
+
+
 
     # Check data type of entity key - validator functions are specified in entityspec module
-    assert entity_spec.key_validator(task["ekey"]), err_msg_value.format("etype", entity_spec.key_data_type)
+    assert entity_spec.key_validator(task["ekey"]), err_msg_type.format("ekey", entity_spec.key_data_type)
 
 
 class Task:

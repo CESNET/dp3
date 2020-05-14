@@ -5,7 +5,6 @@ import yaml
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 
 from flask import Flask, request, render_template
-from record import Record
 from task import Task
 from src.task_processing.task_queue import TaskQueueWriter
 from src.common.config import read_config, load_attr_spec
@@ -67,46 +66,18 @@ def initialize():
     log.info("Initialization completed")
 
 
-# Convert records to tasks and push them to RMQ task queue
-def push_records(records):
-    tasks = {}
-    # Cycle through records and make tasks for each entity
-    for r in records:
-        key = r["type"], r["id"]
-        if key not in tasks:
-            tasks[key] = {"data_points": [], "attr_updates": []}
-
-        if attr_spec[r["type"]]["attribs"][r["attr"]].history is True:
-            # If history is true, enqueue the record as data point
-            tasks[key]["data_points"].append({
-                "attr": r["attr"],
-                "t1": r["t1"],
-                "t2": r["t2"],
-                "v": r["v"],
-                "c": r["c"]
-            })
-        else:
-            # If history is false, enqueue the record as attribute update
-            tasks[key]["attr_updates"].append({
-                "op": "set",
-                "attr": r["attr"],
-                "val": r["v"]
-            })
-
-    # Enqueue the tasks
-    for key in tasks:
-        etype, ekey = key
-
+# Push given task to platforms task queue (RabbitMQ)
+def push_task(task):
         task_writer.put_task(
-            etype,
-            ekey,
-            tasks[key]["attr_updates"],
-            None,
-            tasks[key]["data_points"],
-            None,
-            False,
-            "receiver.py",
-            None,
+            task["etype"],
+            task["ekey"],
+            task["attr_updates"],
+            task["events"],
+            task["data_points"],
+            task["create"],
+            task["delete"],
+            task["src"],
+            task["tags"],
             False
         )
 
@@ -114,22 +85,39 @@ def push_records(records):
 # REST endpoint to push a single data point
 # Entity type, id and attribute name are part of the endpoint path
 # Other fields should be contained in query parameters
-@app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_name>", methods=["POST"])
-def push_single_datapoint(entity_type, entity_id, attr_name):
+@app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["POST"])
+def push_single_datapoint(entity_type, entity_id, attr_id):
     log.info(f"Received new datapoint from {request.remote_addr}")
 
-    # Construct a record from path and query parameters
-    r = {
-        "type": entity_type,
-        "id": entity_id,
-        "attr": attr_name
-    }
-    for key in request.args:
-        r[key] = request.args[key]
-
-    # Make valid record using the AttrSpec template and push it to platforms task queue
     try:
-        push_records([Record(r, attr_spec)])
+        config = attr_spec[entity_type]["attribs"][attr_id]
+    except Exception as e:
+        response = f"Error: {str(e)}"
+        log.info(response)
+        return f"{response}\n", 400
+
+    t = {
+        "etype": entity_type,
+        "ekey": entity_id,
+        "src": request.args.get("src", "")
+    }
+
+    if config.history is True:
+        t["data_points"] = [{
+            "attr": attr_id
+        }]
+        for k in request.args:
+            t["data_points"][0][k] = request.args[k]
+    else:
+        t["attr_updates"] = [{
+            "attr": attr_id,
+            "op": "set",
+            "val": request.args.get("v", None)
+        }]
+
+    # Make valid task using the attr_spec template and push it to platforms task queue
+    try:
+        push_task(Task(t, attr_spec))
         response = "Success"
     except Exception as e:
         response = f"Error: {str(e)}"
@@ -154,12 +142,8 @@ def push_multiple_datapoints():
     errors = ""
     if payload is None:
         errors = "not JSON or empty payload"
-    elif type(payload) is not dict:
-        errors = "payload is not a dict"
-    elif "records" not in payload:
-        errors = "payload does not contain 'records' field"
-    elif type(payload["records"]) is not list:
-        errors = "type of 'records' is not list"
+    elif type(payload) is not list:
+        errors = "payload is not a list"
 
     if errors != "":
         # Request is invalid, cannot continue
@@ -167,19 +151,39 @@ def push_multiple_datapoints():
         log.info(response)
         return f"{response}\n", 400
 
-    # Make valid records using attribute specification of given entity type
-    records = []
-    for r in payload["records"]:
-        try:
-            records.append(Record(r, attr_spec))
-        except Exception as e:
-            errors += f"\nInvalid data point: {str(e)}"
+    tasks = {}
+    for record in payload:
+        key = record["type"], record["id"]
+        if key not in tasks:
+            tasks[key] = {
+                "etype": record["type"],
+                "ekey": record["id"],
+                "data_points": [],
+                "attr_updates": [],
+                "src": record.get("src", "")
+            }
 
-    # Push records to RMQ task queue
-    try:
-        push_records(records)
-    except Exception as e:
-        errors += f"\nFailed to push datapoints: {str(e)}"
+        try:
+            config = attr_spec[record["type"]]["attribs"][record["attr"]]
+            if config.history is True:
+                tasks[key]["data_points"].append(record)
+            else:
+                tasks[key]["attr_updates"].append({
+                    "attr": record["attr"],
+                    "op": "set",
+                    "val": record.get("v", None)
+                })
+        except Exception as e:
+            response = f"Invalid data-point: {str(e)}"
+            log.info(response)
+            return f"{response}\n", 400
+
+    # Make valid tasks using the attr_spec template and push it to platforms task queue
+    for k in tasks:
+        try:
+            push_task(Task(tasks[k], attr_spec))
+        except Exception as e:
+            errors += f"\nFailed to push task: {str(e)}"
 
     if errors != "":
         response = f"Error: {errors}"
@@ -216,21 +220,9 @@ def push_single_task():
 
     # Make valid task and push it to platforms task queue
     try:
-        task = Task(payload, attr_spec)
-        task_writer.put_task(
-            task["etype"],
-            task["ekey"],
-            task["attr_updates"],
-            task["events"],
-            task["data_points"],
-            task["create"],
-            task["delete"],
-            task["src"],
-            task["tags"],
-            False
-        )
+        push_task(Task(payload, attr_spec))
     except Exception as e:
-        errors += f"\nInvalid task: {str(e)}"
+        errors += f"\nFailed to push task: {str(e)}"
 
     if errors != "":
         response = f"Error: {errors}"

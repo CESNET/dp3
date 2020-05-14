@@ -10,7 +10,7 @@ ip:
       attr2:
          data_type: string
       attr3:
-         data_type: int
+         data_type: time
       attr4:
          data_type: float
       attr5:

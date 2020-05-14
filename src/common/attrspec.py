@@ -1,5 +1,6 @@
 import ipaddress
 import re
+import time
 
 # Error message templates
 err_msg_type = "type of '{}' is invalid (must be '{}')"
@@ -17,6 +18,7 @@ supported_data_types = [
     "float",
     "ipv4",
     "ipv6",
+    "time",
     "special"
 ]
 
@@ -32,6 +34,9 @@ default_history = False
 default_max_age = None
 default_max_items = None
 default_expire_time = "inf"
+
+# Required timestamp format
+timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
 
 
 # Check whether given data type represents an array
@@ -77,6 +82,15 @@ def valid_ipv6(address):
         return False
 
 
+# Validate timestamp string
+def valid_rfc3339(timestamp):
+    try:
+        time.strptime(timestamp, timestamp_format)
+        return True
+    except:
+        return False
+
+
 # Dictionary containing validator functions for primitive data types
 validators = {
     "tag": lambda v: True,
@@ -86,6 +100,7 @@ validators = {
     "float": lambda v: type(v) is float,
     "ipv4": valid_ipv4,
     "ipv6": valid_ipv6,
+    "time": valid_rfc3339,
     "special": lambda v: v is not None
 }
 

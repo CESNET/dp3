@@ -35,9 +35,8 @@ default_max_age = None
 default_max_items = None
 default_expire_time = "inf"
 
-# Required timestamp format
-timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
-
+# Regular expression for parsing RFC3339 time format (with optional fractional part and timezone) 
+timestamp_re = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
 
 # Check whether given data type represents an array
 def is_array(data_type):
@@ -84,10 +83,9 @@ def valid_ipv6(address):
 
 # Validate timestamp string
 def valid_rfc3339(timestamp):
-    try:
-        time.strptime(timestamp, timestamp_format)
+    if timestamp_re.match(timestamp)
         return True
-    except:
+    else:
         return False
 
 

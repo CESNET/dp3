@@ -383,11 +383,11 @@ class TaskExecutor:
                     data_to_save = deepcopy(data_point)
                     # remove values, which are not directly saved to database
                     try:
-                        for key in ('type', 'id', 'attr'):
-                            data_to_save.pop(key)
+                        # 'attr' is dropped, because it is not saved directly, it is just table name from database view
+                        data_to_save.pop('attr')
 
                         # 'id' is saved as 'eid'
-                        data_to_save['eid'] = data_point['id']
+                        data_to_save['eid'] = ekey
                         # TODO src may not arrive in the body, but still should be saved in database, but it will be
                         # saved just as null probably, so not really needed, depends on later database implementation
                         # if not data_to_save.get("src"):

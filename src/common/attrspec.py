@@ -83,7 +83,7 @@ def valid_ipv6(address):
 
 # Validate timestamp string
 def valid_rfc3339(timestamp):
-    if timestamp_re.match(timestamp)
+    if timestamp_re.match(timestamp):
         return True
     else:
         return False

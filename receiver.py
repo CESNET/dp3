@@ -117,10 +117,14 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     # Make valid task using the attr_spec template and push it to platforms task queue
     try:
-        push_task(Task(t, attr_spec))
-        response = "Success"
+        task = Task(t, attr_spec)
+        try:
+            push_task(task)
+            response = "Success"
+        except Exception as e:
+            response = f"Error: Failed to push task: {str(e)}"
     except Exception as e:
-        response = f"Error: {str(e)}"
+        response = f"Error: Failed to create a task: {str(e)}"
 
     log.info(response)
     return f"{response}\n", 202
@@ -181,9 +185,14 @@ def push_multiple_datapoints():
     # Make valid tasks using the attr_spec template and push it to platforms task queue
     for k in tasks:
         try:
-            push_task(Task(tasks[k], attr_spec))
+            task = Task(tasks[k], attr_spec)
+            try:
+                push_task(task)
+            except Exception as e:
+                errors += f"\nFailed to push task: {str(e)}"
         except Exception as e:
-            errors += f"\nFailed to push task: {str(e)}"
+            errors += f"\nFailed to create a task: {str(e)}"
+
 
     if errors != "":
         response = f"Error: {errors}"
@@ -220,9 +229,13 @@ def push_single_task():
 
     # Make valid task and push it to platforms task queue
     try:
-        push_task(Task(payload, attr_spec))
+        task = Task(payload, attr_spec)
+        try:
+            push_task(task)
+        except Exception as e:
+            errors += f"\nFailed to push task: {str(e)}"
     except Exception as e:
-        errors += f"\nFailed to push task: {str(e)}"
+        errors += f"\nFailed to create a task: {str(e)}"
 
     if errors != "":
         response = f"Error: {errors}"

@@ -1,4 +1,9 @@
+import sys
+import os
 import time
+sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
+
+from src.common.utils import parse_rfc_time
 
 # Error message templates
 err_msg_type = "type of '{}' is invalid (must be '{}')"
@@ -13,9 +18,6 @@ default_create = True
 default_delete = False
 default_src = ""
 default_tags = []
-
-# Required timestamp format
-timestamp_format = "%Y-%m-%dT%H:%M:%S.%f"
 
 # Validate record fields according to entity/attribute specification
 def validate_task(task, config):
@@ -87,8 +89,8 @@ def validate_task(task, config):
 
         # Check timestamp format
         try:
-            t1 = time.strptime(item["t1"], timestamp_format)
-            t2 = time.strptime(item["t2"], timestamp_format)
+            t1 = parse_rfc_time(item["t1"])
+            t2 = parse_rfc_time(item["t2"])
         except:
             raise TypeError("invalid timestamp")
 

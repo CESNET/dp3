@@ -91,11 +91,11 @@ def validate_task(task, config):
         try:
             t1 = parse_rfc_time(item["t1"])
             t2 = parse_rfc_time(item["t2"])
-        except:
+        except ValueError:
             raise TypeError("invalid timestamp")
 
         # Check valid interval (T2 must be greater than or equal to T1)
-        assert t1 <= t2, err_msg_value.format("t2")
+        assert t1 <= t2, "t2 is less than t1"
 
 
 

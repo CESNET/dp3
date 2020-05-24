@@ -169,7 +169,10 @@ class AttrSpec:
 
         # Initialize attribute's validator function according to its data type
         if self.data_type == "category":
-            self.value_validator = lambda v: v in self.categories
+            if self.categories is None:
+                self.value_validator = validators["string"]
+            else:
+                self.value_validator = lambda v: v in self.categories
 
         elif self.data_type in supported_data_types:
             self.value_validator = validators[self.data_type]
@@ -189,15 +192,14 @@ class AttrSpec:
         else:
             raise AssertionError("type '{}' is not supported".format(self.data_type))
 
-        # If value is of category type, spec must contain a list of valid categories
-        if self.data_type == "category":
-            assert self.categories is not None, err_msg_missing_field.format("category")
-            assert type(self.categories) is list, err_msg_type.format("category", "list")
+        # If categories are given, it should be a list
+        if self.categories:
+            assert type(self.categories) is list, err_msg_type.format("categories", "list")
 
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:
             assert self.history_params is not None, err_msg_missing_field.format("history_params")
-            assert type(self.history_params) is dict, err_msg_type.format("history_params", "list")
+            assert type(self.history_params) is dict, err_msg_type.format("history_params", "dict")
 
             if "max_age" in self.history_params:
                 assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["max_age"])), err_msg_format.format("max_age")

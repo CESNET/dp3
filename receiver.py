@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import yaml
+import traceback
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 
 from flask import Flask, request, render_template
@@ -189,8 +190,10 @@ def push_multiple_datapoints():
             try:
                 push_task(task)
             except Exception as e:
+                traceback.print_exc()
                 errors += f"\nFailed to push task: {str(e)}"
         except Exception as e:
+            traceback.print_exc()
             errors += f"\nFailed to create a task: {str(e)}"
 
 

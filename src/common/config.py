@@ -151,13 +151,13 @@ def load_attr_spec(config_in):
     err_msg_type = "Invalid configuration: type of '{}' is invalid (must be '{}')"
     err_msg_missing_field = "Invalid configuration: mandatory field '{}' is missing"
 
-    assert type(config_in) is dict, err_msg_type.format('config', 'dict')
+    assert type(config_in) is HierarchicalDict, err_msg_type.format('config', 'dict')
 
     for entity_type in config_in:
         spec = config_in[entity_type]
 
         # Validate config structure
-        assert type(spec) is dict, err_msg_type.format(f'config[\"{entity_type}\"]', 'dict')
+        assert type(spec) is HierarchicalDict, err_msg_type.format(f'config[\"{entity_type}\"]', 'dict')
         assert "entity" in spec, err_msg_missing_field.format('entity')
         assert "attribs" in spec, err_msg_missing_field.format('attribs')
         assert type(spec["entity"]) is dict, err_msg_type.format('entity', 'dict')

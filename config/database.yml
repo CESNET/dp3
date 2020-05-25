@@ -1,0 +1,6 @@
+connection:
+  username: "adict"
+  password: "adict"
+  address: "172.17.0.3"
+  port: 5432
+  db_name: "adict"

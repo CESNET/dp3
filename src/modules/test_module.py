@@ -28,6 +28,7 @@ class TestModule(BaseModule):
 
     def processing_func_timestamp(self, etype, ekey, record, updates):
         """
+        Set current time to 'test_timestamp'
         :param etype: entity type
         :param ekey: entity identificator
         :param record: instance of Record as database record cache
@@ -37,10 +38,11 @@ class TestModule(BaseModule):
         """
         print("Hello from TestModule - processing_func_timestamp")
         current_time = time()
-        return [('set', 'test_timestamp', current_time)]
+        return [{'op': "set", 'attr': "test_timestamp", 'val': current_time}]
 
     def processing_func_test_attrib(self, etype, ekey, record, updates):
         """
+        Increase test_attrib's value by one (could also just use operation "add")
         :param etype: entity type
         :param ekey: entity identificator
         :param record: instance of Record as database record cache
@@ -50,4 +52,4 @@ class TestModule(BaseModule):
         """
         print("Hello from TestModule - processing_func_attrib")
         self.counter += 1
-        return [('set', 'test_attrib', self.counter)]
+        return [{'op': "set", 'attr': "test_attrib", 'val': self.counter}]

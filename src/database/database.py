@@ -4,7 +4,7 @@ from copy import deepcopy
 
 from sqlalchemy import create_engine, Table, Column, MetaData
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, ARRAY, FLOAT
-from sqlalchemy.sql import text, select
+from sqlalchemy.sql import text, select, func, and_
 
 from common.config import load_attr_spec
 from common.attrspec import AttrSpec
@@ -97,7 +97,7 @@ class EntityDatabase:
     @staticmethod
     def are_tables_identical(first_table: Table, second_table: Table) -> bool:
         """
-        Check table columns names and their types, if table does not exist yet, just create it.
+        Check table columns names and their types.
         :param first_table: first table to compare with
         :param second_table: second table to compare with
         :return: True if tables are identical, False otherwise
@@ -125,6 +125,9 @@ class EntityDatabase:
                     columns.append(Column(attrib_id, ARRAY(ATTR_TYPE_MAPPING[data_type])))
                 else:
                     columns.append(Column(attrib_id, ATTR_TYPE_MAPPING[attrib_conf.data_type]))
+                if attrib_conf.confidence:
+                    # create confidence column if required from configuration
+                    columns.append(Column(attrib_id + ":c", FLOAT))
         return columns
 
     def create_table(self, table_name: str, table_conf: dict, db_current_state: MetaData, history=False):
@@ -139,9 +142,13 @@ class EntityDatabase:
         # add MANDATORY ATTRIBS to table configuration
         attribs_conf = table_conf['attribs']
         attribs_conf.update(TABLE_MANDATORY_ATTRIBS)
-        # if table is not history, add 'eid' attrib configuration
+        # if table is not history table, add 'eid' column configuration
         if not history:
-            attribs_conf.update(EID_CONF)
+            # this could be done just by 'attribs_conf.update(EID_CONF)' but this way is 'eid' first column in database,
+            # which is more intuitive when viewing data in database
+            attr_conf = deepcopy(EID_CONF)
+            attr_conf.update(attribs_conf)
+            attribs_conf = attr_conf
         columns = self.init_table_columns(attribs_conf)
         entity_table = Table(table_name, self._db_metadata, *columns, extend_existing=True)
         try:
@@ -171,13 +178,14 @@ class EntityDatabase:
         for _, attrib_conf in table_attribs.items():
             if attrib_conf.history:
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
-                history_conf['value'] = AttrSpec("value", {'name': "value", 'data_type': attrib_conf.data_type})
+                history_conf['v'] = AttrSpec("v", {'name': "value", 'data_type': attrib_conf.data_type})
                 self.create_table(attrib_conf.id, {'attribs': history_conf}, db_current_state)
 
     def init_database_schema(self):
         """
         Check if database configuration is same as in database server or only new tables were added. If any already
-        existing table has updated configuration, cannot continue.
+        existing table has updated configuration, cannot continue. If db schema is empty, whole db schema will be
+        created.
         :return: True if configuration db schema is same with database server (except new tables), otherwise False
         :raise: DatabaseConfigMismatchError if db config is not the same with database (except new tables)
         """
@@ -213,10 +221,10 @@ class EntityDatabase:
         :param key: second part of condition - the value of identifier
         :return: None
         """
-        if "eid" in table.c:
-            return table.c.eid == key
-        else:
+        if "id" in table.c:
             return table.c.id == key
+        else:
+            return table.c.eid == key
 
     def get_attrib(self, table_name, key, attrib_name):
         """
@@ -288,6 +296,27 @@ class EntityDatabase:
             return False
         return True
 
+    def create_multiple_records(self, table_name: str, data: list):
+        """
+        Creates multiple records in table.
+        :param table_name: name of updated table
+        :param data: list of dictionaries, which contains data of each record to save
+        :return: True if records were successfully created, False if some error occurred
+        """
+        try:
+            record_table = self._tables[table_name]
+        except KeyError:
+            self.log.error(f"New record cannot be created, because table {table_name} does not exist!")
+            return False
+
+        try:
+            self._db.execute(record_table.insert(), data)
+        except Exception as e:
+            self.log.error(f"Multiple insert into {table_name} table failed!")
+            self.log.error(e)
+            return False
+        return True
+
     def delete_record(self, table_name: str, key: str):
         """
         Deletes whole record from database table.
@@ -318,4 +347,113 @@ class EntityDatabase:
         """
         self.update_record(table_name, key, {attrib_name: None})
 
+    def delete_multiple_records(self, table_name: str, list_of_ids: list):
+        """
+        Deletes all records of specified ids from table.
+        :param table_name: name of updated table
+        :param list_of_ids: list of record ids to delete
+        :return: None
+        """
+        try:
+            table = self._tables[table_name]
+        except KeyError:
+            self.log.error(f"Cannot delete records from {table_name} table, because table does not exist!")
+            return
+        if "id" in table.c:
+            delete_statement = table.delete().where(getattr(table.c, "id").in_(list_of_ids))
+        else:
+            delete_statement = table.delete().where(getattr(table.c, "eid").in_(list_of_ids))
+        try:
+            self._db.execute(delete_statement)
+        except Exception as e:
+            self.log.error(f"Deletion of multiple records of ids {list_of_ids} in {table_name} table failed!")
+            self.log.error(e)
 
+    def create_datapoint(self, etype: str, attr_name: str, datapoint_body: dict):
+        """
+        Creates new data-point in attribute history table and saves the oldest value of attribute's data-points as
+        actual value.
+        :param etype: name of entity, which
+        :param attr_name: name of history attribute (table name)
+        :param datapoint_body: data of datapoint to save
+        :return: True if datapoint was successfully processed, False otherwise
+        """
+        try:
+            datapoint_table = self._tables[attr_name].c
+        except KeyError:
+            self.log.error(f"Cannot create datapoint of attribute {attr_name}, because such history table does not exist!")
+            return False
+        try:
+            self.create_record(attr_name, datapoint_body['eid'], datapoint_body)
+            # get maximum of 't2' of attribute's datapoints
+            select_max_t2 = select([func.max(getattr(datapoint_table, "t2"))])
+            result = self._db.execute(select_max_t2)
+            max_val = result.fetchone()[0]
+            # and get the 'v' of that record, where t2 is the maximum
+            select_val = select([getattr(datapoint_table, "v")]).where(getattr(datapoint_table, "t2") == max_val)
+            result = self._db.execute(select_val)
+            actual_val = result.fetchone()[0]
+            # and insert that value as actual value of entity attribute
+            self.update_record(etype, datapoint_body['eid'], {attr_name: actual_val})
+            return True
+        except Exception as e:
+            self.log.error(f"Handling of creating new datapoint of {etype} entity and {attr_name} attribute failed!")
+            self.log.error(e)
+            return False
+
+    def search(self, table_name, data):
+        pass
+
+    @staticmethod
+    def get_object_from_db_record(table: Table, db_record):
+        """
+        Loads correct object from database query (one row)
+        :param table: row Table instance to correctly match columns to query row
+        :param db_record: row of database from SQL query
+        :return: correct object loaded query row
+        """
+        record_object = {}
+        for i, column in enumerate(table.c):
+            record_object[column.description] = db_record[i]
+        return record_object
+
+    def get_datapoints_range(self, attr_name: str, eid: str, t1: str, t2: str):
+        """
+        Gets data-points of certain time interval between t1 and t2 from database.
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points corresponds
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :return: list of data-point objects
+        """
+        try:
+            data_point_table = self._tables[attr_name]
+        except KeyError:
+            self.log.error(f"Cannot get data-points range, because history table of {attr_name} does not exist!")
+            return
+        # wanted datapoints values must have their 't2' > t1 and 't1' < t2 (where t without '' are arguments from this
+        # method)
+        select_statement = select([data_point_table]).where(and_(getattr(data_point_table.c, "eid") == eid,
+                                                                 getattr(data_point_table.c, "t2") > t1,
+                                                                 getattr(data_point_table.c, "t1") < t2))
+        try:
+            result = self._db.execute(select_statement)
+        except Exception as e:
+            self.log.error(f"Select of data-point range from {t1} to {t2} failed!")
+            self.log.error(e)
+            return None
+        data_points_result = []
+        for row in result:
+            data_points_result.append(self.get_object_from_db_record(data_point_table, row))
+        return data_points_result
+
+    def rewrite_data_points(self, attr_name: str, list_of_ids_to_delete: list, new_data_points: list):
+        """
+        Deletes data-points of specified ids and inserts new data-points.
+        :param attr_name: name of data-point attribute
+        :param list_of_ids_to_delete: ids of data-points, which will be deleted from database
+        :param new_data_points: list of dictionaries, which contains data of new data points
+        :return: None
+        """
+        self.delete_multiple_records(attr_name, list_of_ids_to_delete)
+        self.create_multiple_records(attr_name, new_data_points)

@@ -482,8 +482,6 @@ class TaskExecutor:
         # self.log.debug("call_queue loop end")
         assert(len(may_change) == 0)
 
-        rec['ts_last_update'] = datetime.utcnow()
-
         # Update processed database record
         rec.push_changes_to_db()
 

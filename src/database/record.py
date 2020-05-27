@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from .db_dummy import AttributeValueNotSet
 from .database import EntityDatabase
@@ -115,12 +116,14 @@ class Record:
         Send all updates to database.
         :return: None
         """
-        if self.exists_in_db:
-            self._db_connection.update_record(self.table_name, self.key, self._record_changes)
-        else:
-            # if new record get created, _record and _record_changes should contain same data
-            self._db_connection.create_record(self.table_name, self.key, self._record)
+        if self._record_changes:
+            self['ts_last_update'] = datetime.utcnow()
+            if self.exists_in_db:
+                self._db_connection.update_record(self.table_name, self.key, self._record_changes)
+            else:
+                # if new record get created, _record and _record_changes should contain same data
+                self._db_connection.create_record(self.table_name, self.key, self._record)
 
-        # reset record changes, because they were pushed to database, but leave record cache, it may be still needed
-        # (but probably won't)
-        self._record_changes = {}
+            # reset record changes, because they were pushed to database, but leave record cache, it may be still needed
+            # (but probably won't)
+            self._record_changes = {}

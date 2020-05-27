@@ -244,7 +244,7 @@ class TaskExecutor:
         """
         new_rec_created = False
         rec = Record(self.db, etype, ekey)
-        if not rec.exists():
+        if not rec.exists_in_db:
             if not create:
                 attr_updates.clear()
                 self.log.debug(
@@ -253,7 +253,7 @@ class TaskExecutor:
             else:
                 now = datetime.utcnow()
                 rec.update({
-                    'id': ekey,
+                    'eid': ekey,
                     'ts_added': now,
                     'ts_last_update': now,
                 })
@@ -385,17 +385,11 @@ class TaskExecutor:
                     try:
                         # 'attr' is dropped, because it is not saved directly, it is just table name from database view
                         data_to_save.pop('attr')
-
-                        # 'id' is saved as 'eid'
+                        # 'ekey' is saved as 'eid'
                         data_to_save['eid'] = ekey
-                        # TODO src may not arrive in the body, but still should be saved in database, but it will be
-                        # saved just as null probably, so not really needed, depends on later database implementation
-                        # if not data_to_save.get("src"):
-                        #    data_to_save['src'] = ""
-                        self.db.create_new_data_point(etype, data_point['attr'], data_to_save)
-
-                        # TODO time aggregation and current value changed? For now always True --> update current value
-                        requests_to_process.append({'attr': data_point['attr'], 'op': "set", 'val': data_point['v']})
+                        self.db.create_datapoint(etype, data_point['attr'], data_to_save)
+                        # TODO time aggregation and current value changed? Current value is changed automatically by
+                        # database wrapper
                     except KeyError as e:
                         src = data_point.get("src", "")
                         self.log.error(f"Data point has wrong structure! Error on {str(e)}, source: {src}.")

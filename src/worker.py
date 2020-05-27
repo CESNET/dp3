@@ -6,10 +6,9 @@ import inspect
 import threading
 import signal
 
-from common.config import read_config_dir, read_config
+from common.config import read_config_dir
 from common import scheduler
-from database.db_dummy import EntityDatabase
-from task_processing.task_queue import TaskQueueReader, TaskQueueWriter
+from database.database import EntityDatabase
 from task_processing.task_executor import TaskExecutor
 from task_processing.task_distributor import TaskDistributor
 import g

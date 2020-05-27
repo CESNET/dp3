@@ -1,6 +1,7 @@
 import logging
 
 from .db_dummy import AttributeValueNotSet
+from .database import EntityDatabase
 
 
 class Record:
@@ -8,18 +9,20 @@ class Record:
     Internal cache for database record and its updates to prevent loading whole record from database.
     Only record's attributes, which are really needed, will be loaded.
     """
-    def __init__(self, db, etype, ekey):
+    # TODO remove EntityDatabase
+    def __init__(self, db: EntityDatabase, table_name, key):
         self._db_connection = db
 
         self._log = logging.getLogger("Record")
 
-        self.etype = etype
-        self.ekey = ekey
+        self.table_name = table_name
+        self.key = key
 
         # record structure
         self._record = {}
         # structure, which will hold all attributes, which were updated, all their updated values
         self._record_changes = {}
+        self.exists_in_db = self.exists()
 
     def _load_from_db(self, attrib_name):
         """
@@ -29,7 +32,7 @@ class Record:
         :return: None
         """
         try:
-            self._record[attrib_name] = self._db_connection.get_attrib(self.etype, self.ekey, attrib_name)
+            self._record[attrib_name] = self._db_connection.get_attrib(self.table_name, self.key, attrib_name)
         except AttributeValueNotSet:
             pass
 
@@ -81,14 +84,14 @@ class Record:
             del self._record[attrib_name]
         except KeyError:
             pass
-        self._db_connection.delete_attribute(self.etype, self.ekey, attrib_name)
+        self._db_connection.delete_attribute(self.table_name, self.key, attrib_name)
 
     def exists(self):
         """
         Checks, whether record exists in the database.
         :return: True if exists record exists in the database, False otherwise
         """
-        return self._db_connection.exists(self.etype, self.ekey)
+        return self._db_connection.exists(self.table_name, self.key)
 
     def update(self, dict_update):
         """
@@ -112,7 +115,12 @@ class Record:
         Send all updates to database.
         :return: None
         """
-        self._db_connection.update(self.etype, self.ekey, self._record_changes)
-        # reset record changes, because they were pushed to database, but leave record cache, it may be needed
+        if self.exists_in_db:
+            self._db_connection.update_record(self.table_name, self.key, self._record_changes)
+        else:
+            # if new record get created, _record and _record_changes should contain same data
+            self._db_connection.create_record(self.table_name, self.key, self._record)
+
+        # reset record changes, because they were pushed to database, but leave record cache, it may be still needed
         # (but probably won't)
         self._record_changes = {}

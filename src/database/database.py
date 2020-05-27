@@ -385,7 +385,7 @@ class EntityDatabase:
         :return: True if datapoint was successfully processed, False otherwise
         """
         try:
-            datapoint_table = self._tables[attr_name].c
+            datapoint_table = self._tables[attr_name]
         except KeyError:
             self.log.error(f"Cannot create datapoint of attribute {attr_name}, because such history table does not exist!")
             return False
@@ -393,12 +393,12 @@ class EntityDatabase:
             datapoint_body.update({'ts_added': datetime.utcnow()})
             self.create_record(attr_name, datapoint_body['eid'], datapoint_body)
             # get maximum of 't2' of attribute's datapoints
-            select_max_t2 = select([func.max(getattr(datapoint_table, "t2"))]).where(
+            select_max_t2 = select([func.max(getattr(datapoint_table.c, "t2"))]).where(
                 getattr(datapoint_table.c, "eid") == datapoint_body['eid'])
             result = self._db.execute(select_max_t2)
             max_val = result.fetchone()[0]
             # and get the 'v' of that record, where t2 is the maximum
-            select_val = select([getattr(datapoint_table, "v")]).where(and_(
+            select_val = select([getattr(datapoint_table.c, "v")]).where(and_(
                 getattr(datapoint_table.c, "t2") == max_val,
                 getattr(datapoint_table.c, "eid") == datapoint_body['eid']
             ))

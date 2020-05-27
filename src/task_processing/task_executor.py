@@ -353,7 +353,7 @@ class TaskExecutor:
             return False
 
         if create is None:
-            create = self.config['processing_core'].get('auto_create_record', True)
+            create = self.config['db_entities'].get(etype, {}).get('entity', {}).get('auto_create_record', True)
 
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)

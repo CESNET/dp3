@@ -15,10 +15,11 @@ application = app
 application.debug = True
 
 # Directory containing config files
-conf_dir = "/ADiCT/processing_platform/config"
+conf_dir = "/etc/adict/config"
 
 # Path to yaml file containing attribute specification
-path_attr_spec = f"{conf_dir}/attributes_specification.yml"
+# TODO: there should be a directory, not single file
+path_attr_spec = f"{conf_dir}/db_entities/ip.yml"
 
 # Path to yaml file containing platform configuration
 path_platform_config = f"{conf_dir}/processing_core.yml"
@@ -59,7 +60,10 @@ def initialize():
     # Load configuration and entity/attribute specification
     try:
         platform_config = read_config(path_platform_config)
-        attr_spec = load_attr_spec(yaml.safe_load(open(path_attr_spec)))
+        # TODO: this is a quick fix, there should be loading of multiple files from given directory
+        ip_attr_spec = yaml.safe_load(open(path_attr_spec))
+        attr_spec = load_attr_spec({"ip": ip_attr_spec})
+        #log.info(f"init: loaded attr_spec: {attr_spec}")
     except Exception as e:
         log.exception("Error when reading configuration:")
         return # "initialized" stays False, so any request will fail with Error 500

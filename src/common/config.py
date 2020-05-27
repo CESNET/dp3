@@ -125,6 +125,7 @@ def read_config_dir(dir_path, recursive=False):
     return config
 
 
+# TODO: This should be moved elsewhere, this file should be generic, independent of entitiy/attribute config format
 def load_attr_spec(config_in):
     """
     Load and validate entity/attribute specification
@@ -151,17 +152,17 @@ def load_attr_spec(config_in):
     err_msg_type = "Invalid configuration: type of '{}' is invalid (must be '{}')"
     err_msg_missing_field = "Invalid configuration: mandatory field '{}' is missing"
 
-    assert type(config_in) is HierarchicalDict, err_msg_type.format('config', 'dict')
+    assert isinstance(config_in, dict), err_msg_type.format('config', 'dict')
 
     for entity_type in config_in:
         spec = config_in[entity_type]
 
         # Validate config structure
-        assert type(spec) is HierarchicalDict, err_msg_type.format(f'config[\"{entity_type}\"]', 'dict')
+        assert isinstance(spec, dict), err_msg_type.format(f'config[\"{entity_type}\"]', 'dict')
         assert "entity" in spec, err_msg_missing_field.format('entity')
         assert "attribs" in spec, err_msg_missing_field.format('attribs')
-        assert type(spec["entity"]) is dict, err_msg_type.format('entity', 'dict')
-        assert type(spec["attribs"]) is dict, err_msg_type.format('attribs', 'dict')
+        assert isinstance(spec["entity"], dict), err_msg_type.format('entity', 'dict')
+        assert isinstance(spec["attribs"], dict), err_msg_type.format('attribs', 'dict')
 
         config_out[entity_type] = {"entity": {}, "attribs": {}}
 

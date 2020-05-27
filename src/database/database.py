@@ -1,6 +1,7 @@
 import logging
 from typing import List
 from copy import deepcopy
+from datetime import datetime
 
 from sqlalchemy import create_engine, Table, Column, MetaData
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, ARRAY, FLOAT
@@ -76,14 +77,15 @@ class EntityDatabase:
         port = str(connection_conf.get('port', 5432))
         db_name = connection_conf.get('db_name', "adict")
         database_url = "postgresql://" + username + ":" + password + "@" + address + ":" + port + "/" + db_name
-
+        self.log.debug(f"Connection URL: {database_url}")
         db_engine = create_engine(database_url)
 
         try:
             self._db = db_engine.connect()
-        except Exception:
+        except Exception as e:
             # TODO How to exit properly?
             self.log.error("Cannot connect to database with specified connection arguments!")
+            self.log.error(e)
 
         # internal structure for storing table objects
         self._tables = {}
@@ -139,9 +141,7 @@ class EntityDatabase:
         :param history: boolean flag determining if new table is history table or not
         :return:
         """
-        # add MANDATORY ATTRIBS to table configuration
         attribs_conf = table_conf['attribs']
-        attribs_conf.update(TABLE_MANDATORY_ATTRIBS)
         # if table is not history table, add 'eid' column configuration
         if not history:
             # this could be done just by 'attribs_conf.update(EID_CONF)' but this way is 'eid' first column in database,
@@ -149,6 +149,12 @@ class EntityDatabase:
             attr_conf = deepcopy(EID_CONF)
             attr_conf.update(attribs_conf)
             attribs_conf = attr_conf
+            attribs_conf.update(TABLE_MANDATORY_ATTRIBS)
+        else:
+            tmp_mandatory_attribs = deepcopy(TABLE_MANDATORY_ATTRIBS)
+            # not needed to save tl_last_update in data-points, they should not be updated
+            tmp_mandatory_attribs.pop('ts_last_update')
+            attribs_conf.update(tmp_mandatory_attribs)
         columns = self.init_table_columns(attribs_conf)
         entity_table = Table(table_name, self._db_metadata, *columns, extend_existing=True)
         try:
@@ -179,7 +185,7 @@ class EntityDatabase:
             if attrib_conf.history:
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
                 history_conf['v'] = AttrSpec("v", {'name': "value", 'data_type': attrib_conf.data_type})
-                self.create_table(attrib_conf.id, {'attribs': history_conf}, db_current_state)
+                self.create_table(attrib_conf.id, {'attribs': history_conf}, db_current_state, True)
 
     def init_database_schema(self):
         """
@@ -384,13 +390,18 @@ class EntityDatabase:
             self.log.error(f"Cannot create datapoint of attribute {attr_name}, because such history table does not exist!")
             return False
         try:
+            datapoint_body.update({'ts_added': datetime.utcnow()})
             self.create_record(attr_name, datapoint_body['eid'], datapoint_body)
             # get maximum of 't2' of attribute's datapoints
-            select_max_t2 = select([func.max(getattr(datapoint_table, "t2"))])
+            select_max_t2 = select([func.max(getattr(datapoint_table, "t2"))]).where(
+                getattr(datapoint_table.c, "eid") == datapoint_body['eid'])
             result = self._db.execute(select_max_t2)
             max_val = result.fetchone()[0]
             # and get the 'v' of that record, where t2 is the maximum
-            select_val = select([getattr(datapoint_table, "v")]).where(getattr(datapoint_table, "t2") == max_val)
+            select_val = select([getattr(datapoint_table, "v")]).where(and_(
+                getattr(datapoint_table.c, "t2") == max_val,
+                getattr(datapoint_table.c, "eid") == datapoint_body['eid']
+            ))
             result = self._db.execute(select_val)
             actual_val = result.fetchone()[0]
             # and insert that value as actual value of entity attribute

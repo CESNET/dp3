@@ -385,6 +385,11 @@ class TaskExecutor:
                     try:
                         # 'attr' is dropped, because it is not saved directly, it is just table name from database view
                         data_to_save.pop('attr')
+                        for key in ("type", "id"):
+                            try:
+                                data_to_save.pop(key)
+                            except KeyError:
+                                pass
                         # 'ekey' is saved as 'eid'
                         data_to_save['eid'] = ekey
                         self.db.create_datapoint(etype, data_point['attr'], data_to_save)

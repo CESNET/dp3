@@ -5,7 +5,7 @@ import yaml
 import traceback
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, Response
 from task import Task
 from src.task_processing.task_queue import TaskQueueWriter
 from src.common.config import read_config, load_attr_spec
@@ -35,6 +35,10 @@ task_writer = None
 # Logger
 log = None
 
+# Flag marking if initialization was successful (no request can be handled if this is False)
+initialized = False
+
+
 # Load configuration, initialize logging and connect to platform message broker
 # This need to be called before any request is made
 @app.before_first_request
@@ -43,6 +47,7 @@ def initialize():
     global platform_config
     global log
     global task_writer
+    global initialized
 
     # Logging initialization
     log_format = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
@@ -56,15 +61,23 @@ def initialize():
         platform_config = read_config(path_platform_config)
         attr_spec = load_attr_spec(yaml.safe_load(open(path_attr_spec)))
     except Exception as e:
-        log.error(str(e))
-        return
-        # TODO what to do here?
+        log.exception("Error when reading configuration:")
+        return # "initialized" stays False, so any request will fail with Error 500
 
     assert "msg_broker" in platform_config, "configuration does not contain 'msg_broker'"
     assert "worker_processes" in platform_config, "configuration does not contain 'worker_processes'"
 
     task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
+
+    initialized = True
     log.info("Initialization completed")
+
+
+@app.before_request
+def check_initialization():
+    if not initialized:
+        return Response("ERROR: Server not correctly initialized, probably due to some error in configuration. See server log for details.", 500)
+    return None # continue processing request as normal
 
 
 # Push given task to platforms task queue (RabbitMQ)

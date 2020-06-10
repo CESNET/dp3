@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 
 from sqlalchemy import create_engine, Table, Column, MetaData
-from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, ARRAY, FLOAT
+from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT
 from sqlalchemy.sql import text, select, func, and_
 
 from common.config import load_attr_spec
@@ -18,6 +18,7 @@ ATTR_TYPE_MAPPING = {
     'category': VARCHAR,
     'string': VARCHAR,
     'int': INTEGER,
+    'int64': BIGINT,
     'float': FLOAT,
     'time': TIMESTAMP,
     'ipv4': VARCHAR,

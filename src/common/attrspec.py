@@ -68,6 +68,15 @@ def is_link(data_type):
     return False
 
 
+# Check whether given data type represents a dict
+def is_dict(data_type):
+    if re.match(r"^dict<\w+>$", data_type):
+        # TODO
+        # data type of each value must be supported
+        return True
+    return False
+
+
 # Validate ipv4 string
 def valid_ipv4(address):
     try:
@@ -145,6 +154,24 @@ def valid_link(obj, entity_type):
     return True
 
 
+def valid_dict(obj, key_spec):
+    if type(obj) is not dict:
+        return False
+    keys = keys.split(",")
+    for k in keys:
+        key = k.split(":")[0]
+        data_type = k.split(":")[1]
+        if key not in obj
+            if key[-1] == "?":
+                continue
+            else:
+                return False
+        f = validators[data_type]
+        if not f(obj[key]):
+            return False
+    return True
+
+
 # This class represents specification of an attribute of given id
 class AttrSpec:
     # Class constructor
@@ -202,6 +229,10 @@ class AttrSpec:
         elif is_link(self.data_type):
             etype = self.data_type.split("<")[1].split(">")[0]
             self.value_validator = lambda v: valid_link(v, etype)
+
+        elif is_dict(self.data_type):
+            keys = self.data_type.split("<")[1].split(">")[0]
+            self.value_validator = lambda v: valid_dict(v, keys)
 
         else:
             raise AssertionError("type '{}' is not supported".format(self.data_type))

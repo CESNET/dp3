@@ -1,6 +1,5 @@
 import ipaddress
 import re
-import time
 
 # Error message templates
 err_msg_type = "type of '{}' is invalid (must be '{}')"
@@ -19,6 +18,7 @@ supported_data_types = [
     "float",
     "ipv4",
     "ipv6",
+    "mac",
     "time",
     "special"
 ]
@@ -38,6 +38,10 @@ default_expire_time = "inf"
 
 # Regular expression for parsing RFC3339 time format (with optional fractional part and timezone) 
 timestamp_re = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
+
+# Regular expression for parsing MAC address
+mac_re = re.compile(r'^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$')
+
 
 # Check whether given data type represents an array
 def is_array(data_type):
@@ -90,6 +94,13 @@ def valid_rfc3339(timestamp):
         return False
 
 
+def valid_mac(address):
+    if mac_re.match(address):
+        return True
+    else:
+        return False
+
+
 # Dictionary containing validator functions for primitive data types
 validators = {
     "tag": lambda v: True,
@@ -100,6 +111,7 @@ validators = {
     "float": lambda v: type(v) is float,
     "ipv4": valid_ipv4,
     "ipv6": valid_ipv6,
+    "mac": valid_mac,
     "time": valid_rfc3339,
     "special": lambda v: v is not None
 }

@@ -71,8 +71,6 @@ def is_link(data_type):
 # Check whether given data type represents a dict
 def is_dict(data_type):
     if re.match(r"^dict<\w+>$", data_type):
-        # TODO
-        # data type of each value must be supported
         return True
     return False
 
@@ -103,6 +101,7 @@ def valid_rfc3339(timestamp):
         return False
 
 
+# Validate MAC string
 def valid_mac(address):
     if mac_re.match(address):
         return True
@@ -157,16 +156,13 @@ def valid_link(obj, entity_type):
 def valid_dict(obj, key_spec):
     if type(obj) is not dict:
         return False
-    keys = keys.split(",")
-    for k in keys:
-        key = k.split(":")[0]
-        data_type = k.split(":")[1]
-        if key not in obj
+    for key in key_spec:
+        if key not in obj:
             if key[-1] == "?":
                 continue
             else:
                 return False
-        f = validators[data_type]
+        f = validators[key_spec[key]]
         if not f(obj[key]):
             return False
     return True
@@ -231,11 +227,16 @@ class AttrSpec:
             self.value_validator = lambda v: valid_link(v, etype)
 
         elif is_dict(self.data_type):
-            keys = self.data_type.split("<")[1].split(">")[0]
-            self.value_validator = lambda v: valid_dict(v, keys)
+            key_str = self.data_type.split("<")[1].split(">")[0]
+            key_spec = dict(item.split(":") for item in key_str.split(","))
+
+            for k in key_spec:
+                assert key_spec[k] in supported_data_types, f"type {key_spec[k]} is not supported in dict fields"
+
+            self.value_validator = lambda v: valid_dict(v, key_spec)
 
         else:
-            raise AssertionError("type '{}' is not supported".format(self.data_type))
+            raise AssertionError(f"type '{self.data_type}' is not supported")
 
         # If categories are given, it should be a list
         if self.categories:

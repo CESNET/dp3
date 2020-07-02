@@ -8,10 +8,9 @@ err_msg_value = "value of '{}' is invalid"
 err_msg_missing_field = "mandatory field '{}' is missing"
 
 # List of primitive data types
-supported_data_types = [
+primitive_data_types = [
     "tag",
     "binary",
-    "category",
     "string",
     "int",
     "int64",
@@ -36,43 +35,13 @@ default_max_age = None
 default_max_items = None
 default_expire_time = "inf"
 
-# Regular expression for parsing RFC3339 time format (with optional fractional part and timezone) 
-timestamp_re = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
-
-# Regular expression for parsing MAC address
-mac_re = re.compile(r'^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$')
-
-
-# Check whether given data type represents an array
-def is_array(data_type):
-    if re.match(r"^array<\w+>$", data_type):
-        if data_type.split("<")[1].split(">")[0] in supported_data_types:
-            return True
-    return False
-
-
-# Check whether given data type represents a set
-def is_set(data_type):
-    if re.match(r"^set<\w+>$", data_type):
-        if data_type.split("<")[1].split(">")[0] in supported_data_types:
-            return True
-    return False
-
-
-# Check whether given data type represents a link
-def is_link(data_type):
-    if re.match(r"^link<\w+>$", data_type):
-        # TODO
-        # if data_type.split("<")[1].split(">")[0] in supported_entity_types:
-            return True
-    return False
-
-
-# Check whether given data type represents a dict
-def is_dict(data_type):
-    if re.match(r"^dict<\w+>$", data_type):
-        return True
-    return False
+# Regular expressions for parsing various data types
+re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
+re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
+re_array = re.compile(r"^array<\w+>$")
+re_set = re.compile(r"^set<\w+>$")
+re_link = re.compile(r"^link<\w+>$")
+re_dict = re.compile(r"^dict<\w+>$")
 
 
 # Validate ipv4 string
@@ -95,18 +64,12 @@ def valid_ipv6(address):
 
 # Validate timestamp string
 def valid_rfc3339(timestamp):
-    if timestamp_re.match(timestamp):
-        return True
-    else:
-        return False
+    return re_timestamp.match(timestamp)
 
 
 # Validate MAC string
 def valid_mac(address):
-    if mac_re.match(address):
-        return True
-    else:
-        return False
+    return re_mac.match(address)
 
 
 # Dictionary containing validator functions for primitive data types
@@ -147,12 +110,7 @@ def valid_set(obj, data_type):
     return True
 
 
-def valid_link(obj, entity_type):
-    # TODO
-    # obj must be a valid key for given entity type
-    return True
-
-
+# Validate dict object
 def valid_dict(obj, key_spec):
     if type(obj) is not dict:
         return False
@@ -205,42 +163,41 @@ class AttrSpec:
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
 
         # Initialize attribute's validator function according to its data type
-        if self.data_type == "category":
+        if self.data_type in primitive_data_types:
+            self.value_validator = validators[self.data_type]
+
+        elif self.data_type == "category":
             if self.categories is None:
                 self.value_validator = validators["string"]
             else:
+                assert type(self.categories) is list, err_msg_type.format("categories", "list")
                 self.value_validator = lambda v: v in self.categories
 
-        elif self.data_type in supported_data_types:
-            self.value_validator = validators[self.data_type]
+        elif re.match(re_array, self.data_type):
+            element_type = self.data_type.split("<")[1].split(">")[0]
+            assert element_type in primitive_data_types, f"data type {element_type} is not supported as an array element"
+            self.value_validator = lambda v: valid_array(v, element_type)
 
-        elif is_array(self.data_type):
-            dtype = self.data_type.split("<")[1].split(">")[0]
-            self.value_validator = lambda v: valid_array(v, dtype)
+        elif re.match(re_set, self.data_type):
+            element_type = self.data_type.split("<")[1].split(">")[0]
+            assert element_type in primitive_data_types, f"data type {element_type} is not supported as a set element"
+            self.value_validator = lambda v: valid_set(v, element_type)
 
-        elif is_set(self.data_type):
-            dtype = self.data_type.split("<")[1].split(">")[0]
-            self.value_validator = lambda v: valid_set(v, dtype)
+        elif re.match(re_link, self.data_type):
+            # TODO
+            # Should the entity type be validated here? I.e. does the specification for given entity type have to exist?
+            self.value_validator = lambda v: v is not None
 
-        elif is_link(self.data_type):
-            etype = self.data_type.split("<")[1].split(">")[0]
-            self.value_validator = lambda v: valid_link(v, etype)
-
-        elif is_dict(self.data_type):
+        elif re.match(re_dict, self.data_type):
             key_str = self.data_type.split("<")[1].split(">")[0]
             key_spec = dict(item.split(":") for item in key_str.split(","))
-
             for k in key_spec:
-                assert key_spec[k] in supported_data_types, f"type {key_spec[k]} is not supported in dict fields"
-
+                assert key_spec[k] in primitive_data_types, f"data type {key_spec[k]} is not supported as a dict field"
             self.value_validator = lambda v: valid_dict(v, key_spec)
 
         else:
-            raise AssertionError(f"type '{self.data_type}' is not supported")
+            raise AssertionError(f"data type '{self.data_type}' is not supported")
 
-        # If categories are given, it should be a list
-        if self.categories:
-            assert type(self.categories) is list, err_msg_type.format("categories", "list")
 
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:

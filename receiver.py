@@ -66,7 +66,7 @@ def initialize():
 
     # Initialize task queue connection
     try:
-        task_writer = TaskQueueWriter(config["processing_platform"]["worker_processes"], config["processing_platform"]["msg_broker"])
+        task_writer = TaskQueueWriter(config["processing_core"]["worker_processes"], config["processing_core"]["msg_broker"])
     except Exception as e:
         log.exception(f"Error when connecting to task queue: {e}")
         return

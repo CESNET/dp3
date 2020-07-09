@@ -73,7 +73,7 @@ def initialize():
 
     # Initialize database connection
     try:
-        db = EntityDatabase(config["database"])
+        db = EntityDatabase(config)
     except Exception as e:
         log.exception(f"Error when connecting to database: {e}")
         return

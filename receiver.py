@@ -1,14 +1,15 @@
 import os
 import sys
 import logging
-import yaml
 import traceback
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 
 from flask import Flask, request, render_template, Response
 from task import Task
 from src.task_processing.task_queue import TaskQueueWriter
-from src.common.config import read_config, load_attr_spec
+from src.common.config import read_config_dir, load_attr_spec
+from src.database.database import EntityDatabase
+from src.common.utils import parse_rfc_time
 
 app = Flask(__name__)
 application = app
@@ -17,15 +18,8 @@ application.debug = True
 # Directory containing config files
 conf_dir = "/etc/adict/config"
 
-# Path to yaml file containing attribute specification
-# TODO: there should be a directory, not single file
-path_attr_spec = f"{conf_dir}/db_entities/ip.yml"
-
-# Path to yaml file containing platform configuration
-path_platform_config = f"{conf_dir}/processing_core.yml"
-
 # Dictionary containing platform configuration
-platform_config = None
+config = None
 
 # Dictionary containing entity / attribute specification
 attr_spec = None
@@ -39,16 +33,20 @@ log = None
 # Flag marking if initialization was successful (no request can be handled if this is False)
 initialized = False
 
+# Database handler
+db = None
+
 
 # Load configuration, initialize logging and connect to platform message broker
 # This need to be called before any request is made
 @app.before_first_request
 def initialize():
     global attr_spec
-    global platform_config
+    global config
     global log
     global task_writer
     global initialized
+    global db
 
     # Logging initialization
     log_format = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
@@ -59,19 +57,26 @@ def initialize():
 
     # Load configuration and entity/attribute specification
     try:
-        platform_config = read_config(path_platform_config)
-        # TODO: this is a quick fix, there should be loading of multiple files from given directory
-        ip_attr_spec = yaml.safe_load(open(path_attr_spec))
-        attr_spec = load_attr_spec({"ip": ip_attr_spec})
-        #log.info(f"init: loaded attr_spec: {attr_spec}")
+        config = read_config_dir(conf_dir, recursive=True)
+        attr_spec = load_attr_spec(config["db_entities"])
+        log.info(f"Loaded configuration: {config}")
     except Exception as e:
-        log.exception("Error when reading configuration:")
+        log.exception(f"Error when reading configuration: {e}")
         return # "initialized" stays False, so any request will fail with Error 500
 
-    assert "msg_broker" in platform_config, "configuration does not contain 'msg_broker'"
-    assert "worker_processes" in platform_config, "configuration does not contain 'worker_processes'"
+    # Initialize task queue connection
+    try:
+        task_writer = TaskQueueWriter(config["processing_platform"]["worker_processes"], config["processing_platform"]["msg_broker"])
+    except Exception as e:
+        log.exception(f"Error when connecting to task queue: {e}")
+        return
 
-    task_writer = TaskQueueWriter(platform_config["worker_processes"], platform_config["msg_broker"])
+    # Initialize database connection
+    try:
+        db = EntityDatabase(config["database"])
+    except Exception as e:
+        log.exception(f"Error when connecting to database: {e}")
+        return
 
     initialized = True
     log.info("Initialization completed")
@@ -108,7 +113,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
     log.info(f"Received new datapoint from {request.remote_addr}")
 
     try:
-        config = attr_spec[entity_type]["attribs"][attr_id]
+        spec = attr_spec[entity_type]["attribs"][attr_id]
     except Exception as e:
         response = f"Error: {str(e)}"
         log.info(response)
@@ -120,7 +125,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         "src": request.args.get("src", "")
     }
 
-    if config.history is True:
+    if spec.history is True:
         t["data_points"] = [{
             "attr": attr_id
         }]
@@ -186,8 +191,8 @@ def push_multiple_datapoints():
             }
 
         try:
-            config = attr_spec[record["type"]]["attribs"][record["attr"]]
-            if config.history is True:
+            spec = attr_spec[record["type"]]["attribs"][record["attr"]]
+            if spec.history is True:
                 tasks[key]["data_points"].append(record)
             else:
                 tasks[key]["attr_updates"].append({
@@ -264,6 +269,55 @@ def push_single_task():
 
     log.info(response)
     return f"{response}\n", 202
+
+
+# REST endpoint to read current value for an attribute of given entity
+# Entity type, entity id and attribute id must be provided
+@app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
+def get_attribute(entity_type, entity_id, attr_id):
+    log.info(f"Received new GET request from {request.remote_addr}")
+
+    try:
+        response = db.get_attrib(entity_type, entity_id, attr_id), 200
+    except Exception as e:
+        response = f"Error when querying db: {e}", 500
+
+    return response
+
+
+# REST endpoint to read data points (of one attribute) from given time interval
+# Attribute id is mandatory
+# Timestamps t1, t2 are optional and should be contained in query parameters
+@app.route("/datapoints/<string:attr_id>", methods=["GET"])
+def get_datapoints_range(attr_id):
+    log.info(f"Received new GET request from {request.remote_addr}")
+
+    time_min = "" # TODO earliest possible timestamp
+    time_max = "" # TODO latest possible timestamp
+
+    t1 = request.args.get("t1", None)
+    t2 = request.args.get("t2", None)
+
+    if t1 is None:
+        t1 = time_min
+    if t2 is None:
+        t2 = time_max
+
+    try:
+        _t1 = parse_rfc_time(t1)
+        _t2 = parse_rfc_time(t2)
+    except ValueError:
+        return "Error: invalid timestamp format", 400
+
+    if _t1 < _t2:
+        return "Error: invalid time interval (t2 < t1)", 400
+
+    try:
+        response = db.get_datapoints_range(attr_id, t1, t2), 200
+    except Exception as e:
+        response = f"Error when querying db: {e}", 500
+
+    return response
 
 
 # REST endpoint to check whether the API is running

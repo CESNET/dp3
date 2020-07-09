@@ -349,7 +349,7 @@ class TaskExecutor:
         # whole record should be deleted from database
         if delete:
             self._delete_record_from_db(etype, ekey)
-            self.log.debug("Entity '{}' of type '{}' was removed from the database.".format(ekey, etype))
+            self.log.debug(f"Task {etype}/{ekey}: Entity record removed from database.")
             return False
 
         if create is None:
@@ -357,9 +357,12 @@ class TaskExecutor:
 
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)
+        if new_rec_created:
+            self.log.debug(f"Task {etype}/{ekey}: New record created")
 
         # Short-circuit if attr_updates, events or data_points is empty (used to only create a record if it doesn't exist)
         if not attr_updates and not events and not data_points:
+            self.log.debug(f"Task {etype}/{ekey}: Nothing to do, processing finished")
             return False
 
         requests_to_process = attr_updates
@@ -392,12 +395,15 @@ class TaskExecutor:
                                 pass
                         # 'ekey' is saved as 'eid'
                         data_to_save['eid'] = ekey
-                        self.db.create_datapoint(etype, data_point['attr'], data_to_save)
+                        ok = self.db.create_datapoint(etype, data_point['attr'], data_to_save)
+                        if ok:
+                            self.log.debug(f"Task {etype}/{ekey}: Data-point stored: {data_to_save}")
+                            # on error, a message is already logged by the create_datapoint() method
                         # TODO time aggregation and current value changed? Current value is changed automatically by
                         # database wrapper
                     except KeyError as e:
                         src = data_point.get("src", "")
-                        self.log.error(f"Data point has wrong structure! Error on {str(e)}, source: {src}.")
+                        self.log.error(f"Task {etype}/{ekey}: Data point has wrong structure! Error on '{str(e)}', source: {src}.")
                         continue
 
                 # add all functions, which are hooked to events, to call queue
@@ -423,6 +429,7 @@ class TaskExecutor:
                 for update_request in requests_to_process:
                     attrib_name = update_request['attr']
                     updated = self._perform_update(rec, update_request)
+                    self.log.debug(f"Task {etype}/{ekey}: Attribute value updated: {update_request} (value changed: {updated})")
                     if not updated:
                         continue
 
@@ -444,7 +451,7 @@ class TaskExecutor:
             loop_counter += 1
             if loop_counter > 20:
                 self.log.warning(
-                    "Too many iterations when updating ({}:{}), something went wrong! Update chain stopped.".format(
+                    "Too many iterations when updating ({}/{}), something went wrong! Update chain stopped.".format(
                         etype, ekey))
                 break
 
@@ -460,12 +467,14 @@ class TaskExecutor:
 
             # call the event handler function of some secondary module
             # set of requested updates of the record should be returned
+            self.log.debug(f"Task {etype}/{ekey}: Calling handler function '{get_func_name(handler_function)}' ...")
             try:
                 requested_updates = handler_function(etype, ekey, rec, updates)
             except Exception as e:
                 self.log.exception("Unhandled exception during call of {}(({}, {}), rec, {}). Traceback follows:"
                                    .format(get_func_name(handler_function), etype, ekey, updates))
                 requested_updates = []
+            self.log.debug(f"Task {etype}/{ekey}: New attribute update requests: '{requested_updates}'")
 
             # set requested updates to requests_to_process
             if requested_updates:
@@ -485,6 +494,6 @@ class TaskExecutor:
         # Update processed database record
         rec.push_changes_to_db()
 
-        self.log.debug(f"Finished processing of task {etype}/{ekey}!")
+        self.log.debug(f"Task {etype}/{ekey}: All changes written to DB, processing finished.")
 
         return new_rec_created

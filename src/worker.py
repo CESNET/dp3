@@ -6,7 +6,7 @@ import inspect
 import threading
 import signal
 
-from common.config import read_config_dir
+from common.config import read_config_dir, load_attr_spec
 from common import scheduler
 from database.database import EntityDatabase
 from task_processing.task_executor import TaskExecutor
@@ -63,6 +63,7 @@ def main(cfg_dir, process_index, verbose):
 
     # whole configuration should be loaded
     config = read_config_dir(cfg_dir, recursive=True)
+    attr_spec = load_attr_spec(config["db_entities"])
 
     num_processes = config['processing_core'].get('worker_processes')
     assert (isinstance(num_processes,
@@ -78,7 +79,7 @@ def main(cfg_dir, process_index, verbose):
     g.config = config
     g.config_base_path = os.path.dirname(os.path.abspath(cfg_dir))
     g.scheduler = scheduler.Scheduler()
-    g.db = EntityDatabase(config)
+    g.db = EntityDatabase(config["database"], attr_spec)
     te = TaskExecutor(g.db, config)
     g.td = TaskDistributor(config, process_index, num_processes, te)
 
@@ -153,9 +154,8 @@ if __name__ == "__main__":
     )
     parser.add_argument('process_index', metavar='INDEX', type=int,
         help='Index of the worker process')
-    # TODO change default path based on new platform name and maybe do not load whole config at start??
-    parser.add_argument('-c', '--config', metavar='DIRECTORY_NAME', default='/etc/nerd/nerdd.yml',
-        help='Path to configuration directory (default: /etc/nerd/nerdd.yml)')
+    parser.add_argument('-c', '--config', metavar='DIRECTORY_NAME', default='/etc/adict/config',
+        help='Path to configuration directory (default: /etc/adict/config)')
     parser.add_argument('-v', '--verbose', action="store_true", help="Verbose mode", default=False)
     args = parser.parse_args()
 

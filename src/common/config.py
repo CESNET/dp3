@@ -149,20 +149,18 @@ def load_attr_spec(config_in):
     """
     config_out = {}
 
-    err_msg_type = "Invalid configuration: type of '{}' is invalid (must be '{}')"
+    err_msg_type = "Invalid configuration: type of '{}' is invalid (should be '{}', is '{}')"
     err_msg_missing_field = "Invalid configuration: mandatory field '{}' is missing"
 
     assert isinstance(config_in, dict), err_msg_type.format('config', 'dict')
 
-    for entity_type in config_in:
-        spec = config_in[entity_type]
-
+    for entity_type, spec in config_in.items():
         # Validate config structure
-        assert isinstance(spec, dict), err_msg_type.format(f'config[\"{entity_type}\"]', 'dict')
+        assert isinstance(spec, dict), err_msg_type.format(f'config[\"{entity_type}\"]', 'dict', type(spec))
         assert "entity" in spec, err_msg_missing_field.format('entity')
         assert "attribs" in spec, err_msg_missing_field.format('attribs')
-        assert isinstance(spec["entity"], dict), err_msg_type.format('entity', 'dict')
-        assert isinstance(spec["attribs"], dict), err_msg_type.format('attribs', 'dict')
+        assert isinstance(spec["entity"], dict), err_msg_type.format('entity', 'dict', type(spec["entity"]))
+        assert isinstance(spec["attribs"], dict), err_msg_type.format('attribs', 'dict', type(spec["attribs"]))
 
         config_out[entity_type] = {"entity": {}, "attribs": {}}
 
@@ -170,14 +168,14 @@ def load_attr_spec(config_in):
         try:
             config_out[entity_type]["entity"] = EntitySpec(entity_type, spec["entity"])
         except Exception as e:
-            raise AssertionError("Invalid entity specification: " + str(e))
+            raise AssertionError(f"Invalid specification of entity {entity_type}: {e}")
 
         # Init attribute specification
         for attr in spec["attribs"]:
             try:
                 config_out[entity_type]["attribs"][attr] = AttrSpec(attr, spec["attribs"][attr])
             except Exception as e:
-                raise AssertionError("Invalid attribute specification: " + str(e))
+                raise AssertionError(f"Invalid specification of attribute '{attr}': {e}")
 
     return config_out
 

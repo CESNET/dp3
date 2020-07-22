@@ -9,7 +9,6 @@ from sqlalchemy.sql import text, select, func, and_
 
 from common.config import load_attr_spec
 from common.attrspec import AttrSpec
-import g
 
 # map supported data types to Postgres SQL data types
 ATTR_TYPE_MAPPING = {
@@ -64,14 +63,15 @@ class EntityDatabase:
     """
     PostgreSQL database wrapper responsible for whole communication with database server. Initializes database schema
     based on database configuration.
+
+    db_conf - configuration of database connection (content of databse.yml)
+    attr_spec - configuration of data model (entities and attributes, result of config.load_attr_spec function)
     """
-    def __init__(self, conf=None):
+    def __init__(self, db_conf, attr_spec):
         self.log = logging.getLogger("EntityDatabase")
+        #self.log.setLevel("DEBUG")
 
-        if conf is None:
-            conf = {}
-
-        connection_conf = conf['database'].get('connection', {})
+        connection_conf = db_conf.get('connection', {})
         username = connection_conf.get('username', "adict")
         password = connection_conf.get('password', "adict")
         address = connection_conf.get('address', "localhost")
@@ -93,7 +93,7 @@ class EntityDatabase:
         # for type check purposes let reflect as True, later with migration support may be solved in some other way
         self._db_metadata = MetaData(bind=self._db, reflect=True)
 
-        self._db_schema_config = load_attr_spec(g.config['db_entities'])
+        self._db_schema_config = attr_spec
         self.init_database_schema()
         self.log.info("Database successfully initialized!")
 
@@ -392,7 +392,9 @@ class EntityDatabase:
             return False
         try:
             datapoint_body.update({'ts_added': datetime.utcnow()})
-            self.create_record(attr_name, datapoint_body['eid'], datapoint_body)
+            self.create_record(attr_name, datapoint_body['eid'], datapoint_body) #TODO toto v pripade chyby vraci False, nevyhazuje to vyjimku!
+            self.log.debug(f"Data-point stored: {datapoint_body}")
+            # TODO shouldn't this be easier to do using "SELECT v FROM... ORDER BY t2 DESC LIMIT 1" - it would require just one query
             # get maximum of 't2' of attribute's datapoints
             select_max_t2 = select([func.max(getattr(datapoint_table.c, "t2"))]).where(
                 getattr(datapoint_table.c, "eid") == datapoint_body['eid'])
@@ -406,7 +408,8 @@ class EntityDatabase:
             result = self._db.execute(select_val)
             actual_val = result.fetchone()[0]
             # and insert that value as actual value of entity attribute
-            self.update_record(etype, datapoint_body['eid'], {attr_name: actual_val})
+            self.update_record(etype, datapoint_body['eid'], {attr_name: actual_val}) # TODO Stejne tak asi toto!
+            self.log.debug(f"Current value of '{attr_name}' updated to '{actual_val}'")
             return True
         except Exception as e:
             self.log.error(f"Handling of creating new datapoint of {etype} entity and {attr_name} attribute failed!")
@@ -414,7 +417,7 @@ class EntityDatabase:
             return False
 
     def search(self, table_name, data):
-        pass
+        raise NotImplementedError("search method not implemented yet")
 
     @staticmethod
     def get_object_from_db_record(table: Table, db_record):
@@ -467,5 +470,6 @@ class EntityDatabase:
         :param new_data_points: list of dictionaries, which contains data of new data points
         :return: None
         """
+        # TODO: do in a trasnsaction (that is probably needed on other places as well)
         self.delete_multiple_records(attr_name, list_of_ids_to_delete)
         self.create_multiple_records(attr_name, new_data_points)

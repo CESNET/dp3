@@ -16,6 +16,7 @@ application = app
 application.debug = True
 
 # Directory containing config files
+# TODO this should be configurable somehow (env var passed from Apache config?)
 conf_dir = "/etc/adict/config"
 
 # Dictionary containing platform configuration
@@ -73,7 +74,7 @@ def initialize():
 
     # Initialize database connection
     try:
-        db = EntityDatabase(config)
+        db = EntityDatabase(config["database"], attr_spec)
     except Exception as e:
         log.exception(f"Error when connecting to database: {e}")
         return
@@ -91,18 +92,18 @@ def check_initialization():
 
 # Push given task to platforms task queue (RabbitMQ)
 def push_task(task):
-        task_writer.put_task(
-            task["etype"],
-            task["ekey"],
-            task["attr_updates"],
-            task["events"],
-            task["data_points"],
-            task["create"],
-            task["delete"],
-            task["src"],
-            task["tags"],
-            False
-        )
+    task_writer.put_task(
+        task["etype"],
+        task["ekey"],
+        task["attr_updates"],
+        task["events"],
+        task["data_points"],
+        task["create"],
+        task["delete"],
+        task["src"],
+        task["tags"],
+        False
+    )
 
 
 # REST endpoint to push a single data point

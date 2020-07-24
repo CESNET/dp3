@@ -2,14 +2,15 @@ import os
 import sys
 import logging
 import traceback
-sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
-
 from flask import Flask, request, render_template, Response
-from task import Task
+
+sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 from src.task_processing.task_queue import TaskQueueWriter
 from src.common.config import read_config_dir, load_attr_spec
 from src.database.database import EntityDatabase
 from src.common.utils import parse_rfc_time
+
+from task import Task
 
 app = Flask(__name__)
 application = app
@@ -38,10 +39,13 @@ initialized = False
 db = None
 
 
-# Load configuration, initialize logging and connect to platform message broker
-# This need to be called before any request is made
 @app.before_first_request
 def initialize():
+    """
+    Load configuration, initialize logging and connect to platform message broker.
+
+    This needs to be called before any request is made.
+    """
     global attr_spec
     global config
     global log
@@ -50,7 +54,7 @@ def initialize():
     global db
 
     # Logging initialization
-    log_format = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
+    log_format = "%(asctime)-15s [%(levelname)s] %(message)s"
     log_dateformat = "%Y-%m-%dT%H:%M:%S"
     logging.basicConfig(level=logging.WARNING, format=log_format, datefmt=log_dateformat)
     log = logging.getLogger()
@@ -59,7 +63,7 @@ def initialize():
     # Load configuration and entity/attribute specification
     try:
         config = read_config_dir(conf_dir, recursive=True)
-        attr_spec = load_attr_spec(config["db_entities"])
+        attr_spec = load_attr_spec(config.get("db_entities"))
         log.info(f"Loaded configuration: {config}")
     except Exception as e:
         log.exception(f"Error when reading configuration: {e}")
@@ -67,14 +71,14 @@ def initialize():
 
     # Initialize task queue connection
     try:
-        task_writer = TaskQueueWriter(config["processing_core"]["worker_processes"], config["processing_core"]["msg_broker"])
+        task_writer = TaskQueueWriter(config.get("processing_core.worker_processes"), config.get("processing_core.msg_broker"))
     except Exception as e:
         log.exception(f"Error when connecting to task queue: {e}")
         return
 
     # Initialize database connection
     try:
-        db = EntityDatabase(config["database"], attr_spec)
+        db = EntityDatabase(config.get("database"), attr_spec)
     except Exception as e:
         log.exception(f"Error when connecting to database: {e}")
         return
@@ -90,8 +94,11 @@ def check_initialization():
     return None # continue processing request as normal
 
 
-# Push given task to platforms task queue (RabbitMQ)
+################################################################################
+# Endpoints to write data (push data-points / tasks)
+
 def push_task(task):
+    """Push given task (instance of task.Task) to platform's task queue (RabbitMQ)"""
     task_writer.put_task(
         task["etype"],
         task["ekey"],
@@ -102,23 +109,26 @@ def push_task(task):
         task["delete"],
         task["src"],
         task["tags"],
-        False
+        False # priority
     )
 
 
-# REST endpoint to push a single data point
-# Entity type, id and attribute name are part of the endpoint path
-# Other fields should be contained in query parameters
 @app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["POST"])
 def push_single_datapoint(entity_type, entity_id, attr_id):
-    log.info(f"Received new datapoint from {request.remote_addr}")
+    """
+    REST endpoint to push a single data point
+
+    Entity type, id and attribute name are part of the endpoint path.
+    Other fields should be contained in query parameters.
+    """
+    log.debug(f"Received new datapoint from {request.remote_addr}")
 
     try:
         spec = attr_spec[entity_type]["attribs"][attr_id]
     except Exception as e:
         response = f"Error: {str(e)}"
-        log.info(response)
-        return f"{response}\n", 400
+        log.debug(response)
+        return f"{response}\n", 400 # Bad request
 
     t = {
         "etype": entity_type,
@@ -128,10 +138,9 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     if spec.history is True:
         t["data_points"] = [{
-            "attr": attr_id
+            "attr": attr_id,
+            **request.args # TODO check for excess fields?
         }]
-        for k in request.args:
-            t["data_points"][0][k] = request.args[k]
     else:
         t["attr_updates"] = [{
             "attr": attr_id,
@@ -139,32 +148,40 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
             "val": request.args.get("v", None)
         }]
 
-    # Make valid task using the attr_spec template and push it to platforms task queue
+    # Make valid task using the attr_spec template and push it to platform's task queue
     try:
         task = Task(t, attr_spec)
-        try:
-            push_task(task)
-            response = "Success"
-        except Exception as e:
-            response = f"Error: Failed to push task: {str(e)}"
     except Exception as e:
         response = f"Error: Failed to create a task: {str(e)}"
+        log.info(response)
+        return f"{response}\n", 400 # Bad request
+    try:
+        push_task(task)
+    except Exception as e:
+        response = f"Error: Failed to push task to queue: {str(e)}"
+        log.info(response)
+        return f"{response}\n", 500 # Internal server error
 
-    log.info(response)
-    return f"{response}\n", 202
+    response = "Success"
+    log.debug(response)
+    return f"{response}\n", 202 # Accepted
 
 
-# REST endpoint to push multiple data points
-# Request payload must be a JSON dict containing a list of records
-# Example: {"records": [{rec1},{rec2},{rec3},...]}
 @app.route("/datapoints", methods=["POST"])
 def push_multiple_datapoints():
-    log.info(f"Received new datapoint(s) from {request.remote_addr}")
+    """
+    REST endpoint to push multiple data points
+
+    Request payload must be a JSON dict containing a list of records.
+    Example:
+        {"records": [{rec1},{rec2},{rec3},...]}
+    """
+    log.debug(f"Received new datapoint(s) from {request.remote_addr}")
 
     # Request must be valid JSON (dict) and contain a list of records
     try:
         payload = request.get_json(force=True) # force = ignore mimetype
-    except:
+    except Exception:
         payload = None
 
     errors = ""
@@ -177,68 +194,79 @@ def push_multiple_datapoints():
         # Request is invalid, cannot continue
         response = f"Invalid request: {errors}"
         log.info(response)
-        return f"{response}\n", 400
+        return f"{response}\n", 400 # Bad request
 
+    # Create a task for each (etype,ekey) in data-points
     tasks = {}
-    for record in payload:
-        key = record["type"], record["id"]
+    for i,record in enumerate(payload, 1):
+        # Extract all mandatory fields
+        try:
+            etype, ekey, attr = record["type"], record["id"], record["attr"]
+            _ = record["t1"] # try to access just to check field existence
+        except KeyError as e:
+            response = f"Invalid data-point no. {i}: Missing field '{str(e)}'"
+            log.info(response)
+            return f"{response}\n", 400
+
+        key = (etype, ekey)
         if key not in tasks:
+            # create new "empty" task
             tasks[key] = {
-                "etype": record["type"],
-                "ekey": record["id"],
+                "etype": etype,
+                "ekey": ekey,
                 "data_points": [],
                 "attr_updates": [],
                 "src": record.get("src", "")
             }
 
-        try:
-            spec = attr_spec[record["type"]]["attribs"][record["attr"]]
-            if spec.history is True:
-                tasks[key]["data_points"].append(record)
-            else:
-                tasks[key]["attr_updates"].append({
-                    "attr": record["attr"],
-                    "op": "set",
-                    "val": record.get("v", None)
-                })
-        except Exception as e:
-            response = f"Invalid data-point: {str(e)}"
-            log.info(response)
-            return f"{response}\n", 400
+        # add data-points or attr updates
+        spec = attr_spec[etype]["attribs"][attr]
+        if spec.history is True:
+            tasks[key]["data_points"].append(record)
+        else:
+            tasks[key]["attr_updates"].append({
+                "attr": attr,
+                "op": "set",
+                "val": record.get("v", None)
+            })
 
-    # Make valid tasks using the attr_spec template and push it to platforms task queue
+    # Make valid tasks using the attr_spec template and push it to platform's task queue
     for k in tasks:
         try:
             task = Task(tasks[k], attr_spec)
-            try:
-                push_task(task)
-            except Exception as e:
-                traceback.print_exc()
-                errors += f"\nFailed to push task: {str(e)}"
         except Exception as e:
             traceback.print_exc()
             errors += f"\nFailed to create a task: {str(e)}"
-
+            continue
+        try:
+            push_task(task)
+        except Exception as e:
+            traceback.print_exc()
+            errors += f"\nFailed to push task: {str(e)}"
 
     if errors != "":
         response = f"Error: {errors}"
+        log.info(response)
     else:
         response = "Success"
+        log.debug(response)
 
-    log.info(response)
-    return f"{response}\n", 202
+    return f"{response}\n", 202 # Accepted (what status code to return when there is error in *some* of the tasks?)
 
 
-# REST endpoint to push a single task
-# Task structure (JSON) should be contained directly in request payload
 @app.route("/tasks", methods=["POST"])
 def push_single_task():
-    log.info(f"Received new task from {request.remote_addr}")
+    """
+    REST endpoint to push a single task
+
+    Task structure (JSON) should be contained directly in request payload.
+    """
+    log.debug(f"Received new task from {request.remote_addr}")
 
     # Request must be valid JSON (dict)
     try:
         payload = request.get_json(force=True)  # force = ignore mimetype
-    except:
+    except Exception:
         payload = None
 
     errors = ""
@@ -251,80 +279,96 @@ def push_single_task():
         # Request is invalid, cannot continue
         response = f"Invalid request: {errors}"
         log.info(response)
-        return f"{response}\n", 400
+        return f"{response}\n", 400 # Bad request
 
     # Make valid task and push it to platforms task queue
     try:
         task = Task(payload, attr_spec)
-        try:
-            push_task(task)
-        except Exception as e:
-            errors += f"\nFailed to push task: {str(e)}"
     except Exception as e:
-        errors += f"\nFailed to create a task: {str(e)}"
+        response = f"Error: Failed to create a task: {str(e)}"
+        log.info(response)
+        return f"{response}\n", 400 # Bad request
+    try:
+        push_task(task)
+    except Exception as e:
+        response = f"Error: Failed to push task to queue: {str(e)}"
+        log.info(response)
+        return f"{response}\n", 500 # Internal server error
 
-    if errors != "":
-        response = f"Error: {errors}"
-    else:
-        response = "Success"
-
-    log.info(response)
-    return f"{response}\n", 202
+    response = "Success"
+    log.debug(response)
+    return f"{response}\n", 202 # Accepted
 
 
-# REST endpoint to read current value for an attribute of given entity
-# Entity type, entity id and attribute id must be provided
+################################################################################
+# Endpoints to read data
+
+# TODO: why is this under /datapoints/, when it's about current value? (datapoints are more about history)
+#       What about the second option?
 @app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
+@app.route("/get/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
 def get_attribute(entity_type, entity_id, attr_id):
-    log.info(f"Received new GET request from {request.remote_addr}")
+    """
+    REST endpoint to read current value for an attribute of given entity
+
+    Entity type, entity id and attribute id must be provided
+    """
+    log.debug(f"Received new GET request from {request.remote_addr}")
 
     try:
-        response = db.get_attrib(entity_type, entity_id, attr_id), 200
+        response = db.get_attrib(entity_type, entity_id, attr_id), 200 # OK
     except Exception as e:
-        response = f"Error when querying db: {e}", 500
+        response = f"Error when querying db: {e}", 500 # Internal server error
 
-    return response
+    return response # TODO: What about non-string data types? Always return value encoded as JSON? (in that case, don't forget to set mime-type)
 
 
-# REST endpoint to read data points (of one attribute) from given time interval
-# Attribute id is mandatory
-# Timestamps t1, t2 are optional and should be contained in query parameters
 @app.route("/datapoints/<string:attr_id>", methods=["GET"])
 def get_datapoints_range(attr_id):
-    log.info(f"Received new GET request from {request.remote_addr}")
+    """
+    REST endpoint to read data points (of one attribute) from given time interval
+
+    Attribute id is mandatory
+    Timestamps t1, t2 are optional and should be contained in query parameters
+
+    Example:
+        /datapoints/test_attr?t1=2020-01-23T12:00:00&t2=2020-01-23T14:00:00
+
+    # TODO: it would be nice to be able to specify entity ID as well
+    """
+    log.debug(f"Received new GET request from {request.remote_addr}")
 
     time_min = "" # TODO earliest possible timestamp
     time_max = "" # TODO latest possible timestamp
+    # TODO: it will be better to set it to None and modify db method to not include such times into WHERE clause
 
-    t1 = request.args.get("t1", None)
-    t2 = request.args.get("t2", None)
-
-    if t1 is None:
-        t1 = time_min
-    if t2 is None:
-        t2 = time_max
+    t1 = request.args.get("t1", time_min)
+    t2 = request.args.get("t2", time_max)
 
     try:
         _t1 = parse_rfc_time(t1)
         _t2 = parse_rfc_time(t2)
     except ValueError:
-        return "Error: invalid timestamp format", 400
+        return "Error: invalid timestamp format", 400 # Bad request
 
     if _t1 < _t2:
-        return "Error: invalid time interval (t2 < t1)", 400
+        return "Error: invalid time interval (t2 < t1)", 400 # Bad request
 
     try:
-        response = db.get_datapoints_range(attr_id, t1, t2), 200
+        response = db.get_datapoints_range(attr_id, t1, t2), 200 # OK
     except Exception as e:
-        response = f"Error when querying db: {e}", 500
+        response = f"Error when querying db: {e}", 500 # Internal server error
 
-    return response
+    return response # TODO Encode as JSON?
 
 
-# REST endpoint to check whether the API is running
-# Returns a simple html template
 @app.route("/")
 def ping():
+    """
+    REST endpoint to check whether the API is running
+
+    Returns a simple html template
+    """
     return render_template("ping.html")
 
 

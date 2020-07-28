@@ -351,7 +351,7 @@ def get_datapoints_range(attr_id):
     except ValueError:
         return "Error: invalid timestamp format", 400 # Bad request
 
-    if _t1 < _t2:
+    if _t2 < _t1:
         return "Error: invalid time interval (t2 < t1)", 400 # Bad request
 
     try:

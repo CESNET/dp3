@@ -327,8 +327,8 @@ def get_attribute(entity_type, entity_id, attr_id):
     return response
 
 
-@app.route("/datapoints/<string:attr_id>", methods=["GET"])
-def get_datapoints_range(attr_id):
+@app.route("/datapoints/<string:entity_id>/<string:attr_id>", methods=["GET"])
+def get_datapoints_range(entity_id, attr_id):
     """
     REST endpoint to read data points (of one attribute) from given time interval
 
@@ -338,7 +338,9 @@ def get_datapoints_range(attr_id):
     Example:
         /datapoints/test_attr?t1=2020-01-23T12:00:00&t2=2020-01-23T14:00:00
 
-    # TODO: it would be nice to be able to specify entity ID as well
+    # TODO:
+    # Should entity type be specified as well? It's needed for entity_id data type validation.
+    # Also db method for reading data points currently only accepts string as entity id data type
     """
     log.debug(f"Received new GET request from {request.remote_addr}")
 
@@ -359,9 +361,9 @@ def get_datapoints_range(attr_id):
         return "Error: invalid time interval (t2 < t1)", 400 # Bad request
 
     try:
-        content = db.get_datapoints_range(attr_id, t1, t2)
+        content = db.get_datapoints_range(attr_id, entity_id, t1, t2)
         if content is None:
-            response = f"No records found for {attr_id}", 404 # Not found
+            response = f"No records found for {entity_id}/{attr_id}", 404 # Not found
         else:
             response = jsonify(content), 200 # OK
     except Exception as e:

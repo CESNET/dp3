@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 import traceback
-from flask import Flask, request, render_template, Response
+from flask import Flask, request, render_template, Response, jsonify
 
 sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
 from src.task_processing.task_queue import TaskQueueWriter
@@ -316,11 +316,15 @@ def get_attribute(entity_type, entity_id, attr_id):
     log.debug(f"Received new GET request from {request.remote_addr}")
 
     try:
-        response = db.get_attrib(entity_type, entity_id, attr_id), 200 # OK
+        content = db.get_attrib(entity_type, entity_id, attr_id)
+        if content is None:
+            response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404  # Not found
+        else:
+            response = jsonify(content), 200 # OK
     except Exception as e:
         response = f"Error when querying db: {e}", 500 # Internal server error
 
-    return response # TODO: What about non-string data types? Always return value encoded as JSON? (in that case, don't forget to set mime-type)
+    return response
 
 
 @app.route("/datapoints/<string:attr_id>", methods=["GET"])
@@ -355,11 +359,15 @@ def get_datapoints_range(attr_id):
         return "Error: invalid time interval (t2 < t1)", 400 # Bad request
 
     try:
-        response = db.get_datapoints_range(attr_id, t1, t2), 200 # OK
+        content = db.get_datapoints_range(attr_id, t1, t2)
+        if content is None:
+            response = f"No records found for {attr_id}", 404 # Not found
+        else:
+            response = jsonify(content), 200 # OK
     except Exception as e:
         response = f"Error when querying db: {e}", 500 # Internal server error
 
-    return response # TODO Encode as JSON?
+    return response
 
 
 @app.route("/")

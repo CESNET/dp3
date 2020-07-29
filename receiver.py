@@ -344,7 +344,7 @@ def get_attr_history(entity_type, entity_id, attr_id):
     log.debug(f"Received new GET request from {request.remote_addr}")
 
     try:
-        f = attr_spec[entity_type]["entity"]["key_validator"]
+        f = attr_spec[entity_type]["entity"].key_validator
     except KeyError:
         return f"Error: no entity specification found for '{entity_type}'"
     if not f(entity_id):

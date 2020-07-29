@@ -97,8 +97,6 @@ def validate_task(task, config):
         # Check valid interval (T2 must be greater than or equal to T1)
         assert t1 <= t2, "t2 is less than t1"
 
-
-
     # Check data type of entity key - validator functions are specified in entityspec module
     assert entity_spec.key_validator(task["ekey"]), err_msg_type.format("ekey", entity_spec.key_data_type)
 

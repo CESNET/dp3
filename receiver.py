@@ -113,13 +113,13 @@ def push_task(task):
     )
 
 
-@app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["POST"])
+@app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["POST"])
 def push_single_datapoint(entity_type, entity_id, attr_id):
     """
-    REST endpoint to push a single data point
+    REST endpoint to push a single data point (or an attribute update)
 
     Entity type, id and attribute name are part of the endpoint path.
-    Other fields should be contained in query parameters.
+    Other fields should be contained in query parameters, depending on attribute specification.
     """
     log.debug(f"Received new datapoint from {request.remote_addr}")
 
@@ -303,15 +303,15 @@ def push_single_task():
 ################################################################################
 # Endpoints to read data
 
-# TODO: why is this under /datapoints/, when it's about current value? (datapoints are more about history)
-#       What about the second option?
-@app.route("/datapoints/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
-@app.route("/get/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
-def get_attribute(entity_type, entity_id, attr_id):
+@app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
+def get_attr_value(entity_type, entity_id, attr_id):
     """
     REST endpoint to read current value for an attribute of given entity
 
     Entity type, entity id and attribute id must be provided
+
+    Example:
+        /ip/1.2.3.4/test_attr
     """
     log.debug(f"Received new GET request from {request.remote_addr}")
 
@@ -327,43 +327,50 @@ def get_attribute(entity_type, entity_id, attr_id):
     return response
 
 
-@app.route("/datapoints/<string:entity_id>/<string:attr_id>", methods=["GET"])
-def get_datapoints_range(entity_id, attr_id):
+@app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>/history", methods=["GET"])
+def get_attr_history(entity_type, entity_id, attr_id):
     """
-    REST endpoint to read data points (of one attribute) from given time interval
+    REST endpoint to read history of an attribute (data points from given time interval)
 
-    Attribute id is mandatory
+    Entity id, attribute id are mandatory
     Timestamps t1, t2 are optional and should be contained in query parameters
 
-    Example:
-        /datapoints/test_attr?t1=2020-01-23T12:00:00&t2=2020-01-23T14:00:00
-
-    # TODO:
-    # Should entity type be specified as well? It's needed for entity_id data type validation.
-    # Also db method for reading data points currently only accepts string as entity id data type
+    Examples:
+        /ip/1.2.3.4/test_attr/history?t1=2020-01-23T12:00:00&t2=2020-01-23T14:00:00
+        /ip/1.2.3.4/test_attr/history?t1=2020-01-23T12:00:00
+        /ip/1.2.3.4/test_attr/history?t2=2020-01-23T14:00:00
+        /ip/1.2.3.4/test_attr/history
     """
     log.debug(f"Received new GET request from {request.remote_addr}")
 
-    time_min = "" # TODO earliest possible timestamp
-    time_max = "" # TODO latest possible timestamp
-    # TODO: it will be better to set it to None and modify db method to not include such times into WHERE clause
-
-    t1 = request.args.get("t1", time_min)
-    t2 = request.args.get("t2", time_max)
-
     try:
-        _t1 = parse_rfc_time(t1)
-        _t2 = parse_rfc_time(t2)
-    except ValueError:
-        return "Error: invalid timestamp format", 400 # Bad request
+        f = attr_spec[entity_type]["entity"]["key_validator"]
+    except KeyError:
+        return f"Error: no entity specification found for '{entity_type}'"
+    if not f(entity_id):
+        return "Error: invalid entity id", 400 # Bad request
 
-    if _t2 < _t1:
+    t1 = request.args.get("t1", None)
+    t2 = request.args.get("t2", None)
+    if t1 is not None:
+        try:
+            _t1 = parse_rfc_time(t1)
+        except ValueError:
+            return "Error: invalid timestamp format (t1)", 400 # Bad request
+    if t2 is not None:
+        try:
+            _t2 = parse_rfc_time(t2)
+        except ValueError:
+            return "Error: invalid timestamp format (t2)", 400 # Bad request
+    if t1 is not None and \
+       t2 is not None and \
+       _t2 < _t1:
         return "Error: invalid time interval (t2 < t1)", 400 # Bad request
 
     try:
         content = db.get_datapoints_range(attr_id, entity_id, t1, t2)
         if content is None:
-            response = f"No records found for {entity_id}/{attr_id}", 404 # Not found
+            response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404 # Not found
         else:
             response = jsonify(content), 200 # OK
     except Exception as e:
@@ -372,7 +379,7 @@ def get_datapoints_range(entity_id, attr_id):
     return response
 
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def ping():
     """
     REST endpoint to check whether the API is running

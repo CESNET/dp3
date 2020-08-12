@@ -10,6 +10,11 @@ from sqlalchemy.sql import text, select, func, and_
 from common.config import load_attr_spec
 from common.attrspec import AttrSpec
 
+# TODO:
+#  - create index on "eid" (for history tables)
+#  - set "eid" as primary key (for main tables)
+#  - name history tables as <entity_name><delimiter><attr_name> (so different entities can have the same attribute)
+
 # map supported data types to Postgres SQL data types
 ATTR_TYPE_MAPPING = {
     'tag': BOOLEAN,
@@ -64,7 +69,7 @@ class EntityDatabase:
     PostgreSQL database wrapper responsible for whole communication with database server. Initializes database schema
     based on database configuration.
 
-    db_conf - configuration of database connection (content of databse.yml)
+    db_conf - configuration of database connection (content of database.yml)
     attr_spec - configuration of data model (entities and attributes, result of config.load_attr_spec function)
     """
     def __init__(self, db_conf, attr_spec):

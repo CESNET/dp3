@@ -29,7 +29,7 @@ class TaskDistributor:
 
         # List of worker threads for processing the update requests
         self._worker_threads = []
-        self.num_threads = config.get('worker_threads', 8)
+        self.num_threads = config.get('processing_core.worker_threads', 8)
 
         # Internal queues for each worker
         self._queues = [queue.Queue(10) for _ in range(self.num_threads)]

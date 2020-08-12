@@ -8,7 +8,11 @@ msg_broker:
 
 # Number of worker processes
 # WARNING: If changing number of worker processes, the following process must be followed:
-# TODO step by step process
+# 1. stop all inputs writing to task queue (e.g. httpd, updater)
+# 2. when all queues are empty, stop all workers
+# 3. reconfigure queues in RabbitMQ using /ADiCT/processing_platform/install/rmq_reconfigure.sh
+# 4. change the settings here and in /etc/adict/supervisor.conf.d/workers.ini
+# 5. reload supervisord and start all inputs again
 worker_processes: 1
 
 # Number of worker threads per process.

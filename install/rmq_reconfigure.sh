@@ -1,5 +1,7 @@
 N=$1
 
+# TODO: Check there are no workers running
+
 echo "** Removing all processing platform exchanges and queues **"
 
 exchange_list=$(rabbitmqadmin list exchanges name -f tsv | grep "^pp-.*-task-exchange")

@@ -12,7 +12,6 @@ from common.attrspec import AttrSpec
 
 # TODO:
 #  - create index on "eid" (for history tables)
-#  - set "eid" as primary key (for main tables)
 #  - name history tables as <entity_name><delimiter><attr_name> (so different entities can have the same attribute)
 
 # map supported data types to Postgres SQL data types
@@ -52,6 +51,8 @@ TABLE_MANDATORY_ATTRIBS = {
     'ts_added': AttrSpec("ts_added", {'name': "timestamp of record creation", 'data_type': "time"}),
     'ts_last_update': AttrSpec("ts_last_update", {'name': "timestamp of record last update", 'data_type': "time"}),
 }
+
+# Preconfiguration of main entity tables
 EID_CONF = {'eid': AttrSpec("eid", {'name': "entity id", 'data_type': "string"})}
 
 
@@ -115,16 +116,17 @@ class EntityDatabase:
         return db_table_metadata == config_table_metadata
 
     @staticmethod
-    def init_table_columns(table_attribs: dict) -> List[Column]:
+    def init_table_columns(table_attribs: dict, history: bool) -> List[Column]:
         """
         Instantiate Columns based on attributes configuration.
         :param table_attribs: dictionary of AttrSpecs
+        :param history: boolean flag determining if new table is history table or not
         :return: list of Columns
         """
         columns = []
         for attrib_id, attrib_conf in table_attribs.items():
-            if attrib_id == "id":
-                # "id" is primary key column
+            if (history and attrib_id == "id") or (not history and attrib_id == "eid"):
+                # "id"/"eid" is primary key column
                 columns.append(Column(attrib_id, ATTR_TYPE_MAPPING[attrib_conf.data_type], primary_key=True))
             else:
                 if attrib_conf.data_type.startswith(("array", "set")):
@@ -161,7 +163,7 @@ class EntityDatabase:
             # not needed to save tl_last_update in data-points, they should not be updated
             tmp_mandatory_attribs.pop('ts_last_update')
             attribs_conf.update(tmp_mandatory_attribs)
-        columns = self.init_table_columns(attribs_conf)
+        columns = self.init_table_columns(attribs_conf, history=history)
         entity_table = Table(table_name, self._db_metadata, *columns, extend_existing=True)
         try:
             # check if table exists

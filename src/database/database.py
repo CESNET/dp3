@@ -33,6 +33,7 @@ ATTR_TYPE_MAPPING = {
     'set': ARRAY,
     'special': JSON, # deprecated, use json instead
     'json': JSON, # TODO: use JSONB, but we need at least psql9.6, we currently have 9.2
+    'dict': JSON,
 }
 
 # static preconfiguration of attribute's history table
@@ -133,6 +134,9 @@ class EntityDatabase:
                     # e.g. "array<int>" --> ["array", "int>"] --> "int"
                     data_type = attrib_conf.data_type.split('<')[1][:-1]
                     columns.append(Column(attrib_id, ARRAY(ATTR_TYPE_MAPPING[data_type])))
+                elif attrib_conf.data_type.startswith(('dict')):
+                    data_type = 'dict'
+                    columns.append(Column(attrib_id, ATTR_TYPE_MAPPING[data_type]))
                 else:
                     columns.append(Column(attrib_id, ATTR_TYPE_MAPPING[attrib_conf.data_type]))
                 if attrib_conf.confidence:

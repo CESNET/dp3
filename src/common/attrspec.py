@@ -42,7 +42,7 @@ re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
 re_array = re.compile(r"^array<\w+>$")
 re_set = re.compile(r"^set<\w+>$")
 re_link = re.compile(r"^link<\w+>$")
-re_dict = re.compile(r"^dict<\w+>$")
+re_dict = re.compile(r"^dict<(\w+\??:\w+,)*(\w+\??:\w+)+>$")
 
 
 # Validate ipv4 string
@@ -189,7 +189,7 @@ class AttrSpec:
             # TODO
             # Should the entity type be validated here? I.e. does the specification for given entity type have to exist?
             self.value_validator = lambda v: v is not None
-
+        
         elif re.match(re_dict, self.data_type):
             key_str = self.data_type.split("<")[1].split(">")[0]
             key_spec = dict(item.split(":") for item in key_str.split(","))

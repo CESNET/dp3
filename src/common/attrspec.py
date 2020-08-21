@@ -19,7 +19,8 @@ primitive_data_types = [
     "ipv6",
     "mac",
     "time",
-    "special"
+    "special", # deprecated, use json instead
+    "json"
 ]
 
 # Default specification fields
@@ -84,7 +85,8 @@ validators = {
     "ipv6": valid_ipv6,
     "mac": valid_mac,
     "time": valid_rfc3339,
-    "special": lambda v: v is not None
+    "special": lambda v: v is not None,
+    "json": lambda v: v is not None,
 }
 
 

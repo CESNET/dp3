@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 
 from sqlalchemy import create_engine, Table, Column, MetaData
-from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT
+from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
 from sqlalchemy.sql import text, select, func, and_
 
 from common.config import load_attr_spec
@@ -31,8 +31,8 @@ ATTR_TYPE_MAPPING = {
     'link': None,
     'array': ARRAY,
     'set': ARRAY,
-    # TODO
-    'special': None
+    'special': JSON, # deprecated, use json instead
+    'json': JSON, # TODO: use JSONB, but we need at least psql9.6, we currently have 9.2
 }
 
 # static preconfiguration of attribute's history table

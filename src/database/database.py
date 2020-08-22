@@ -5,7 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import create_engine, Table, Column, MetaData
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
-from sqlalchemy.sql import text, select, func, and_
+from sqlalchemy.sql import text, select, func, and_, desc
 
 from common.config import load_attr_spec
 from common.attrspec import AttrSpec
@@ -274,11 +274,13 @@ class EntityDatabase:
         # column from the record
         select_statement = select([getattr(record_table.c, attrib_name)]).where(self.get_id_condition(record_table, key))
         try:
-            q_result = self._db.execute(select_statement)
+            q_result = self._db.execute(select_statement).fetchone()
         except Exception:
             self.log.error(f"Something went wrong while selecting record {key} from {table_name} table in database!")
             return
-        return q_result.fetchone()[attrib_name]
+        if q_result is None:
+            return None
+        return q_result[attrib_name]
 
     def update_record(self, table_name: str, key: str, updates: dict):
         """
@@ -414,18 +416,12 @@ class EntityDatabase:
             datapoint_body.update({'ts_added': datetime.utcnow()})
             self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body) #TODO toto v pripade chyby vraci False, nevyhazuje to vyjimku!
             self.log.debug(f"Data-point stored: {datapoint_body}")
-            # TODO shouldn't this be easier to do using "SELECT v FROM... ORDER BY t2 DESC LIMIT 1" - it would require just one query
-            # get maximum of 't2' of attribute's datapoints
-            select_max_t2 = select([func.max(getattr(datapoint_table.c, "t2"))]).where(
-                getattr(datapoint_table.c, "eid") == datapoint_body['eid'])
-            result = self._db.execute(select_max_t2)
-            max_val = result.fetchone()[0]
-            # and get the 'v' of that record, where t2 is the maximum
-            select_val = select([getattr(datapoint_table.c, "v")]).where(and_(
-                getattr(datapoint_table.c, "t2") == max_val,
-                getattr(datapoint_table.c, "eid") == datapoint_body['eid']
-            ))
-            result = self._db.execute(select_val)
+            # Get the latest value of attribute's data-points
+            select_val_of_max_t2 = select([datapoint_table.c.v])\
+                .where(datapoint_table.c.eid == datapoint_body['eid'])\
+                .order_by(desc(datapoint_table.c.t2))\
+                .limit(1)
+            result = self._db.execute(select_val_of_max_t2)
             actual_val = result.fetchone()[0]
             # and insert that value as actual value of entity attribute
             self.update_record(etype, datapoint_body['eid'], {attr_name: actual_val}) # TODO Stejne tak asi toto!

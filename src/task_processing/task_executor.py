@@ -8,8 +8,6 @@ from copy import deepcopy
 from src.common.utils import get_func_name
 from src.database.record import Record
 
-ENTITY_TYPES = ['ip', 'asn', 'bgppref', 'ipblock', 'org', 'mac']
-
 
 class TaskExecutor:
     """
@@ -45,28 +43,35 @@ class TaskExecutor:
     (if more than one update triggers the same function, it's called only once).
 
     If there are multiple matching events, only the first one is used.
+
+    :param db: Instance of EntityDatabase
+    :param attr_spec: Configuration of entity types and attributes (dict entity_name->entity_spec)
     """
 
     _OPERATION_FUNCTION_PREFIX = "_perform_op_"
 
-    def __init__(self, db, config):
+    def __init__(self, db, attr_spec):
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
 
+        # Get list of configured entity types
+        self.entity_types = list(attr_spec.keys())
+        self.log.debug(f"Configured entity types: {self.entity_types}")
+
         # Mapping of names of attributes to a list of functions that should be
         # called when the attribute is updated
         # (One such mapping for each entity type)
-        self._attr2func = {etype: {} for etype in ENTITY_TYPES}
+        self._attr2func = {etype: {} for etype in self.entity_types}
         # Set of attributes that may be updated by a function
-        self._func2attr = {etype: {} for etype in ENTITY_TYPES}
+        self._func2attr = {etype: {} for etype in self.entity_types}
         # Mapping of functions to set of attributes the function watches, i.e.
         # is called when the attribute is changed
-        self._func_triggers = {etype: {} for etype in ENTITY_TYPES}
+        self._func_triggers = {etype: {} for etype in self.entity_types}
         # cache for may_change set calculation - is cleared when register_handler() is called
         self._may_change_cache = self._init_may_change_cache()
 
-        self.config = config
+        self.attr_spec = attr_spec
         self.db = db
         # get all update operations functions into callable dictionary, where key is operation name and value is
         # callable function, which executes the operation, will look like:
@@ -86,7 +91,7 @@ class TaskExecutor:
         :return: None
         """
         may_change_cache = {}
-        for etype in ENTITY_TYPES:
+        for etype in self.entity_types:
             may_change_cache[etype] = {}
         return may_change_cache
 
@@ -353,7 +358,7 @@ class TaskExecutor:
             return False
 
         if create is None:
-            create = self.config['db_entities'].get(etype, {}).get('entity', {}).get('auto_create_record', True)
+            create = self.attr_spec.get(etype, {}).get('entity', {}).get('auto_create_record', True)
 
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)

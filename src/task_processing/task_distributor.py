@@ -7,7 +7,6 @@ from collections import Iterable
 from copy import deepcopy
 
 from .task_queue import TaskQueueReader, TaskQueueWriter
-from .task_executor import ENTITY_TYPES
 import g
 
 
@@ -24,6 +23,8 @@ class TaskDistributor:
         self.num_processes = num_processes
 
         self.rabbit_params = config.get('rabbitmq', {})
+
+        self.entity_types = list(config.get('db_entities').keys()) # List of configured entity types
 
         self.running = False
 
@@ -58,7 +59,7 @@ class TaskDistributor:
         :param changes: set/list/tuple of attributes the method call may update (may be None)
         :return: None
         """
-        if etype not in ENTITY_TYPES:
+        if etype not in self.entity_types:
             raise ValueError("Unknown entity type '{}'".format(etype))
         # Check types (because common error is to pass string instead of 1-tuple)
         if not isinstance(triggers, Iterable) or isinstance(triggers, str):

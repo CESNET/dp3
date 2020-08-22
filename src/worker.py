@@ -80,7 +80,7 @@ def main(cfg_dir, process_index, verbose):
     g.config_base_path = os.path.dirname(os.path.abspath(cfg_dir))
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config["database"], attr_spec)
-    te = TaskExecutor(g.db, config)
+    te = TaskExecutor(g.db, attr_spec)
     g.td = TaskDistributor(config, process_index, num_processes, te)
 
     ##############################################

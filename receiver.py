@@ -368,7 +368,7 @@ def get_attr_history(entity_type, entity_id, attr_id):
         return "Error: invalid time interval (t2 < t1)", 400 # Bad request
 
     try:
-        content = db.get_datapoints_range(attr_id, entity_id, t1, t2)
+        content = db.get_datapoints_range(entity_type, attr_id, entity_id, t1, t2)
         if content is None:
             response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404 # Not found
         else:

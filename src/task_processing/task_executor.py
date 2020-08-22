@@ -8,7 +8,7 @@ from copy import deepcopy
 from src.common.utils import get_func_name
 from src.database.record import Record
 
-ENTITY_TYPES = ['ip', 'asn', 'bgppref', 'ipblock', 'org']
+ENTITY_TYPES = ['ip', 'asn', 'bgppref', 'ipblock', 'org', 'mac']
 
 
 class TaskExecutor:

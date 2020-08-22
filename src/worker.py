@@ -59,7 +59,7 @@ def main(cfg_dir, process_index, verbose):
 
     ##############################################
     # Load configuration
-    log.debug(f"Loading config file {cfg_dir}")
+    log.debug(f"Loading config directory {cfg_dir}")
 
     # whole configuration should be loaded
     config = read_config_dir(cfg_dir, recursive=True)

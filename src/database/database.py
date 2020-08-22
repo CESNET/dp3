@@ -10,10 +10,6 @@ from sqlalchemy.sql import text, select, func, and_
 from common.config import load_attr_spec
 from common.attrspec import AttrSpec
 
-# TODO:
-#  - create index on "eid" (for history tables)
-#  - name history tables as <entity_name><delimiter><attr_name> (so different entities can have the same attribute)
-
 # map supported data types to Postgres SQL data types
 ATTR_TYPE_MAPPING = {
     'tag': BOOLEAN,
@@ -33,7 +29,7 @@ ATTR_TYPE_MAPPING = {
     'set': ARRAY,
     'special': JSON, # deprecated, use json instead
     'json': JSON, # TODO: use JSONB, but we need at least psql9.6, we currently have 9.2
-    'dict': JSON,
+    'dict': JSON, # TODO: if the list of fields is known, it might be better to store it as several normal columns
 }
 
 # static preconfiguration of attribute's history table
@@ -126,22 +122,31 @@ class EntityDatabase:
         """
         columns = []
         for attrib_id, attrib_conf in table_attribs.items():
-            if (history and attrib_id == "id") or (not history and attrib_id == "eid"):
-                # "id"/"eid" is primary key column
-                columns.append(Column(attrib_id, ATTR_TYPE_MAPPING[attrib_conf.data_type], primary_key=True))
+            # Get database type of column
+            if attrib_conf.data_type.startswith(("array", "set")):
+                # e.g. "array<int>" --> ["array", "int>"] --> "int"
+                data_type = attrib_conf.data_type.split('<')[1][:-1]
+                column_type = ARRAY(ATTR_TYPE_MAPPING[data_type])
+            elif attrib_conf.data_type.startswith(('dict')):
+                column_type = ATTR_TYPE_MAPPING['dict']
             else:
-                if attrib_conf.data_type.startswith(("array", "set")):
-                    # e.g. "array<int>" --> ["array", "int>"] --> "int"
-                    data_type = attrib_conf.data_type.split('<')[1][:-1]
-                    columns.append(Column(attrib_id, ARRAY(ATTR_TYPE_MAPPING[data_type])))
-                elif attrib_conf.data_type.startswith(('dict')):
-                    data_type = 'dict'
-                    columns.append(Column(attrib_id, ATTR_TYPE_MAPPING[data_type]))
-                else:
-                    columns.append(Column(attrib_id, ATTR_TYPE_MAPPING[attrib_conf.data_type]))
-                if attrib_conf.confidence:
-                    # create confidence column if required from configuration
-                    columns.append(Column(attrib_id + ":c", FLOAT))
+                column_type = ATTR_TYPE_MAPPING[attrib_conf.data_type]
+
+            # Create column
+            if (history and attrib_id == "id") or (not history and attrib_id == "eid"):
+                # primary key column
+                columns.append(Column(attrib_id, column_type, primary_key=True))
+            elif history and attrib_id == "eid":
+                # create index on "eid" column of history tables
+                columns.append(Column(attrib_id, column_type, index=True))
+            else:
+                # normal column
+                columns.append(Column(attrib_id, column_type))
+
+            # Add confidence column if required from configuration
+            if attrib_conf.confidence:
+                columns.append(Column(attrib_id + ":c", FLOAT))
+
         return columns
 
     def create_table(self, table_name: str, table_conf: dict, db_current_state: MetaData, history=False):
@@ -184,9 +189,10 @@ class EntityDatabase:
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table
 
-    def init_history_tables(self, table_attribs: dict, db_current_state: MetaData):
+    def init_history_tables(self, table_name_prefix: str, table_attribs: dict, db_current_state: MetaData):
         """
         Initialize all history tables in database schema.
+        :param table_name_prefix: prefix of table names (entity_name)
         :param table_attribs: configuration of table's attributes, some of them may contain history=True
         :param db_current_state: current state of database (needed to check if table already exists and if it is identical)
         :return: None
@@ -197,7 +203,9 @@ class EntityDatabase:
             if attrib_conf.history:
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
                 history_conf['v'] = AttrSpec("v", {'name': "value", 'data_type': attrib_conf.data_type})
-                self.create_table(attrib_conf.id, {'attribs': history_conf}, db_current_state, True)
+                # History tables are named as <entity_name>__<attr_name> (e.g. "ip__activity_flows")
+                table_name = f"{table_name_prefix}__{attrib_conf.id}"
+                self.create_table(table_name, {'attribs': history_conf}, db_current_state, True)
 
     def init_database_schema(self):
         """
@@ -212,7 +220,7 @@ class EntityDatabase:
 
         for entity_name, entity_conf in self._db_schema_config.items():
             self.create_table(entity_name, entity_conf, db_current_state)
-            self.init_history_tables(entity_conf['attribs'], db_current_state)
+            self.init_history_tables(entity_name, entity_conf['attribs'], db_current_state)
 
     def exists(self, table_name: str, key_to_record: str):
         """
@@ -389,21 +397,22 @@ class EntityDatabase:
 
     def create_datapoint(self, etype: str, attr_name: str, datapoint_body: dict):
         """
-        Creates new data-point in attribute history table and saves the oldest value of attribute's data-points as
+        Creates new data-point in attribute history table and saves the most recent value of attribute's data-points as
         actual value.
-        :param etype: name of entity, which
+        :param etype: entity type
         :param attr_name: name of history attribute (table name)
         :param datapoint_body: data of datapoint to save
         :return: True if datapoint was successfully processed, False otherwise
         """
+        full_attr_name = f"{etype}__{attr_name}"
         try:
-            datapoint_table = self._tables[attr_name]
+            datapoint_table = self._tables[full_attr_name]
         except KeyError:
-            self.log.error(f"Cannot create datapoint of attribute {attr_name}, because such history table does not exist!")
+            self.log.error(f"Cannot create datapoint of attribute {full_attr_name}, because such history table does not exist!")
             return False
         try:
             datapoint_body.update({'ts_added': datetime.utcnow()})
-            self.create_record(attr_name, datapoint_body['eid'], datapoint_body) #TODO toto v pripade chyby vraci False, nevyhazuje to vyjimku!
+            self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body) #TODO toto v pripade chyby vraci False, nevyhazuje to vyjimku!
             self.log.debug(f"Data-point stored: {datapoint_body}")
             # TODO shouldn't this be easier to do using "SELECT v FROM... ORDER BY t2 DESC LIMIT 1" - it would require just one query
             # get maximum of 't2' of attribute's datapoints
@@ -443,19 +452,21 @@ class EntityDatabase:
             record_object[column.description] = db_record[i]
         return record_object
 
-    def get_datapoints_range(self, attr_name: str, eid: str, t1: str, t2: str):
+    def get_datapoints_range(self, etype: str, attr_name: str, eid: str, t1: str, t2: str):
         """
         Gets data-points of certain time interval between t1 and t2 from database.
+        :param etype: entity type
         :param attr_name: name of attribute
         :param eid: id of entity, to which data-points corresponds
         :param t1: left value of time interval
         :param t2: right value of time interval
         :return: list of data-point objects
         """
+        full_attr_name = f"{etype}__{attr_name}"
         try:
-            data_point_table = self._tables[attr_name]
+            data_point_table = self._tables[full_attr_name]
         except KeyError:
-            self.log.error(f"Cannot get data-points range, because history table of {attr_name} does not exist!")
+            self.log.error(f"Cannot get data-points range, because history table of {full_attr_name} does not exist!")
             return
         # wanted datapoints values must have their 't2' > t1 and 't1' < t2 (where t without '' are arguments from this
         # method)
@@ -473,14 +484,16 @@ class EntityDatabase:
             data_points_result.append(self.get_object_from_db_record(data_point_table, row))
         return data_points_result
 
-    def rewrite_data_points(self, attr_name: str, list_of_ids_to_delete: list, new_data_points: list):
+    def rewrite_data_points(self, etype: str, attr_name: str, list_of_ids_to_delete: list, new_data_points: list):
         """
         Deletes data-points of specified ids and inserts new data-points.
+        :param etype: entity type
         :param attr_name: name of data-point attribute
         :param list_of_ids_to_delete: ids of data-points, which will be deleted from database
         :param new_data_points: list of dictionaries, which contains data of new data points
         :return: None
         """
+        full_attr_name = f"{etype}__{attr_name}"
         # TODO: do in a trasnsaction (that is probably needed on other places as well)
-        self.delete_multiple_records(attr_name, list_of_ids_to_delete)
-        self.create_multiple_records(attr_name, new_data_points)
+        self.delete_multiple_records(full_attr_name, list_of_ids_to_delete)
+        self.create_multiple_records(full_attr_name, new_data_points)

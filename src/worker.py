@@ -123,7 +123,13 @@ def main(cfg_dir, process_index, verbose):
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.
     # (try to acquire the lock again, effectively waiting until it's released by signal handler or another thread)
-    g.daemon_stop_lock.acquire()
+    if os.name == "nt":
+        # This is needed on Windows in order to catch Ctrl-C, which doesn't break the waiting.
+        while not g.daemon_stop_lock.acquire(timeout=1):
+            pass
+    else:
+        g.daemon_stop_lock.acquire()
+
 
     ################################################
     # Finalization & cleanup

@@ -290,8 +290,10 @@ class TaskQueueReader(RobustAMQPConnection):
 
     def __del__(self): #TODO is this needed?
         self.log.debug("Destructor called")
-        self._stop_consuming_thread()
-        self._stop_processing_thread()
+        if hasattr(self, '_consuming_thread'):
+            self._stop_consuming_thread()
+        if hasattr(self, '_processing_thread'):
+            self._stop_processing_thread()
         super().__del__()
 
     def start(self):

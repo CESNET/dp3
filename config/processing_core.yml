@@ -26,6 +26,7 @@ worker_threads: 16
 # extension must be used!
 enabled_modules:
   - "test_module"
+  - "mac_to_vendor"
 
 # Flag, which determines, if a new record should be created, if it doesn't exist yet, while processing task.
 # It is used only when 'create' attrib is not sent in task body. If 'create' is present in task body, the value in it

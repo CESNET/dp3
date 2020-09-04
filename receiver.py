@@ -17,8 +17,11 @@ application = app
 application.debug = True
 
 # Directory containing config files
-# TODO this should be configurable somehow (env var passed from Apache config?)
-conf_dir = "/etc/adict/config"
+# Can be specified as a single command-line parameter (when run as stand-alone testing server or passed from WSGI server)
+if len(sys.argv) > 1:
+    conf_dir = sys.argv[1]
+else:
+    conf_dir = "/etc/adict/config"
 
 # Dictionary containing platform configuration
 config = None

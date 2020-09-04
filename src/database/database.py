@@ -94,9 +94,7 @@ class EntityDatabase:
         try:
             self._db = db_engine.connect()
         except Exception as e:
-            # TODO How to exit properly?
-            self.log.error("Cannot connect to database with specified connection arguments!")
-            self.log.error(e)
+            raise DatabaseError(f"Cannot connect to database with specified connection arguments: {e}")
 
         # internal structure for storing table objects
         self._tables = {}
@@ -396,8 +394,7 @@ class EntityDatabase:
 
     def create_datapoint(self, etype: str, attr_name: str, datapoint_body: dict):
         """
-        Creates new data-point in attribute history table and saves the most recent value of attribute's data-points as
-        actual value.
+        Creates new data-point in attribute history table
         :param etype: entity type
         :param attr_name: name of history attribute (table name)
         :param datapoint_body: data of datapoint to save
@@ -412,21 +409,36 @@ class EntityDatabase:
         try:
             datapoint_body.update({'ts_added': datetime.utcnow()})
             self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body)
-            self.log.debug(f"Data-point stored: {datapoint_body}")
-            # Get the latest value of attribute's data-points
-            select_val_of_max_t2 = select([datapoint_table.c.v])\
-                .where(datapoint_table.c.eid == datapoint_body['eid'])\
-                .order_by(desc(datapoint_table.c.t2))\
-                .limit(1)
-            result = self._db.execute(select_val_of_max_t2)
-            actual_val = result.fetchone()[0]
-            # and insert that value as actual value of entity attribute
-            self.update_record(etype, datapoint_body['eid'], {attr_name: actual_val})
-            self.log.debug(f"Current value of '{attr_name}' updated to '{actual_val}'")
+            #self.log.debug(f"Data-point stored: {datapoint_body}")
             return True
         except Exception as e:
             self.log.error(f"Creating new datapoint of {etype} entity and {attr_name} attribute failed: {e}")
             return False
+
+    def get_current_value(self, etype: str, eid, attr_name: str):
+        """
+        Get the latest value of attribute's data-points.
+        # TODO: should be the latest *valid* value according to configured timeouts
+        # TODO: in case if "multi-value" attributes, all currently valid attributes should be returned as array
+        :param etype: entity type
+        :param eid: entity ID
+        :param attr_name: name of history attribute (table name)
+        :return: The value (or None if no data-point is found)
+        """
+        full_attr_name = f"{etype}__{attr_name}"
+        try:
+            datapoint_table = self._tables[full_attr_name]
+        except KeyError:
+            raise MissingTableError(f"Cannot get current value of attribute {full_attr_name}, because such history table does not exist!")
+
+        select_val_of_max_t2 = select([datapoint_table.c.v]) \
+            .where(datapoint_table.c.eid == eid) \
+            .order_by(desc(datapoint_table.c.t2)) \
+            .limit(1)
+        result = self._db.execute(select_val_of_max_t2)
+        if result is None:
+            return None
+        return result.fetchone()[0]
 
     def search(self, table_name, data):
         raise NotImplementedError("search method not implemented yet")

@@ -227,6 +227,9 @@ class TaskExecutor:
         op = updreq['op']
         key = updreq['attr']
 
+        # TODO: will this really change the "rec" (Record) correctly, i.e. it seems it's "update" method is not called,
+        #  so the changes won't get written to database
+        #  (the above holds if there is a hierarchical key, since _parse_record_from_key_hierarchy return normal object, not Record, in such case)
         rec = self._parse_record_from_key_hierarchy(rec, key)
 
         try:
@@ -388,28 +391,40 @@ class TaskExecutor:
             if requests_to_process or events or data_points:
                 # process all data points
                 for data_point in data_points:
-                    data_to_save = deepcopy(data_point)
-                    # remove values, which are not directly saved to database
+                    # check of mandatory attributes
                     try:
-                        # 'attr' is dropped, because it is not saved directly, it is just table name from database view
-                        data_to_save.pop('attr')
-                        for key in ("type", "id"):
-                            try:
-                                data_to_save.pop(key)
-                            except KeyError:
-                                pass
-                        # 'ekey' is saved as 'eid'
-                        data_to_save['eid'] = ekey
-                        ok = self.db.create_datapoint(etype, data_point['attr'], data_to_save)
-                        if ok:
-                            self.log.debug(f"Task {etype}/{ekey}: Data-point stored: {data_to_save}")
-                            # on error, a message is already logged by the create_datapoint() method
-                        # TODO time aggregation and current value changed? Current value is changed automatically by
-                        # database wrapper
+                        _ = data_point['attr']
+                        _ = data_point['t1']
+                        _ = data_point['t2']
                     except KeyError as e:
-                        src = data_point.get("src", "")
-                        self.log.error(f"Task {etype}/{ekey}: Data point has wrong structure! Error on '{str(e)}', source: {src}.")
+                        self.log.error(f"Task {etype}/{ekey}: Data point has wrong structure! Missing key '{str(e)}', source: {data_point.get('src', '')}.")
                         continue
+                    # prepare data to store, remove values which are not directly saved to database
+                    data_to_save = deepcopy(data_point)
+                    attr_name = data_to_save.pop('attr')
+                    for key in ("type", "id"):
+                        try:
+                            data_to_save.pop(key)
+                        except KeyError:
+                            pass
+                    # 'ekey' is saved as 'eid'
+                    data_to_save['eid'] = ekey
+
+                    # Store data-point to history table
+                    # (current value is not automatically updated by DB wrapper, since we must update it here in
+                    # the "rec" object and store to DB after all subsequent updates are done)
+                    ok = self.db.create_datapoint(etype, attr_name, data_to_save)
+                    if ok:
+                        self.log.debug(f"Task {etype}/{ekey}: Data-point stored: {data_to_save}")
+                        # on error, a message is already logged by the create_datapoint() method
+
+                    # TODO time aggregation
+                    # ...
+
+                    # Get current value and set it to the cached record ("rec", instance of Record)
+                    current_value = self.db.get_current_value(etype, ekey, attr_name)
+                    rec.update({attr_name: current_value})
+                    self.log.debug(f"Task {etype}/{ekey}: Current value of {attr_name} updated to '{current_value}'")
 
                 # add all functions, which are hooked to events, to call queue
                 for event in events:

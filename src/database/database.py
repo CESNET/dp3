@@ -53,6 +53,7 @@ TABLE_MANDATORY_ATTRIBS = {
 EID_CONF = {'eid': AttrSpec("eid", {'name': "entity id", 'data_type': "string"})}
 
 
+# Custom exceptions
 class DatabaseConfigMismatchError(Exception):
     def __init__(self, message=None):
         if message is None:
@@ -60,6 +61,12 @@ class DatabaseConfigMismatchError(Exception):
                       "server schema configuration. Migration is not supported yet, drop all the updated tables" \
                       " first, if you want to apply your configuration!"
         super().__init__(message)
+
+class DatabaseError(Exception):
+    pass
+
+class MissingTableError(DatabaseError):
+    pass
 
 
 class EntityDatabase:
@@ -235,7 +242,7 @@ class EntityDatabase:
         # this query should have best performance for exist check
         exist_query = text(f"SELECT 1 FROM {table_name} WHERE eid=:eid")
         result = self._db.execute(exist_query, eid=key_to_record)
-        # if row count is not zero, the the record exists
+        # if row count is not zero, the record exists
         return result.rowcount != 0
 
     @staticmethod
@@ -288,19 +295,18 @@ class EntityDatabase:
         :param table_name: name of updated table
         :param key: key to updated record
         :param updates: dictionary of changes - attributes and its new values
-        :return: None
+        :raises MissingTableError: table does'nt exist in database
+        :raises DatabaseError: an error occurred when trying to execute database operation
         """
         try:
             record_table = self._tables[table_name]
         except KeyError:
-            self.log.error(f"Record {key} cannot be updated, because table {table_name} does not exist!")
-            return
+            raise MissingTableError(f"Record {key} cannot be updated, because table {table_name} does not exist!")
         update_statement = record_table.update().where(self.get_id_condition(record_table, key)).values(**updates)
         try:
             self._db.execute(update_statement)
         except Exception as e:
-            self.log.error(f"Something went wrong while updating record {key} of {table_name} table in database!")
-            self.log.error(e)
+            raise DatabaseError(f"Something went wrong while updating record {key} of {table_name} table in database: {e}")
 
     def create_record(self, table_name: str, key: str, data: dict):
         """
@@ -308,21 +314,18 @@ class EntityDatabase:
         :param table_name: name of updated table
         :param key: key to newly created record
         :param data: data to insert (including eid/id)
-        :return: True if record was successfully created, False if some error occurred
+        :raises MissingTableError: table does'nt exist in database
+        :raises DatabaseError: an error occurred when trying to execute database operation
         """
         try:
             record_table = self._tables[table_name]
         except KeyError:
-            self.log.error(f"New record {key} cannot be created, because table {table_name} does not exist!")
-            return False
+            raise MissingTableError(f"New record {key} cannot be created, because table {table_name} does not exist!")
         insert_statement = record_table.insert().values(**data)
         try:
             self._db.execute(insert_statement)
         except Exception as e:
-            self.log.error(f"Something went wrong while inserting new record {key} of {table_name} table into database!")
-            self.log.error(e)
-            return False
-        return True
+            raise DatabaseError(f"Something went wrong while inserting new record {key} of {table_name} table into database: {e}")
 
     def create_multiple_records(self, table_name: str, data: list):
         """
@@ -330,40 +333,36 @@ class EntityDatabase:
         :param table_name: name of updated table
         :param data: list of dictionaries, which contains data of each record to save
         :return: True if records were successfully created, False if some error occurred
+        :raises MissingTableError: table does'nt exist in database
+        :raises DatabaseError: an error occurred when trying to execute database operation
         """
         try:
             record_table = self._tables[table_name]
         except KeyError:
-            self.log.error(f"New record cannot be created, because table {table_name} does not exist!")
-            return False
-
+            raise MissingTableError(f"New records cannot be created, because table {table_name} does not exist!")
         try:
             self._db.execute(record_table.insert(), data)
         except Exception as e:
-            self.log.error(f"Multiple insert into {table_name} table failed!")
-            self.log.error(e)
-            return False
-        return True
+            raise DatabaseError(f"Multiple insert into {table_name} table failed: {e}")
 
     def delete_record(self, table_name: str, key: str):
         """
         Deletes whole record from database table.
         :param table_name: name of updated table
         :param key: key to record, which will get deleted
-        :return:None
+        :raises MissingTableError: table does'nt exist in database
+        :raises DatabaseError: an error occurred when trying to execute database operation
         """
         try:
             record_table = self._tables[table_name]
         except KeyError:
-            self.log.error(f"Record {key} of {table_name} table cannot be deleted, because {table_name} table does not exist!")
-            return
+            raise MissingTableError(f"Record {key} of {table_name} table cannot be deleted, because {table_name} table does not exist!")
 
         del_statement = record_table.delete().where(self.get_id_condition(record_table, key))
         try:
             self._db.execute(del_statement)
         except Exception as e:
-            self.log.error(f"Something went wrong while deleting record {key} of {table_name} table from database!")
-            self.log.error(e)
+            raise DatabaseError(f"Something went wrong while deleting record {key} of {table_name} table from database: {e}")
 
     def delete_attribute(self, table_name: str, key: str, attrib_name: str):
         """
@@ -385,8 +384,7 @@ class EntityDatabase:
         try:
             table = self._tables[table_name]
         except KeyError:
-            self.log.error(f"Cannot delete records from {table_name} table, because table does not exist!")
-            return
+            raise MissingTableError(f"Cannot delete records from {table_name} table, because table does not exist!")
         if "id" in table.c:
             delete_statement = table.delete().where(getattr(table.c, "id").in_(list_of_ids))
         else:
@@ -394,8 +392,7 @@ class EntityDatabase:
         try:
             self._db.execute(delete_statement)
         except Exception as e:
-            self.log.error(f"Deletion of multiple records of ids {list_of_ids} in {table_name} table failed!")
-            self.log.error(e)
+            raise DatabaseError(f"Deletion of multiple records of ids {list_of_ids} in {table_name} table failed: {e}")
 
     def create_datapoint(self, etype: str, attr_name: str, datapoint_body: dict):
         """
@@ -414,7 +411,7 @@ class EntityDatabase:
             return False
         try:
             datapoint_body.update({'ts_added': datetime.utcnow()})
-            self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body) #TODO toto v pripade chyby vraci False, nevyhazuje to vyjimku!
+            self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body)
             self.log.debug(f"Data-point stored: {datapoint_body}")
             # Get the latest value of attribute's data-points
             select_val_of_max_t2 = select([datapoint_table.c.v])\
@@ -424,12 +421,11 @@ class EntityDatabase:
             result = self._db.execute(select_val_of_max_t2)
             actual_val = result.fetchone()[0]
             # and insert that value as actual value of entity attribute
-            self.update_record(etype, datapoint_body['eid'], {attr_name: actual_val}) # TODO Stejne tak asi toto!
+            self.update_record(etype, datapoint_body['eid'], {attr_name: actual_val})
             self.log.debug(f"Current value of '{attr_name}' updated to '{actual_val}'")
             return True
         except Exception as e:
-            self.log.error(f"Handling of creating new datapoint of {etype} entity and {attr_name} attribute failed!")
-            self.log.error(e)
+            self.log.error(f"Creating new datapoint of {etype} entity and {attr_name} attribute failed: {e}")
             return False
 
     def search(self, table_name, data):
@@ -456,14 +452,14 @@ class EntityDatabase:
         :param eid: id of entity, to which data-points corresponds
         :param t1: left value of time interval
         :param t2: right value of time interval
-        :return: list of data-point objects
+        :return: list of data-point objects or None on error
         """
         full_attr_name = f"{etype}__{attr_name}"
         try:
             data_point_table = self._tables[full_attr_name]
         except KeyError:
             self.log.error(f"Cannot get data-points range, because history table of {full_attr_name} does not exist!")
-            return
+            return None
         # wanted datapoints values must have their 't2' > t1 and 't1' < t2 (where t without '' are arguments from this
         # method)
         select_statement = select([data_point_table]).where(and_(getattr(data_point_table.c, "eid") == eid,
@@ -472,8 +468,7 @@ class EntityDatabase:
         try:
             result = self._db.execute(select_statement)
         except Exception as e:
-            self.log.error(f"Select of data-point range from {t1} to {t2} failed!")
-            self.log.error(e)
+            self.log.error(f"Select of data-points range from {t1} to {t2} failed: {e}")
             return None
         data_points_result = []
         for row in result:

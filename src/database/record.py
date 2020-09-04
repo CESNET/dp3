@@ -34,7 +34,7 @@ class Record:
         """
         try:
             self._record[attrib_name] = self._db_connection.get_attrib(self.table_name, self.key, attrib_name)
-        except AttributeValueNotSet:
+        except AttributeValueNotSet: # TODO: the EntityDatabase.get_attrib doesn't raise exception like this
             pass
 
     def __getitem__(self, attrib_name):

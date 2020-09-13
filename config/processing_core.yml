@@ -22,13 +22,11 @@ worker_processes: 1
 # external services via network)
 worker_threads: 16
 
-# List of secondary modules, which should be enabled in processing pipeline. Name of module filename without '.py'
+# Path to directory with plug-in modules
+# (Relative path is evaluated relative to location of this configuration file)
+modules_dir: "../modules"
+
+# List of plug-in modules which should be enabled in processing pipeline. Name of module filename without '.py'
 # extension must be used!
 enabled_modules:
   - "test_module"
-  - "mac_to_vendor"
-
-# Flag, which determines, if a new record should be created, if it doesn't exist yet, while processing task.
-# It is used only when 'create' attrib is not sent in task body. If 'create' is present in task body, the value in it
-# is prioritized
-auto_create_record: True

@@ -5,8 +5,8 @@ from collections import deque, Iterable, OrderedDict, Counter
 import logging
 from copy import deepcopy
 
-from src.common.utils import get_func_name
-from src.database.record import Record
+from ..common.utils import get_func_name
+from ..database.record import Record
 
 
 class TaskExecutor:

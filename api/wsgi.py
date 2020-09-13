@@ -1,2 +1,2 @@
-from receiver import app as application, initialize
+from receiver import app as application
 application.debug = True

@@ -37,25 +37,19 @@ import time
 import json
 import threading
 import collections
-import os
 
 import amqpstorm
-import requests
-from requests.auth import HTTPBasicAuth
 
+from ..common.utils import conv_from_json, conv_to_json
 
-from src.common.utils import conv_from_json, conv_to_json
-from src.common.config import read_config
-import g
-
-
-# Exchange and queue names - TODO pp prefix as processing platform, rename later
+# Exchange and queue names
 # They must be pre-declared ('direct' exchange type) and binded.
+# The names are prefixed by app_name
 # Numbers from 0 to number_of_workers-1 are used as routing/binding keys.
-DEFAULT_EXCHANGE = 'pp-main-task-exchange'
-DEFAULT_PRIORITY_EXCHANGE = 'pp-priority-task-exchange'
-DEFAULT_QUEUE = 'pp-worker-{}'
-DEFAULT_PRIORITY_QUEUE = 'pp-worker-{}-pri'
+DEFAULT_EXCHANGE = '{}-main-task-exchange'
+DEFAULT_PRIORITY_EXCHANGE = '{}-priority-task-exchange'
+DEFAULT_QUEUE = '{}-worker-{}'
+DEFAULT_PRIORITY_QUEUE = '{}-worker-{}-pri'
 
 # Hash function used to distribute tasks to worker processes. Takes string, returns int.
 # (last 4 bytes of MD5)
@@ -67,6 +61,18 @@ PREFETCH_COUNT = 50
 
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
+
+class QueueNotDeclared(RuntimeError):
+    def __init__(self, queue_name):
+        self.queue_name = queue_name
+    def __str__(self):
+        return f"Queue '{self.queue_name}' is not declared in RabbitMQ! Run 'scripts/rmq_reconfigure.sh' to set up needed exchanges and queues on RabbitMQ server."
+
+class ExchangeNotDeclared(RuntimeError):
+    def __init__(self, exchange_name):
+        self.exchange_name = exchange_name
+    def __str__(self):
+        return f"Exchange '{self.exchange_name}' is not declared in RabbitMQ! Run 'scripts/rmq_reconfigure.sh' to set up needed exchanges and queues on RabbitMQ server."
 
 
 class RobustAMQPConnection:
@@ -89,25 +95,6 @@ class RobustAMQPConnection:
         }
         self.connection = None
         self.channel = None
-
-        # check if compulsory queues are declared
-        try:
-            g.config['processing_core'].get('worker_processes')
-        except AttributeError:
-            # when task_queue is initialized from standalone modules, it has no access to g, so skip queue check
-            return
-        resp = requests.get("http://localhost:15672/api/queues", auth=HTTPBasicAuth(rabbit_config.get('username', 'guest'),
-                                                                                    rabbit_config.get('password', 'guest')))
-        if resp.status_code != 200:
-            assert False, "could not check RabbitMQ declared queues"
-        queues = json.loads(resp.text)
-        queues_names = [queue['name'] for queue in queues]
-        compulsory_queues = []
-        for i in range(0, g.config['processing_core'].get('worker_processes')):
-            compulsory_queues.append(DEFAULT_QUEUE.format(i))
-            compulsory_queues.append(DEFAULT_PRIORITY_QUEUE.format(i))
-        assert all(compulsory_queue in queues_names for compulsory_queue in compulsory_queues), "RabbitMQ server does " \
-                                                                                                "not have declared needed queues"
 
     def __del__(self):
         self.disconnect()
@@ -146,30 +133,61 @@ class RobustAMQPConnection:
         self.connection = None
         self.channel = None
 
+    def check_queue_existence(self, queue_name):
+        assert self.channel is not None, "not connected"
+        try:
+            self.channel.queue.declare(queue_name, passive=True)
+        except amqpstorm.AMQPChannelError:
+            return False
+        return True
+
+    def check_exchange_existence(self, exchange_name):
+        assert self.channel is not None, "not connected"
+        try:
+            self.channel.exchange.declare(exchange_name, passive=True)
+        except amqpstorm.AMQPChannelError:
+            return False
+        return True
+
 
 class TaskQueueWriter(RobustAMQPConnection):
-    def __init__(self, workers=1, rabbit_config={}, exchange=DEFAULT_EXCHANGE, priority_exchange=DEFAULT_PRIORITY_EXCHANGE, config_path=None):
+    def __init__(self, app_name, workers=1, rabbit_config={}, exchange=None, priority_exchange=None, config_path=None):
         """
         Create an object for writing tasks into the main Task Queue.
 
+        :param app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
         :param workers: Number of worker processes in the system
         :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
             host, port, virtual_host, username, password
-        :param exchange: Name of the exchange to write tasks to
-        :param priority_exchange: Name of the exchange to write priority tasks to
+        :param exchange: Name of the exchange to write tasks to (default: "<app-name>-main-task-exchange")
+        :param priority_exchange: Name of the exchange to write priority tasks to (default: "<app-name>-priority-task-exchange")
         """
         assert isinstance(workers, int) and workers >= 1, "count of workers must be positive number"
-        assert isinstance(exchange, str), "exchange argument has to be string!"
-        assert isinstance(priority_exchange, str), "priority_exchange has to be string"
+        assert isinstance(exchange, str) or exchange is None, "exchange argument has to be string!"
+        assert isinstance(priority_exchange, str) or priority_exchange is None, "priority_exchange has to be string"
 
         super().__init__(rabbit_config)
 
         self.log = logging.getLogger('TaskQueueWriter')
 
-        self.config_core = read_config(os.path.join(config_path, "processing_core.yml")) if config_path is not None else None
+        if exchange is None:
+            exchange = DEFAULT_EXCHANGE.format(app_name)
+        if priority_exchange is None:
+            priority_exchange = DEFAULT_PRIORITY_EXCHANGE.format(app_name)
+
+        # TODO remove? also func param
+        #self.config_core = read_config(os.path.join(config_path, "processing_core.yml")) if config_path is not None else None
         self.workers = workers
         self.exchange = exchange
         self.exchange_pri = priority_exchange
+
+    def check(self):
+        """Check that needed exchanges are declared, return True or raise RuntimeError"""
+        if not self.check_exchange_existence(self.exchange):
+            raise ExchangeNotDeclared(self.exchange)
+        if not self.check_exchange_existence(self.exchange_pri):
+            raise ExchangeNotDeclared(self.exchange_pri)
+        return True
 
     def put_task(self, etype="", ekey="", attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None, priority=False):
         """
@@ -248,7 +266,7 @@ class TaskQueueWriter(RobustAMQPConnection):
 
 
 class TaskQueueReader(RobustAMQPConnection):
-    def __init__(self, callback, worker_index=0, rabbit_config={}, queue=DEFAULT_QUEUE, priority_queue=DEFAULT_PRIORITY_QUEUE):
+    def __init__(self, callback, app_name, worker_index=0, rabbit_config={}, queue=None, priority_queue=None):
         """
         Create an object for reading tasks from the main Task Queue.
 
@@ -259,24 +277,30 @@ class TaskQueueReader(RobustAMQPConnection):
 
         :param callback: Function called when a message is received, prototype:
                     func(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags)
+        :param app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
         :param worker_index: index of this worker (filled into DEFAULT_QUEUE string using .format() method)
         :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
             host, port, virtual_host, username, password
-        :param queue: Name of RabbitMQ queue to read from (should contain "{}" to fill in worker_index)
-        :param priority_queue: Name of RabbitMQ queue to read from (priority messages) (should contain "{}" to fill in worker_index)
+        :param queue: Name of RabbitMQ queue to read from (default: "<app-name>-worker-<index>")
+        :param priority_queue: Name of RabbitMQ queue to read from (priority messages) (default: "<app-name>-worker-<index>-pri")
         """
         assert callable(callback), "callback must be callable object"
         assert isinstance(worker_index, int) and worker_index >= 0, "worker_index must be positive number"
-        assert isinstance(queue, str), "queue must be string"
-        assert isinstance(priority_queue, str), "priority_queue must be string"
+        assert isinstance(queue, str) or queue is None, "queue must be string"
+        assert isinstance(priority_queue, str) or priority_queue is None, "priority_queue must be string"
 
         super().__init__(rabbit_config)
 
         self.log = logging.getLogger('TaskQueueReader')
 
         self.callback = callback
-        self.queue_name = queue.format(worker_index)
-        self.priority_queue_name = priority_queue.format(worker_index)
+
+        if queue is None:
+            queue = DEFAULT_QUEUE.format(app_name, worker_index)
+        if priority_queue is None:
+            priority_queue = DEFAULT_PRIORITY_QUEUE.format(app_name, worker_index)
+        self.queue_name = queue
+        self.priority_queue_name = priority_queue
 
         self.running = False
 
@@ -289,7 +313,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self.cache_full = threading.Event()  # signalize there's something in the cache
 
     def __del__(self): #TODO is this needed?
-        self.log.debug("Destructor called")
+        #self.log.debug("Destructor called")
         if hasattr(self, '_consuming_thread'):
             self._stop_consuming_thread()
         if hasattr(self, '_processing_thread'):
@@ -323,6 +347,14 @@ class TaskQueueReader(RobustAMQPConnection):
         self._stop_consuming_thread()
         self._stop_processing_thread()
         self.log.info("TaskQueueReader stopped")
+
+    def check(self):
+        """Check that needed queues are declared, return True or raise RuntimeError"""
+        if not self.check_queue_existence(self.queue_name):
+            raise QueueNotDeclared(self.queue_name)
+        if not self.check_queue_existence(self.priority_queue_name):
+            raise QueueNotDeclared(self.priority_queue_name)
+        return True
 
     def ack(self, msg_tag):
         """Acknowledge processing of the message/task

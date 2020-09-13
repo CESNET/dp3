@@ -1,9 +1,10 @@
 import sys
 import os
-import time
-sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.common.utils import parse_rfc_time
+from dp3.common.utils import parse_rfc_time
+
+# TODO: why is this not part of dp3.common? Task abstraction would surely be useful elsewhere
 
 # Error message templates
 err_msg_type = "type of '{}' is invalid (must be '{}')"
@@ -22,18 +23,18 @@ default_tags = []
 # Validate record fields according to entity/attribute specification
 def validate_task(task, config):
     # Check mandatory fields
-    assert task["etype"] is not None, err_msg_missing_field.format("etype")
-    assert task["ekey"] is not None, err_msg_missing_field.format("ekey")
+    assert task.get("etype") is not None, err_msg_missing_field.format("etype")
+    assert task.get("ekey") is not None, err_msg_missing_field.format("ekey")
 
     # Check data type of task fields
-    assert type(task["etype"]) is str, err_msg_type.format("type", "str")
-    assert type(task["attr_updates"]) is list, err_msg_type.format("attr_updates", "list")
-    assert type(task["events"]) is list, err_msg_type.format("events", "list")
-    assert type(task["data_points"]) is list, err_msg_type.format("data_points", "list")
-    assert type(task["create"]) is bool, err_msg_type.format("create", "bool")
-    assert type(task["delete"]) is bool, err_msg_type.format("delete", "bool")
-    assert type(task["src"]) is str, err_msg_type.format("src", "str")
-    assert type(task["tags"]) is list, err_msg_type.format("tags", "list")
+    assert type(task.get("etype")) is str, err_msg_type.format("type", "str")
+    assert type(task.get("attr_updates")) is list, err_msg_type.format("attr_updates", "list")
+    assert type(task.get("events")) is list, err_msg_type.format("events", "list")
+    assert type(task.get("data_points")) is list, err_msg_type.format("data_points", "list")
+    assert type(task.get("create")) is bool, err_msg_type.format("create", "bool")
+    assert type(task.get("delete")) is bool, err_msg_type.format("delete", "bool")
+    assert type(task.get("src")) is str, err_msg_type.format("src", "str")
+    assert type(task.get("tags")) is list, err_msg_type.format("tags", "list")
 
     # Check specification of given entity type
     assert task["etype"] in config, f"no specification found for entity type '{task['etype']}'"
@@ -71,8 +72,8 @@ def validate_task(task, config):
         assert type(item) is dict, err_msg_type.format("datapoint", "dict")
 
         # Check mandatory fields
-        assert item["attr"] is not None, err_msg_missing_field.format("attr")
-        assert item["t1"] is not None, err_msg_missing_field.format("t1")
+        assert item.get("attr") is not None, err_msg_missing_field.format("attr")
+        assert item.get("t1") is not None, err_msg_missing_field.format("t1")
 
         # Set missing optional fields to default values
         if "t2" not in item:
@@ -123,3 +124,7 @@ class Task:
 
     def __getitem__(self, item):
         return self.d[item]
+
+    def get(self, item):
+        return self.d.get(item)
+

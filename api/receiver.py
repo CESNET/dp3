@@ -1,27 +1,30 @@
+#!/usr/bin/env python3
 import os
 import sys
 import logging
 import traceback
 from flask import Flask, request, render_template, Response, jsonify
 
-sys.path.insert(1, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../processing_platform')))
-from src.task_processing.task_queue import TaskQueueWriter
-from src.common.config import read_config_dir, load_attr_spec
-from src.database.database import EntityDatabase
-from src.common.utils import parse_rfc_time
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
+from dp3.task_processing.task_queue import TaskQueueWriter
+from dp3.common.config import read_config_dir, load_attr_spec
+from dp3.database.database import EntityDatabase
+from dp3.common.utils import parse_rfc_time
 
 from task import Task
 
 app = Flask(__name__)
-application = app
-application.debug = True
 
 # Directory containing config files
 # Can be specified as a single command-line parameter (when run as stand-alone testing server or passed from WSGI server)
-if len(sys.argv) > 1:
-    conf_dir = sys.argv[1]
-else:
-    conf_dir = "/etc/adict/config"
+if 'DP3_CONFIG_DIR' not in os.environ or 'DP3_APP_NAME' not in os.environ:
+    print("Error: DP3_APP_NAME and DP3_CONFIG_DIR environment variables must be set.", file=sys.stderr)
+    print("  DP3_APP_NAME - application name used to distinguish this app from other dp3-based apps", file=sys.stderr)
+    print("  DP3_CONFIG_DIR - directory containing configuration files", file=sys.stderr)
+    sys.exit(1)
+
+conf_dir = os.environ['DP3_CONFIG_DIR']
+app_name = os.environ['DP3_APP_NAME']
 
 # Dictionary containing platform configuration
 config = None
@@ -41,6 +44,8 @@ initialized = False
 # Database handler
 db = None
 
+# verbose (debug) mode
+verbose = False
 
 @app.before_first_request
 def initialize():
@@ -61,7 +66,7 @@ def initialize():
     log_dateformat = "%Y-%m-%dT%H:%M:%S"
     logging.basicConfig(level=logging.WARNING, format=log_format, datefmt=log_dateformat)
     log = logging.getLogger()
-    log.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     # Load configuration and entity/attribute specification
     try:
@@ -74,7 +79,7 @@ def initialize():
 
     # Initialize task queue connection
     try:
-        task_writer = TaskQueueWriter(config.get("processing_core.worker_processes"), config.get("processing_core.msg_broker"))
+        task_writer = TaskQueueWriter(app_name, config.get("processing_core.worker_processes"), config.get("processing_core.msg_broker"))
     except Exception as e:
         log.exception(f"Error when connecting to task queue: {e}")
         return
@@ -136,31 +141,33 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
     t = {
         "etype": entity_type,
         "ekey": entity_id,
-        "src": request.args.get("src", "")
+        "src": request.values.get("src", "")
     }
 
     if spec.history is True:
         t["data_points"] = [{
             "attr": attr_id,
-            **request.args # TODO check for excess fields?
+            **request.values # TODO check for excess fields?
         }]
     else:
         t["attr_updates"] = [{
             "attr": attr_id,
             "op": "set",
-            "val": request.args.get("v", None)
+            "val": request.values.get("v", None)
         }]
 
     # Make valid task using the attr_spec template and push it to platform's task queue
     try:
         task = Task(t, attr_spec)
     except Exception as e:
+        traceback.print_exc()
         response = f"Error: Failed to create a task: {str(e)}"
         log.info(response)
         return f"{response}\n", 400 # Bad request
     try:
         push_task(task)
     except Exception as e:
+        traceback.print_exc()
         response = f"Error: Failed to push task to queue: {str(e)}"
         log.info(response)
         return f"{response}\n", 500 # Internal server error
@@ -239,13 +246,13 @@ def push_multiple_datapoints():
             task = Task(tasks[k], attr_spec)
         except Exception as e:
             traceback.print_exc()
-            errors += f"\nFailed to create a task: {str(e)}"
+            errors += f"\nFailed to create a task: {type(e)}: {str(e)}"
             continue
         try:
             push_task(task)
         except Exception as e:
             traceback.print_exc()
-            errors += f"\nFailed to push task: {str(e)}"
+            errors += f"\nFailed to push task: {type(e)}: {str(e)}"
 
     if errors != "":
         response = f"Error: {errors}"
@@ -288,12 +295,14 @@ def push_single_task():
     try:
         task = Task(payload, attr_spec)
     except Exception as e:
+        traceback.print_exc()
         response = f"Error: Failed to create a task: {str(e)}"
         log.info(response)
         return f"{response}\n", 400 # Bad request
     try:
         push_task(task)
     except Exception as e:
+        traceback.print_exc()
         response = f"Error: Failed to push task to queue: {str(e)}"
         log.info(response)
         return f"{response}\n", 500 # Internal server error
@@ -393,6 +402,7 @@ def ping():
 
 
 if __name__ == "__main__":
+    verbose = True
     try:
         app.run()
     except Exception as e:

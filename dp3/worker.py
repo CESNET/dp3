@@ -1,49 +1,79 @@
 #!/usr/bin/env python3
+"""Code of the main worker process.
+
+Don't run directly. Import and run the main() function.
+"""
 import logging
 from importlib import import_module
+import sys
 import os
 import inspect
 import threading
 import signal
 
-from common.config import read_config_dir, load_attr_spec
-from common import scheduler
-from database.database import EntityDatabase
-from task_processing.task_executor import TaskExecutor
-from task_processing.task_distributor import TaskDistributor
-import g
+if __name__ == "__main__":
+    import sys
+    print("Don't run this file directly. Use 'bin/worker' instead.", file=sys.stderr)
+    sys.exit(1)
 
-MODULES_FOLDER = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'modules'))
-MODULES_IMPORT_PATH = "modules" if os.getcwd().endswith("src") else "src.modules"
-BASE_MODULE_CLASS_NAME = "BaseModule"
+from .common.config import read_config_dir, load_attr_spec
+from .common import scheduler
+from .common.base_module import BaseModule
+from .database.database import EntityDatabase
+from .task_processing.task_executor import TaskExecutor
+from .task_processing.task_distributor import TaskDistributor
+from . import g
 
+def load_modules(modules_dir, enabled_modules, log):
+    """Load plug-in modules
 
-def load_modules(module_names_list):
+    Import Python modules with names in 'enabled_modules' from 'modules_dir' directory and return all found classes
+    derived from BaseModule class.
+    """
+    # Get list of all modules available in given folder
     # [:-3] is for removing '.py' suffix from module filenames
-    available_modules = [filename[:-3] for filename in os.listdir(os.path.join(os.getcwd(), MODULES_FOLDER)) if
-                         filename.endswith(".py")]
+    available_modules = [filename[:-3] for filename in os.listdir(modules_dir) if filename.endswith(".py")]
+    log.debug(f"Available modules: {', '.join(available_modules)}")
+    log.debug(f"Enabled modules: {', '.join(enabled_modules)}")
 
     # check if all desired modules are in modules folder
-    missing_modules = (set(module_names_list) - set(available_modules))
-    assert not missing_modules, f"some of desired modules are not available (not in modules folder), specifically: " \
-                                f"{missing_modules}"
+    missing_modules = (set(enabled_modules) - set(available_modules))
+    if missing_modules:
+        log.fatal(f"Some of desired modules are not available (not in modules folder), specifically: {missing_modules}")
+        sys.exit(2)
     # do imports of desired modules from 'modules' folder
-    imported_modules = [import_module(MODULES_IMPORT_PATH + "." + module_name) for module_name in module_names_list]
+    # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
+    log.debug("Importing modules ...")
+    sys.path.insert(0, modules_dir)
+    imported_modules = [import_module(module_name) for module_name in enabled_modules]
+    del sys.path[0]
     # final list will contain main classes from all desired modules, which has BaseModule as parent
     modules_main_objects = []
     for module in imported_modules:
         for _, obj in inspect.getmembers(module):
-            if inspect.isclass(obj):
-                for class_base in obj.__bases__:
-                    if class_base.__name__ == BASE_MODULE_CLASS_NAME:
-                        # append instance of module class (obj is class --> obj() is instance) --> call init, which
-                        # registers handler
-                        modules_main_objects.append(obj())
+            if inspect.isclass(obj) and BaseModule in obj.__bases__:
+                # append instance of module class (obj is class --> obj() is instance) --> call init, which
+                # registers handler
+                modules_main_objects.append(obj())
+                log.debug(f"Module successfully loaded: {module.__name__}:{obj.__name__}")
 
     return modules_main_objects
 
 
-def main(cfg_dir, process_index, verbose):
+def main(app_name, config_dir, process_index, verbose):
+    """
+    Run worker process.
+
+    :param app_name: Name of the application to distinct it from other
+        DP3-based apps. For example, it's used as a prefix for RabbitMQ queue
+        names.
+    :param config_dir: Path to directory containing configuration files.
+    :param process_index: Index of this worker process. For each application
+        there must be N processes running simultaneously, each started with a
+        unique index (from 0 to N-1). N is read from configuration
+        ('worker_processes' in 'processing_core.yml').
+    :param verbose: More verbose output (set log level to DEBUG).
+    """
     ##############################################
     # Initialize logging mechanism
     LOGFORMAT = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
@@ -52,41 +82,46 @@ def main(cfg_dir, process_index, verbose):
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
     log = logging.getLogger()
 
-    # Disable INFO and DEBUG messages from requests.urllib3 library, which is used by some modules
+    # Disable INFO and DEBUG messages from some libraries
     logging.getLogger("requests").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("amqpstorm").setLevel(logging.WARNING)
 
     ##############################################
     # Load configuration
-    log.debug(f"Loading config directory {cfg_dir}")
+    g.config_base_path = os.path.abspath(config_dir)
+    log.debug(f"Loading config directory {g.config_base_path}")
 
     # whole configuration should be loaded
-    config = read_config_dir(cfg_dir, recursive=True)
-    attr_spec = load_attr_spec(config["db_entities"])
+    config = read_config_dir(g.config_base_path, recursive=True)
+    attr_spec = load_attr_spec(config.get("db_entities"))
 
-    num_processes = config['processing_core'].get('worker_processes')
-    assert (isinstance(num_processes,
-                       int) and num_processes > 0), "Number of processes ('num_processes' in config) must be a positive integer"
+    num_processes = config.get('processing_core.worker_processes')
+    assert (isinstance(num_processes, int) and num_processes > 0),\
+        "Number of processes ('num_processes' in config) must be a positive integer"
     assert (isinstance(process_index, int) and process_index >= 0), "Process index can't be negative"
     assert (process_index < num_processes), "Process index must be less than total number of processes"
 
     ##############################################
     # Create instances of core components
-    # Save them to "g" ("global") module so they can be easily accessed from everywhere
-    log.info("***** Worker {}/{} start *****".format(process_index, num_processes))
+    # Save them to "g" ("global") module so they can be easily accessed from everywhere (in the same process)
+    log.info("***** {} worker {} of {} start *****".format(app_name, process_index, num_processes))
 
+    g.app_name = app_name
     g.config = config
-    g.config_base_path = os.path.dirname(os.path.abspath(cfg_dir))
+    g.running = False
     g.scheduler = scheduler.Scheduler()
-    g.db = EntityDatabase(config["database"], attr_spec)
+    g.db = EntityDatabase(config.get("database"), attr_spec)
     te = TaskExecutor(g.db, attr_spec)
     g.td = TaskDistributor(config, process_index, num_processes, te)
 
     ##############################################
     # Load all plug-in modules
 
-    module_list = load_modules(config['processing_core']['enabled_modules'])
+    modules_dir = config.get('processing_core.modules_dir')
+    modules_dir = os.path.abspath(os.path.join(g.config_base_path, modules_dir))
+
+    module_list = load_modules(modules_dir, config.get('processing_core.enabled_modules'), log)
 
     # Lock used to control when the program stops.
     g.daemon_stop_lock = threading.Lock()
@@ -114,7 +149,7 @@ def main(cfg_dir, process_index, verbose):
     for module in module_list:
         module.start()
 
-    # start TaskExecutor
+    # start TaskDistributor (which starts TaskExecutors in several worker threads)
     g.td.start()
 
     # Run scheduler
@@ -147,23 +182,3 @@ def main(cfg_dir, process_index, verbose):
 
     log.info("***** Finished, main thread exiting. *****")
     logging.shutdown()
-
-
-if __name__ == "__main__":
-    import argparse
-
-    # Parse arguments
-    parser = argparse.ArgumentParser(
-        prog="worker.py",
-        description="Main worker process of the processing platform. There are usually multiple workers running in "
-                    "parallel. "
-    )
-    parser.add_argument('process_index', metavar='INDEX', type=int,
-        help='Index of the worker process')
-    parser.add_argument('-c', '--config', metavar='DIRECTORY_NAME', default='/etc/adict/config',
-        help='Path to configuration directory (default: /etc/adict/config)')
-    parser.add_argument('-v', '--verbose', action="store_true", help="Verbose mode", default=False)
-    args = parser.parse_args()
-
-    # Run main code
-    main(args.config, args.process_index, args.verbose)

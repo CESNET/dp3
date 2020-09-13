@@ -3,8 +3,8 @@ NERDd - config file reader
 """
 import yaml
 import os
-from common.attrspec import AttrSpec
-from common.entityspec import EntitySpec
+from .attrspec import AttrSpec
+from .entityspec import EntitySpec
 
 
 class NoDefault:

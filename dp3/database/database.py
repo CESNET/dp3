@@ -7,8 +7,8 @@ from sqlalchemy import create_engine, Table, Column, MetaData
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
 from sqlalchemy.sql import text, select, func, and_, desc
 
-from common.config import load_attr_spec
-from common.attrspec import AttrSpec
+from ..common.config import load_attr_spec
+from ..common.attrspec import AttrSpec
 
 # map supported data types to Postgres SQL data types
 ATTR_TYPE_MAPPING = {

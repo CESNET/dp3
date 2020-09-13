@@ -3,7 +3,6 @@ auxiliary/utility functions and classes
 """
 import re
 import datetime
-from importlib import import_module
 
 # *** IP conversion functions ***
 ipv4_re = re.compile(r"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$")

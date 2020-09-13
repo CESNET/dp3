@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+import sys
+import os
+import argparse
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
+from dp3 import worker
+
+assert __name__ == "__main__", "This is an executable script, it shouldn't be imported"
+
+# Parse arguments
+parser = argparse.ArgumentParser(
+    prog="worker",
+    description="Main worker process of the DP3 platform. There are usually multiple workers running in parallel."
+)
+parser.add_argument('app_name', metavar='APP_NAME',
+                    help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
+                         "RabbitMQ queue names, for example).")
+parser.add_argument('config_dir', metavar='CONFIG_DIRECTORY',
+                    help="Path to a directory containing configuration files (e.g. /etc/my_app/config)")
+parser.add_argument('process_index', metavar='PROCESS_INDEX', type=int,
+                    help="Index of this worker process. For each application there must be N processes running "
+                         "simultaneously, each started with a unique index (from 0 to N-1). N is read from "
+                         "configuration ('worker_processes' in 'processing_core.yml').")
+parser.add_argument('-v', '--verbose', action="store_true", default=False,
+                    help="More verbose output (set log level to DEBUG).")
+args = parser.parse_args()
+
+# Run main code
+worker.main(args.app_name, args.config_dir, args.process_index, args.verbose)

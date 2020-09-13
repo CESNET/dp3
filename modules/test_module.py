@@ -1,9 +1,8 @@
 import logging
 from time import time
 
-from src.common.base_module import BaseModule
-import g
-
+from dp3.common.base_module import BaseModule
+from dp3 import g
 
 class TestModule(BaseModule):
     def __init__(self):

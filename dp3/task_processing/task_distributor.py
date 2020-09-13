@@ -7,7 +7,7 @@ from collections import Iterable
 from copy import deepcopy
 
 from .task_queue import TaskQueueReader, TaskQueueWriter
-import g
+from .. import g
 
 
 class TaskDistributor:
@@ -37,9 +37,9 @@ class TaskDistributor:
 
         # Connections to main task queue
         # Reader - reads tasks from a pair of queues (one pair per process) and distributes them to worker threads
-        self._task_queue_reader = TaskQueueReader(self._distribute_task, self.process_index, self.rabbit_params)
+        self._task_queue_reader = TaskQueueReader(self._distribute_task, g.app_name, self.process_index, self.rabbit_params)
         # Writer - allows modules to write new tasks
-        self._task_queue_writer = TaskQueueWriter(self.num_processes, self.rabbit_params)
+        self._task_queue_writer = TaskQueueWriter(g.app_name, self.num_processes, self.rabbit_params)
         self.task_executor = task_executor
         # Object to store thread-local data (e.g. worker-thread index) (each thread sees different object contents)
         self._current_thread_data = threading.local()
@@ -85,7 +85,6 @@ class TaskDistributor:
         :param delete: delete the record
         :param src: name of source module, mostly for logging
         :param tags: tags for logging (number of tasks per time interval by tag)
-        :param priority: if true, the task is places into priority queue
         :return: None
         """
         # Put task to priority queue, so this can never block due to full queue
@@ -95,7 +94,9 @@ class TaskDistributor:
         """Run the worker threads and start consuming from TaskQueue."""
         self.log.info("Connecting to RabbitMQ")
         self._task_queue_reader.connect()
+        self._task_queue_reader.check() # check presence of needed queues
         self._task_queue_writer.connect()
+        self._task_queue_writer.check() # check presence of needed exchanges
 
         self.log.info("Starting {} worker threads".format(self.num_threads))
         self.running = True

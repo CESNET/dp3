@@ -32,7 +32,13 @@ def load_modules(modules_dir, enabled_modules, log):
     """
     # Get list of all modules available in given folder
     # [:-3] is for removing '.py' suffix from module filenames
-    available_modules = [filename[:-3] for filename in os.listdir(modules_dir) if filename.endswith(".py")]
+    available_modules = []
+    for item in os.scandir(modules_dir):
+        # A module can be a Python file or a Python package (i.e. a directory with "__init__.py" file)
+        if item.is_file() and item.name.endswith(".py"):
+            available_modules.append(item.name[:-3]) # name without .py
+        if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
+            available_modules.append(item.name)
     log.debug(f"Available modules: {', '.join(available_modules)}")
     log.debug(f"Enabled modules: {', '.join(enabled_modules)}")
 

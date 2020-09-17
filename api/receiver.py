@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import traceback
+import json
 from flask import Flask, request, render_template, Response, jsonify
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
@@ -144,10 +145,24 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         "src": request.values.get("src", "")
     }
 
+    # Convert value from string to json
+    try:
+        val = json.loads(request.values.get("v", None))
+    except Exception as e:
+        response = f"Error: Failed to convert value to json: {str(e)}"
+        log.debug(response)
+        return f"{response}\n", 400  # Bad request
+
     if spec.history is True:
+        t1 = request.values.get("t1", None)
+        t2 = request.values.get("t2", t1)
         t["data_points"] = [{
             "attr": attr_id,
-            **request.values # TODO check for excess fields?
+            "v": val,
+            "t1": t1,
+            "t2": t2,
+            "c": request.values.get("c", 1.0),
+            "src": request.values.get("src", "")
         }]
     else:
         t["attr_updates"] = [{

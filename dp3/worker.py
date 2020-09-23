@@ -61,7 +61,7 @@ def load_modules(modules_dir, enabled_modules, log):
                 # append instance of module class (obj is class --> obj() is instance) --> call init, which
                 # registers handler
                 modules_main_objects.append(obj())
-                log.debug(f"Module successfully loaded: {module.__name__}:{obj.__name__}")
+                log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
 
     return modules_main_objects
 

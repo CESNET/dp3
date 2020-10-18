@@ -183,6 +183,11 @@ class EntityDatabase:
             # check if table exists
             current_table = db_current_state.tables[table_name]
         except KeyError:
+            # Table doesn't exist yet, create it
+            # TODO: If multipe workers are running in parallel, only one (the first one) should attempt to create it.
+            #   We should check the process index here and if it's not 0, wait a second or two (until the first worker
+            #   create the tables) and re-check the table existence.
+            #   But it will probably need a larger code refactoring.
             self.log.info(f"Entity table {table_name} does not exist in the database yet, creating it now.")
             entity_table.create()
             self._tables[table_name] = entity_table

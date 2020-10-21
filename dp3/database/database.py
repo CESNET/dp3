@@ -445,8 +445,33 @@ class EntityDatabase:
             return None
         return result.fetchone()[0]
 
-    def search(self, table_name, data):
-        raise NotImplementedError("search method not implemented yet")
+    def search(self, etype, attrs=None, query=None, limit=None, **kwargs):
+        """TODO"""
+        try:
+            table = self._tables[etype]
+        except KeyError:
+            self.log.error(f"search: No table for entity type '{etype}'")
+            return None # TODO raise exception?
+        if query:
+            NotImplementedError("query param not implemented yet")
+        if attrs:
+            NotImplementedError("attrs param not implemented yet")
+
+        # Prepare SELECT statement
+        cols = [table.c.eid]
+        select_statement = select(cols) # note: table to use (FROM) is derived automatically from columns
+        if limit is not None:
+            select_statement = select_statement.limit(limit)
+
+        # Execute statement
+        try:
+            result = self._db.execute(select_statement)
+        except Exception as e:
+            self.log.error(f"Search on table '{etype}' failed: {e}")
+            return None # TODO raise exception?
+
+        # Read all rows and return list of matching entity IDs
+        return list(row[0] for row in result)
 
     @staticmethod
     def get_object_from_db_record(table: Table, db_record):

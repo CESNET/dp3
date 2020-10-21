@@ -354,6 +354,11 @@ class TaskExecutor:
 
         self.log.debug(f"Received new task {etype}/{ekey}, starting processing!")
 
+        # Check existence of etype
+        if etype not in self.attr_spec:
+            self.log.error(f"Task {etype}/{ekey}: Unknown entity type!")
+            return False
+
         # whole record should be deleted from database
         if delete:
             self._delete_record_from_db(etype, ekey)
@@ -361,7 +366,7 @@ class TaskExecutor:
             return False
 
         if create is None:
-            create = self.attr_spec.get(etype, {}).get('entity', {}).get('auto_create_record', True)
+            create = self.attr_spec[etype]['entity'].auto_create_record
 
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)

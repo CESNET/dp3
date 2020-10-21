@@ -12,7 +12,7 @@ from dp3.common.config import read_config_dir, load_attr_spec
 from dp3.database.database import EntityDatabase
 from dp3.common.utils import parse_rfc_time
 
-from task import Task
+from .task import Task
 
 app = Flask(__name__)
 

@@ -122,6 +122,21 @@ def push_task(task):
     )
 
 
+def convert_value(value, data_type):
+    if data_type == "tag":
+        return True
+    elif data_type == "float":
+        try:
+            return float(value)
+        except Exception:
+            raise TypeError
+    else:
+        try:
+            return json.loads(value)
+        except Exception:
+            raise TypeError
+
+
 @app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["POST"])
 def push_single_datapoint(entity_type, entity_id, attr_id):
     """
@@ -134,24 +149,32 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     try:
         spec = attr_spec[entity_type]["attribs"][attr_id]
-    except Exception as e:
-        response = f"Error: {str(e)}"
+    except KeyError:
+        response = f"Error: no specification found for {entity_type}/{attr_id}"
         log.debug(response)
-        return f"{response}\n", 400 # Bad request
+        return f"{response}\n", 400  # Bad request
+
+    if attr_spec[entity_type]["entity"].key_data_type == "int":
+        try:
+            entity_id = int(entity_id)
+        except Exception:
+            response = "Error: type of \"entity_id\" is invalid (must be int)"
+            log.debug(response)
+            return f"{response}\n", 400  # Bad request
+
+    # Convert value from string (JSON) to proper data type
+    try:
+        val = convert_value(request.values.get("v", None), spec.data_type)
+    except TypeError:
+        response = f"Error: type of \"v\" is invalid (must be {spec.data_type})"
+        log.debug(response)
+        return f"{response}\n", 400  # Bad request
 
     t = {
         "etype": entity_type,
         "ekey": entity_id,
         "src": request.values.get("src", "")
     }
-
-    # Convert value from string to json
-    try:
-        val = json.loads(request.values.get("v", None))
-    except Exception as e:
-        response = f"Error: Failed to convert value to json: {str(e)}"
-        log.debug(response)
-        return f"{response}\n", 400  # Bad request
 
     if spec.history is True:
         t1 = request.values.get("t1", None)
@@ -168,7 +191,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         t["attr_updates"] = [{
             "attr": attr_id,
             "op": "set",
-            "val": request.values.get("v", None)
+            "val": val
         }]
 
     # Make valid task using the attr_spec template and push it to platform's task queue
@@ -176,20 +199,20 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         task = Task(t, attr_spec)
     except Exception as e:
         traceback.print_exc()
-        response = f"Error: Failed to create a task: {str(e)}"
-        log.info(response)
+        response = f"Error: Failed to create a task: {type(e)}: {str(e)}"
+        log.debug(response)
         return f"{response}\n", 400 # Bad request
     try:
         push_task(task)
     except Exception as e:
         traceback.print_exc()
-        response = f"Error: Failed to push task to queue: {str(e)}"
-        log.info(response)
+        response = f"Error: Failed to push task: {type(e)}: {str(e)}"
+        log.error(response)
         return f"{response}\n", 500 # Internal server error
 
     response = "Success"
     log.debug(response)
-    return f"{response}\n", 202 # Accepted
+    return f"{response}\n", 200 # OK
 
 
 @app.route("/datapoints", methods=["POST"])
@@ -215,22 +238,27 @@ def push_multiple_datapoints():
     elif type(payload) is not list:
         errors = "payload is not a list"
 
+
     if errors != "":
         # Request is invalid, cannot continue
         response = f"Invalid request: {errors}"
-        log.info(response)
+        log.debug(response)
         return f"{response}\n", 400 # Bad request
 
     # Create a task for each (etype,ekey) in data-points
     tasks = {}
     for i,record in enumerate(payload, 1):
+        if type(record) is not dict:
+            response = f"Invalid data-point no. {i}: Not a dictionary"
+            log.debug(response)
+            return f"{response}\n", 400
+
         # Extract all mandatory fields
         try:
             etype, ekey, attr = record["type"], record["id"], record["attr"]
-            _ = record["t1"] # try to access just to check field existence
         except KeyError as e:
             response = f"Invalid data-point no. {i}: Missing field '{str(e)}'"
-            log.info(response)
+            log.debug(response)
             return f"{response}\n", 400
 
         key = (etype, ekey)
@@ -244,39 +272,56 @@ def push_multiple_datapoints():
                 "src": record.get("src", "")
             }
 
-        # add data-points or attr updates
-        spec = attr_spec[etype]["attribs"][attr]
+        try:
+            spec = attr_spec[etype]["attribs"][attr]
+        except KeyError:
+            response = f"Error: no specification found for {etype}/{attr}"
+            log.debug(response)
+            return f"{response}\n", 400  # Bad request
+
+        # Convert value from string (JSON) to proper data type
+        try:
+            record["v"] = convert_value(record.get("v", None), spec.data_type)
+        except TypeError:
+            response = f"Error: type of \"v\" is invalid (must be {spec.data_type})"
+            log.debug(response)
+            return f"{response}\n", 400  # Bad request
+
+        # Add data-points or attr updates
         if spec.history is True:
             tasks[key]["data_points"].append(record)
         else:
             tasks[key]["attr_updates"].append({
                 "attr": attr,
                 "op": "set",
-                "val": record.get("v", None)
+                "val": record["v"]
             })
 
-    # Make valid tasks using the attr_spec template and push it to platform's task queue
+    task_list = []
+
+    # Make valid tasks using the attr_spec template
     for k in tasks:
         try:
-            task = Task(tasks[k], attr_spec)
+            task_list.append(Task(tasks[k], attr_spec))
         except Exception as e:
-            traceback.print_exc()
-            errors += f"\nFailed to create a task: {type(e)}: {str(e)}"
-            continue
+            # traceback.print_exc()
+            response = f"\nFailed to create a task: {type(e)}: {str(e)}"
+            log.debug(response)
+            return f"{response}\n", 400 # Bad request
+
+    # Push valid tasks to platform task queue
+    for task in task_list:
         try:
             push_task(task)
         except Exception as e:
             traceback.print_exc()
-            errors += f"\nFailed to push task: {type(e)}: {str(e)}"
+            response = f"\nFailed to push task: {type(e)}: {str(e)}"
+            log.error(response)
+            return f"{response}\n", 500 # Internal server error
 
-    if errors != "":
-        response = f"Error: {errors}"
-        log.info(response)
-    else:
-        response = "Success"
-        log.debug(response)
-
-    return f"{response}\n", 202 # Accepted (what status code to return when there is error in *some* of the tasks?)
+    response = "Success"
+    log.debug(response)
+    return f"{response}\n", 200  # OK
 
 
 @app.route("/tasks", methods=["POST"])
@@ -303,7 +348,7 @@ def push_single_task():
     if errors != "":
         # Request is invalid, cannot continue
         response = f"Invalid request: {errors}"
-        log.info(response)
+        log.debug(response)
         return f"{response}\n", 400 # Bad request
 
     # Make valid task and push it to platforms task queue
@@ -312,19 +357,19 @@ def push_single_task():
     except Exception as e:
         traceback.print_exc()
         response = f"Error: Failed to create a task: {str(e)}"
-        log.info(response)
+        log.debug(response)
         return f"{response}\n", 400 # Bad request
     try:
         push_task(task)
     except Exception as e:
         traceback.print_exc()
         response = f"Error: Failed to push task to queue: {str(e)}"
-        log.info(response)
+        log.error(response)
         return f"{response}\n", 500 # Internal server error
 
     response = "Success"
     log.debug(response)
-    return f"{response}\n", 202 # Accepted
+    return f"{response}\n", 200 # OK
 
 
 ################################################################################
@@ -341,6 +386,13 @@ def get_attr_value(entity_type, entity_id, attr_id):
         /ip/1.2.3.4/test_attr
     """
     log.debug(f"Received new GET request from {request.remote_addr}")
+
+    try:
+        _ = attr_spec[entity_type]["attribs"][attr_id]
+    except KeyError:
+        response = f"Error: no specification found for {entity_type}/{attr_id}"
+        log.debug(response)
+        return f"{response}\n", 400  # Bad request
 
     try:
         content = db.get_attrib(entity_type, entity_id, attr_id)
@@ -373,7 +425,11 @@ def get_attr_history(entity_type, entity_id, attr_id):
     try:
         f = attr_spec[entity_type]["entity"].key_validator
     except KeyError:
-        return f"Error: no entity specification found for '{entity_type}'"
+        return f"Error: no entity specification found for '{entity_type}'", 400 # Bad request
+    try:
+        _ = attr_spec[entity_type]["attribs"][attr_id]
+    except KeyError:
+        return f"Error: no attribute specification found for '{attr_id}'", 400  # Bad request
     if not f(entity_id):
         return "Error: invalid entity id", 400 # Bad request
 

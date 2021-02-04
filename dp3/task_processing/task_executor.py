@@ -5,6 +5,9 @@ from collections import deque, Iterable, OrderedDict, Counter
 import logging
 from copy import deepcopy
 
+from event_count_logger import EventCountLogger, DummyEventGroup
+
+from .. import g
 from ..common.utils import get_func_name
 from ..database.record import Record
 
@@ -84,6 +87,12 @@ class TaskExecutor:
         for class_function in inspect.getmembers(TaskExecutor, predicate=inspect.isfunction):
             if class_function[0].startswith(TaskExecutor._OPERATION_FUNCTION_PREFIX):
                 self._operations_mapping[class_function[0][len(TaskExecutor._OPERATION_FUNCTION_PREFIX):]] = class_function[1]
+
+        # EventCountLogger - count number of events across multiple processes using shared counters in Redis
+        ecl = EventCountLogger(g.config.get("event_logging.groups"), g.config.get("event_logging.redis"))
+        self.elog = ecl.get_group("te") or DummyEventGroup()
+        self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
+        self.elog_by_tag = ecl.get_group("tasks_by_tag") or DummyEventGroup()
 
     def _init_may_change_cache(self):
         """
@@ -362,6 +371,7 @@ class TaskExecutor:
         # whole record should be deleted from database
         if delete:
             self._delete_record_from_db(etype, ekey)
+            self.elog.log('record_removed')
             self.log.debug(f"Task {etype}/{ekey}: Entity record removed from database.")
             return False
 
@@ -371,6 +381,7 @@ class TaskExecutor:
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)
         if new_rec_created:
+            self.elog.log('record_created')
             self.log.debug(f"Task {etype}/{ekey}: New record created")
 
         # Short-circuit if attr_updates, events or data_points is empty (used to only create a record if it doesn't exist)
@@ -420,7 +431,7 @@ class TaskExecutor:
                     # the "rec" object and store to DB after all subsequent updates are done)
                     ok = self.db.create_datapoint(etype, attr_name, data_to_save)
                     if ok:
-                        self.log.debug(f"Task {etype}/{ekey}: Data-point stored: {data_to_save}")
+                        self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' stored: {data_to_save}")
                         # on error, a message is already logged by the create_datapoint() method
 
                     # TODO time aggregation
@@ -429,7 +440,7 @@ class TaskExecutor:
                     # Get current value and set it to the cached record ("rec", instance of Record)
                     current_value = self.db.get_current_value(etype, ekey, attr_name)
                     rec.update({attr_name: current_value})
-                    self.log.debug(f"Task {etype}/{ekey}: Current value of {attr_name} updated to '{current_value}'")
+                    self.log.debug(f"Task {etype}/{ekey}: Current value of '{attr_name}' updated to '{current_value}'")
 
                 # add all functions, which are hooked to events, to call queue
                 for event in events:
@@ -499,6 +510,7 @@ class TaskExecutor:
                 self.log.exception("Unhandled exception during call of {}(({}, {}), rec, {}). Traceback follows:"
                                    .format(get_func_name(handler_function), etype, ekey, updates))
                 requested_updates = []
+                self.elog.log('module_error')
             self.log.debug(f"Task {etype}/{ekey}: New attribute update requests: '{requested_updates}'")
 
             # set requested updates to requests_to_process
@@ -518,6 +530,12 @@ class TaskExecutor:
 
         # Update processed database record
         rec.push_changes_to_db()
+
+        # Log the processed task
+        self.elog.log('task_processed')
+        self.elog_by_src.log(src) # empty src is ok, empty string is a valid event id
+        for tag in tags:
+            self.elog_by_src.log(tag)
 
         self.log.debug(f"Task {etype}/{ekey}: All changes written to DB, processing finished.")
 

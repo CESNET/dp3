@@ -504,9 +504,12 @@ class EntityDatabase:
             return None
         # wanted datapoints values must have their 't2' > t1 and 't1' < t2 (where t without '' are arguments from this
         # method)
-        select_statement = select([data_point_table]).where(and_(getattr(data_point_table.c, "eid") == eid,
-                                                                 getattr(data_point_table.c, "t2") > t1,
-                                                                 getattr(data_point_table.c, "t1") < t2))
+        select_statement = select([data_point_table]).where(getattr(data_point_table.c, "eid") == eid)
+        if t1 is not None:
+            select_statement = select_statement.where(getattr(data_point_table.c, "t2") > t1)
+        if t2 is not None:
+            select_statement = select_statement.where(getattr(data_point_table.c, "t2") < t2)
+
         try:
             result = self._db.execute(select_statement)
         except Exception as e:

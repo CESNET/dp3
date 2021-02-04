@@ -75,8 +75,8 @@ def valid_mac(address):
 
 # Dictionary containing validator functions for primitive data types
 validators = {
-    "tag": lambda v: True,
-    "binary": lambda v: v in {True, False},
+    "tag": lambda v: type(v) is bool,
+    "binary": lambda v: type(v) is bool,
     "string": lambda v: type(v) is str,
     "int": lambda v: type(v) is int,
     "int64": lambda v: type(v) is int,
@@ -86,7 +86,7 @@ validators = {
     "mac": valid_mac,
     "time": valid_rfc3339,
     "special": lambda v: v is not None,
-    "json": lambda v: v is not None,
+    "json": lambda v: v is not None  # TODO validate json format?
 }
 
 

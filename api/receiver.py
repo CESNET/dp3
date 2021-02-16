@@ -73,7 +73,7 @@ def initialize():
     try:
         config = read_config_dir(conf_dir, recursive=True)
         attr_spec = load_attr_spec(config.get("db_entities"))
-        log.info(f"Loaded configuration: {config}")
+        log.debug(f"Loaded configuration: {config}")
     except Exception as e:
         log.exception(f"Error when reading configuration: {e}")
         return # "initialized" stays False, so any request will fail with Error 500
@@ -126,12 +126,21 @@ def convert_value(value, data_type):
     try:
         if data_type == "tag":
             return True
-        elif data_type == "int":
+        elif data_type == "binary":
+            return bool(value)
+        elif data_type == "int" or data_type == "int64":
             return int(value)
         elif data_type == "float":
             return float(value)
-        else:
+        elif data_type in ("string", "category", "ip4", "ip6", "mac", "timestamp"): # TODO validate IP/MAC addresses and time?
+            return str(value)
+        elif data_type.startswith("link<"):
+            return str(value) #TODO: int should also be allowed, depending on what is being linked
+        # others: binary, array<>, set<>, dict<>, special
+        elif isinstance(value, str): # passed as string - parse from JSON format
             return json.loads(value)
+        else: # otherwise no conversion is needed
+            return value
     except (TypeError, ValueError):
         raise TypeError
 
@@ -162,10 +171,11 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
             return f"{response}\n", 400  # Bad request
 
     # Convert value from string (JSON) to proper data type
+    raw_val = request.values.get("v", None)
     try:
-        val = convert_value(request.values.get("v", None), spec.data_type)
+        val = convert_value(raw_val, spec.data_type)
     except TypeError:
-        response = f"Error: type of \"v\" is invalid (must be {spec.data_type})"
+        response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
         log.info(response)
         return f"{response}\n", 400  # Bad request
 
@@ -278,10 +288,11 @@ def push_multiple_datapoints():
             return f"{response}\n", 400  # Bad request
 
         # Convert value from string (JSON) to proper data type
+        raw_val = record.get("v", None)
         try:
-            value = convert_value(record.get("v", None), spec.data_type)
+            value = convert_value(raw_val, spec.data_type)
         except TypeError:
-            response = f"Error: type of \"v\" is invalid (must be {spec.data_type})"
+            response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
             log.info(f"{response}\nRecord: {record}")
             return f"{response}\n", 400  # Bad request
 

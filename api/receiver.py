@@ -4,7 +4,7 @@ import sys
 import logging
 import traceback
 import json
-from flask import Flask, request, render_template, Response, jsonify
+from flask import Flask, request, Response, jsonify
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 from dp3.task_processing.task_queue import TaskQueueWriter
@@ -229,9 +229,9 @@ def push_multiple_datapoints():
     """
     REST endpoint to push multiple data points
 
-    Request payload must be a JSON dict containing a list of records.
+    Request payload must be a JSON dict containing a list of datapoints.
     Example:
-        {"records": [{rec1},{rec2},{rec3},...]}
+        [{dp1},{dp2},{dp3},...]
     """
     log.debug(f"Received new datapoint(s) from {request.remote_addr}")
 
@@ -243,7 +243,7 @@ def push_multiple_datapoints():
 
     errors = ""
     if payload is None:
-        errors = "not JSON or empty payload"
+        errors = "not a valid JSON (or empty payload)"
     elif type(payload) is not list:
         errors = "payload is not a list"
 
@@ -350,7 +350,7 @@ def push_single_task():
 
     errors = ""
     if payload is None:
-        errors = "not JSON or empty payload"
+        errors = "not a valid JSON (or empty payload)"
     elif type(payload) is not dict:
         errors = "payload is not a dict"
 
@@ -476,9 +476,9 @@ def ping():
     """
     REST endpoint to check whether the API is running
 
-    Returns a simple html template
+    Returns a simple text response ("It works!")
     """
-    return render_template("ping.html")
+    return Response("It works!", status=200, mimetype="text/plain")
 
 
 if __name__ == "__main__":

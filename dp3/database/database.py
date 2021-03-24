@@ -5,7 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import create_engine, Table, Column, MetaData
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
-from sqlalchemy.sql import text, select, func, and_, desc
+from sqlalchemy.sql import text, select, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
 from ..common.attrspec import AttrSpec
@@ -41,6 +41,7 @@ HISTORY_ATTRIBS_CONF = {
     't2': AttrSpec("t2", {'name': "t2", 'data_type': "time"}),
     'c': AttrSpec("c", {'name': "c", 'data_type': "float"}),
     'src': AttrSpec("src", {'name': "src", 'data_type': "string"}),
+    'agg': AttrSpec("agg", {'name': "agg", 'data_type': "int"})
 }
 
 # preconfigured attributes all tables (records) should have
@@ -486,7 +487,7 @@ class EntityDatabase:
             record_object[column.description] = db_record[i]
         return record_object
 
-    def get_datapoints_range(self, etype: str, attr_name: str, eid: str, t1: str, t2: str):
+    def get_datapoints_range(self, etype: str, attr_name: str, eid: str, t1: str, t2: str, sort: int = None):
         """
         Gets data-points of certain time interval between t1 and t2 from database.
         :param etype: entity type
@@ -494,6 +495,7 @@ class EntityDatabase:
         :param eid: id of entity, to which data-points corresponds
         :param t1: left value of time interval
         :param t2: right value of time interval
+        :param sort: sort datapoints by timestamps - 0: ascending order by t1, 1: descending order by t2, None: dont sort
         :return: list of data-point objects or None on error
         """
         full_attr_name = f"{etype}__{attr_name}"
@@ -508,7 +510,12 @@ class EntityDatabase:
         if t1 is not None:
             select_statement = select_statement.where(getattr(data_point_table.c, "t2") > t1)
         if t2 is not None:
-            select_statement = select_statement.where(getattr(data_point_table.c, "t2") < t2)
+            select_statement = select_statement.where(getattr(data_point_table.c, "t1") < t2)
+
+        if sort == 0:
+            select_statement = select_statement.order_by(asc(data_point_table.c.t1))
+        elif sort == 1:
+            select_statement = select_statement.order_by(desc(data_point_table.c.t2))
 
         try:
             result = self._db.execute(select_statement)

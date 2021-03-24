@@ -193,7 +193,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
             "v": val,
             "t1": t1,
             "t2": t2,
-            "c": request.values.get("c", 1.0),
+            "c": float(request.values.get("c", 1.0)),
             "src": request.values.get("src", "")
         }]
     else:

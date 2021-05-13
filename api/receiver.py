@@ -16,16 +16,25 @@ from task import Task
 
 app = Flask(__name__)
 
-# Directory containing config files
-# Can be specified as a single command-line parameter (when run as stand-alone testing server or passed from WSGI server)
-if 'DP3_CONFIG_DIR' not in os.environ or 'DP3_APP_NAME' not in os.environ:
+# Get application name and directory containing config files.
+# Can be specified as command-line parameters (when run as stand-alone testing server)
+# or as environment variables.
+if __name__ == '__main__' and len(sys.argv) > 1:
+    import argparse
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('app_name', help='Identification of DP3 application')
+    argparser.add_argument('conf_dir', help='Configuration directory')
+    args = argparser.parse_args()
+    app_name = args.app_name
+    conf_dir = args.conf_dir
+elif 'DP3_CONFIG_DIR' in os.environ and 'DP3_APP_NAME' in os.environ:
+    conf_dir = os.environ['DP3_CONFIG_DIR']
+    app_name = os.environ['DP3_APP_NAME']
+else:
     print("Error: DP3_APP_NAME and DP3_CONFIG_DIR environment variables must be set.", file=sys.stderr)
     print("  DP3_APP_NAME - application name used to distinguish this app from other dp3-based apps", file=sys.stderr)
     print("  DP3_CONFIG_DIR - directory containing configuration files", file=sys.stderr)
     sys.exit(1)
-
-conf_dir = os.environ['DP3_CONFIG_DIR']
-app_name = os.environ['DP3_APP_NAME']
 
 # Dictionary containing platform configuration
 config = None

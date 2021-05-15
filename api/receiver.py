@@ -24,29 +24,39 @@ if __name__ == '__main__' and len(sys.argv) > 1:
     argparser = argparse.ArgumentParser()
     argparser.add_argument('app_name', help='Identification of DP3 application')
     argparser.add_argument('conf_dir', help='Configuration directory')
+    argparser.add_argument('dp_log_file', nargs="?", help='File to store all incoming datapoints (as CSV)')
     args = argparser.parse_args()
     app_name = args.app_name
     conf_dir = args.conf_dir
+    dp_log_file = args.dp_log_file
 elif 'DP3_CONFIG_DIR' in os.environ and 'DP3_APP_NAME' in os.environ:
     conf_dir = os.environ['DP3_CONFIG_DIR']
     app_name = os.environ['DP3_APP_NAME']
+    dp_log_file = os.environ['DP3_DP_LOG_FILE']
 else:
     print("Error: DP3_APP_NAME and DP3_CONFIG_DIR environment variables must be set.", file=sys.stderr)
     print("  DP3_APP_NAME - application name used to distinguish this app from other dp3-based apps", file=sys.stderr)
     print("  DP3_CONFIG_DIR - directory containing configuration files", file=sys.stderr)
+    print("  DP3_DP_LOG_FILE - (optional) file to store all incoming datapoints (as CSV)", file=sys.stderr)
     sys.exit(1)
+
+# Temporary override
+#conf_dir = '/etc/adict/config'
+#app_name = 'adict'
+#dp_log_file = '/data/datapoints.log'
+
 
 # Dictionary containing platform configuration
 config = None
 
 # Dictionary containing entity / attribute specification
-attr_spec = None
+attr_spec = {}
 
 # TaskQueueWriter instance used for sending tasks to the processing core
 task_writer = None
 
 # Logger
-log = None
+#log = None
 
 # Flag marking if initialization was successful (no request can be handled if this is False)
 initialized = False
@@ -57,10 +67,17 @@ db = None
 # verbose (debug) mode
 verbose = False
 
+# Logging initialization
+log_format = "%(asctime)-15s [%(levelname)s] %(message)s"
+log_dateformat = "%Y-%m-%dT%H:%M:%S"
+logging.basicConfig(level=logging.WARNING, format=log_format, datefmt=log_dateformat)
+log = logging.getLogger()
+log.setLevel(logging.DEBUG if verbose else logging.INFO)
+
 @app.before_first_request
 def initialize():
     """
-    Load configuration, initialize logging and connect to platform message broker.
+    Load configuration and connect to dp3 message broker.
 
     This needs to be called before any request is made.
     """
@@ -70,13 +87,6 @@ def initialize():
     global task_writer
     global initialized
     global db
-
-    # Logging initialization
-    log_format = "%(asctime)-15s [%(levelname)s] %(message)s"
-    log_dateformat = "%Y-%m-%dT%H:%M:%S"
-    logging.basicConfig(level=logging.WARNING, format=log_format, datefmt=log_dateformat)
-    log = logging.getLogger()
-    log.setLevel(logging.DEBUG if verbose else logging.INFO)
 
     # Load configuration and entity/attribute specification
     try:
@@ -154,6 +164,24 @@ def convert_value(value, data_type):
         raise TypeError
 
 
+def log_datapoints(dps):
+    """
+    Log incoming datapoint as a line in a CSV file
+
+    CSV fields:
+      type, id, attr, t1, t2, c, src, val
+    (value is the last to ease parsing, since it can contain commas)
+
+    dps - list of tuples (etype, eid, attr, v, t1, t2, c, src)
+    """
+    print(dps)
+    if not dp_log_file:
+        return
+    with open(dp_log_file, "a") as f:
+        for entity_type, entity_id, attr_id, val, t1, t2, c, src in dps:
+            f.write(f"{entity_type},{str(entity_id)},{attr_id},{t1},{t2},{str(c)},{src},{json.dumps(val)}\n")
+
+
 @app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["POST"])
 def push_single_datapoint(entity_type, entity_id, attr_id):
     """
@@ -164,6 +192,19 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
     """
     log.debug(f"Received new datapoint from {request.remote_addr}")
 
+    # Extract datapoint fields from the POST part
+    raw_val = request.values.get("v", None)
+    t1 = request.values.get("t1", None)
+    t2 = request.values.get("t2", t1)
+    c = request.values.get("c", 1.0)
+    src = request.values.get("src", "")
+
+    if t1 is None:
+        response = f"Invalid data-point: Missing mandatory field 't1'"
+        log.info(response)
+        return f"{response}\n", 400  # Bad request
+
+    # Get attribute specification
     try:
         spec = attr_spec[entity_type]["attribs"][attr_id]
     except KeyError:
@@ -174,13 +215,12 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
     if attr_spec[entity_type]["entity"].key_data_type == "int":
         try:
             entity_id = int(entity_id)
-        except Exception:
+        except ValueError:
             response = "Error: type of \"entity_id\" is invalid (must be int)"
             log.info(response)
             return f"{response}\n", 400  # Bad request
 
     # Convert value from string (JSON) to proper data type
-    raw_val = request.values.get("v", None)
     try:
         val = convert_value(raw_val, spec.data_type)
     except TypeError:
@@ -188,22 +228,27 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         log.info(response)
         return f"{response}\n", 400  # Bad request
 
+    # Log the datapoint
+    try:
+        log_datapoints([(entity_type, entity_id, attr_id, val, t1, t2, c, src)])
+    except Exception as e:
+        print("ERROR: Can't log datapoint:", e, file=sys.stderr)
+
+    # Prepare task
     t = {
         "etype": entity_type,
         "ekey": entity_id,
-        "src": request.values.get("src", "")
+        "src": src
     }
 
     if spec.history is True:
-        t1 = request.values.get("t1", None)
-        t2 = request.values.get("t2", t1)
         t["data_points"] = [{
             "attr": attr_id,
             "v": val,
             "t1": t1,
             "t2": t2,
-            "c": request.values.get("c", 1.0),
-            "src": request.values.get("src", "")
+            "c": c,
+            "src": src
         }]
     else:
         t["attr_updates"] = [{
@@ -262,33 +307,28 @@ def push_multiple_datapoints():
         log.info(response)
         return f"{response}\n", 400 # Bad request
 
-    # Create a task for each (etype,ekey) in data-points
-    tasks = {}
+    # Load all datapoints from POST data
+    dps = []
     for i,record in enumerate(payload, 1):
+        # Check it's a dict
         if type(record) is not dict:
             response = f"Invalid data-point no. {i}: Not a dictionary"
             log.info(f"{response}\nRecord: {record}")
             return f"{response}\n", 400
 
-        # Extract all mandatory fields
+        # Extract fields
         try:
-            etype, ekey, attr = record["type"], record["id"], record["attr"]
+            etype, ekey, attr, t1 = record["type"], record["id"], record["attr"], record["t1"]
         except KeyError as e:
             response = f"Invalid data-point no. {i}: Missing field '{str(e)}'"
             log.info(f"{response}\nRecord: {record}")
             return f"{response}\n", 400
+        raw_val = record.get("v", None)
+        t2 = record.get("t2", t1)
+        c = record.get("c", 1.0)
+        src = record.get("src", "")
 
-        key = (etype, ekey)
-        if key not in tasks:
-            # create new "empty" task
-            tasks[key] = {
-                "etype": etype,
-                "ekey": ekey,
-                "data_points": [],
-                "attr_updates": [],
-                "src": record.get("src", "")
-            }
-
+        # Get attribute specification
         try:
             spec = attr_spec[etype]["attribs"][attr]
         except KeyError:
@@ -297,7 +337,6 @@ def push_multiple_datapoints():
             return f"{response}\n", 400  # Bad request
 
         # Convert value from string (JSON) to proper data type
-        raw_val = record.get("v", None)
         try:
             value = convert_value(raw_val, spec.data_type)
         except TypeError:
@@ -305,9 +344,38 @@ def push_multiple_datapoints():
             log.info(f"{response}\nRecord: {record}")
             return f"{response}\n", 400  # Bad request
 
+        dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))
+
+    # Log all datapoints (regardless of their validity)
+    try:
+        log_datapoints([dp[:8] for dp in dps]) # pass all params except the last one (attr spec)
+    except Exception as e:
+        print("ERROR: Can't log datapoints:", e, file=sys.stderr)
+
+    # Create a task for each (etype,ekey) in data-points
+    tasks = {}
+    for etype, ekey, attr, value, t1, t2, c, src, spec in dps:
+        key = (etype, ekey)
+        if key not in tasks:
+            # create new "empty" task
+            tasks[key] = {
+                "etype": etype,
+                "ekey": ekey,
+                "data_points": [],
+                "attr_updates": [],
+                "src": src
+            }
+
         # Add data-points or attr updates
         if spec.history is True:
-            tasks[key]["data_points"].append(record)
+            tasks[key]["data_points"].append({
+                "attr": attr,
+                "v": value,
+                "t1": t1,
+                "t2": t2,
+                "c": c,
+                "src": src
+            })
         else:
             tasks[key]["attr_updates"].append({
                 "attr": attr,

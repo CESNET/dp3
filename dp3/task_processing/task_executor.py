@@ -4,6 +4,7 @@ import inspect
 from collections import deque, Iterable, OrderedDict, Counter
 import logging
 from copy import deepcopy
+import traceback
 
 from event_count_logger import EventCountLogger, DummyEventGroup
 
@@ -431,19 +432,16 @@ class TaskExecutor:
                     data_to_save['eid'] = ekey
 
                     # Store data-point to history table
-                    # (current value is not automatically updated by DB wrapper, since we must update it here in
-                    # the "rec" object and store to DB after all subsequent updates are done)
-                    ok = self.db.create_datapoint(etype, attr_name, data_to_save)
-                    if ok:
+                    try:
+                        self.hm.process_datapoint(etype, attr_name, data_to_save)
                         self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' stored: {data_to_save}")
-                        # on error, a message is already logged by the create_datapoint() method
-
-                    # TODO time aggregation
-                    # ...
-
-                    self.hm.process_datapoint(etype, attr_name, data_to_save)
+                    except Exception as e:
+                        # traceback.print_exc()
+                        self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' could not be stored: {e}")
 
                     # Get current value and set it to the cached record ("rec", instance of Record)
+                    # (current value is not automatically updated by DB wrapper, since we must update it here in
+                    # the "rec" object and store to DB after all subsequent updates are done)
                     current_value = self.db.get_current_value(etype, ekey, attr_name)
                     rec.update({attr_name: current_value})
                     self.log.debug(f"Task {etype}/{ekey}: Current value of '{attr_name}' updated to '{current_value}'")

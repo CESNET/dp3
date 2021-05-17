@@ -45,6 +45,27 @@ def parse_rfc_time(time_str):
         raise ValueError("Wrong timestamp format")
 
 
+def parse_time_interval(interval_string: str):
+    d = 0
+    h = 0
+    m = 0
+    s = 0
+
+    if interval_string == "0":
+        pass
+    elif interval_string[-1] == "d":
+        d = int(interval_string[:-1])
+    elif interval_string[-1] == "h":
+        h = int(interval_string[:-1])
+    elif interval_string[-1] == "m":
+        m = int(interval_string[:-1])
+    elif interval_string[-1] == "s":
+        s = int(interval_string[:-1])
+
+    delta = datetime.timedelta(days=d, hours=h, minutes=m, seconds=s)
+    return delta
+
+
 # *** object (de)serialization ***
 # Functions that allow to (de)serialize some objects we need to pass for example via TaskQueue.
 # Inspired by bson.json_util, but for different set of types (and much simpler).

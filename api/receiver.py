@@ -228,6 +228,14 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         log.info(response)
         return f"{response}\n", 400  # Bad request
 
+    # Convert confidence to float
+    try:
+        c = float(c)
+    except ValueError:
+        response = f'Error: type of "c" is invalid ("{c}" is not float)'
+        log.info(response)
+        return f"{response}\n", 400  # Bad request
+
     # Log the datapoint
     try:
         log_datapoints([(entity_type, entity_id, attr_id, val, t1, t2, c, src)])
@@ -342,6 +350,14 @@ def push_multiple_datapoints():
         except TypeError:
             response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
             log.info(f"{response}\nRecord: {record}")
+            return f"{response}\n", 400  # Bad request
+
+        # Convert confidence to float
+        try:
+            c = float(c)
+        except ValueError:
+            response = f'Error: type of "c" is invalid ("{c}" is not float)'
+            log.info(response)
             return f"{response}\n", 400  # Bad request
 
         dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))

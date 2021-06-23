@@ -42,14 +42,14 @@ default_multi_value = False
 default_timestamp = False
 default_history = False
 
-# Default history params - TODO
+# Default history params
 default_max_age = None
 default_max_items = None
 default_expire_time = "inf"
-default_pre_validity = "10s"
-default_post_validity = "10s"
-default_aggregation_interval = "1m"
-default_aggregation_max_age = "5m"
+default_pre_validity = "0s"
+default_post_validity = "0s"
+default_aggregation_interval = "0s"
+default_aggregation_max_age = "0s"
 default_aggregation_function_value = "keep"
 default_aggregation_function_confidence = "avg"
 default_aggregation_function_source = "csv_union"

@@ -41,7 +41,7 @@ HISTORY_ATTRIBS_CONF = {
     't2': AttrSpec("t2", {'name': "t2", 'data_type': "time"}),
     'c': AttrSpec("c", {'name': "c", 'data_type': "float"}),
     'src': AttrSpec("src", {'name': "src", 'data_type': "string"}),
-    'agg': AttrSpec("agg", {'name': "agg", 'data_type': "int"})
+    'tag': AttrSpec("tag", {'name': "tag", 'data_type': "int"})
 }
 
 # preconfigured attributes all tables (records) should have
@@ -487,7 +487,7 @@ class EntityDatabase:
             record_object[column.description] = db_record[i]
         return record_object
 
-    def get_datapoints_range(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True, sort: int = None, agg: int = None):
+    def get_datapoints_range(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True, sort: int = None, tag: int = None):
         """
         Gets data-points of certain time interval between t1 and t2 from database.
         :param etype: entity type
@@ -497,7 +497,7 @@ class EntityDatabase:
         :param t2: right value of time interval
         :param closed_interval: include interval endpoints? (default = True)
         :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2, None: dont sort
-        :param agg: optional filter for aggregation metadata
+        :param tag: optional filter for aggregation metadata
         :return: list of data-point objects or None on error
         """
         full_attr_name = f"{etype}__{attr_name}"
@@ -513,8 +513,8 @@ class EntityDatabase:
         if eid is not None:
             select_statement = select_statement.where(getattr(data_point_table.c, "eid") == eid)
 
-        if agg is not None:
-            select_statement = select_statement.where(getattr(data_point_table.c, "agg") == agg)
+        if tag is not None:
+            select_statement = select_statement.where(getattr(data_point_table.c, "tag") == tag)
 
         if t1 is not None:
             if closed_interval:

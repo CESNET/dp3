@@ -11,7 +11,6 @@ from event_count_logger import EventCountLogger, DummyEventGroup
 from .. import g
 from ..common.utils import get_func_name
 from ..database.record import Record
-from ..history_management.history_manager import HistoryManager
 
 
 class TaskExecutor:
@@ -55,7 +54,7 @@ class TaskExecutor:
 
     _OPERATION_FUNCTION_PREFIX = "_perform_op_"
 
-    def __init__(self, db, attr_spec):
+    def __init__(self, db, attr_spec, history_manager):
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
@@ -76,6 +75,7 @@ class TaskExecutor:
         # cache for may_change set calculation - is cleared when register_handler() is called
         self._may_change_cache = self._init_may_change_cache()
 
+        self.hm = history_manager
         self.attr_spec = attr_spec
         self.db = db
         # get all update operations functions into callable dictionary, where key is operation name and value is
@@ -95,9 +95,6 @@ class TaskExecutor:
         # self.elog = ecl.get_group("te") or DummyEventGroup()
         # self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
         # self.elog_by_tag = ecl.get_group("tasks_by_tag") or DummyEventGroup()
-
-        # Initialize history manager
-        self.hm = HistoryManager(db, attr_spec)
 
     def _init_may_change_cache(self):
         """

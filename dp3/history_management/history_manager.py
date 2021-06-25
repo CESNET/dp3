@@ -64,6 +64,9 @@ class HistoryManager:
         pre = self.db.get_datapoints_range(etype, attr_id, data['eid'], str(t1 - aggregation_interval), data['t1'], closed_interval=False, sort=1)
         post = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t2'], str(t2 + aggregation_interval), closed_interval=False, sort=0)
         for d in pre + post:
+            # TODO custom select function? get_datapoints_range() returns all datapoints overlapping with specified interval, we need them to be completely inside the interval here
+            if d['t1'] <= t2:
+                continue
             if d['tag'] == TAG_REDUNDANT:
                 continue
             if mergeable(agg, d, history_params):
@@ -171,7 +174,7 @@ class HistoryManager:
         return best
 
     def history_management_thread(self):
-        tick_rate = datetime.timedelta(seconds=5)  # TODO add to global config
+        tick_rate = datetime.timedelta(seconds=30)  # TODO add to global config
         next_call = datetime.datetime.now()
         while True:
             for etype in self.attr_spec:

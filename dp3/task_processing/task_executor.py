@@ -91,10 +91,10 @@ class TaskExecutor:
                 self._operations_mapping[class_function[0][len(TaskExecutor._OPERATION_FUNCTION_PREFIX):]] = class_function[1]
 
         # EventCountLogger - count number of events across multiple processes using shared counters in Redis
-        # ecl = EventCountLogger(g.config.get("event_logging.groups"), g.config.get("event_logging.redis"))
-        # self.elog = ecl.get_group("te") or DummyEventGroup()
-        # self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
-        # self.elog_by_tag = ecl.get_group("tasks_by_tag") or DummyEventGroup()
+        ecl = EventCountLogger(g.config.get("event_logging.groups"), g.config.get("event_logging.redis"))
+        self.elog = ecl.get_group("te") or DummyEventGroup()
+        self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
+        self.elog_by_tag = ecl.get_group("tasks_by_tag") or DummyEventGroup()
 
     def _init_may_change_cache(self):
         """

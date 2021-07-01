@@ -8,6 +8,8 @@ from copy import deepcopy
 
 # Hash function used to distribute tasks to worker processes. Takes string, returns int.
 # (last 4 bytes of MD5)
+# Note: this is slightly different function than that in task_processing, but it doesn't matter, the processing here
+# is independent
 HASH = lambda x: int(hashlib.md5(x.encode('utf8')).hexdigest()[-4:], 16)
 
 TAG_PLAIN = 0
@@ -174,6 +176,7 @@ class HistoryManager:
         return best
 
     def history_management_thread(self):
+        # TODO: use apscheduler
         tick_rate = datetime.timedelta(seconds=30)  # TODO add to global config
         next_call = datetime.datetime.now()
         while True:

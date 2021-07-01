@@ -43,7 +43,7 @@ else:
 # Temporary override
 #conf_dir = '/etc/adict/config'
 #app_name = 'adict'
-#dp_log_file = '/data/datapoints.log'
+#dp_log_file = '/data/datapoints/dp.log'
 
 
 # Dictionary containing platform configuration

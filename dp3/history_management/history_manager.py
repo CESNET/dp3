@@ -4,6 +4,7 @@ import threading
 import hashlib
 
 from dp3.common.utils import parse_rfc_time
+from dp3.database.record import Record
 from copy import deepcopy
 
 # Hash function used to distribute tasks to worker processes. Takes string, returns int.
@@ -29,6 +30,7 @@ class HistoryManager:
         redundant_data = []
         delete_ids = []
         history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
+        multi_value = self.attr_spec[etype]['attribs'][attr_id].multi_value
         aggregation_interval = history_params["aggregation_interval"]
         t1 = parse_rfc_time(data['t1'])
         t2 = parse_rfc_time(data['t2'])
@@ -40,7 +42,7 @@ class HistoryManager:
         for d in datapoints:
             m = mergeable(data, d, history_params)
             merge_list.append(m)
-            if not m and not d['tag'] == TAG_AGGREGATED:
+            if not m and not d['tag'] == TAG_AGGREGATED and multi_value is False:
                 raise ValueError("Incoming data point is overlapping with other, non mergeable data point(s)")
 
         # Merge with directly overlapping datapoints
@@ -57,6 +59,8 @@ class HistoryManager:
                     d['tag'] = TAG_REDUNDANT
                     redundant_ids.append(d['id'])
                     redundant_data.append(d)
+            elif multi_value is True:
+                pass
             else:
                 self.split_datapoint(etype, attr_id, d, t1)
 
@@ -65,7 +69,7 @@ class HistoryManager:
         post = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t2'], str(t2 + aggregation_interval), closed_interval=False, sort=0)
         for d in pre + post:
             # TODO custom select function? get_datapoints_range() returns all datapoints overlapping with specified interval, we need them to be completely inside the interval here
-            if d['t1'] <= t2:
+            if d['t1'] <= t2 or d['t2'] >= t1:
                 continue
             if d['tag'] == TAG_REDUNDANT:
                 continue
@@ -157,50 +161,65 @@ class HistoryManager:
             self.db.delete_multiple_records(f"{etype}__{attr_id}", delete_ids)
 
     def get_historic_value(self, etype, eid, attr_id, timestamp):
-        history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-
-        t1 = parse_rfc_time(timestamp) - history_params['post_validity']
-        t2 = parse_rfc_time(timestamp) + history_params['pre_validity']
+        attr_spec = self.attr_spec[etype]['attribs'][attr_id]
+        t1 = timestamp - attr_spec.history_params['post_validity']
+        t2 = timestamp + attr_spec.history_params['pre_validity']
         datapoints = self.db.get_datapoints_range(etype, attr_id, eid, t1, t2)
 
         if len(datapoints) < 1:
             return None
 
+        if attr_spec.multi_value is True:
+            return set([d['v'] for d in datapoints])
+
         best = None
         for d in datapoints:
-            confidence = extrapolate_confidence(d, timestamp, history_params)
+            confidence = extrapolate_confidence(d, timestamp, attr_spec.history_params)
             if best is None or confidence > best[1]:
                 best = d['v'], confidence
-        return best
+        return best[0]
+
+    def check_hash(self, etype, eid):
+        routing_key = HASH(f"{etype}:{eid}") % self.num_workers
+        return routing_key == self.worker_index
 
     def history_management_thread(self):
         tick_rate = datetime.timedelta(seconds=30)  # TODO add to global config
         next_call = datetime.datetime.now()
         while True:
             for etype in self.attr_spec:
+                entities = self.db.get_entities(etype)
                 for attr_id in self.attr_spec[etype]['attribs']:
                     if self.attr_spec[etype]['attribs'][attr_id].history is False:
                         continue
                     history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
                     table_name = f"{etype}__{attr_id}"
 
-                    # redundant
+                    # update attributes current value
+                    for eid in entities:
+                        if not self.check_hash(etype, eid):
+                            continue
+                        value = self.get_historic_value(etype, eid, attr_id, datetime.datetime.now())
+                        rec = Record(self.db, etype, eid)
+                        rec.update({attr_id: value})
+                        rec.push_changes_to_db()
+                        # print(f"History management thread: Current value of '{etype}/{eid}/{attr_id}' updated to '{value}'")
+
+                    # delete redundant datapoints older than "aggregation_max_age"
                     max_age = history_params["aggregation_max_age"]
                     t2 = str(datetime.datetime.now() - max_age)
                     data = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, t2=t2, tag=TAG_REDUNDANT)
                     for d in data:
-                        routing_key = HASH(f"{etype}:{d['eid']}") % self.num_workers
-                        if routing_key != self.worker_index:
+                        if not self.check_hash(etype, d['eid']):
                             continue
                         self.db.delete_record(table_name, d['id'])
 
-                    # too old
+                    # delete all datapoints older than "max_age"
                     max_age = history_params["max_age"]
                     t2 = str(datetime.datetime.now() - max_age)
                     data = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, t2=t2)
                     for d in data:
-                        routing_key = HASH(f"{etype}:{d['eid']}") % self.num_workers
-                        if routing_key != self.worker_index:
+                        if not self.check_hash(etype, d['eid']):
                             continue
                         self.db.delete_record(table_name, d['id'])
             next_call = next_call + tick_rate
@@ -210,16 +229,15 @@ class HistoryManager:
 def extrapolate_confidence(datapoint, timestamp, history_params):
     pre_validity = history_params['pre_validity']
     post_validity = history_params['post_validity']
-    t = parse_rfc_time(timestamp)
-    t1 = parse_rfc_time(datapoint['t1'])
-    t2 = parse_rfc_time(datapoint['t2'])
+    t1 = datapoint['t1']
+    t2 = datapoint['t2']
     base_confidence = datapoint['c']
 
-    if t2 < t:
-        distance = t - t2
+    if t2 < timestamp:
+        distance = timestamp - t2
         multiplier = (1 - (distance / post_validity))
-    elif t1 > t:
-        distance = t1 - t
+    elif t1 > timestamp:
+        distance = t1 - timestamp
         multiplier = (1 - (distance / pre_validity))
     else:
         multiplier = 1

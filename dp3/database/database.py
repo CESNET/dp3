@@ -138,6 +138,10 @@ class EntityDatabase:
             else:
                 column_type = ATTR_TYPE_MAPPING[attrib_conf.data_type]
 
+            # If the attribute is multi-value, convert column into an array
+            if not history and attrib_conf.multi_value is True:
+                column_type = ARRAY(column_type)
+
             # Create column
             if (history and attrib_id == "id") or (not history and attrib_id == "eid"):
                 # primary key column
@@ -555,3 +559,22 @@ class EntityDatabase:
         # TODO: do in a trasnsaction (that is probably needed on other places as well)
         self.delete_multiple_records(full_attr_name, list_of_ids_to_delete)
         self.create_multiple_records(full_attr_name, new_data_points)
+
+    def get_entities(self, etype: str):
+        """
+        Returns all unique entities (eid) of given type
+        :param etype: entity type
+        :return: List of entity ids
+        """
+        try:
+            table_name = self._tables[etype]
+        except KeyError:
+            self.log.error(f"get_entities(): History table of {full_attr_name} does not exist!")
+            return None
+        select_statement = select([table_name.c.eid]).distinct()
+        try:
+            result = self._db.execute(select_statement)
+        except Exception as e:
+            self.log.error(f"get_entities(): Select failed: {e}")
+            return None
+        return [r[0] for r in result]

@@ -1,6 +1,6 @@
 import ipaddress
 import re
-from dp3.common.utils import parse_time_interval
+from dp3.common.utils import parse_time_duration
 
 # Error message templates
 err_msg_type = "type of '{}' is invalid (must be '{}')"
@@ -235,37 +235,37 @@ class AttrSpec:
                 assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["max_age"])), err_msg_format.format("max_age")
             else:
                 self.history_params["max_age"] = default_max_age
-            self.history_params["max_age"] = parse_time_interval(self.history_params["max_age"])
+            self.history_params["max_age"] = parse_time_duration(self.history_params["max_age"])
 
             if "expire_time" in self.history_params:
                 assert re.match(r"(^0$|^inf$|^[0-9]+[smhd]$)", str(self.history_params["expire_time"])), err_msg_format.format("expire_time")
             else:
                 self.history_params["expire_time"] = default_expire_time
-            self.history_params["expire_time"] = parse_time_interval(self.history_params["expire_time"])
+            self.history_params["expire_time"] = parse_time_duration(self.history_params["expire_time"])
 
             if "pre_validity" in self.history_params:
                 assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["pre_validity"])), err_msg_format.format("pre_validity")
             else:
                 self.history_params["pre_validity"] = default_pre_validity
-            self.history_params["pre_validity"] = parse_time_interval(self.history_params["pre_validity"])
+            self.history_params["pre_validity"] = parse_time_duration(self.history_params["pre_validity"])
 
             if "post_validity" in self.history_params:
                 assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["post_validity"])), err_msg_format.format("post_validity")
             else:
                 self.history_params["post_validity"] = default_post_validity
-            self.history_params["post_validity"] = parse_time_interval(self.history_params["post_validity"])
+            self.history_params["post_validity"] = parse_time_duration(self.history_params["post_validity"])
 
             if "aggregation_interval" in self.history_params:
                 assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["aggregation_interval"])), err_msg_format.format("aggregation_interval")
             else:
                 self.history_params["aggregation_interval"] = default_aggregation_interval
-            self.history_params["aggregation_interval"] = parse_time_interval(self.history_params["aggregation_interval"])
+            self.history_params["aggregation_interval"] = parse_time_duration(self.history_params["aggregation_interval"])
 
             if "aggregation_max_age" in self.history_params:
                 assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["aggregation_max_age"])), err_msg_format.format("aggregation_max_age")
             else:
                 self.history_params["aggregation_max_age"] = default_aggregation_max_age
-            self.history_params["aggregation_max_age"] = parse_time_interval(self.history_params["aggregation_max_age"])
+            self.history_params["aggregation_max_age"] = parse_time_duration(self.history_params["aggregation_max_age"])
 
             if "aggregation_function_value" in self.history_params:
                 assert self.history_params["aggregation_function_value"] in aggregation_functions, err_msg_format.format("aggregation_function_value")

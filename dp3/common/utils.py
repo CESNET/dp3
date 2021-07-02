@@ -45,22 +45,27 @@ def parse_rfc_time(time_str):
         raise ValueError("Wrong timestamp format")
 
 
-def parse_time_interval(interval_string: str):
+def parse_time_duration(duration_string: str):
+    """
+    Parse duration in format <num><s/m/h/d>.
+
+    Return datetime.timedelta
+    """
     d = 0
     h = 0
     m = 0
     s = 0
 
-    if interval_string == "0":
+    if duration_string == "0":
         pass
-    elif interval_string[-1] == "d":
-        d = int(interval_string[:-1])
-    elif interval_string[-1] == "h":
-        h = int(interval_string[:-1])
-    elif interval_string[-1] == "m":
-        m = int(interval_string[:-1])
-    elif interval_string[-1] == "s":
-        s = int(interval_string[:-1])
+    elif duration_string[-1] == "d":
+        d = int(duration_string[:-1])
+    elif duration_string[-1] == "h":
+        h = int(duration_string[:-1])
+    elif duration_string[-1] == "m":
+        m = int(duration_string[:-1])
+    elif duration_string[-1] == "s":
+        s = int(duration_string[:-1])
 
     delta = datetime.timedelta(days=d, hours=h, minutes=m, seconds=s)
     return delta

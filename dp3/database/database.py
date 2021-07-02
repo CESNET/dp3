@@ -41,7 +41,8 @@ HISTORY_ATTRIBS_CONF = {
     't2': AttrSpec("t2", {'name': "t2", 'data_type': "time"}),
     'c': AttrSpec("c", {'name': "c", 'data_type': "float"}),
     'src': AttrSpec("src", {'name': "src", 'data_type': "string"}),
-    'tag': AttrSpec("tag", {'name': "tag", 'data_type': "int"})
+
+    'tag': AttrSpec("tag", {'name': "tag", 'data_type': "int"}) #TODO rather smallint?
 }
 
 # preconfigured attributes all tables (records) should have

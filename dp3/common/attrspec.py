@@ -39,10 +39,10 @@ default_expire_time = "inf"
 # Regular expressions for parsing various data types
 re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
 re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
-re_array = re.compile(r"^array<\w+>$")
-re_set = re.compile(r"^set<\w+>$")
-re_link = re.compile(r"^link<\w+>$")
-re_dict = re.compile(r"^dict<(\w+\??:\w+,)*(\w+\??:\w+)+>$")
+re_array = re.compile(r"^array<(\w+)>$")
+re_set = re.compile(r"^set<(\w+)>$")
+re_link = re.compile(r"^link<(\w+)>$")
+re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
 
 
 # Validate ipv4 string
@@ -200,7 +200,6 @@ class AttrSpec:
         else:
             raise AssertionError(f"data type '{self.data_type}' is not supported")
 
-
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:
             assert self.history_params is not None, err_msg_missing_field.format("history_params")
@@ -221,3 +220,19 @@ class AttrSpec:
                 assert re.match(r"(^0$|^inf$|^[0-9]+[smhd]$)", str(self.history_params["expire_time"])), err_msg_format.format("expire_time")
             else:
                 self.history_params["expire_time"] = default_expire_time
+
+    def __str__(self):
+        attrs = [f"id={self.id}", f"name={self.name}"]
+        #if self.description:
+        #    attrs.append(f"description={self.description}")
+        #if self.color != default_color:
+        #    attrs.append(f"color={self.color}")
+        attrs.append(f"data_type={self.data_type}")
+        #if self.categories:
+        #    attrs.append(f"categories={self.categories}")
+        attrs.append(f"confidence={self.confidence}")
+        attrs.append(f"multi_value={self.multi_value}")
+        attrs.append(f"history={self.history}")
+        if self.history_params:
+            attrs.append(f"history_params={self.history_params}")
+        return f"AttrSpec({','.join(attrs)})"

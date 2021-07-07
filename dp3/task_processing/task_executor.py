@@ -95,6 +95,17 @@ class TaskExecutor:
         self.elog = ecl.get_group("te") or DummyEventGroup()
         self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
         self.elog_by_tag = ecl.get_group("tasks_by_tag") or DummyEventGroup()
+        # Print warning if some event group is not configured
+        not_configured_groups = []
+        if isinstance(self.elog, DummyEventGroup):
+            not_configured_groups.append("te")
+        if isinstance(self.elog_by_src, DummyEventGroup):
+            not_configured_groups.append("tasks_by_src")
+        if isinstance(self.elog_by_tag, DummyEventGroup):
+            not_configured_groups.append("tasks_by_tag")
+        if not_configured_groups:
+            self.log.warning(f"EventCountLogger: No configuration for event group(s) '{','.join(not_configured_groups)}' found, such events will not be logged (check event_logging.yml)")
+
 
     def _init_may_change_cache(self):
         """
@@ -373,7 +384,7 @@ class TaskExecutor:
         # whole record should be deleted from database
         if delete:
             self._delete_record_from_db(etype, ekey)
-            # self.elog.log('record_removed')
+            self.elog.log('record_removed')
             self.log.debug(f"Task {etype}/{ekey}: Entity record removed from database.")
             return False
 
@@ -383,7 +394,7 @@ class TaskExecutor:
         # Fetch the record from database or create a new one, new_rec_created is just boolean flag
         rec, new_rec_created = self._create_record_if_does_not_exist(etype, ekey, attr_updates, events, create)
         if new_rec_created:
-            # self.elog.log('record_created')
+            self.elog.log('record_created')
             self.log.debug(f"Task {etype}/{ekey}: New record created")
 
         # Short-circuit if attr_updates, events or data_points is empty (used to only create a record if it doesn't exist)
@@ -511,7 +522,7 @@ class TaskExecutor:
                 self.log.exception("Unhandled exception during call of {}(({}, {}), rec, {}). Traceback follows:"
                                    .format(get_func_name(handler_function), etype, ekey, updates))
                 requested_updates = []
-                # self.elog.log('module_error')
+                self.elog.log('module_error')
             self.log.debug(f"Task {etype}/{ekey}: New attribute update requests: '{requested_updates}'")
 
             # set requested updates to requests_to_process
@@ -533,10 +544,10 @@ class TaskExecutor:
         rec.push_changes_to_db()
 
         # Log the processed task
-        # self.elog.log('task_processed')
-        # self.elog_by_src.log(src) # empty src is ok, empty string is a valid event id
+        self.elog.log('task_processed')
+        self.elog_by_src.log(src) # empty src is ok, empty string is a valid event id
         for tag in tags:
-            pass # self.elog_by_src.log(tag)
+            self.elog_by_src.log(tag)
 
         self.log.debug(f"Task {etype}/{ekey}: All changes written to DB, processing finished.")
 

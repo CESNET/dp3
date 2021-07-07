@@ -222,12 +222,12 @@ class TaskExecutor:
 
     def _perform_op_set_add(self, rec, key, updreq):
         value = updreq['val']
-        if key not in rec:
+        if key not in rec or rec[key] is None:
             rec[key] = [value]
         elif value not in rec[key]:
             rec[key].append(value)
         else:
-            return None
+            pass
         return [(key, rec[key])]
 
     def _perform_op_set_remove(self, rec, key, updreq):
@@ -235,7 +235,7 @@ class TaskExecutor:
             rec[key] = list(set(rec[key]) - set(updreq['val']))
         return [(key, rec[key])]
 
-    def _perform_update(self, rec: Record, updreq: dict):
+    def _perform_update(self, rec: Record, updreq: dict, attrib_conf):
         """
         Update a record according to given update request.
 
@@ -253,6 +253,13 @@ class TaskExecutor:
         #  so the changes won't get written to database
         #  (the above holds if there is a hierarchical key, since _parse_record_from_key_hierarchy return normal object, not Record, in such case)
         rec = self._parse_record_from_key_hierarchy(rec, key)
+
+        if attrib_conf.multi_value is True and attrib_conf.history is False:
+            if op == "set":
+                op = "set_add"
+            elif op == "unset":
+                op = "rem_from_set"
+                rec[key] = [rec[key]]
 
         try:
             # call operation function, which handles operation
@@ -447,13 +454,6 @@ class TaskExecutor:
                         # traceback.print_exc()
                         self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' could not be stored: {e}")
 
-                    # Get current value and set it to the cached record ("rec", instance of Record)
-                    # (current value is not automatically updated by DB wrapper, since we must update it here in
-                    # the "rec" object and store to DB after all subsequent updates are done)
-                    current_value = self.db.get_current_value(etype, ekey, attr_name)
-                    rec.update({attr_name: current_value})
-                    self.log.debug(f"Task {etype}/{ekey}: Current value of '{attr_name}' updated to '{current_value}'")
-
                 # add all functions, which are hooked to events, to call queue
                 for event in events:
                     if isinstance(event, str):
@@ -476,7 +476,7 @@ class TaskExecutor:
                 # perform all update requests
                 for update_request in requests_to_process:
                     attrib_name = update_request['attr']
-                    updated = self._perform_update(rec, update_request)
+                    updated = self._perform_update(rec, update_request, self.attr_spec[etype]['attribs'][attrib_name])
                     self.log.debug(f"Task {etype}/{ekey}: Attribute value updated: {update_request} (value changed: {updated})")
                     if not updated:
                         continue

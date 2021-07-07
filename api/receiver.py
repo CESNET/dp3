@@ -199,16 +199,16 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
     c = request.values.get("c", 1.0)
     src = request.values.get("src", "")
 
-    if t1 is None:
-        response = f"Invalid data-point: Missing mandatory field 't1'"
-        log.info(response)
-        return f"{response}\n", 400  # Bad request
-
     # Get attribute specification
     try:
         spec = attr_spec[entity_type]["attribs"][attr_id]
     except KeyError:
         response = f"Error: no specification found for {entity_type}/{attr_id}"
+        log.info(response)
+        return f"{response}\n", 400  # Bad request
+
+    if spec.history is True and t1 is None:
+        response = f"Invalid data-point: Missing mandatory field 't1'"
         log.info(response)
         return f"{response}\n", 400  # Bad request
 

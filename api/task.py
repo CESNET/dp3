@@ -35,6 +35,11 @@ valid_operations = [
     "rem_from_set"
 ]
 
+valid_operations_multivalue = [
+    "set",
+    "unset"
+]
+
 
 # Validate record fields according to entity/attribute specification
 def validate_task(task, config):
@@ -85,7 +90,10 @@ def validate_task(task, config):
         assert attr_spec[item["attr"]].value_validator(item["val"]), err_msg_type.format("val", attr_spec[item["attr"]].data_type)
 
         # Check valid operation
-        assert item["op"] in valid_operations, err_msg_value.format("op")
+        if attr_spec[item["attr"]].multi_value is True:
+            assert item["op"] in valid_operations_multivalue, err_msg_value.format("op")
+        else:
+            assert item["op"] in valid_operations, err_msg_value.format("op")
 
     # Validate events
     assert type(task["attr_updates"]) is list, err_msg_type.format("events", "list")

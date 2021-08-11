@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""
+Updater - periodically issues tasks to trigger regular updates of all entities in database.
+
+Each entity should have a set of '_nru' fields (Next Regular Update)
+containing date and time of the next planned regular update of the entity.
+
+The module fetches a list of entities whose _nru field value is lower than current time and issues a task with special
+events '!every1d' and '!every1w' (once per day and week, respectively).
+
+It is also possible to issue additional events for each entity (e.g. when re-processing of some data is needed after
+a configuration change). In order to do this, create a file '<CONFIG_FILE_DIR>/updater_events' whose contents are:
+<entity_type> <event_name> <max_time>
+The event_name is the name of the event (should begin with '!') to issue
+for each entity along with '!every1d'. Events are issued only if current time is less than max_time (RFC 3339 format).
+Since we usually want to issue the event once for each entity, max_time should be set to exactly 24 hours in the future.
+The file can contain multiple such entries, one per line.
+When max_time elapses, the entry in the file has no meaning, so it can be removed.
+The file is checked every time a new batch of events is to be issued, so it's not needed to restart updater.
+"""
+
+from datetime import datetime, timedelta, timezone
+from apscheduler.schedulers.background import BlockingScheduler
+
+import os
+import sys
+import signal
+import logging
+import argparse
+
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
+from dp3.database.database import EntityDatabase, MissingTableError
+from dp3.task_processing.task_queue import TaskQueueWriter
+from dp3.common.config import read_config_dir, load_attr_spec
+from dp3.common.utils import parse_rfc_time
+
+CONFIG_FILE_NAME = "updater_events" # name of the file with additional events to issue
+
+last_fetch_time = datetime(1970, 1, 1)
+
+def stop(signal, frame):
+    """
+    Stop receiving events.
+    Will be evoked on catching SIGINT signal.
+    """
+    tqw.disconnect()
+    scheduler.shutdown()
+
+
+def issue_events(db,tqw,log,etypes,args):
+    global last_fetch_time
+    time = datetime.utcnow()
+
+    # Load the file with additional events
+    additional_events_file = os.path.join(args.config_dir, CONFIG_FILE_NAME)
+    additional_events = {etype: [] for etype in etypes}
+    try:
+        for line in open(additional_events_file, "r"):
+            if line == "\n" or line[0] == '#':
+                continue # skip empty lines and comments
+            etype, event, max_time = line.split(maxsplit=2)
+            if etype not in etypes:
+                raise ValueError(f"Unsupported entity type '{etype}'")
+            try:
+                max_time = parse_rfc_time(max_time)
+            except ValueError:
+                raise ValueError("Wrong timestamp format (RFC 3339 required)")
+            if time > max_time:
+                continue # expired entry, ignore
+            additional_events[etype].append(event)
+            log.debug(f"Additional event '{event}' will be issued for all entities of type '{etype}'")
+    except FileNotFoundError:
+        pass # File doesn't exist - that's OK, do nothing
+    except Exception as e:
+        # Other error - print message and continue
+        log.error(f"Error in the file with additional events ('{additional_events_file}', line '{line}''): {e}")
+
+    for etype in etypes:
+        # Get list of IDs for each update interval
+        # (i.e. all entities with _nru* less then current time
+        #  AND greater than time of the last query - this is important since
+        #  _nru* of an entity is set to next interval only after the update
+        #  is processed, which may take some time, and we don't want to
+        #  fetch the same entity twice)
+        log.debug(f"Getting list of '{etype}' entities to update ...")
+        ids1d = db.need_update(etype,time,weekly=False,limit=args.limit) 
+        ids1w = db.need_update(etype,time,weekly=True,limit=args.limit) 
+
+
+        all_ids = ids1d | ids1w
+
+        # Merge the lists, so for each entity only one update request is issued, possibly containing more than one event
+        if not all_ids:
+            log.debug("Nothing to update")
+            continue
+
+        # Issue update request(s) for each record found
+        log.debug(f"Requesting updates for {len(all_ids)} '{etype}' entities ({len(ids1d)} 1d, {len(ids1w)} 1w)")
+
+        for n,id in enumerate(all_ids):
+            # Each update request contains the corresponding "every*" event,
+            # and a change of the '_nru*' attribute.
+            events = []
+            attr_updates = []
+            if id in ids1d:
+                events.append("!every_1d")
+                attr_updates.append({"op": "next_step", "attr": "_nru1d", "base_attr": "ts_added", "min": time, "step": timedelta(minutes=1)})
+            if id in ids1w:
+                events.append("!every_1w")
+                attr_updates.append({"op": "next_step", "attr": "_nru1w", "base_attr": "ts_added", "min": time, "step": timedelta(minutes=1)})
+            for add_event in additional_events[etype]:
+                events.append(add_event)
+            # Issue update requests
+            #task_queue_writer.put_task(etype, id, requests)
+
+            tqw.put_task(etype=etype, ekey=id, events=events, attr_updates=attr_updates, src="updater")
+            if (n+1) % 100 == 0:
+                log.debug(f"Tasks for {n+1} entities submitted.")
+        log.info(f"Updated {n+1} entities of type {etype}.")
+
+    last_fetch_time = time
+
+if __name__ == "__main__":
+    # parse arguments
+    parser = argparse.ArgumentParser(
+        prog="updater",
+        description='Periodically issues update events for entities with NRU (next regular update) fields.'
+    )
+    parser.add_argument('app_name', metavar='APP_NAME',
+                        help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
+                            "RabbitMQ queue names, for example).")
+    parser.add_argument('config_dir', metavar='CONFIG_DIRECTORY',
+                        help="Path to a directory containing configuration files (e.g. /etc/my_app/config)")
+    parser.add_argument('-l', '--limit', metavar='N', dest='limit', type=int,
+                    help='Maximum number of entities fetched from the database for which the events would be issued. (default: 100000)', 
+                    default=100000
+    )
+    parser.add_argument('-p', '--period', metavar='N', dest='period', type=int,
+                    help='Number of seconds between two event issues. (default: 10)', 
+                    default=10
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-v", dest="verbose", action="store_true", help="Verbose mode - print more info, including IDs of all records being updated.")
+    group.add_argument("-q", dest="quiet", action="store_true", help="Quite mode - only print errors")
+    args = parser.parse_args()
+
+    # Set up logging
+    LOGFORMAT = "%(asctime)-15s,%(name)s [%(levelname)s] %(message)s"
+    LOGDATEFORMAT = "%Y-%m-%dT%H:%M:%S"
+    # log level of all other loggers (those of dp3 internal components)
+    log_level = logging.INFO if args.verbose else logging.WARNING
+    logging.basicConfig(level=log_level, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
+    # logger for this script
+    log = logging.getLogger('Updater')
+    log.setLevel(logging.WARNING if args.quiet else logging.INFO)
+
+    # Load configuration
+    log.info(f"Loading config dir {args.config_dir}")
+    config = read_config_dir(args.config_dir, recursive=True)
+    db_config = config.get("database")
+    attr_spec = load_attr_spec(config.get("db_entities"))
+    rabbit_params = config.get('processing_core.rabbitmq', {})
+    num_processes = config.get('processing_core.worker_processes')
+    etypes = [etype for etype in attr_spec]
+
+    # Connect to DB and get list of entities to update
+    log.info("Connecting to DB...")
+    db = EntityDatabase(db_config, attr_spec)
+    
+    log.info("Connecting to RabbitMQ...")
+    tqw = TaskQueueWriter(args.app_name, num_processes, rabbit_params)
+    try:
+        tqw.connect()
+        tqw.check()
+    except Exception as e:
+        log.error(e)
+        sys.exit(2)
+
+    # Create scheduler
+    log.info("Creating scheduler...")
+    scheduler = BlockingScheduler(timezone="UTC")
+    scheduler.add_job(lambda: issue_events(db,tqw,log,etypes,args), trigger='cron', second='*/' + str(10))
+
+    # Register SIGINT handler to stop the updater
+    signal.signal(signal.SIGINT, stop)
+
+    scheduler.start()

@@ -44,6 +44,6 @@ class UpdatePlanner(BaseModule):
         """
 
         return [
-            {"op": "set", "attr": "_nru1d", "val": record["ts_added"] + timedelta(minutes=1)},
+            {"op": "set", "attr": "_nru1d", "val": record["ts_added"] + timedelta(days=1)},
             {"op": "set", "attr": "_nru1w", "val": record["ts_added"] + timedelta(days=7)},
         ]

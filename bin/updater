@@ -104,10 +104,10 @@ def issue_events(db,tqw,log,etypes,args):
             attr_updates = []
             if id in ids1d:
                 events.append("!every_1d")
-                attr_updates.append({"op": "next_step", "attr": "_nru1d", "base_attr": "ts_added", "min": time, "step": timedelta(minutes=1)})
+                attr_updates.append({"op": "next_step", "attr": "_nru1d", "base_attr": "ts_added", "min": time, "step": timedelta(days=1)})
             if id in ids1w:
                 events.append("!every_1w")
-                attr_updates.append({"op": "next_step", "attr": "_nru1w", "base_attr": "ts_added", "min": time, "step": timedelta(minutes=1)})
+                attr_updates.append({"op": "next_step", "attr": "_nru1w", "base_attr": "ts_added", "min": time, "step": timedelta(days=7)})
             for add_event in additional_events[etype]:
                 events.append(add_event)
             # Issue update requests

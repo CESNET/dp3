@@ -45,12 +45,16 @@ def parse_rfc_time(time_str):
         raise ValueError("Wrong timestamp format")
 
 
-def parse_time_duration(duration_string: str):
+def parse_time_duration(duration_string: str) -> datetime.timedelta:
     """
-    Parse duration in format <num><s/m/h/d>.
+    Parse duration in format <num><s/m/h/d> (or just "0").
 
     Return datetime.timedelta
     """
+    # if number is passed, consider it number of seconds
+    if isinstance(duration_string, (int, float)):
+        return datetime.timedelta(seconds=duration_string)
+
     d = 0
     h = 0
     m = 0
@@ -66,9 +70,10 @@ def parse_time_duration(duration_string: str):
         m = int(duration_string[:-1])
     elif duration_string[-1] == "s":
         s = int(duration_string[:-1])
+    else:
+        raise ValueError("Invalid time duration string")
 
-    delta = datetime.timedelta(days=d, hours=h, minutes=m, seconds=s)
-    return delta
+    return datetime.timedelta(days=d, hours=h, minutes=m, seconds=s)
 
 
 # *** object (de)serialization ***

@@ -45,7 +45,7 @@ default_history = False
 # Default history params
 default_max_age = None
 default_max_items = None
-default_expire_time = "inf"
+default_expire_time = None # means "never expire"/"infinite validity"
 default_pre_validity = "0s"
 default_post_validity = "0s"
 default_aggregation_interval = "0s"
@@ -240,7 +240,10 @@ class AttrSpec:
                 assert re.match(r"(^0$|^inf$|^[0-9]+[smhd]$)", str(self.history_params["expire_time"])), err_msg_format.format("expire_time")
             else:
                 self.history_params["expire_time"] = default_expire_time
-            self.history_params["expire_time"] = parse_time_duration(self.history_params["expire_time"])
+            if self.history_params["expire_time"] == "inf": # "inf" in config file is stored as None
+                self.history_params["expire_time"] = None
+            else:
+                self.history_params["expire_time"] = parse_time_duration(self.history_params["expire_time"])
 
             if "pre_validity" in self.history_params:
                 assert re.match(r"(^0$|^[0-9]+[smhd]$)", str(self.history_params["pre_validity"])), err_msg_format.format("pre_validity")

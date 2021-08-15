@@ -45,7 +45,7 @@ default_history = False
 # Default history params
 default_max_age = None
 default_max_items = None
-default_expire_time = None # means "never expire"/"infinite validity"
+default_expire_time = "inf" # means "never expire"/"infinite validity", stored internally as None instead of timedelta
 default_pre_validity = "0s"
 default_post_validity = "0s"
 default_aggregation_interval = "0s"

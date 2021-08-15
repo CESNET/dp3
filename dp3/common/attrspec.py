@@ -281,18 +281,21 @@ class AttrSpec:
             else:
                 self.history_params["aggregation_function_source"] = default_aggregation_function_source
 
-    def __str__(self):
-        attrs = [f"id={self.id}", f"name={self.name}"]
-        #if self.description:
-        #    attrs.append(f"description={self.description}")
-        #if self.color != default_color:
-        #    attrs.append(f"color={self.color}")
-        attrs.append(f"data_type={self.data_type}")
-        #if self.categories:
-        #    attrs.append(f"categories={self.categories}")
-        attrs.append(f"confidence={self.confidence}")
-        attrs.append(f"multi_value={self.multi_value}")
-        attrs.append(f"history={self.history}")
+    def __repr__(self):
+        """Return string whose evaluation would create the same object."""
+        attrs = {'name': self.name}
+        if self.description:
+           attrs['description'] = self.description
+        if self.color != default_color:
+            attrs['color'] = self.color
+        attrs['data_type'] = self.data_type
+        if self.categories:
+            attrs['categories'] = self.categories
+        attrs['confidence'] = self.confidence
+        attrs['multi_value'] = self.multi_value
+        attrs['history'] = self.history
         if self.history_params:
-            attrs.append(f"history_params={self.history_params}")
-        return f"AttrSpec({','.join(attrs)})"
+            attrs['history_params'] = self.history_params
+        return f"AttrSpec({self.id!r}, {attrs!r})"
+
+    # TODO shorter and more readable __str__ representation?

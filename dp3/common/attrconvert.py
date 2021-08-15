@@ -67,7 +67,7 @@ def get_element_type(attr_type:str) -> str:
     if not is_iterable(attr_type):
         raise Exception(f'Given type is not iterable: {attr_type}')
     if re_dict.match(attr_type):
-        return "string" #TODO: dict doesn't contain only strings; what to return here, a tuple of data_types?
+        return _get_dict_types(attr_type)
     element_type = attr_type.split("<")[1].split(">")[0]
     if element_type in CONVERTERS:
         return element_type
@@ -110,3 +110,9 @@ def _pass_valid(validator_function, value):
     if validator_function(value):
         return value
     raise ValueError(f'The value {value} has invalid format.')
+
+
+def _get_dict_types(attr_type: str) -> dict:
+    dict_type_str = attr_type.split("<")[1].split(">")[0]
+    dict_type_list = [item.split(":") for item in dict_type_str.split(",")]
+    return dict((k[:-1] if k[-1] == '?' else k, v) for k, v in dict_type_list)

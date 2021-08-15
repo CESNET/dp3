@@ -40,3 +40,8 @@ class EntitySpec:
 
         # Initialize attribute's key validator function according to its data type
         self.key_validator = validators[self.key_data_type]
+
+    def __repr__(self):
+        o = {k: getattr(self, k) for k in ('name','key_data_type','auto_create_record')}
+        return f"EntitySpec({self.id!r}, {o!r})"
+

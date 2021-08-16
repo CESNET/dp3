@@ -162,25 +162,6 @@ class HistoryManager:
         if delete_ids.__len__() > 0:
             self.db.delete_multiple_records(f"{etype}__{attr_id}", delete_ids)
 
-    def get_historic_value(self, etype, eid, attr_id, timestamp):
-        attr_spec = self.attr_spec[etype]['attribs'][attr_id]
-        t1 = timestamp - attr_spec.history_params['post_validity']
-        t2 = timestamp + attr_spec.history_params['pre_validity']
-        datapoints = self.db.get_datapoints_range(etype, attr_id, eid, t1, t2)
-
-        if len(datapoints) < 1:
-            return None
-
-        if attr_spec.multi_value is True:
-            return set([d['v'] for d in datapoints])
-
-        best = None
-        for d in datapoints:
-            confidence = extrapolate_confidence(d, timestamp, attr_spec.history_params)
-            if best is None or confidence > best[1]:
-                best = d['v'], confidence
-        return best[0]
-
     def check_hash(self, etype, eid):
         routing_key = HASH(f"{etype}:{eid}") % self.num_workers
         return routing_key == self.worker_index
@@ -202,7 +183,7 @@ class HistoryManager:
                     for eid in entities:
                         if not self.check_hash(etype, eid):
                             continue
-                        value = self.get_historic_value(etype, eid, attr_id, datetime.datetime.now())
+                        value = get_historic_value(self.db, self.attr_spec, etype, eid, attr_id, datetime.datetime.now())
                         rec = Record(self.db, etype, eid)
                         rec.update({attr_id: value})
                         rec.push_changes_to_db()
@@ -227,6 +208,26 @@ class HistoryManager:
                         self.db.delete_record(table_name, d['id'])
             next_call = next_call + tick_rate
             time.sleep((next_call - datetime.datetime.now()).total_seconds())
+
+
+def get_historic_value(db, config, etype, eid, attr_id, timestamp):
+    attr_spec = config[etype]['attribs'][attr_id]
+    t1 = timestamp - attr_spec.history_params['post_validity']
+    t2 = timestamp + attr_spec.history_params['pre_validity']
+    datapoints = db.get_datapoints_range(etype, attr_id, eid, t1, t2)
+
+    if len(datapoints) < 1:
+        return None
+
+    if attr_spec.multi_value is True:
+        return set([d['v'] for d in datapoints])
+
+    best = None
+    for d in datapoints:
+        confidence = extrapolate_confidence(d, timestamp, attr_spec.history_params)
+        if best is None or confidence > best[1]:
+            best = d['v'], confidence
+    return best[0] if best is not None else None
 
 
 def extrapolate_confidence(datapoint, timestamp, history_params):

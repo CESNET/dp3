@@ -11,6 +11,7 @@ from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3.common.config import read_config_dir, load_attr_spec
 from dp3.database.database import EntityDatabase
 from dp3.common.utils import parse_rfc_time
+from dp3.history_management.history_manager import get_historic_value
 
 from task import Task
 
@@ -482,10 +483,13 @@ def get_attr_value(entity_type, entity_id, attr_id):
     """
     REST endpoint to read current value for an attribute of given entity
 
+    It is also possible to read historic values by providing a specific timestamp as a query parameter (only for attributes with history)
+
     Entity type, entity id and attribute id must be provided
 
-    Example:
+    Examples:
         /ip/1.2.3.4/test_attr
+        /ip/1.2.3.4/test_attr?t=2000-01-01T00:00:00
     """
     log.debug(f"Received new GET request from {request.remote_addr}")
 
@@ -497,11 +501,18 @@ def get_attr_value(entity_type, entity_id, attr_id):
         return f"{response}\n", 400  # Bad request
 
     try:
-        content = db.get_attrib(entity_type, entity_id, attr_id)
+        timestamp = request.values.get("t", None)
+        history = attr_spec[entity_type]['attribs'][attr_id].history
+
+        if timestamp is not None and history is True:
+            content = get_historic_value(db, attr_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp))
+        else:
+            content = db.get_attrib(entity_type, entity_id, attr_id)
+
         if content is None:
             response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404  # Not found
         else:
-            response = jsonify(content), 200 # OK
+            response = jsonify(content), 200  # OK
     except Exception as e:
         response = f"Error when querying db: {e}", 500 # Internal server error
 

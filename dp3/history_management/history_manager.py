@@ -62,7 +62,7 @@ class HistoryManager:
                     redundant_ids.append(d['id'])
                     redundant_data.append(d)
             elif multi_value is True:
-                pass
+                continue
             else:
                 self.split_datapoint(etype, attr_id, d, t1)
 
@@ -71,7 +71,7 @@ class HistoryManager:
         post = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t2'], str(t2 + aggregation_interval), closed_interval=False, sort=0)
         for d in pre + post:
             # TODO custom select function? get_datapoints_range() returns all datapoints overlapping with specified interval, we need them to be completely inside the interval here
-            if d['t1'] <= t2 or d['t2'] >= t1:
+            if d['t1'] <= t2 and t1 <= d['t2']:
                 continue
             if d['tag'] == TAG_REDUNDANT:
                 continue
@@ -83,6 +83,8 @@ class HistoryManager:
                     d['tag'] = TAG_REDUNDANT
                     redundant_ids.append(d['id'])
                     redundant_data.append(d)
+            elif multi_value is True:
+                continue
             else:
                 break
 

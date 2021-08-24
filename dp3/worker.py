@@ -130,7 +130,7 @@ def main(app_name, config_dir, process_index, verbose):
     custom_modules_dir = config.get('processing_core.modules_dir')
     custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
 
-    core_module_list = load_modules(core_modules_dir, {'update_planner'}, log)
+    core_module_list = load_modules(core_modules_dir, {}, log)
     custom_module_list = load_modules(custom_modules_dir, config.get('processing_core.enabled_modules'), log)
 
     module_list = core_module_list + custom_module_list

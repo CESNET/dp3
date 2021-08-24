@@ -2,11 +2,13 @@
 """
 Updater - periodically issues tasks to trigger regular updates of all entities in database.
 
-Each entity should have a set of '_nru' fields (Next Regular Update)
-containing date and time of the next planned regular update of the entity.
+Each entity should have '_lru' (Last Regular Update) and '_ruc' (Regular Update Count) fields
+containing date and time of the lru and number of lru since createrion of entity respectively.
 
-The module fetches a list of entities whose _nru field value is lower than current time and issues a task with special
-events '!every1d' and '!every1w' (once per day and week, respectively).
+The module fetches a list of entities whose _lru field value is older than gcd (Greatest Common Denominator)
+of all configured intervals. 
+
+Intervals can be configured for every entity type separately.
 
 It is also possible to issue additional events for each entity (e.g. when re-processing of some data is needed after
 a configuration change). In order to do this, create a file '<CONFIG_FILE_DIR>/updater_events' whose contents are:
@@ -21,6 +23,7 @@ The file is checked every time a new batch of events is to be issued, so it's no
 
 from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.background import BlockingScheduler
+import numpy 
 
 import os
 import sys
@@ -31,7 +34,7 @@ import argparse
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 from dp3.database.database import EntityDatabase, MissingTableError
 from dp3.task_processing.task_queue import TaskQueueWriter
-from dp3.common.config import read_config_dir, load_attr_spec
+from dp3.common.config import MissingConfigError, read_config_dir, load_attr_spec
 from dp3.common.utils import parse_rfc_time
 
 CONFIG_FILE_NAME = "updater_events" # name of the file with additional events to issue
@@ -47,7 +50,7 @@ def stop(signal, frame):
     scheduler.shutdown()
 
 
-def issue_events(db,tqw,log,etypes,args):
+def issue_events(db,tqw,log,etypes,args,updater_config):
     global last_fetch_time
     time = datetime.utcnow()
 
@@ -76,47 +79,79 @@ def issue_events(db,tqw,log,etypes,args):
         log.error(f"Error in the file with additional events ('{additional_events_file}', line '{line}''): {e}")
 
     for etype in etypes:
-        # Get list of IDs for each update interval
-        # (i.e. all entities with _nru* less then current time
-        #  AND greater than time of the last query - this is important since
-        #  _nru* of an entity is set to next interval only after the update
-        #  is processed, which may take some time, and we don't want to
-        #  fetch the same entity twice)
-        log.debug(f"Getting list of '{etype}' entities to update ...")
-        ids1d = db.need_update(etype,time,weekly=False,limit=args.limit) 
-        ids1w = db.need_update(etype,time,weekly=True,limit=args.limit) 
-
-
-        all_ids = ids1d | ids1w
-
-        # Merge the lists, so for each entity only one update request is issued, possibly containing more than one event
-        if not all_ids:
-            log.debug("Nothing to update")
+        # Check if updater is configured for given etype 
+        try: 
+            config = updater_config.get(etype)
+        except MissingConfigError:
+            # Updater is not configured for etype
             continue
 
-        # Issue update request(s) for each record found
-        log.debug(f"Requesting updates for {len(all_ids)} '{etype}' entities ({len(ids1d)} 1d, {len(ids1w)} 1w)")
+        # Get all intervals from config - needed for computing gcd
+        intervals = [_ for _ in config]
 
-        for n,id in enumerate(all_ids):
-            # Each update request contains the corresponding "every*" event,
-            # and a change of the '_nru*' attribute.
+        # Updater calculates gcd (greatest common denominator) 
+        # of all configured intervals for given etype.
+        # Updater will than check every entity once per gcd minutes 
+        # and will increase ruc (regular update count) by one
+        gcd = numpy.gcd.reduce(intervals)
+
+        
+        # Get list of IDs that needs to be checked
+        # (i.e. all entities with _lru+gcd less then current time
+        # AND greater than time of the last query - this is important since
+        # _lru of an entity is set to correct value only after the update
+        # is processed, which may take some time, and we don't want to
+        # fetch the same entity twice)
+        log.debug(f"Getting list of '{etype}' entities to update ...")
+        entities = db.last_updated_before(etype,time,limit=args.limit)
+
+        # Update _ruc and possibly issue configured events for each record found
+        for eid,lru,ruc in entities:
+            # dp3 can be unavailable for longer time - We need to calculate 
+            # new_ruc based on old_ruc and time elapsed since last regular update.
+
+            # Time passed since last regular update
+            delta = time - lru
+            # gcd periods passed since last regular update
+            period_delta = int(delta / timedelta(minutes=int(gcd)))
+            new_ruc = ruc + period_delta
+
             events = []
-            attr_updates = []
-            if id in ids1d:
-                events.append("!every_1d")
-                attr_updates.append({"op": "next_step", "attr": "_nru1d", "base_attr": "ts_added", "min": time, "step": timedelta(days=1)})
-            if id in ids1w:
-                events.append("!every_1w")
-                attr_updates.append({"op": "next_step", "attr": "_nru1w", "base_attr": "ts_added", "min": time, "step": timedelta(days=7)})
-            for add_event in additional_events[etype]:
-                events.append(add_event)
-            # Issue update requests
-            #task_queue_writer.put_task(etype, id, requests)
+            for interval,event in config.items():
+                # From ruc we can calculate number of events 
+                # that was issued for given interval
+                # ruc*gcd represent total time passed since creation of entity until regular update
+                old_interval_count = (ruc*gcd) // interval
+                new_interval_count = (new_ruc*gcd) // interval
 
-            tqw.put_task(etype=etype, ekey=id, events=events, attr_updates=attr_updates, src="updater")
-            if (n+1) % 100 == 0:
-                log.debug(f"Tasks for {n+1} entities submitted.")
-        log.info(f"Updated {n+1} entities of type {etype}.")
+                # If new value is bigger than older we need to issue event
+                # In case of longer unaviability of dp3 
+                # max. one event of same type will be issued.
+                if old_interval_count < new_interval_count:
+                    events.append(event)
+
+            # Additional events should be issued once per day (24*60)
+            if period_delta >= 24*60:
+                for add_event in additional_events[etype]:
+                    events.append(add_event)
+
+            # Set _ruc to new value
+            attr_updates = []
+            attr_updates.append({
+                "op": "set", 
+                "attr": "_ruc", 
+                "val": new_ruc,
+            })
+            # Set _lru to new value 
+            attr_updates.append({
+                "op": "set", 
+                "attr": "_lru", 
+                "val": lru + timedelta(minutes=int(gcd)) * period_delta,
+            })
+
+            # Each update request contains the corresponding events,
+            # and a change of the '_lru' and "_ruc" attributes.
+            tqw.put_task(etype=etype, ekey=eid, events=events, attr_updates=attr_updates, src="updater")
 
     last_fetch_time = time
 
@@ -157,6 +192,7 @@ if __name__ == "__main__":
     # Load configuration
     log.info(f"Loading config dir {args.config_dir}")
     config = read_config_dir(args.config_dir, recursive=True)
+    updater_config = config.get("updater")
     db_config = config.get("database")
     attr_spec = load_attr_spec(config.get("db_entities"))
     rabbit_params = config.get('processing_core.rabbitmq', {})
@@ -179,7 +215,7 @@ if __name__ == "__main__":
     # Create scheduler
     log.info("Creating scheduler...")
     scheduler = BlockingScheduler(timezone="UTC")
-    scheduler.add_job(lambda: issue_events(db,tqw,log,etypes,args), trigger='cron', second='*/' + str(10))
+    scheduler.add_job(lambda: issue_events(db,tqw,log,etypes,args,updater_config), trigger='cron', second='*/' + str(10))
 
     # Register SIGINT handler to stop the updater
     signal.signal(signal.SIGINT, stop)

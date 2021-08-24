@@ -274,7 +274,6 @@ class TaskExecutor:
                     'ts_added': now,
                     'ts_last_update': now,
                     '_lru': now,
-                    '_ruc': 0,
                 })
                 new_rec_created = True
                 # New record was created -> add "!NEW" event

@@ -2,13 +2,12 @@
 """
 Updater - periodically issues tasks to trigger regular updates of all entities in database.
 
-Each entity should have '_lru' (Last Regular Update) and '_ruc' (Regular Update Count) fields
-containing date and time of the lru and number of lru since createrion of entity respectively.
+Each entity should have '_lru' (Last Regular Update) field containing date and time of the lru .
 
 The module fetches a list of entities whose _lru field value is older than gcd (Greatest Common Denominator)
-of all configured intervals. 
+computed from all configured intervals. 
 
-Intervals can be configured for every entity type separately.
+Intervals are configured for every entity type separately.
 
 It is also possible to issue additional events for each entity (e.g. when re-processing of some data is needed after
 a configuration change). In order to do this, create a file '<CONFIG_FILE_DIR>/updater_events' whose contents are:
@@ -91,9 +90,9 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
 
         # Updater calculates gcd (greatest common denominator) 
         # of all configured intervals for given etype.
-        # Updater will than check every entity once per gcd minutes 
-        # and will increase ruc (regular update count) by one
-        gcd = numpy.gcd.reduce(intervals)
+        # Updater will than process every entity once per gcd minutes
+        # and check if any event needs to be issued
+        gcd = timedelta(minutes=int(numpy.gcd.reduce(intervals)))
 
         
         # Get list of IDs that needs to be checked
@@ -103,51 +102,42 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         # is processed, which may take some time, and we don't want to
         # fetch the same entity twice)
         log.debug(f"Getting list of '{etype}' entities to update ...")
-        entities = db.last_updated_before(etype,time,limit=args.limit)
+        entities = db.last_updated_before(etype,time-gcd,limit=args.limit)
 
-        # Update _ruc and possibly issue configured events for each record found
-        for eid,lru,ruc in entities:
-            # dp3 can be unavailable for longer time - We need to calculate 
-            # new_ruc based on old_ruc and time elapsed since last regular update.
-
-            # Time passed since last regular update
-            delta = time - lru
-            # gcd periods passed since last regular update
-            period_delta = int(delta / timedelta(minutes=int(gcd)))
-            new_ruc = ruc + period_delta
+        # Update _lru and possibly issue configured events
+        for eid,lru,ts_added in entities:
+            # Time passed until last regular update
+            delta_lru = lru - ts_added
+            # Time passed until now
+            delta_now = time - ts_added
 
             events = []
             for interval,event in config.items():
-                # From ruc we can calculate number of events 
-                # that was issued for given interval
-                # ruc*gcd represent total time passed since creation of entity until regular update
-                old_interval_count = (ruc*gcd) // interval
-                new_interval_count = (new_ruc*gcd) // interval
+                # From passed time we can calculate number of events 
+                # that was/should be issued
+                old_interval_count = (delta_lru) // timedelta(minutes=interval)
+                new_interval_count = (delta_now) // timedelta(minutes=interval)
 
                 # If new value is bigger than older we need to issue event
                 # In case of longer unaviability of dp3 
-                # max. one event of same type will be issued.
+                # max. one event of the same type will be issued.
                 if old_interval_count < new_interval_count:
                     events.append(event)
 
-            # Additional events should be issued once per day (24*60)
-            if period_delta >= 24*60:
+            # Additional events should be issued once per day
+            old_interval_count = (delta_lru) // timedelta(days=1)
+            new_interval_count = (delta_now) // timedelta(days=1)
+            if old_interval_count < new_interval_count:
                 for add_event in additional_events[etype]:
                     events.append(add_event)
 
-            # Set _ruc to new value
-            attr_updates = []
-            attr_updates.append({
-                "op": "set", 
-                "attr": "_ruc", 
-                "val": new_ruc,
-            })
             # Set _lru to new value 
-            attr_updates.append({
+            new_lru = ts_added + (delta_now // gcd) * gcd
+            attr_updates = [{
                 "op": "set", 
                 "attr": "_lru", 
-                "val": lru + timedelta(minutes=int(gcd)) * period_delta,
-            })
+                "val": new_lru,
+            }]
 
             # Each update request contains the corresponding events,
             # and a change of the '_lru' and "_ruc" attributes.

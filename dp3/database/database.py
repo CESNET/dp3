@@ -48,7 +48,6 @@ TABLE_MANDATORY_ATTRIBS = {
     'ts_added': AttrSpec("ts_added", {'name': "timestamp of record creation", 'data_type': "time"}),
     'ts_last_update': AttrSpec("ts_last_update", {'name': "timestamp of record last update", 'data_type': "time"}),
     '_lru': AttrSpec("_lru", {'name': "last regular update", 'data_type': "time"}),
-    '_ruc': AttrSpec("_ruc", {'name': "regular update count", 'data_type': "int"}),
 }
 
 # Preconfiguration of main entity tables
@@ -543,7 +542,7 @@ class EntityDatabase:
             self.log.error(f"need_update: No table for entity type '{etype}'")
             return set()
 
-        cols = [table.c.eid,table.c._lru,table.c._ruc]
+        cols = [table.c.eid,table.c._lru,table.c.ts_added]
         select_statement = select(cols) \
             .where(table.c._lru < time)
         if limit is not None:

@@ -557,7 +557,7 @@ class EntityDatabase:
         :return: None
         """
         full_attr_name = f"{etype}__{attr_name}"
-        # TODO: do in a trasnsaction (that is probably needed on other places as well)
+        # TODO: do in a transaction (that is probably needed on other places as well)
         self.delete_multiple_records(full_attr_name, list_of_ids_to_delete)
         self.create_multiple_records(full_attr_name, new_data_points)
 
@@ -570,7 +570,7 @@ class EntityDatabase:
         try:
             table_name = self._tables[etype]
         except KeyError:
-            self.log.error(f"get_entities(): History table of {full_attr_name} does not exist!")
+            self.log.error(f"get_entities(): Table '{etype}' does not exist!")
             return None
         select_statement = select([table_name.c.eid]).distinct()
         try:

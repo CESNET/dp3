@@ -205,7 +205,7 @@ if __name__ == "__main__":
     # Create scheduler
     log.info("Creating scheduler...")
     scheduler = BlockingScheduler(timezone="UTC")
-    scheduler.add_job(lambda: issue_events(db,tqw,log,etypes,args,updater_config), trigger='cron', second='*/' + str(10))
+    scheduler.add_job(lambda: issue_events(db,tqw,log,etypes,args,updater_config), trigger='cron', second='*/' + str(args.period))
 
     # Register SIGINT handler to stop the updater
     signal.signal(signal.SIGINT, stop)

@@ -2,6 +2,7 @@ import datetime
 import time
 import threading
 import hashlib
+import logging
 
 from dp3.common.utils import parse_rfc_time
 from dp3.database.record import Record
@@ -20,10 +21,13 @@ TAG_REDUNDANT = 2
 
 class HistoryManager:
     def __init__(self, db, attr_spec, worker_index, num_workers):
+        self.log = logging.getLogger("HistoryManager")
         self.db = db
         self.attr_spec = attr_spec
         self.worker_index = worker_index
         self.num_workers = num_workers
+        self.log.debug("HistoryManager started")
+        # TODO: create "start" method and run it from worker explicitly (also, stop() method can be useful to allow graceful finish of history_management_thread loop on exit)
         self.hm_thread = threading.Thread(target=self.history_management_thread, daemon=True)
         self.hm_thread.start()
 
@@ -135,7 +139,7 @@ class HistoryManager:
         self.db.create_datapoint(etype, attr_id, agg)
 
     def process_datapoints_range(self, etype, eid, attr_id, t1, t2):
-        delete_list = []
+        delete_ids = []
         redundant_ids = []
         redundant_data = []
         history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
@@ -169,10 +173,12 @@ class HistoryManager:
         return routing_key == self.worker_index
 
     def history_management_thread(self):
+        # TODO docstring explaining what the function does
         # TODO: use apscheduler
-        tick_rate = datetime.timedelta(seconds=30)  # TODO add to global config
+        tick_rate = datetime.timedelta(minutes=30)  # TODO add to global config
         next_call = datetime.datetime.now()
         while True:
+            self.log.info("Starting periodic history management function...")
             for etype in self.attr_spec:
                 entities = self.db.get_entities(etype)
                 for attr_id in self.attr_spec[etype]['attribs']:
@@ -181,7 +187,7 @@ class HistoryManager:
                     history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
                     table_name = f"{etype}__{attr_id}"
 
-                    # update attributes current value
+                    # update attribute's current value
                     for eid in entities:
                         if not self.check_hash(etype, eid):
                             continue
@@ -189,8 +195,10 @@ class HistoryManager:
                         rec = Record(self.db, etype, eid)
                         rec.update({attr_id: value})
                         rec.push_changes_to_db()
-                        # print(f"History management thread: Current value of '{etype}/{eid}/{attr_id}' updated to '{value}'")
+                        self.log.debug(f"Current value of '{etype}/{eid}/{attr_id}' updated to '{value}'")
 
+                    # TODO: All this could probably be done by a single SQL command (DELETE FROM ... WHERE (redundant older than aggregation_max_age) OR (older than max_age);)
+                    #       Better to do by a separate script (no parallel processes, check_hash not needed), either a new top-level process with its own scheduler, or simple script run by cron
                     # delete redundant datapoints older than "aggregation_max_age"
                     max_age = history_params["aggregation_max_age"]
                     t2 = str(datetime.datetime.now() - max_age)
@@ -209,6 +217,7 @@ class HistoryManager:
                             continue
                         self.db.delete_record(table_name, d['id'])
             next_call = next_call + tick_rate
+            self.log.info(f"History management finished, next run at {next_call}")
             time.sleep((next_call - datetime.datetime.now()).total_seconds())
 
 

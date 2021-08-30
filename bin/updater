@@ -92,7 +92,7 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         # of all configured intervals for given etype.
         # Updater will than process every entity once per gcd minutes
         # and check if any event needs to be issued
-        gcd = timedelta(minutes=int(numpy.gcd.reduce(intervals)))
+        gcd = timedelta(hours=int(numpy.gcd.reduce(intervals)))
 
         
         # Get list of IDs that needs to be checked

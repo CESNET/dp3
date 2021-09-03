@@ -47,7 +47,6 @@ HISTORY_ATTRIBS_CONF = {
 TABLE_MANDATORY_ATTRIBS = {
     'ts_added': AttrSpec("ts_added", {'name': "timestamp of record creation", 'data_type': "time"}),
     'ts_last_update': AttrSpec("ts_last_update", {'name': "timestamp of record last update", 'data_type': "time"}),
-    '_lru': AttrSpec("_lru", {'name': "last regular update", 'data_type': "time"}),
 }
 
 # Preconfiguration of main entity tables

@@ -26,10 +26,18 @@ class HistoryManager:
         self.attr_spec = attr_spec
         self.worker_index = worker_index
         self.num_workers = num_workers
-        self.log.debug("HistoryManager started")
-        # TODO: create "start" method and run it from worker explicitly (also, stop() method can be useful to allow graceful finish of history_management_thread loop on exit)
-        self.hm_thread = threading.Thread(target=self.history_management_thread, daemon=True)
-        self.hm_thread.start()
+
+    def start(self):
+        if self.worker_index == 0:
+            self.log.info("Starting HistoryManager")
+            self.running = True
+            self.hm_thread = threading.Thread(target=self.history_management_thread, daemon=True)
+            self.hm_thread.start()
+
+    def stop(self):
+        if self.worker_index == 0:
+            self.running = False
+            self.log.info("HistoryManager stopped")
 
     def process_datapoint(self, etype, attr_id, data):
         redundant_ids = []
@@ -168,57 +176,52 @@ class HistoryManager:
         if delete_ids.__len__() > 0:
             self.db.delete_multiple_records(f"{etype}__{attr_id}", delete_ids)
 
-    def check_hash(self, etype, eid):
-        routing_key = HASH(f"{etype}:{eid}") % self.num_workers
-        return routing_key == self.worker_index
-
     def history_management_thread(self):
         # TODO docstring explaining what the function does
         # TODO: use apscheduler
         tick_rate = datetime.timedelta(minutes=30)  # TODO add to global config
         next_call = datetime.datetime.now()
-        while True:
-            self.log.info("Starting periodic history management function...")
+        while self.running:
+            t_start = datetime.datetime.now()
+            self.log.debug("Starting periodic history management function...")
+
+            # Update current value for all unique tuples (etype, eid, attr)
             for etype in self.attr_spec:
                 entities = self.db.get_entities(etype)
+                for eid in entities:
+                    values = {}
+                    for attr_id in self.attr_spec[etype]['attribs']:
+                        history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
+                        table_name = f"{etype}__{attr_id}"
+
+                        if self.attr_spec[etype]['attribs'][attr_id].history is False:
+                            continue
+                        value = get_historic_value(self.db, self.attr_spec, etype, eid, attr_id, datetime.datetime.now())
+                        values[attr_id] = value
+                    rec = Record(self.db, etype, eid)
+                    rec.update(values)
+                    rec.push_changes_to_db()
+
+            # Delete old records from DB
+            for etype in self.attr_spec:
                 for attr_id in self.attr_spec[etype]['attribs']:
                     if self.attr_spec[etype]['attribs'][attr_id].history is False:
                         continue
-                    history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
                     table_name = f"{etype}__{attr_id}"
-
-                    # update attribute's current value
-                    for eid in entities:
-                        if not self.check_hash(etype, eid):
-                            continue
-                        value = get_historic_value(self.db, self.attr_spec, etype, eid, attr_id, datetime.datetime.now())
-                        rec = Record(self.db, etype, eid)
-                        rec.update({attr_id: value})
-                        rec.push_changes_to_db()
-                        self.log.debug(f"Current value of '{etype}/{eid}/{attr_id}' updated to '{value}'")
-
-                    # TODO: All this could probably be done by a single SQL command (DELETE FROM ... WHERE (redundant older than aggregation_max_age) OR (older than max_age);)
-                    #       Better to do by a separate script (no parallel processes, check_hash not needed), either a new top-level process with its own scheduler, or simple script run by cron
-                    # delete redundant datapoints older than "aggregation_max_age"
-                    max_age = history_params["aggregation_max_age"]
-                    t2 = str(datetime.datetime.now() - max_age)
-                    data = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, t2=t2, tag=TAG_REDUNDANT)
-                    for d in data:
-                        if not self.check_hash(etype, d['eid']):
-                            continue
-                        self.db.delete_record(table_name, d['id'])
-
-                    # delete all datapoints older than "max_age"
-                    max_age = history_params["max_age"]
-                    t2 = str(datetime.datetime.now() - max_age)
-                    data = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, t2=t2)
-                    for d in data:
-                        if not self.check_hash(etype, d['eid']):
-                            continue
-                        self.db.delete_record(table_name, d['id'])
+                    history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
+                    # TODO include post validity?
+                    t_old = str(datetime.datetime.now() - history_params["max_age"])
+                    t_redundant = str(datetime.datetime.now() - history_params["aggregation_max_age"])
+                    self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant, tag=TAG_REDUNDANT)
+            t_finish = datetime.datetime.now()
             next_call = next_call + tick_rate
-            self.log.info(f"History management finished, next run at {next_call}")
-            time.sleep((next_call - datetime.datetime.now()).total_seconds())
+
+            if t_finish < next_call:
+                self.log.debug(f"History processing finished after {t_finish - t_start}, next call at {next_call}")
+                time.sleep((next_call - t_finish).total_seconds())
+            else:
+                self.log.debug(f"History processing took longer than expected ({t_finish - t_start}), can't stay on schedule")
+                next_call = t_finish
 
 
 def get_historic_value(db, config, etype, eid, attr_id, timestamp):

@@ -5,7 +5,7 @@ from datetime import datetime
 
 from sqlalchemy import create_engine, Table, Column, MetaData
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
-from sqlalchemy.sql import text, select, func, and_, desc, asc
+from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
 from ..common.attrspec import AttrSpec
@@ -546,6 +546,21 @@ class EntityDatabase:
         for row in result:
             data_points_result.append(self.get_object_from_db_record(data_point_table, row))
         return data_points_result
+
+    def delete_old_datapoints(self, etype: str, attr_name: str, t_old: str, t_redundant: str, tag: int):
+        full_attr_name = f"{etype}__{attr_name}"
+        try:
+            data_point_table = self._tables[full_attr_name]
+        except KeyError:
+            self.log.error(f"Cannot get data-points range, because history table of {full_attr_name} does not exist!")
+            return None
+        # Delete all datapoints older than 't_old' and redundant datapoints older than 't_redundant'
+        delete_statement = delete(data_point_table).where((getattr(data_point_table.c, "t2") < t_old) | ((getattr(data_point_table.c, "t2") < t_redundant) & (getattr(data_point_table.c, "tag") == tag)))
+        try:
+            result = self._db.execute(delete_statement)
+        except Exception as e:
+            self.log.error(f"Delete operation failed: {e}")
+            return None
 
     def rewrite_data_points(self, etype: str, attr_name: str, list_of_ids_to_delete: list, new_data_points: list):
         """

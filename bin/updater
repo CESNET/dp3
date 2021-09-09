@@ -29,6 +29,7 @@ import sys
 import signal
 import logging
 import argparse
+import time
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 from dp3.database.database import EntityDatabase, MissingTableError
@@ -51,14 +52,14 @@ def stop(signal, frame):
 
 def issue_events(db,tqw,log,etypes,args,updater_config):
     global last_fetch_time
-    time = datetime.utcnow()
+    start_time = datetime.now()
 
     # Load the file with additional events
     additional_events_file = os.path.join(args.config_dir, CONFIG_FILE_NAME)
     additional_events = {etype: [] for etype in etypes}
     try:
         for line in open(additional_events_file, "r"):
-            if line == "\n" or line[0] == '#':
+            if not line.strip() or line.startswith("#"):
                 continue # skip empty lines and comments
             etype, event, max_time = line.split(maxsplit=2)
             if etype not in etypes:
@@ -67,7 +68,7 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
                 max_time = parse_rfc_time(max_time)
             except ValueError:
                 raise ValueError("Wrong timestamp format (RFC 3339 required)")
-            if time > max_time:
+            if start_time > max_time:
                 continue # expired entry, ignore
             additional_events[etype].append(event)
             log.debug(f"Additional event '{event}' will be issued for all entities of type '{etype}'")
@@ -78,6 +79,7 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         log.error(f"Error in the file with additional events ('{additional_events_file}', line '{line}''): {e}")
 
     for etype in etypes:
+        actual_time = datetime.now()
         # Check if updater is configured for given etype 
         try: 
             config = updater_config.get(etype)
@@ -92,7 +94,7 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         # of all configured intervals for given etype.
         # Updater will than process every entity once per gcd minutes
         # and check if any event needs to be issued
-        gcd = timedelta(hours=int(numpy.gcd.reduce(intervals)))
+        gcd = timedelta(minutes=int(numpy.gcd.reduce(intervals)))
 
         
         # Get list of IDs that needs to be checked
@@ -100,16 +102,19 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         # AND greater than time of the last query - this is important since
         # _lru of an entity is set to correct value only after the update
         # is processed, which may take some time, and we don't want to
-        # fetch the same entity twice)
+        # fetch the same entity twice). Number of fetched entities can't be 
+        # limited. Because of the last query time ignored entities wouldn't get
+        # processed at all.
         log.debug(f"Getting list of '{etype}' entities to update ...")
-        entities = db.last_updated_before(etype,time-gcd,limit=args.limit)
+        entities = db.last_updated(etype,actual_time-gcd,last_fetch_time,limit=10)
 
         # Update _lru and possibly issue configured events
+        count = 0 # number of issued events - needed for limit implementation
         for eid,lru,ts_added in entities:
             # Time passed until last regular update
             delta_lru = lru - ts_added
             # Time passed until now
-            delta_now = time - ts_added
+            delta_now = actual_time - ts_added
 
             events = []
             for interval,event in config.items():
@@ -138,12 +143,20 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
                 "attr": "_lru", 
                 "val": new_lru,
             }]
+            count += 1
+            # issue max. 'limit' events per second
+            if count % args.limit == 0:
+                log.debug(f"Updated {count} entities.")
+                remaining_time = (start_time + timedelta(seconds=count//args.limit) - datetime.now()).total_seconds()
+                if remaining_time > 0:
+                    log.debug(f"Going to sleep for {remaining_time} seconds.")
+                    time.sleep(remaining_time)
 
             # Each update request contains the corresponding events,
             # and a change of the '_lru' and "_ruc" attributes.
             tqw.put_task(etype=etype, ekey=eid, events=events, attr_updates=attr_updates, src="updater")
 
-    last_fetch_time = time
+    last_fetch_time = start_time 
 
 if __name__ == "__main__":
     # parse arguments
@@ -157,7 +170,7 @@ if __name__ == "__main__":
     parser.add_argument('config_dir', metavar='CONFIG_DIRECTORY',
                         help="Path to a directory containing configuration files (e.g. /etc/my_app/config)")
     parser.add_argument('-l', '--limit', metavar='N', dest='limit', type=int,
-                    help='Maximum number of entities fetched from the database for which the events would be issued. (default: 100000)', 
+                    help='Maximum number of entities for which the events would be issued per second. (default: 100000)', 
                     default=100000
     )
     parser.add_argument('-p', '--period', metavar='N', dest='period', type=int,
@@ -177,7 +190,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=log_level, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
     # logger for this script
     log = logging.getLogger('Updater')
-    log.setLevel(logging.WARNING if args.quiet else logging.INFO)
+    log.setLevel(logging.WARNING if args.quiet else logging.DEBUG)
 
     # Load configuration
     log.info(f"Loading config dir {args.config_dir}")

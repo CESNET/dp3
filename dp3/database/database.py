@@ -534,7 +534,7 @@ class EntityDatabase:
         self.delete_multiple_records(full_attr_name, list_of_ids_to_delete)
         self.create_multiple_records(full_attr_name, new_data_points)
 
-    def last_updated_before(self, etype, time, weekly=False, limit=None):
+    def last_updated(self, etype, before, after=None, weekly=False, limit=None):
         try:
             table = self._tables[etype]
         except KeyError:
@@ -543,7 +543,9 @@ class EntityDatabase:
 
         cols = [table.c.eid,table.c._lru,table.c.ts_added]
         select_statement = select(cols) \
-            .where(table.c._lru < time)
+            .where(table.c._lru < before)
+        if after is not None:
+            select_statement = select_statement.where(table.c._lru > after)
         if limit is not None:
             select_statement = select_statement.limit(limit)
 

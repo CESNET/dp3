@@ -66,14 +66,14 @@ class Record:
         """
         Overrides functionality, when "key in Record" is called.
         :param attrib_name: key name
-        :return: True if attribute is in record, False otherwise
+        :return: True if attribute is in record and it's value is not None, False otherwise
         """
         if attrib_name in self._record:
             return True
         # if attribute not in cache, try to load it from database (if does not exist in database, cache will not be
         # updated)
         self._load_from_db(attrib_name)
-        return attrib_name in self._record
+        return attrib_name in self._record and self._record[attrib_name] is not None
 
     def __delitem__(self, attrib_name):
         """

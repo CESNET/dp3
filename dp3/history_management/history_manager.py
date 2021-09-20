@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta
 import time
 import threading
 import hashlib
@@ -179,43 +179,60 @@ class HistoryManager:
     def history_management_thread(self):
         # TODO docstring explaining what the function does
         # TODO: use apscheduler
-        tick_rate = datetime.timedelta(minutes=30)  # TODO add to global config
-        next_call = datetime.datetime.now()
+        tick_rate = timedelta(minutes=30)  # TODO add to global config
+        next_call = datetime.now()
         while self.running:
-            t_start = datetime.datetime.now()
+            t_start = datetime.now()
             self.log.debug("Starting periodic history management function...")
 
-            # Update current value for all unique tuples (etype, eid, attr)
-            for etype in self.attr_spec:
-                entities = self.db.get_entities(etype)
-                for eid in entities:
-                    values = {}
-                    for attr_id in self.attr_spec[etype]['attribs']:
-                        history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-                        table_name = f"{etype}__{attr_id}"
-
-                        if self.attr_spec[etype]['attribs'][attr_id].history is False:
-                            continue
-                        value = get_historic_value(self.db, self.attr_spec, etype, eid, attr_id, datetime.datetime.now())
-                        values[attr_id] = value
-                    rec = Record(self.db, etype, eid)
-                    rec.update(values)
-                    rec.push_changes_to_db()
-
-            # Delete old records from DB
+            # Delete old records from history tables
             for etype in self.attr_spec:
                 for attr_id in self.attr_spec[etype]['attribs']:
                     if self.attr_spec[etype]['attribs'][attr_id].history is False:
                         continue
                     table_name = f"{etype}__{attr_id}"
                     history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-                    # TODO include post validity?
-                    t_old = str(datetime.datetime.now() - history_params["max_age"])
-                    t_redundant = str(datetime.datetime.now() - history_params["aggregation_max_age"])
+                    t_old = str(datetime.now() - history_params["max_age"])
+                    t_redundant = str(datetime.now() - history_params["aggregation_max_age"])
                     self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant, tag=TAG_REDUNDANT)
-            t_finish = datetime.datetime.now()
-            next_call = next_call + tick_rate
 
+            # Check current values for all entities and unset them if expired
+            for etype in self.attr_spec:
+                entities = self.db.get_entities(etype)
+                for eid in entities:
+                    updates = {}
+                    rec = Record(self.db, etype, eid)
+                    for attr_id in self.attr_spec[etype]['attribs']:
+                        attr_conf = self.attr_spec[etype]['attribs'][attr_id]
+                        attr_exp = f"{attr_id}:exp"
+                        attr_c = f"{attr_id}:c"
+                        if not attr_conf.history or attr_id not in rec:
+                            continue
+                        if attr_conf.multi_value:
+                            new_val = rec[attr_id]
+                            new_exp = rec[attr_exp]
+                            new_c = rec[attr_c] if attr_conf.confidence else None
+                            for val, exp in zip(rec[attr_id], rec[attr_exp]):
+                                if exp < datetime.now():
+                                    idx = rec[attr_id].index(val)
+                                    del new_val[idx]
+                                    del new_exp[idx]
+                                    if new_c:
+                                        del new_c[idx]
+                            updates[attr_id] = new_val
+                            updates[attr_exp] = new_exp
+                            if new_c:
+                                updates[attr_c] = new_c
+                        elif rec[attr_exp] < datetime.now():
+                            updates[attr_id] = None
+                            updates[attr_exp] = None
+                            if attr_conf.confidence:
+                                updates[attr_c] = None
+                    rec.update(updates)
+                    rec.push_changes_to_db()
+
+            t_finish = datetime.now()
+            next_call = next_call + tick_rate
             if t_finish < next_call:
                 self.log.debug(f"History processing finished after {t_finish - t_start}, next call at {next_call}")
                 time.sleep((next_call - t_finish).total_seconds())

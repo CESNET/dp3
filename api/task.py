@@ -124,6 +124,8 @@ def validate_task(task, config):
             item["t2"] = item["t1"]
         if "c" not in item:
             item["c"] = 1.0
+        if "src" not in item:
+            item["src"] = ""
 
         # Check data type of data-point fields
         assert type(item["attr"]) is str, err_msg_type.format("attr", "str")

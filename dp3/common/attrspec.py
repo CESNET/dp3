@@ -196,12 +196,12 @@ class AttrSpec:
         elif re.match(re_array, self.data_type):
             element_type = self.data_type.split("<")[1].split(">")[0]
             assert element_type in primitive_data_types, f"data type {element_type} is not supported as an array element"
-            self.value_validator = lambda v: valid_array(v, element_type)
+            self.value_validator = lambda v: valid_array(v, element_type) or validators[element_type]
 
         elif re.match(re_set, self.data_type):
             element_type = self.data_type.split("<")[1].split(">")[0]
             assert element_type in primitive_data_types, f"data type {element_type} is not supported as a set element"
-            self.value_validator = lambda v: valid_set(v, element_type)
+            self.value_validator = lambda v: valid_set(v, element_type) or validators[element_type]
 
         elif re.match(re_link, self.data_type):
             # TODO

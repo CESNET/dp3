@@ -9,7 +9,7 @@ import traceback
 from event_count_logger import EventCountLogger, DummyEventGroup
 
 from .. import g
-from ..common.utils import get_func_name
+from ..common.utils import get_func_name, parse_rfc_time
 from ..database.record import Record
 
 
@@ -159,11 +159,47 @@ class TaskExecutor:
         rec[key] = updreq['val']
         return [(key, rec[key])]
 
+    def _perform_op_set_multivalue(self, rec, key, updreq):
+        if key not in rec:
+            rec[key] = [updreq['val']]
+            if 'c' in updreq:
+                rec[f"{key}:c"] = [updreq['c']]
+            if 'exp' in updreq:
+                rec[f"{key}:exp"] = [updreq['exp']]
+        elif updreq['val'] in rec[key]:
+            idx = rec[key].index(updreq['val'])
+            if 'c' in updreq:
+                rec[f"{key}:c"][idx] = updreq['c']
+            if 'exp' in updreq:
+                rec[f"{key}:exp"][idx] = updreq['exp']
+        else:
+            rec[key] = rec[key] + [updreq['val']]
+            if 'c' in updreq:
+                rec[f"{key}:c"] = rec[f"{key}:c"] + [updreq['c']]
+            if 'exp' in updreq:
+                rec[f"{key}:exp"] = rec[f"{key}:exp"] + [updreq['exp']]
+        return [(key, rec[key])]
+
     def _perform_op_unset(self, rec, key, updreq):
         if key in rec:
             del rec[key]
-            return [(updreq[1], None)]
+            return [(updreq['val'], None)]
         return None
+
+    def _perform_op_unset_multivalue(self, rec, key, updreq):
+        if key not in rec or updreq['val'] not in rec[key]:
+            return None
+        else:
+            idx = rec[key].index(updreq['val'])
+            del rec[key][idx]
+            rec[key] = rec[key]  # update record changes
+            if 'c' in updreq:
+                del rec[f"{key}:c"][idx]
+                rec[f"{key}:c"] = rec[f"{key}:c"]
+            if 'exp' in updreq:
+                del rec[f"{key}:exp"][idx]
+                rec[f"{key}:exp"] = rec[f"{key}:exp"]
+        return [(key, rec[key])]
 
     def _perform_op_add(self, rec, key, updreq):
         if key not in rec:
@@ -205,27 +241,32 @@ class TaskExecutor:
         if key not in rec:
             rec[key] = [updreq['val']]
         else:
-            rec[key].append(updreq['val'])
+            rec[key] = rec[key] + [updreq['val']]
         return[(key, rec[key])]
 
     def _perform_op_array_insert(self, rec, key, updreq):
-        if not isinstance(rec[key], list):
+        try:
+            rec[key].insert(updreq['i'], updreq['val'])
+            rec[key] = rec[key] # update record changes
+        except Exception:
             return None
-        rec[key] = rec[key].insert(updreq['i'], updreq['val'])
         return [(key, rec[key])]
 
     def _perform_op_array_remove(self, rec, key, updreq):
-        if key not in rec:
+        try:
+            rec[key].remove(updreq['val'])
+            rec[key] = rec[key]  # update record changes
+        except Exception:
             return None
-        rec[key].remove(updreq['val'])
-        return [(key, None)]
+        return [(key, rec[key])]
 
     def _perform_op_set_add(self, rec, key, updreq):
         value = updreq['val']
-        if key not in rec or rec[key] is None:
+        if key not in rec:
             rec[key] = [value]
         elif value not in rec[key]:
             rec[key].append(value)
+            rec[key] = rec[key]  # update record changes
         else:
             pass
         return [(key, rec[key])]
@@ -240,7 +281,7 @@ class TaskExecutor:
         Update a record according to given update request.
 
         :param rec: Instance of Record, which is used for communication with database
-        :param updreq: 3-tuple in form of (operation, key, value)
+        :param updreq: Dictionary containing operation, attribute id and value, optionally also confidence and/or expiration date
         :return: array with specifications of performed updates - pairs (updated_key,
                 new_value) or None.
             (None is returned when nothing was changed, e.g. because op=add_to_set and
@@ -254,19 +295,27 @@ class TaskExecutor:
         #  (the above holds if there is a hierarchical key, since _parse_record_from_key_hierarchy return normal object, not Record, in such case)
         rec = self._parse_record_from_key_hierarchy(rec, key)
 
-        if attrib_conf.multi_value is True and attrib_conf.history is False:
-            if op == "set":
-                op = "set_add"
-            elif op == "unset":
-                op = "rem_from_set"
-                rec[key] = [rec[key]]
+        # check confidence and/or expiration date (if required by configuration) and set default values if needed
+        if attrib_conf.confidence and 'c' not in updreq:
+            updreq['c'] = 1
+        if attrib_conf.history and 'exp' not in updreq:
+            updreq['exp'] = datetime.now()
+
+        # multi value attributes have special operations that handle confidence/expiration on their own
+        if attrib_conf.multi_value:
+            op += "_multivalue"
+        else:
+            if attrib_conf.confidence:
+                rec[f"{key}:c"] = updreq['c']
+            if attrib_conf.history:
+                rec[f"{key}:exp"] = updreq['exp']
 
         try:
             # call operation function, which handles operation
             # Return tuple (updated attribute, new value)
             return self._operations_mapping[op](self, rec, key, updreq)
-        except KeyError:
-            print("ERROR: perform_update: Unknown operation {}".format(op), file=sys.stderr)
+        except KeyError as e:
+            self.log.error(f"perform_update: Unknown operation {op}")
             return None
 
     def _create_record_if_does_not_exist(self, etype: str, ekey: str, attr_updates: list, events: list, create: bool) -> (Record, bool):
@@ -453,6 +502,18 @@ class TaskExecutor:
                     except Exception as e:
                         # traceback.print_exc()
                         self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' could not be stored: {e}")
+                        continue
+
+                    # Update current value by adding corresponding update request to the current task
+                    attr_conf = self.attr_spec[etype]['attribs'][attr_name]
+                    valid_since = parse_rfc_time(data_point['t1']) + attr_conf.history_params['pre_validity']
+                    valid_until = parse_rfc_time(data_point['t2']) + attr_conf.history_params['post_validity']
+                    curr_expiration = rec[f"{attr_name}:exp"]
+                    if valid_since < datetime.now() < valid_until and (attr_conf.multi_value or curr_expiration is None or valid_until > curr_expiration):
+                        update = {"attr": attr_name, "val": data_point['v'], "op": "set", "exp": valid_until}
+                        if attr_conf.confidence:
+                            update['c'] = data_point['c']
+                        requests_to_process.append(update)
 
                 # add all functions, which are hooked to events, to call queue
                 for event in events:

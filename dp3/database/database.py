@@ -156,7 +156,19 @@ class EntityDatabase:
 
             # Add confidence column if required from configuration
             if attrib_conf.confidence:
-                columns.append(Column(attrib_id + ":c", FLOAT))
+                column_type = FLOAT
+                # Multi-value attributes can have different confidence for each individual value
+                if attrib_conf.multi_value:
+                    column_type = ARRAY(column_type)
+                columns.append(Column(attrib_id + ":c", column_type))
+
+            # Add value expiration date for attributes with history
+            if attrib_conf.history:
+                column_type = TIMESTAMP
+                # Multi-value attributes can have different expiration date for each individual value
+                if attrib_conf.multi_value:
+                    column_type = ARRAY(column_type)
+                columns.append(Column(attrib_id + ":exp", column_type))
 
         return columns
 

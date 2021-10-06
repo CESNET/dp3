@@ -3,7 +3,7 @@ from typing import List
 from copy import deepcopy
 from datetime import datetime
 
-from sqlalchemy import create_engine, Table, Column, MetaData, literal_column, func
+from sqlalchemy import create_engine, Table, Column, MetaData, func
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
 from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 

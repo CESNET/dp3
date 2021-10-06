@@ -196,40 +196,34 @@ class HistoryManager:
                     t_redundant = str(datetime.now() - history_params["aggregation_max_age"])
                     self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant, tag=TAG_REDUNDANT)
 
-            # Check current values for all entities and unset them if expired
             for etype in self.attr_spec:
                 entities = self.db.get_entities(etype)
-                for eid in entities:
-                    updates = {}
-                    rec = Record(self.db, etype, eid)
-                    for attr_id in self.attr_spec[etype]['attribs']:
-                        attr_conf = self.attr_spec[etype]['attribs'][attr_id]
-                        attr_exp = f"{attr_id}:exp"
-                        attr_c = f"{attr_id}:c"
-                        if not attr_conf.history or attr_id not in rec:
-                            continue
-                        if attr_conf.multi_value:
+                for attr_id in self.attr_spec[etype]['attribs']:
+                    attr_conf = self.attr_spec[etype]['attribs'][attr_id]
+                    attr_exp = f"{attr_id}:exp"
+                    attr_c = f"{attr_id}:c"
+                    if not attr_conf.history:
+                        continue
+                    if attr_conf.multi_value:
+                        entities = self.db.get_entities_with_expired_values(etype, attr_id)
+                        for eid in entities:
+                            rec = Record(self.db, etype, eid)
                             new_val = rec[attr_id]
                             new_exp = rec[attr_exp]
                             new_c = rec[attr_c] if attr_conf.confidence else None
-                            for val, exp in zip(rec[attr_id], rec[attr_exp]):
+                            for exp in rec[attr_exp]:
                                 if exp < datetime.now():
-                                    idx = rec[attr_id].index(val)
+                                    idx = rec[attr_exp].index(exp)
                                     del new_val[idx]
                                     del new_exp[idx]
+                                    rec[attr_id] = new_val
+                                    rec[attr_exp] = new_exp
                                     if new_c:
                                         del new_c[idx]
-                            updates[attr_id] = new_val
-                            updates[attr_exp] = new_exp
-                            if new_c:
-                                updates[attr_c] = new_c
-                        elif rec[attr_exp] < datetime.now():
-                            updates[attr_id] = None
-                            updates[attr_exp] = None
-                            if attr_conf.confidence:
-                                updates[attr_c] = None
-                    rec.update(updates)
-                    rec.push_changes_to_db()
+                                        rec[attr_c] = new_c
+                            rec.push_changes_to_db()
+                    else:
+                        self.db.unset_expired_values(etype, attr_id, attr_conf.confidence)
 
             t_finish = datetime.now()
             next_call = next_call + tick_rate

@@ -170,8 +170,10 @@ class TaskExecutor:
             idx = rec[key].index(updreq['val'])
             if 'c' in updreq:
                 rec[f"{key}:c"][idx] = updreq['c']
+                rec[f"{key}:c"] = rec[f"{key}:c"]
             if 'exp' in updreq:
                 rec[f"{key}:exp"][idx] = updreq['exp']
+                rec[f"{key}:exp"] = rec[f"{key}:exp"]
         else:
             rec[key] = rec[key] + [updreq['val']]
             if 'c' in updreq:
@@ -193,10 +195,10 @@ class TaskExecutor:
             idx = rec[key].index(updreq['val'])
             del rec[key][idx]
             rec[key] = rec[key]  # update record changes
-            if 'c' in updreq:
+            if f"{key}:c" in rec:
                 del rec[f"{key}:c"][idx]
                 rec[f"{key}:c"] = rec[f"{key}:c"]
-            if 'exp' in updreq:
+            if f"{key}:exp" in rec:
                 del rec[f"{key}:exp"][idx]
                 rec[f"{key}:exp"] = rec[f"{key}:exp"]
         return [(key, rec[key])]
@@ -602,14 +604,16 @@ class TaskExecutor:
         assert(len(may_change) == 0)
 
         # Update processed database record
-        rec.push_changes_to_db()
+        try:
+            rec.push_changes_to_db()
+            self.log.debug(f"Task {etype}/{ekey}: All changes written to DB, processing finished.")
+        except Exception as e:
+            self.log.error(f"Task {etype}/{ekey}: Something went wrong when pushing changes to DB: {e}")
 
         # Log the processed task
         self.elog.log('task_processed')
         self.elog_by_src.log(src) # empty src is ok, empty string is a valid event id
         for tag in tags:
             self.elog_by_src.log(tag)
-
-        self.log.debug(f"Task {etype}/{ekey}: All changes written to DB, processing finished.")
 
         return new_rec_created

@@ -3,7 +3,7 @@ from typing import List
 from copy import deepcopy
 from datetime import datetime
 
-from sqlalchemy import create_engine, Table, Column, MetaData
+from sqlalchemy import create_engine, Table, Column, MetaData, literal_column, func
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
 from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
@@ -604,5 +604,50 @@ class EntityDatabase:
             result = self._db.execute(select_statement)
         except Exception as e:
             self.log.error(f"get_entities(): Select failed: {e}")
+            return None
+        return [r[0] for r in result]
+
+    def unset_expired_values(self, etype: str, attr: str, confidence: bool):
+        """
+        Set expired values of given attribute to NULL (doesn't work for multi-value attributes)
+        :param etype: entity type
+        :param attr: attribute id
+        :param confidence: unset confidence as well if set to true
+        :return: None
+        """
+        try:
+            record_table = self._tables[etype]
+        except KeyError:
+            raise MissingTableError(f"unset_expired_values(): Table {etype} does not exist!")
+        exp_column = f"{attr}:exp"
+        c_column = f"{attr}:c"
+        updates = {attr: None, exp_column: None}
+        if confidence:
+            updates[c_column] = None
+        update_statement = record_table.update().where(getattr(record_table.c, exp_column) < datetime.now()).values(updates)
+        try:
+            self._db.execute(update_statement)
+        except Exception as e:
+            raise DatabaseError(
+                f"unset_expired_values(): Update failed: {e}")
+
+    def get_entities_with_expired_values(self, etype: str, attr: str):
+        """
+        Search for records containing an expired value (only works for multi-value attributes)
+        :param etype: entity type
+        :param attr: attribute id
+        :return: list of entity ids
+        """
+        try:
+            table_name = self._tables[etype]
+        except KeyError:
+            self.log.error(f"get_entities_with_expired_values(): Table '{etype}' does not exist!")
+            return None
+        exp_column = f"\"{attr}:exp\""
+        select_statement = select([table_name.c.eid]).select_from(text(f"unnest({exp_column}) as exp")).where(text(f"exp < \'{datetime.now()}\'"))
+        try:
+            result = self._db.execute(select_statement)
+        except Exception as e:
+            self.log.error(f"get_entities_with_expired_values(): Select failed: {e}")
             return None
         return [r[0] for r in result]

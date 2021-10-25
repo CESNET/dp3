@@ -508,7 +508,7 @@ class TaskExecutor:
 
                     # Update current value by adding corresponding update request to the current task
                     attr_conf = self.attr_spec[etype]['attribs'][attr_name]
-                    valid_since = parse_rfc_time(data_point['t1']) + attr_conf.history_params['pre_validity']
+                    valid_since = parse_rfc_time(data_point['t1']) - attr_conf.history_params['pre_validity']
                     valid_until = parse_rfc_time(data_point['t2']) + attr_conf.history_params['post_validity']
                     curr_expiration = rec[f"{attr_name}:exp"]
                     if valid_since < datetime.now() < valid_until and (attr_conf.multi_value or curr_expiration is None or valid_until > curr_expiration):

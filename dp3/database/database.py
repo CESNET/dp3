@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 
 from sqlalchemy import create_engine, Table, Column, MetaData, func
-from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
+from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, REAL, JSON
 from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
@@ -18,7 +18,7 @@ ATTR_TYPE_MAPPING = {
     'string': VARCHAR,
     'int': INTEGER,
     'int64': BIGINT,
-    'float': FLOAT,
+    'float': REAL,
     'time': TIMESTAMP,
     'ipv4': VARCHAR,
     'ipv6': VARCHAR,
@@ -156,7 +156,7 @@ class EntityDatabase:
 
             # Add confidence column if required from configuration
             if attrib_conf.confidence:
-                column_type = FLOAT
+                column_type = REAL
                 # Multi-value attributes can have different confidence for each individual value
                 if attrib_conf.multi_value:
                     column_type = ARRAY(column_type)

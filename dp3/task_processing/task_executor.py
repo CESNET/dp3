@@ -437,6 +437,7 @@ class TaskExecutor:
         # Check existence of etype
         if etype not in self.attr_spec:
             self.log.error(f"Task {etype}/{ekey}: Unknown entity type!")
+            self.elog.log('task_processing_error')
             return False
 
         # whole record should be deleted from database
@@ -485,6 +486,7 @@ class TaskExecutor:
                         _ = data_point['t2']
                     except KeyError as e:
                         self.log.error(f"Task {etype}/{ekey}: Data point has wrong structure! Missing key '{str(e)}', source: {data_point.get('src', '')}.")
+                        self.elog.log('task_processing_error')
                         continue
                     # prepare data to store, remove values which are not directly saved to database
                     data_to_save = deepcopy(data_point)
@@ -528,7 +530,8 @@ class TaskExecutor:
                             event_name = event['name']
                             updated = [(event_name, None)]
                         except (KeyError, TypeError):
-                            self.log.warning("Event {event} has wrong structure!".format(event=event))
+                            self.log.error("Event {event} has wrong structure!".format(event=event))
+                            self.elog.log('task_processing_error')
                             continue
                     self._update_call_queue(call_queue, etype, event_name, updated)
 
@@ -564,6 +567,8 @@ class TaskExecutor:
                 self.log.warning(
                     "Too many iterations when updating ({}/{}), something went wrong! Update chain stopped.".format(
                         etype, ekey))
+                self.elog.log('task_processing_error')
+                may_change = {} # reset may_change to avoid triggering AssertionError below
                 break
 
             handler_function, updates = call_queue.popleft()

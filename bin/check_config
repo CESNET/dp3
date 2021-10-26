@@ -31,5 +31,6 @@ except Exception as e:
     sys.exit(1)
 
 if args.verbose:
-    print(json.dumps(config, indent=4))
+    # Print parsed config as JSON (print unserializable objects using str())
+    print(json.dumps(config, indent=4, default=str))
 sys.exit(0)

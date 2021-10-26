@@ -555,9 +555,10 @@ class TaskExecutor:
                     # attributes to change
                     may_change |= self.get_all_possible_changes(etype, attrib_name)
 
-                # All requests were processed, clear the list
-                requests_to_process.clear()
+                # All requests/events/datapoints were processed, clear the lists
+                data_points.clear()
                 events.clear()
+                requests_to_process.clear()
 
             if not call_queue:
                 break  # No more work to do

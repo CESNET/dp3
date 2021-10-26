@@ -505,7 +505,8 @@ class TaskExecutor:
                         self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' stored: {data_to_save}")
                     except Exception as e:
                         # traceback.print_exc()
-                        self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' could not be stored: {e}")
+                        self.log.error(f"Task {etype}/{ekey}: Data-point of '{attr_name}' could not be stored: {e}")
+                        self.elog.log('task_processing_error')
                         continue
 
                     # Update current value by adding corresponding update request to the current task

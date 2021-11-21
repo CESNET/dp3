@@ -4,11 +4,12 @@ import inspect
 from collections import deque, Iterable, OrderedDict, Counter
 import logging
 from copy import deepcopy
+import traceback
 
 from event_count_logger import EventCountLogger, DummyEventGroup
 
 from .. import g
-from ..common.utils import get_func_name
+from ..common.utils import get_func_name, parse_rfc_time
 from ..database.record import Record
 
 
@@ -53,7 +54,7 @@ class TaskExecutor:
 
     _OPERATION_FUNCTION_PREFIX = "_perform_op_"
 
-    def __init__(self, db, attr_spec):
+    def __init__(self, db, attr_spec, history_manager):
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
@@ -74,6 +75,7 @@ class TaskExecutor:
         # cache for may_change set calculation - is cleared when register_handler() is called
         self._may_change_cache = self._init_may_change_cache()
 
+        self.hm = history_manager
         self.attr_spec = attr_spec
         self.db = db
         # get all update operations functions into callable dictionary, where key is operation name and value is
@@ -93,6 +95,17 @@ class TaskExecutor:
         self.elog = ecl.get_group("te") or DummyEventGroup()
         self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
         self.elog_by_tag = ecl.get_group("tasks_by_tag") or DummyEventGroup()
+        # Print warning if some event group is not configured
+        not_configured_groups = []
+        if isinstance(self.elog, DummyEventGroup):
+            not_configured_groups.append("te")
+        if isinstance(self.elog_by_src, DummyEventGroup):
+            not_configured_groups.append("tasks_by_src")
+        if isinstance(self.elog_by_tag, DummyEventGroup):
+            not_configured_groups.append("tasks_by_tag")
+        if not_configured_groups:
+            self.log.warning(f"EventCountLogger: No configuration for event group(s) '{','.join(not_configured_groups)}' found, such events will not be logged (check event_logging.yml)")
+
 
     def _init_may_change_cache(self):
         """
@@ -146,11 +159,49 @@ class TaskExecutor:
         rec[key] = updreq['val']
         return [(key, rec[key])]
 
+    def _perform_op_set_multivalue(self, rec, key, updreq):
+        if key not in rec:
+            rec[key] = [updreq['val']]
+            if 'c' in updreq:
+                rec[f"{key}:c"] = [updreq['c']]
+            if 'exp' in updreq:
+                rec[f"{key}:exp"] = [updreq['exp']]
+        elif updreq['val'] in rec[key]:
+            idx = rec[key].index(updreq['val'])
+            if 'c' in updreq:
+                rec[f"{key}:c"][idx] = updreq['c']
+                rec[f"{key}:c"] = rec[f"{key}:c"]
+            if 'exp' in updreq:
+                rec[f"{key}:exp"][idx] = updreq['exp']
+                rec[f"{key}:exp"] = rec[f"{key}:exp"]
+        else:
+            rec[key] = rec[key] + [updreq['val']]
+            if 'c' in updreq:
+                rec[f"{key}:c"] = rec[f"{key}:c"] + [updreq['c']]
+            if 'exp' in updreq:
+                rec[f"{key}:exp"] = rec[f"{key}:exp"] + [updreq['exp']]
+        return [(key, rec[key])]
+
     def _perform_op_unset(self, rec, key, updreq):
         if key in rec:
             del rec[key]
-            return [(updreq[1], None)]
+            return [(updreq['val'], None)]
         return None
+
+    def _perform_op_unset_multivalue(self, rec, key, updreq):
+        if key not in rec or updreq['val'] not in rec[key]:
+            return None
+        else:
+            idx = rec[key].index(updreq['val'])
+            del rec[key][idx]
+            rec[key] = rec[key]  # update record changes
+            if f"{key}:c" in rec:
+                del rec[f"{key}:c"][idx]
+                rec[f"{key}:c"] = rec[f"{key}:c"]
+            if f"{key}:exp" in rec:
+                del rec[f"{key}:exp"][idx]
+                rec[f"{key}:exp"] = rec[f"{key}:exp"]
+        return [(key, rec[key])]
 
     def _perform_op_add(self, rec, key, updreq):
         if key not in rec:
@@ -192,20 +243,24 @@ class TaskExecutor:
         if key not in rec:
             rec[key] = [updreq['val']]
         else:
-            rec[key].append(updreq['val'])
+            rec[key] = rec[key] + [updreq['val']]
         return[(key, rec[key])]
 
     def _perform_op_array_insert(self, rec, key, updreq):
-        if not isinstance(rec[key], list):
+        try:
+            rec[key].insert(updreq['i'], updreq['val'])
+            rec[key] = rec[key] # update record changes
+        except Exception:
             return None
-        rec[key] = rec[key].insert(updreq['i'], updreq['val'])
         return [(key, rec[key])]
 
     def _perform_op_array_remove(self, rec, key, updreq):
-        if key not in rec:
+        try:
+            rec[key].remove(updreq['val'])
+            rec[key] = rec[key]  # update record changes
+        except Exception:
             return None
-        rec[key].remove(updreq['val'])
-        return [(key, None)]
+        return [(key, rec[key])]
 
     def _perform_op_set_add(self, rec, key, updreq):
         value = updreq['val']
@@ -213,8 +268,9 @@ class TaskExecutor:
             rec[key] = [value]
         elif value not in rec[key]:
             rec[key].append(value)
+            rec[key] = rec[key]  # update record changes
         else:
-            return None
+            pass
         return [(key, rec[key])]
 
     def _perform_op_set_remove(self, rec, key, updreq):
@@ -222,12 +278,12 @@ class TaskExecutor:
             rec[key] = list(set(rec[key]) - set(updreq['val']))
         return [(key, rec[key])]
 
-    def _perform_update(self, rec: Record, updreq: dict):
+    def _perform_update(self, rec: Record, updreq: dict, attrib_conf):
         """
         Update a record according to given update request.
 
         :param rec: Instance of Record, which is used for communication with database
-        :param updreq: 3-tuple in form of (operation, key, value)
+        :param updreq: Dictionary containing operation, attribute id and value, optionally also confidence and/or expiration date
         :return: array with specifications of performed updates - pairs (updated_key,
                 new_value) or None.
             (None is returned when nothing was changed, e.g. because op=add_to_set and
@@ -241,12 +297,27 @@ class TaskExecutor:
         #  (the above holds if there is a hierarchical key, since _parse_record_from_key_hierarchy return normal object, not Record, in such case)
         rec = self._parse_record_from_key_hierarchy(rec, key)
 
+        # check confidence and/or expiration date (if required by configuration) and set default values if needed
+        if attrib_conf.confidence and 'c' not in updreq:
+            updreq['c'] = 1
+        if attrib_conf.history and 'exp' not in updreq:
+            updreq['exp'] = datetime.now()
+
+        # multi value attributes have special operations that handle confidence/expiration on their own
+        if attrib_conf.multi_value:
+            op += "_multivalue"
+        else:
+            if attrib_conf.confidence:
+                rec[f"{key}:c"] = updreq['c']
+            if attrib_conf.history:
+                rec[f"{key}:exp"] = updreq['exp']
+
         try:
             # call operation function, which handles operation
             # Return tuple (updated attribute, new value)
             return self._operations_mapping[op](self, rec, key, updreq)
-        except KeyError:
-            print("ERROR: perform_update: Unknown operation {}".format(op), file=sys.stderr)
+        except KeyError as e:
+            self.log.error(f"perform_update: Unknown operation {op}")
             return None
 
     def _create_record_if_does_not_exist(self, etype: str, ekey: str, attr_updates: list, events: list, create: bool) -> (Record, bool):
@@ -367,6 +438,7 @@ class TaskExecutor:
         # Check existence of etype
         if etype not in self.attr_spec:
             self.log.error(f"Task {etype}/{ekey}: Unknown entity type!")
+            self.elog.log('task_processing_error')
             return False
 
         # whole record should be deleted from database
@@ -415,6 +487,7 @@ class TaskExecutor:
                         _ = data_point['t2']
                     except KeyError as e:
                         self.log.error(f"Task {etype}/{ekey}: Data point has wrong structure! Missing key '{str(e)}', source: {data_point.get('src', '')}.")
+                        self.elog.log('task_processing_error')
                         continue
                     # prepare data to store, remove values which are not directly saved to database
                     data_to_save = deepcopy(data_point)
@@ -428,20 +501,25 @@ class TaskExecutor:
                     data_to_save['eid'] = ekey
 
                     # Store data-point to history table
-                    # (current value is not automatically updated by DB wrapper, since we must update it here in
-                    # the "rec" object and store to DB after all subsequent updates are done)
-                    ok = self.db.create_datapoint(etype, attr_name, data_to_save)
-                    if ok:
+                    try:
+                        self.hm.process_datapoint(etype, attr_name, data_to_save)
                         self.log.debug(f"Task {etype}/{ekey}: Data-point of '{attr_name}' stored: {data_to_save}")
-                        # on error, a message is already logged by the create_datapoint() method
+                    except Exception as e:
+                        # traceback.print_exc()
+                        self.log.error(f"Task {etype}/{ekey}: Data-point of '{attr_name}' could not be stored: {e}")
+                        self.elog.log('task_processing_error')
+                        continue
 
-                    # TODO time aggregation
-                    # ...
-
-                    # Get current value and set it to the cached record ("rec", instance of Record)
-                    current_value = self.db.get_current_value(etype, ekey, attr_name)
-                    rec.update({attr_name: current_value})
-                    self.log.debug(f"Task {etype}/{ekey}: Current value of '{attr_name}' updated to '{current_value}'")
+                    # Update current value by adding corresponding update request to the current task
+                    attr_conf = self.attr_spec[etype]['attribs'][attr_name]
+                    valid_since = parse_rfc_time(data_point['t1']) - attr_conf.history_params['pre_validity']
+                    valid_until = parse_rfc_time(data_point['t2']) + attr_conf.history_params['post_validity']
+                    curr_expiration = rec[f"{attr_name}:exp"]
+                    if valid_since < datetime.utcnow() < valid_until and (attr_conf.multi_value or curr_expiration is None or valid_until > curr_expiration):
+                        update = {"attr": attr_name, "val": data_point['v'], "op": "set", "exp": valid_until}
+                        if attr_conf.confidence:
+                            update['c'] = data_point['c']
+                        requests_to_process.append(update)
 
                 # add all functions, which are hooked to events, to call queue
                 for event in events:
@@ -454,7 +532,8 @@ class TaskExecutor:
                             event_name = event['name']
                             updated = [(event_name, None)]
                         except (KeyError, TypeError):
-                            self.log.warning("Event {event} has wrong structure!".format(event=event))
+                            self.log.error("Event {event} has wrong structure!".format(event=event))
+                            self.elog.log('task_processing_error')
                             continue
                     self._update_call_queue(call_queue, etype, event_name, updated)
 
@@ -465,7 +544,7 @@ class TaskExecutor:
                 # perform all update requests
                 for update_request in requests_to_process:
                     attrib_name = update_request['attr']
-                    updated = self._perform_update(rec, update_request)
+                    updated = self._perform_update(rec, update_request, self.attr_spec[etype]['attribs'][attrib_name])
                     self.log.debug(f"Task {etype}/{ekey}: Attribute value updated: {update_request} (value changed: {updated})")
                     if not updated:
                         continue
@@ -477,9 +556,10 @@ class TaskExecutor:
                     # attributes to change
                     may_change |= self.get_all_possible_changes(etype, attrib_name)
 
-                # All requests were processed, clear the list
-                requests_to_process.clear()
+                # All requests/events/datapoints were processed, clear the lists
+                data_points.clear()
                 events.clear()
+                requests_to_process.clear()
 
             if not call_queue:
                 break  # No more work to do
@@ -490,6 +570,8 @@ class TaskExecutor:
                 self.log.warning(
                     "Too many iterations when updating ({}/{}), something went wrong! Update chain stopped.".format(
                         etype, ekey))
+                self.elog.log('task_processing_error')
+                may_change = {} # reset may_change to avoid triggering AssertionError below
                 break
 
             handler_function, updates = call_queue.popleft()
@@ -530,14 +612,16 @@ class TaskExecutor:
         assert(len(may_change) == 0)
 
         # Update processed database record
-        rec.push_changes_to_db()
+        try:
+            rec.push_changes_to_db()
+            self.log.debug(f"Task {etype}/{ekey}: All changes written to DB, processing finished.")
+        except Exception as e:
+            self.log.error(f"Task {etype}/{ekey}: Something went wrong when pushing changes to DB: {e}")
 
         # Log the processed task
         self.elog.log('task_processed')
         self.elog_by_src.log(src) # empty src is ok, empty string is a valid event id
         for tag in tags:
             self.elog_by_src.log(tag)
-
-        self.log.debug(f"Task {etype}/{ekey}: All changes written to DB, processing finished.")
 
         return new_rec_created

@@ -3,9 +3,9 @@ from typing import List
 from copy import deepcopy
 from datetime import datetime
 
-from sqlalchemy import create_engine, Table, Column, MetaData
-from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, FLOAT, JSON
-from sqlalchemy.sql import text, select, func, and_, desc
+from sqlalchemy import create_engine, Table, Column, MetaData, func
+from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, REAL, JSON
+from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
 from ..common.attrspec import AttrSpec
@@ -18,7 +18,7 @@ ATTR_TYPE_MAPPING = {
     'string': VARCHAR,
     'int': INTEGER,
     'int64': BIGINT,
-    'float': FLOAT,
+    'float': REAL,
     'time': TIMESTAMP,
     'ipv4': VARCHAR,
     'ipv6': VARCHAR,
@@ -41,6 +41,8 @@ HISTORY_ATTRIBS_CONF = {
     't2': AttrSpec("t2", {'name': "t2", 'data_type': "time"}),
     'c': AttrSpec("c", {'name': "c", 'data_type': "float"}),
     'src': AttrSpec("src", {'name': "src", 'data_type': "string"}),
+
+    'tag': AttrSpec("tag", {'name': "tag", 'data_type': "int"}) #TODO rather smallint?
 }
 
 # preconfigured attributes all tables (records) should have
@@ -137,6 +139,10 @@ class EntityDatabase:
             else:
                 column_type = ATTR_TYPE_MAPPING[attrib_conf.data_type]
 
+            # If the attribute is multi-value, convert column into an array
+            if not history and attrib_conf.multi_value is True:
+                column_type = ARRAY(column_type)
+
             # Create column
             if (history and attrib_id == "id") or (not history and attrib_id == "eid"):
                 # primary key column
@@ -150,7 +156,19 @@ class EntityDatabase:
 
             # Add confidence column if required from configuration
             if attrib_conf.confidence:
-                columns.append(Column(attrib_id + ":c", FLOAT))
+                column_type = REAL
+                # Multi-value attributes can have different confidence for each individual value
+                if attrib_conf.multi_value:
+                    column_type = ARRAY(column_type)
+                columns.append(Column(attrib_id + ":c", column_type))
+
+            # Add value expiration date for attributes with history
+            if attrib_conf.history:
+                column_type = TIMESTAMP
+                # Multi-value attributes can have different expiration date for each individual value
+                if attrib_conf.multi_value:
+                    column_type = ARRAY(column_type)
+                columns.append(Column(attrib_id + ":exp", column_type))
 
         return columns
 
@@ -486,14 +504,17 @@ class EntityDatabase:
             record_object[column.description] = db_record[i]
         return record_object
 
-    def get_datapoints_range(self, etype: str, attr_name: str, eid: str, t1: str, t2: str):
+    def get_datapoints_range(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True, sort: int = None, tag: int = None):
         """
         Gets data-points of certain time interval between t1 and t2 from database.
         :param etype: entity type
         :param attr_name: name of attribute
-        :param eid: id of entity, to which data-points corresponds
+        :param eid: id of entity, to which data-points correspond (optional)
         :param t1: left value of time interval
         :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2, None: dont sort
+        :param tag: optional filter for aggregation metadata
         :return: list of data-point objects or None on error
         """
         full_attr_name = f"{etype}__{attr_name}"
@@ -504,11 +525,29 @@ class EntityDatabase:
             return None
         # wanted datapoints values must have their 't2' > t1 and 't1' < t2 (where t without '' are arguments from this
         # method)
-        select_statement = select([data_point_table]).where(getattr(data_point_table.c, "eid") == eid)
+        select_statement = select([data_point_table])
+
+        if eid is not None:
+            select_statement = select_statement.where(getattr(data_point_table.c, "eid") == eid)
+
+        if tag is not None:
+            select_statement = select_statement.where(getattr(data_point_table.c, "tag") == tag)
+
         if t1 is not None:
-            select_statement = select_statement.where(getattr(data_point_table.c, "t2") > t1)
+            if closed_interval:
+                select_statement = select_statement.where(getattr(data_point_table.c, "t2") >= t1)
+            else:
+                select_statement = select_statement.where(getattr(data_point_table.c, "t2") > t1)
         if t2 is not None:
-            select_statement = select_statement.where(getattr(data_point_table.c, "t2") < t2)
+            if closed_interval:
+                select_statement = select_statement.where(getattr(data_point_table.c, "t1") <= t2)
+            else:
+                select_statement = select_statement.where(getattr(data_point_table.c, "t1") < t2)
+
+        if sort == 0:
+            select_statement = select_statement.order_by(asc(data_point_table.c.t1))
+        elif sort == 1:
+            select_statement = select_statement.order_by(desc(data_point_table.c.t2))
 
         try:
             result = self._db.execute(select_statement)
@@ -520,6 +559,21 @@ class EntityDatabase:
             data_points_result.append(self.get_object_from_db_record(data_point_table, row))
         return data_points_result
 
+    def delete_old_datapoints(self, etype: str, attr_name: str, t_old: str, t_redundant: str, tag: int):
+        full_attr_name = f"{etype}__{attr_name}"
+        try:
+            data_point_table = self._tables[full_attr_name]
+        except KeyError:
+            self.log.error(f"Cannot get data-points range, because history table of {full_attr_name} does not exist!")
+            return None
+        # Delete all datapoints older than 't_old' and redundant datapoints older than 't_redundant'
+        delete_statement = delete(data_point_table).where((getattr(data_point_table.c, "t2") < t_old) | ((getattr(data_point_table.c, "t2") < t_redundant) & (getattr(data_point_table.c, "tag") == tag)))
+        try:
+            result = self._db.execute(delete_statement)
+        except Exception as e:
+            self.log.error(f"Delete operation failed: {e}")
+            return None
+
     def rewrite_data_points(self, etype: str, attr_name: str, list_of_ids_to_delete: list, new_data_points: list):
         """
         Deletes data-points of specified ids and inserts new data-points.
@@ -530,10 +584,73 @@ class EntityDatabase:
         :return: None
         """
         full_attr_name = f"{etype}__{attr_name}"
-        # TODO: do in a trasnsaction (that is probably needed on other places as well)
+        # TODO: do in a transaction (that is probably needed on other places as well)
         self.delete_multiple_records(full_attr_name, list_of_ids_to_delete)
         self.create_multiple_records(full_attr_name, new_data_points)
 
+    def get_entities(self, etype: str):
+        """
+        Returns all unique entities (eid) of given type
+        :param etype: entity type
+        :return: List of entity ids
+        """
+        try:
+            table_name = self._tables[etype]
+        except KeyError:
+            self.log.error(f"get_entities(): Table '{etype}' does not exist!")
+            return None
+        select_statement = select([table_name.c.eid]).distinct()
+        try:
+            result = self._db.execute(select_statement)
+        except Exception as e:
+            self.log.error(f"get_entities(): Select failed: {e}")
+            return None
+        return [r[0] for r in result]
+
+    def unset_expired_values(self, etype: str, attr: str, confidence: bool):
+        """
+        Set expired values of given attribute to NULL (doesn't work for multi-value attributes)
+        :param etype: entity type
+        :param attr: attribute id
+        :param confidence: unset confidence as well if set to true
+        :return: None
+        """
+        try:
+            record_table = self._tables[etype]
+        except KeyError:
+            raise MissingTableError(f"unset_expired_values(): Table {etype} does not exist!")
+        exp_column = f"{attr}:exp"
+        c_column = f"{attr}:c"
+        updates = {attr: None, exp_column: None}
+        if confidence:
+            updates[c_column] = None
+        update_statement = record_table.update().where(getattr(record_table.c, exp_column) < datetime.now()).values(updates)
+        try:
+            self._db.execute(update_statement)
+        except Exception as e:
+            raise DatabaseError(
+                f"unset_expired_values(): Update failed: {e}")
+
+    def get_entities_with_expired_values(self, etype: str, attr: str):
+        """
+        Search for records containing an expired value (only works for multi-value attributes)
+        :param etype: entity type
+        :param attr: attribute id
+        :return: list of entity ids
+        """
+        try:
+            table_name = self._tables[etype]
+        except KeyError:
+            self.log.error(f"get_entities_with_expired_values(): Table '{etype}' does not exist!")
+            return None
+        exp_column = f"\"{attr}:exp\""
+        select_statement = select([table_name.c.eid]).select_from(text(f"unnest({exp_column}) as exp")).where(text(f"exp < \'{datetime.now()}\'"))
+        try:
+            result = self._db.execute(select_statement)
+        except Exception as e:
+            self.log.error(f"get_entities_with_expired_values(): Select failed: {e}")
+            return None
+        return [r[0] for r in result]
     def last_updated(self, etype, before, after=None, weekly=False, limit=None):
         try:
             table = self._tables[etype]

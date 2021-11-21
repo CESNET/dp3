@@ -22,6 +22,7 @@ from .common.base_module import BaseModule
 from .database.database import EntityDatabase
 from .task_processing.task_executor import TaskExecutor
 from .task_processing.task_distributor import TaskDistributor
+from .history_management.history_manager import HistoryManager
 from . import g
 
 def load_modules(modules_dir, enabled_modules, log):
@@ -119,7 +120,8 @@ def main(app_name, config_dir, process_index, verbose):
     g.running = False
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
-    te = TaskExecutor(g.db, attr_spec)
+    g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes)
+    te = TaskExecutor(g.db, attr_spec, g.hm)
     g.td = TaskDistributor(config, process_index, num_processes, te)
 
     ##############################################
@@ -164,6 +166,9 @@ def main(app_name, config_dir, process_index, verbose):
     # start TaskDistributor (which starts TaskExecutors in several worker threads)
     g.td.start()
 
+    # start HistoryManager
+    g.hm.start()
+
     # Run scheduler
     g.scheduler.start()
 
@@ -189,6 +194,7 @@ def main(app_name, config_dir, process_index, verbose):
     g.running = False
     g.scheduler.stop()
     g.td.stop()
+    g.hm.stop()
     for module in module_list:
         module.stop()
 

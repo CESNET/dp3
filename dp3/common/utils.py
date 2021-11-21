@@ -45,6 +45,37 @@ def parse_rfc_time(time_str):
         raise ValueError("Wrong timestamp format")
 
 
+def parse_time_duration(duration_string: str) -> datetime.timedelta:
+    """
+    Parse duration in format <num><s/m/h/d> (or just "0").
+
+    Return datetime.timedelta
+    """
+    # if number is passed, consider it number of seconds
+    if isinstance(duration_string, (int, float)):
+        return datetime.timedelta(seconds=duration_string)
+
+    d = 0
+    h = 0
+    m = 0
+    s = 0
+
+    if duration_string == "0":
+        pass
+    elif duration_string[-1] == "d":
+        d = int(duration_string[:-1])
+    elif duration_string[-1] == "h":
+        h = int(duration_string[:-1])
+    elif duration_string[-1] == "m":
+        m = int(duration_string[:-1])
+    elif duration_string[-1] == "s":
+        s = int(duration_string[:-1])
+    else:
+        raise ValueError("Invalid time duration string")
+
+    return datetime.timedelta(days=d, hours=h, minutes=m, seconds=s)
+
+
 # *** object (de)serialization ***
 # Functions that allow to (de)serialize some objects we need to pass for example via TaskQueue.
 # Inspired by bson.json_util, but for different set of types (and much simpler).

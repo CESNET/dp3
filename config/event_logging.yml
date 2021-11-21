@@ -14,6 +14,7 @@ groups:
       - record_removed
       - record_created
       - module_error # an exception was raised within a handler function
+      - task_processing_error # any other error in task processing
     # Two intervals - 5 sec for immediate status view in admin's box on the web, and 5 min for longer-term history in Munin
     intervals: ["5s", "5m"]
     # Cache counts locally, push to Redis every second

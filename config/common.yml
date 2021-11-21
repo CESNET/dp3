@@ -5,3 +5,4 @@ cfg_files:
   db: "database.yml"
   processing_core: "processing_core.yml"
   attr_spec: "attributes_specification.yml"
+  updater: "updater.yml"

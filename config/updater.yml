@@ -1,0 +1,15 @@
+# Configuration file for updater
+#
+# Updater periodically issues tasks to trigger regular updates of all entities in database
+# Regular updates are configured separately for every entity type.
+#
+# Format:
+# {entity_type}:
+#   {interval_in_minutes}: {name_of_event}
+#   {interval_in_minutes}: {name_of_event}
+#
+# Example:
+# ip:
+#   1: "!every1m"
+#   60: "!every1h"
+#   1140: "!every1d"

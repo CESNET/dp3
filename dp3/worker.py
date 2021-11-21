@@ -115,6 +115,7 @@ def main(app_name, config_dir, process_index, verbose):
 
     g.app_name = app_name
     g.config = config
+    g.attr_spec = attr_spec
     g.running = False
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
@@ -124,10 +125,15 @@ def main(app_name, config_dir, process_index, verbose):
     ##############################################
     # Load all plug-in modules
 
-    modules_dir = config.get('processing_core.modules_dir')
-    modules_dir = os.path.abspath(os.path.join(g.config_base_path, modules_dir))
+    working_directory = os.path.dirname(__file__) 
+    core_modules_dir = os.path.abspath(os.path.join(working_directory, 'core_modules'))
+    custom_modules_dir = config.get('processing_core.modules_dir')
+    custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
 
-    module_list = load_modules(modules_dir, config.get('processing_core.enabled_modules'), log)
+    core_module_list = load_modules(core_modules_dir, {}, log)
+    custom_module_list = load_modules(custom_modules_dir, config.get('processing_core.enabled_modules'), log)
+
+    module_list = core_module_list + custom_module_list
 
     # Lock used to control when the program stops.
     g.daemon_stop_lock = threading.Lock()

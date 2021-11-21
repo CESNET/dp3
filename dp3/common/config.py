@@ -5,6 +5,7 @@ import yaml
 import os
 from .attrspec import AttrSpec
 from .entityspec import EntitySpec
+from .base_attrs import BASE_ATTRIBS
 
 
 class NoDefault:
@@ -176,6 +177,9 @@ def load_attr_spec(config_in):
                 config_out[entity_type]["attribs"][attr] = AttrSpec(attr, spec["attribs"][attr])
             except Exception as e:
                 raise AssertionError(f"Invalid specification of attribute '{attr}': {e}")
+
+        # Add base attributes - attributes that every entity_type should have
+        config_out[entity_type]["attribs"].update(BASE_ATTRIBS)
 
     return config_out
 

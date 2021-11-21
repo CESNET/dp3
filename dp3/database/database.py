@@ -533,3 +533,28 @@ class EntityDatabase:
         # TODO: do in a trasnsaction (that is probably needed on other places as well)
         self.delete_multiple_records(full_attr_name, list_of_ids_to_delete)
         self.create_multiple_records(full_attr_name, new_data_points)
+
+    def last_updated(self, etype, before, after=None, weekly=False, limit=None):
+        try:
+            table = self._tables[etype]
+        except KeyError:
+            self.log.error(f"need_update: No table for entity type '{etype}'")
+            return set()
+
+        cols = [table.c.eid,table.c._lru,table.c.ts_added]
+        select_statement = select(cols) \
+            .where(table.c._lru < before)
+        if after is not None:
+            select_statement = select_statement.where(table.c._lru > after)
+        if limit is not None:
+            select_statement = select_statement.limit(limit)
+
+        # Execute statement
+        try:
+            result = self._db.execute(select_statement)
+        except Exception as e:
+            self.log.error(f"need_update: Search on table '{etype}' failed: {e}")
+            return set()
+
+        # Read all rows and return set of matching entity IDs
+        return result 

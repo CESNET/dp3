@@ -273,6 +273,7 @@ class TaskExecutor:
                     'eid': ekey,
                     'ts_added': now,
                     'ts_last_update': now,
+                    '_lru': now,
                 })
                 new_rec_created = True
                 # New record was created -> add "!NEW" event

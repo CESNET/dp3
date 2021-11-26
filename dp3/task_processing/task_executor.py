@@ -141,25 +141,25 @@ class TaskExecutor:
             else:
                 self._attr2func[etype][attr] = [func]
 
-    def _parse_record_from_key_hierarchy(self, rec, key):
-        # Process keys with hierarchy, i.e. containing dots (like "events.scan.count")
-        # rec will be the inner-most subobject ("events.scan"), key the last attribute ("count")
-        # If path doesn't exist in the hierarchy, it's created
-        while '.' in key:
-            first_key, key = key.split('.', 1)
-            if first_key.isdecimal():  # index of array
-                rec = rec[int(first_key)]
-            else:  # key of object/dict
-                if first_key not in rec:
-                    rec[first_key] = {}
-                rec = rec[first_key]
-        return rec
+    # def _parse_record_from_key_hierarchy(self, rec: Record, key: str):
+    #     # Process keys with hierarchy, i.e. containing dots (like "events.scan.count")
+    #     # Returned rec will be the inner-most subobject ("events.scan"), key the last attribute ("count")
+    #     # If path doesn't exist in the hierarchy, it's created
+    #     while '.' in key:
+    #         first_key, key = key.split('.', 1)
+    #         if first_key.isdecimal():  # index of array
+    #             rec = rec[int(first_key)]
+    #         else:  # key of object/dict
+    #             if first_key not in rec:
+    #                 rec[first_key] = {}
+    #             rec = rec[first_key]
+    #     return rec
 
-    def _perform_op_set(self, rec, key, updreq):
+    def _perform_op_set(self, rec: Record, key: str, updreq: dict):
         rec[key] = updreq['val']
         return [(key, rec[key])]
 
-    def _perform_op_set_multivalue(self, rec, key, updreq):
+    def _perform_op_set_multivalue(self, rec: Record, key: str, updreq: dict):
         if key not in rec:
             rec[key] = [updreq['val']]
             if 'c' in updreq:
@@ -170,6 +170,7 @@ class TaskExecutor:
             idx = rec[key].index(updreq['val'])
             if 'c' in updreq:
                 rec[f"{key}:c"][idx] = updreq['c']
+                # this is not no-op as it may seem, we need to perform item assignment on "rec" in order to trigger Record's custom __setitem__ method
                 rec[f"{key}:c"] = rec[f"{key}:c"]
             if 'exp' in updreq:
                 rec[f"{key}:exp"][idx] = updreq['exp']
@@ -177,24 +178,26 @@ class TaskExecutor:
         else:
             rec[key] = rec[key] + [updreq['val']]
             if 'c' in updreq:
+                # append is not used here, as we need to *assign* a new value to rec[key] in order for Record to cache what has changed (it has custom __setitem__ method)
                 rec[f"{key}:c"] = rec[f"{key}:c"] + [updreq['c']]
             if 'exp' in updreq:
                 rec[f"{key}:exp"] = rec[f"{key}:exp"] + [updreq['exp']]
         return [(key, rec[key])]
 
-    def _perform_op_unset(self, rec, key, updreq):
+    def _perform_op_unset(self, rec: Record, key: str, updreq: dict):
         if key in rec:
             del rec[key]
             return [(updreq['val'], None)]
         return None
 
-    def _perform_op_unset_multivalue(self, rec, key, updreq):
+    def _perform_op_unset_multivalue(self, rec: Record, key: str, updreq: dict):
         if key not in rec or updreq['val'] not in rec[key]:
             return None
         else:
             idx = rec[key].index(updreq['val'])
             del rec[key][idx]
-            rec[key] = rec[key]  # update record changes
+            # this is not no-op as it may seem, we need to perform item assignment on "rec" in order to trigger Record's custom __setitem__ method
+            rec[key] = rec[key]
             if f"{key}:c" in rec:
                 del rec[f"{key}:c"][idx]
                 rec[f"{key}:c"] = rec[f"{key}:c"]
@@ -203,35 +206,35 @@ class TaskExecutor:
                 rec[f"{key}:exp"] = rec[f"{key}:exp"]
         return [(key, rec[key])]
 
-    def _perform_op_add(self, rec, key, updreq):
+    def _perform_op_add(self, rec: Record, key: str, updreq: dict):
         if key not in rec:
             rec[key] = updreq['val']
         else:
             rec[key] += updreq['val']
         return [(key, rec[key])]
 
-    def _perform_op_sub(self, rec, key, updreq):
+    def _perform_op_sub(self, rec: Record, key: str, updreq: dict):
         if key not in rec:
             rec[key] = -updreq['val']
         else:
             rec[key] -= updreq['val']
         return [(key, rec[key])]
 
-    def _perform_op_setmax(self, rec, key, updreq):
+    def _perform_op_setmax(self, rec: Record, key: str, updreq: dict):
         if key not in rec:
             rec[key] = updreq['val']
         else:
             rec[key] = max(updreq['val'], rec[key])
         return [(key, rec[key])]
 
-    def _perform_op_setmin(self, rec, key, updreq):
+    def _perform_op_setmin(self, rec: Record, key: str, updreq: dict):
         if key not in rec:
             rec[key] = updreq['val']
         else:
             rec[key] = min(updreq['val'], rec[key])
         return [(key, rec[key])]
 
-    def _perform_op_next_step(self, rec, key, updreq):
+    def _perform_op_next_step(self, rec: Record, key: str, updreq: dict):
         key_base = updreq['base_attr']
         minimum = updreq['min']
         step = updreq['step']
@@ -239,14 +242,14 @@ class TaskExecutor:
         rec[key] = base + ((minimum - base) // step + 1) * step
         return [(key, rec[key])]
 
-    def _perform_op_array_append(self, rec, key, updreq):
+    def _perform_op_array_append(self, rec: Record, key: str, updreq: dict):
         if key not in rec:
             rec[key] = [updreq['val']]
         else:
             rec[key] = rec[key] + [updreq['val']]
         return[(key, rec[key])]
 
-    def _perform_op_array_insert(self, rec, key, updreq):
+    def _perform_op_array_insert(self, rec: Record, key: str, updreq: dict):
         try:
             rec[key].insert(updreq['i'], updreq['val'])
             rec[key] = rec[key] # update record changes
@@ -254,15 +257,15 @@ class TaskExecutor:
             return None
         return [(key, rec[key])]
 
-    def _perform_op_array_remove(self, rec, key, updreq):
+    def _perform_op_array_remove(self, rec: Record, key: str, updreq: dict):
         try:
             rec[key].remove(updreq['val'])
             rec[key] = rec[key]  # update record changes
-        except Exception:
+        except ValueError: # item is not in the array - do nothing
             return None
         return [(key, rec[key])]
 
-    def _perform_op_set_add(self, rec, key, updreq):
+    def _perform_op_set_add(self, rec: Record, key: str, updreq: dict):
         value = updreq['val']
         if key not in rec:
             rec[key] = [value]
@@ -273,7 +276,7 @@ class TaskExecutor:
             pass
         return [(key, rec[key])]
 
-    def _perform_op_set_remove(self, rec, key, updreq):
+    def _perform_op_set_remove(self, rec: Record, key: str, updreq: dict):
         if key in rec:
             rec[key] = list(set(rec[key]) - set(updreq['val']))
         return [(key, rec[key])]
@@ -292,10 +295,12 @@ class TaskExecutor:
         op = updreq['op']
         key = updreq['attr']
 
-        # TODO: will this really change the "rec" (Record) correctly, i.e. it seems it's "update" method is not called,
-        #  so the changes won't get written to database
-        #  (the above holds if there is a hierarchical key, since _parse_record_from_key_hierarchy return normal object, not Record, in such case)
-        rec = self._parse_record_from_key_hierarchy(rec, key)
+        # TODO: It seems this won't work correctly if there is a hierarchical key, since it returns normal object/dict,
+        #  not Record, so any changes made over 'rec' are not cached in the Record object and therefore won't get
+        #  written to database.
+        #  Moreover, "key" is not updated, but it should be
+        # Since we currently don't use hierarchical attribute names, this is disabled
+        #rec = self._parse_record_from_key_hierarchy(rec, key)
 
         # check confidence and/or expiration date (if required by configuration) and set default values if needed
         if attrib_conf.confidence and 'c' not in updreq:

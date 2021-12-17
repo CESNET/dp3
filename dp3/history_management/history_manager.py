@@ -51,7 +51,7 @@ class HistoryManager:
         data['tag'] = TAG_PLAIN
 
         # Check for collisions
-        datapoints = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t1'], data['t2'])
+        datapoints = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t1'], data['t2'], closed_interval=False)
         merge_list = []
         for d in datapoints:
             m = mergeable(data, d, history_params)
@@ -207,21 +207,24 @@ class HistoryManager:
                     if attr_conf.multi_value:
                         entities = self.db.get_entities_with_expired_values(etype, attr_id)
                         for eid in entities:
-                            rec = Record(self.db, etype, eid)
-                            new_val = rec[attr_id]
-                            new_exp = rec[attr_exp]
-                            new_c = rec[attr_c] if attr_conf.confidence else None
-                            for exp in rec[attr_exp]:
-                                if exp < datetime.now():
-                                    idx = rec[attr_exp].index(exp)
-                                    del new_val[idx]
-                                    del new_exp[idx]
-                                    rec[attr_id] = new_val
-                                    rec[attr_exp] = new_exp
-                                    if new_c:
-                                        del new_c[idx]
-                                        rec[attr_c] = new_c
-                            rec.push_changes_to_db()
+                            try:
+                                rec = Record(self.db, etype, eid)
+                                new_val = rec[attr_id]
+                                new_exp = rec[attr_exp]
+                                new_c = rec[attr_c] if attr_conf.confidence else None
+                                for exp in rec[attr_exp]:
+                                    if exp < datetime.now():
+                                        idx = rec[attr_exp].index(exp)
+                                        del new_val[idx]
+                                        del new_exp[idx]
+                                        rec[attr_id] = new_val
+                                        rec[attr_exp] = new_exp
+                                        if new_c:
+                                            del new_c[idx]
+                                            rec[attr_c] = new_c
+                                rec.push_changes_to_db()
+                            except Exception as e:
+                                self.log.error(f"history_management_thread(): {etype} / {eid} / {attr_id}: {e}")
                     else:
                         self.db.unset_expired_values(etype, attr_id, attr_conf.confidence)
 

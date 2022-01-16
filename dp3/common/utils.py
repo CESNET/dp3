@@ -3,6 +3,7 @@ auxiliary/utility functions and classes
 """
 import re
 import datetime
+from typing import Union
 
 # *** IP conversion functions ***
 ipv4_re = re.compile(r"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$")
@@ -45,12 +46,15 @@ def parse_rfc_time(time_str):
         raise ValueError("Wrong timestamp format")
 
 
-def parse_time_duration(duration_string: str) -> datetime.timedelta:
+def parse_time_duration(duration_string: Union[str,int,datetime.timedelta]) -> datetime.timedelta:
     """
     Parse duration in format <num><s/m/h/d> (or just "0").
 
     Return datetime.timedelta
     """
+    # if it's already timedelta, just return it unchanged
+    if isinstance(duration_string, datetime.timedelta):
+        return duration_string
     # if number is passed, consider it number of seconds
     if isinstance(duration_string, (int, float)):
         return datetime.timedelta(seconds=duration_string)

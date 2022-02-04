@@ -138,7 +138,8 @@ def push_task(task):
         task["delete"],
         task["src"],
         task["tags"],
-        False # priority
+        False, # priority
+        task["ttl_token"]
     )
 
 
@@ -247,7 +248,8 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
     t = {
         "etype": entity_type,
         "ekey": entity_id,
-        "src": src
+        "src": src,
+        "ttl_token": "default"
     }
 
     if spec.history is True:
@@ -380,7 +382,7 @@ def push_multiple_datapoints():
                 "ekey": ekey,
                 "data_points": [],
                 "attr_updates": [],
-                "src": src
+                "src": src,
             }
 
         # Add data-points or attr updates

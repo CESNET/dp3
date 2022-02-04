@@ -52,7 +52,7 @@ def stop(signal, frame):
 
 def issue_events(db,tqw,log,etypes,args,updater_config):
     global last_fetch_time
-    start_time = datetime.now()
+    start_time = datetime.utcnow()
 
     # Load the file with additional events
     additional_events_file = os.path.join(args.config_dir, CONFIG_FILE_NAME)
@@ -79,21 +79,27 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         log.error(f"Error in the file with additional events ('{additional_events_file}', line '{line}''): {e}")
 
     for etype in etypes:
+        print(etype)
         # Check if updater is configured for given etype 
         try: 
-            config = updater_config.get(etype)
+            events_config = updater_config.get(etype).get("updater", {})
+            ttl_tokens_config = updater_config.get(etype).get("ttl_tokens", {})
         except MissingConfigError:
             # Updater is not configured for etype
             continue
+        print(events_config)
+        print(ttl_tokens_config)
 
         # Get all intervals from config - needed for computing gcd
-        intervals = [_ for _ in config]
+        intervals = [_ for _ in events_config]
+        ttl_tokens_intervals = [_ for _ in ttl_tokens_config.values()]
 
         # Updater calculates gcd (greatest common denominator) 
         # of all configured intervals for given etype.
         # Updater will than process every entity once per gcd hours
         # and check if any event needs to be issued
-        gcd = timedelta(hours=int(numpy.gcd.reduce(intervals)))
+        #gcd = timedelta(hours=int(numpy.gcd.reduce(intervals)))
+        gcd = timedelta(minutes=int(numpy.gcd.reduce(intervals+ttl_tokens_intervals)))
 
         
         # Get list of IDs that needs to be checked
@@ -110,17 +116,45 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         # Update _lru and possibly issue configured events
         count = 0 # number of issued events - needed for limit implementation
         for eid,lru,ts_added in entities:
+            old_ttl_tokens = db.get_attrib(etype, eid, "_ttl")
+            new_ttl_tokens = {}
+            delete_entry = True
+            for token,created in old_ttl_tokens.items():
+                created = parse_rfc_time(created)
+                try:
+                    val = ttl_tokens_config[token]
+                except KeyError:
+                    log.error(f"Unknown TTL token {token}. Skipping record {eid}!")
+                    continue
+                if val == "*":
+                    delete_entry = False
+                    new_ttl_tokens["token"] = created
+                else:
+                    try:
+                        ttl_interval = int(ttl_tokens_config[token]) 
+                    except Exception:
+                        log.error(f"Invalid value for ttl token {token}. Skipping.")
+                        continue
+                    if created + timedelta(minutes=ttl_interval) > start_time:
+                        delete_entry = False
+                        new_ttl_tokens["token"] = created
+
+            if delete_entry:
+                tqw.put_task(etype=etype, ekey=eid, delete=True, src="updater")
+                continue
+
+
             # Time passed until last regular update
             delta_lru = lru - ts_added
             # Time passed until now
             delta_now = start_time - ts_added
 
             events = []
-            for interval,event in config.items():
+            for interval,event in events_config.items():
                 # From passed time we can calculate number of events 
                 # that was/should be issued
-                old_interval_count = (delta_lru) // timedelta(hours=interval)
-                new_interval_count = (delta_now) // timedelta(hours=interval)
+                #old_interval_count = (delta_lru) // timedelta(hours=interval)
+                #new_interval_count = (delta_now) // timedelta(hours=interval)
 
                 # If new value is bigger than older we need to issue event
                 # In case of longer unaviability of dp3 

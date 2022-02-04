@@ -189,7 +189,7 @@ class TaskQueueWriter(RobustAMQPConnection):
             raise ExchangeNotDeclared(self.exchange_pri)
         return True
 
-    def put_task(self, etype, ekey, attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None, priority=False):
+    def put_task(self, etype, ekey, attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None, priority=False, ttl_token=""):
         """
         Put task (update_request) to the queue of corresponding worker
         :param etype: entity type (eg. 'ip')
@@ -203,6 +203,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         :param src: name of source module, mostly for logging
         :param tags: tags for logging (number of tasks per time interval by tag)
         :param priority: if true, the task is placed into priority queue (should only be used internally by workers)
+        :param ttl_token: time to live token
         :return: None
         """
         if not self.channel:
@@ -220,7 +221,8 @@ class TaskQueueWriter(RobustAMQPConnection):
             'create': create,
             'delete': delete,
             'src': src,
-            'tags': [] if tags is None else tags
+            'tags': [] if tags is None else tags,
+            'ttl_token': ttl_token
         }
 
         self.log.debug(f"Received new task: {msg}")
@@ -276,7 +278,7 @@ class TaskQueueReader(RobustAMQPConnection):
         Each received message must be acknowledged by calling .ack(msg_tag).
 
         :param callback: Function called when a message is received, prototype:
-                    func(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags)
+                    func(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token)
         :param app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
         :param worker_index: index of this worker (filled into DEFAULT_QUEUE string using .format() method)
         :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
@@ -411,7 +413,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 task = json.loads(body, object_hook=conv_from_json)
                 etype, ekey, attr_updates = task['etype'], task['ekey'], task['attr_updates']
                 events, data_points = task['events'], task['data_points']
-                delete, src, tags = task['delete'], task['src'], task['tags']
+                delete, src, tags, ttl_token = task['delete'], task['src'], task['tags'], task['ttl_token']
                 # create does not have to be in task body, if it was not sent, then TaskExecutor will load it from config
                 create = task.get('create')
             except (ValueError, TypeError, KeyError) as e:
@@ -421,7 +423,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 continue
 
             # Pass message to user's callback function
-            self.callback(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags)
+            self.callback(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token)
 
     def _stop_consuming_thread(self):
         if self._consuming_thread:

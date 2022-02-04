@@ -5,11 +5,16 @@
 #
 # Format:
 # {entity_type}:
-#   {interval_in_minutes}: {name_of_event}
-#   {interval_in_minutes}: {name_of_event}
-#
+#   updater:
+#     {interval_in_hours}: {name_of_event}
+#     {interval_in_hours}: {name_of_event}
+#   ttl_tokens:
+#     {token_name}: {interval_in_hours}
+#     {token_name}: {interval_in_hours}
 # Example:
 # ip:
-#   1: "!every1m"
-#   60: "!every1h"
-#   1140: "!every1d"
+#   updater:
+#     1: "!every1h"
+#     24: "!every1d"
+#   ttl_tokens:
+#     "default": 168

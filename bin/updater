@@ -79,7 +79,6 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         log.error(f"Error in the file with additional events ('{additional_events_file}', line '{line}''): {e}")
 
     for etype in etypes:
-        print(etype)
         # Check if updater is configured for given etype 
         try: 
             events_config = updater_config.get(etype).get("updater", {})
@@ -87,8 +86,6 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         except MissingConfigError:
             # Updater is not configured for etype
             continue
-        print(events_config)
-        print(ttl_tokens_config)
 
         # Get all intervals from config - needed for computing gcd
         intervals = [_ for _ in events_config]
@@ -98,8 +95,7 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         # of all configured intervals for given etype.
         # Updater will than process every entity once per gcd hours
         # and check if any event needs to be issued
-        #gcd = timedelta(hours=int(numpy.gcd.reduce(intervals)))
-        gcd = timedelta(minutes=int(numpy.gcd.reduce(intervals+ttl_tokens_intervals)))
+        gcd = timedelta(hours=int(numpy.gcd.reduce(intervals)))
 
         
         # Get list of IDs that needs to be checked
@@ -135,7 +131,7 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
                     except Exception:
                         log.error(f"Invalid value for ttl token {token}. Skipping.")
                         continue
-                    if created + timedelta(minutes=ttl_interval) > start_time:
+                    if created + timedelta(hours=ttl_interval) > start_time:
                         delete_entry = False
                         new_ttl_tokens["token"] = created
 
@@ -153,8 +149,8 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
             for interval,event in events_config.items():
                 # From passed time we can calculate number of events 
                 # that was/should be issued
-                #old_interval_count = (delta_lru) // timedelta(hours=interval)
-                #new_interval_count = (delta_now) // timedelta(hours=interval)
+                old_interval_count = (delta_lru) // timedelta(hours=interval)
+                new_interval_count = (delta_now) // timedelta(hours=interval)
 
                 # If new value is bigger than older we need to issue event
                 # In case of longer unaviability of dp3 

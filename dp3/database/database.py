@@ -651,6 +651,7 @@ class EntityDatabase:
             self.log.error(f"get_entities_with_expired_values(): Select failed: {e}")
             return None
         return [r[0] for r in result]
+
     def last_updated(self, etype, before, after=None, weekly=False, limit=None):
         try:
             table = self._tables[etype]
@@ -658,7 +659,7 @@ class EntityDatabase:
             self.log.error(f"need_update: No table for entity type '{etype}'")
             return set()
 
-        cols = [table.c.eid,table.c._lru,table.c.ts_added]
+        cols = [table.c.eid, table.c._lru, table.c.ts_added]
         select_statement = select(cols) \
             .where(table.c._lru < before)
         if after is not None:

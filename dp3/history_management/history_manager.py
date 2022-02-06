@@ -179,7 +179,7 @@ class HistoryManager:
     def history_management_thread(self):
         # TODO docstring explaining what the function does
         # TODO: use apscheduler
-        tick_rate = timedelta(minutes=30)  # TODO add to global config
+        tick_rate = timedelta(minutes=2)  # TODO add to global config
         next_call = datetime.now()
         while self.running:
             t_start = datetime.now()
@@ -190,7 +190,6 @@ class HistoryManager:
                 for attr_id in self.attr_spec[etype]['attribs']:
                     if self.attr_spec[etype]['attribs'][attr_id].history is False:
                         continue
-                    table_name = f"{etype}__{attr_id}"
                     history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
                     t_old = str(datetime.now() - history_params["max_age"])
                     t_redundant = str(datetime.now() - history_params["aggregation_max_age"])
@@ -198,6 +197,25 @@ class HistoryManager:
 
             for etype in self.attr_spec:
                 entities = self.db.get_entities(etype)
+
+                # Confidence processing
+                attribs = self.attr_spec[etype]['attribs']
+                t_now = t_start
+                for eid in entities:
+                    rec = Record(self.db, etype, eid)
+                    for attr_id, attr_conf in attribs.items():
+                        attr_c = f"{attr_id}:c"
+                        if not attr_conf.confidence or not rec[attr_c]:
+                            continue
+                        t_exp = rec[f"{attr_id}:exp"]
+                        post_validity = attr_conf.history_params['post_validity']
+                        if attr_conf.multi_value:
+                            rec[attr_c] = [min((t_exp_part - t_now) / post_validity, 1.0) for t_exp_part in t_exp]
+                        else:
+                            rec[attr_c] = min((t_exp - t_now) / post_validity, 1.0)
+                    rec.push_changes_to_db()
+
+                # Expiration processing
                 for attr_id in self.attr_spec[etype]['attribs']:
                     attr_conf = self.attr_spec[etype]['attribs'][attr_id]
                     attr_exp = f"{attr_id}:exp"

@@ -177,7 +177,16 @@ class HistoryManager:
             self.db.delete_multiple_records(f"{etype}__{attr_id}", delete_ids)
 
     def history_management_thread(self):
-        # TODO docstring explaining what the function does
+        """
+        Manages all aspects of maintaining history.
+
+        Periodically maintains these aspects:
+        - deletes old records (data points) from history tables
+        - updates confidence values in entity tables
+        - deletes expired attribute values from entity tables
+
+        TODO: This function does too many things - separate deleting old records into separate function.
+        """
         # TODO: use apscheduler
         tick_rate = timedelta(minutes=2)  # TODO add to global config
         next_call = datetime.now()

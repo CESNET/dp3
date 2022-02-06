@@ -19,6 +19,44 @@ TAG_AGGREGATED = 1
 TAG_REDUNDANT = 2
 
 
+def get_historic_value(db, config, etype, eid, attr_id, timestamp):
+    attr_spec = config[etype]['attribs'][attr_id]
+    t1 = timestamp - attr_spec.history_params['post_validity']
+    t2 = timestamp + attr_spec.history_params['pre_validity']
+    datapoints = db.get_datapoints_range(etype, attr_id, eid, t1, t2)
+
+    if len(datapoints) < 1:
+        return None
+
+    if attr_spec.multi_value is True:
+        return set([d['v'] for d in datapoints])
+
+    best = None
+    for d in datapoints:
+        confidence = extrapolate_confidence(d, timestamp, attr_spec.history_params)
+        if best is None or confidence > best[1]:
+            best = d['v'], confidence
+    return best[0] if best is not None else None
+
+
+def extrapolate_confidence(datapoint, timestamp, history_params):
+    pre_validity = history_params['pre_validity']
+    post_validity = history_params['post_validity']
+    t1 = datapoint['t1']
+    t2 = datapoint['t2']
+    base_confidence = datapoint['c']
+
+    if t2 < timestamp:
+        distance = timestamp - t2
+        multiplier = (1 - (distance / post_validity))
+    elif t1 > timestamp:
+        distance = t1 - timestamp
+        multiplier = (1 - (distance / pre_validity))
+    else:
+        multiplier = 1
+    return base_confidence * multiplier
+
+
 class HistoryManager:
     def __init__(self, db, attr_spec, worker_index, num_workers):
         self.log = logging.getLogger("HistoryManager")
@@ -208,21 +246,39 @@ class HistoryManager:
                 entities = self.db.get_entities(etype)
 
                 # Confidence processing
-                attribs = self.attr_spec[etype]['attribs']
-                t_now = t_start
-                for eid in entities:
-                    rec = Record(self.db, etype, eid)
-                    for attr_id, attr_conf in attribs.items():
-                        attr_c = f"{attr_id}:c"
-                        if not attr_conf.confidence or not rec[attr_c]:
+                for attr_id, attr_conf in self.attr_spec[etype]['attribs'].items():
+                    attr_c = f"{attr_id}:c"
+                    if not attr_conf.confidence:
+                        continue
+                    t1 = t_start - attr_conf.history_params['post_validity']
+                    t2 = t_start + attr_conf.history_params['pre_validity']
+                    for eid in entities:
+                        rec = Record(self.db, etype, eid)
+                        if not rec[attr_c]:
                             continue
-                        t_exp = rec[f"{attr_id}:exp"]
-                        post_validity = attr_conf.history_params['post_validity']
+                        datapoints = self.db.get_datapoints_range(etype, attr_id, eid, t1, t2)
                         if attr_conf.multi_value:
-                            rec[attr_c] = [min((t_exp_part - t_now) / post_validity, 1.0) for t_exp_part in t_exp]
-                        else:
-                            rec[attr_c] = min((t_exp - t_now) / post_validity, 1.0)
-                    rec.push_changes_to_db()
+                            best = [0.0 for _ in rec[attr_id]]
+                            for d in datapoints:
+                                if d['v'] not in rec[attr_id]:
+                                    continue
+                                i = rec[attr_id].index(d['v'])
+                                confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
+                                if confidence > best[i]:
+                                    best[i] = confidence
+                            rec[attr_c] = best
+
+                        else:  # single value
+                            best = None
+                            for d in datapoints:
+                                if d['v'] != rec[attr_id]:
+                                    continue
+                                confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
+                                if best is None or confidence > best:
+                                    best = confidence
+                            if best is not None:
+                                rec[attr_c] = best
+                        rec.push_changes_to_db()
 
                 # Expiration processing
                 for attr_id in self.attr_spec[etype]['attribs']:
@@ -263,44 +319,6 @@ class HistoryManager:
             else:
                 self.log.debug(f"History processing took longer than expected ({t_finish - t_start}), can't stay on schedule")
                 next_call = t_finish
-
-
-def get_historic_value(db, config, etype, eid, attr_id, timestamp):
-    attr_spec = config[etype]['attribs'][attr_id]
-    t1 = timestamp - attr_spec.history_params['post_validity']
-    t2 = timestamp + attr_spec.history_params['pre_validity']
-    datapoints = db.get_datapoints_range(etype, attr_id, eid, t1, t2)
-
-    if len(datapoints) < 1:
-        return None
-
-    if attr_spec.multi_value is True:
-        return set([d['v'] for d in datapoints])
-
-    best = None
-    for d in datapoints:
-        confidence = extrapolate_confidence(d, timestamp, attr_spec.history_params)
-        if best is None or confidence > best[1]:
-            best = d['v'], confidence
-    return best[0] if best is not None else None
-
-
-def extrapolate_confidence(datapoint, timestamp, history_params):
-    pre_validity = history_params['pre_validity']
-    post_validity = history_params['post_validity']
-    t1 = datapoint['t1']
-    t2 = datapoint['t2']
-    base_confidence = datapoint['c']
-
-    if t2 < timestamp:
-        distance = timestamp - t2
-        multiplier = (1 - (distance / post_validity))
-    elif t1 > timestamp:
-        distance = t1 - timestamp
-        multiplier = (1 - (distance / pre_validity))
-    else:
-        multiplier = 1
-    return base_confidence * multiplier
 
 
 def csv_union(a, b):

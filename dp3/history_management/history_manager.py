@@ -6,6 +6,8 @@ import logging
 
 from dp3.common.utils import parse_rfc_time
 from dp3.database.record import Record
+from dp3.task_processing.task_queue import TaskQueueWriter
+from dp3 import g
 from copy import deepcopy
 
 # Hash function used to distribute tasks to worker processes. Takes string, returns int.
@@ -64,6 +66,7 @@ class HistoryManager:
         self.attr_spec = attr_spec
         self.worker_index = worker_index
         self.num_workers = num_workers
+        self._tqw = TaskQueueWriter(g.app_name, self.num_workers, g.config['processing_core']['msg_broker'])
 
     def start(self):
         if self.worker_index == 0:
@@ -281,6 +284,7 @@ class HistoryManager:
                         rec.push_changes_to_db()
 
                 # Expiration processing
+                entities_with_expired_values = set()
                 for attr_id in self.attr_spec[etype]['attribs']:
                     attr_conf = self.attr_spec[etype]['attribs'][attr_id]
                     attr_exp = f"{attr_id}:exp"
@@ -289,6 +293,7 @@ class HistoryManager:
                         continue
                     if attr_conf.multi_value:
                         entities = self.db.get_entities_with_expired_values(etype, attr_id)
+                        entities_with_expired_values |= set(entities)
                         for eid in entities:
                             try:
                                 rec = Record(self.db, etype, eid)
@@ -309,7 +314,12 @@ class HistoryManager:
                             except Exception as e:
                                 self.log.error(f"history_management_thread(): {etype} / {eid} / {attr_id}: {e}")
                     else:
-                        self.db.unset_expired_values(etype, attr_id, attr_conf.confidence)
+                        entities = self.db.unset_expired_values(etype, attr_id, attr_conf.confidence, return_updated_ids=True)
+                        entities_with_expired_values |= set(entities)
+
+                # Create expiration events for the entities
+                for entity in entities_with_expired_values:
+                    self._tqw.put_task(etype, entity, events=['!EXPIRED'])
 
             t_finish = datetime.now()
             next_call = next_call + tick_rate

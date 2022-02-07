@@ -607,29 +607,39 @@ class EntityDatabase:
             return None
         return [r[0] for r in result]
 
-    def unset_expired_values(self, etype: str, attr: str, confidence: bool):
+    def unset_expired_values(self, etype: str, attr: str, confidence: bool, return_updated_ids: False):
         """
         Set expired values of given attribute to NULL (doesn't work for multi-value attributes)
         :param etype: entity type
         :param attr: attribute id
         :param confidence: unset confidence as well if set to true
-        :return: None
+        :param return_updated_ids: whether to return IDs of updated entities
+        :return: None or IDs of updated entities
         """
         try:
             record_table = self._tables[etype]
         except KeyError:
             raise MissingTableError(f"unset_expired_values(): Table {etype} does not exist!")
+        updated_ids = None
         exp_column = f"{attr}:exp"
         c_column = f"{attr}:c"
         updates = {attr: None, exp_column: None}
         if confidence:
             updates[c_column] = None
+        if return_updated_ids:
+            select_statement = record_table.select().where(getattr(record_table.c, exp_column) < datetime.now())
+            try:
+                result = self._db.execute(select_statement)
+                updated_ids = [r[0] for r in result]
+            except Exception as e:
+                self.log.error(f"unset_expired_values(): Select failed: {e}")
         update_statement = record_table.update().where(getattr(record_table.c, exp_column) < datetime.now()).values(updates)
         try:
             self._db.execute(update_statement)
         except Exception as e:
             raise DatabaseError(
                 f"unset_expired_values(): Update failed: {e}")
+        return updated_ids
 
     def get_entities_with_expired_values(self, etype: str, attr: str):
         """

@@ -21,6 +21,7 @@ The file is checked every time a new batch of events is to be issued, so it's no
 """
 
 from datetime import datetime, timedelta, timezone
+from importlib.machinery import all_suffixes
 from apscheduler.schedulers.background import BlockingScheduler
 import numpy 
 
@@ -40,6 +41,40 @@ from dp3.common.utils import parse_rfc_time
 CONFIG_FILE_NAME = "updater_events" # name of the file with additional events to issue
 
 last_fetch_time = datetime(1970, 1, 1)
+
+def parse_timedelta(value:str):
+    """
+    Parse timedelta from config
+    value format: XY
+    X -> integer
+    Y in ["m", "h", "d", "w", "y"]
+    (m = mont, h = hour, d = day, w = week, y = year)
+    Examples: 10m, 5d 4w, 1y, 2y
+
+    returns interval in minutes
+    """
+
+    if len(value) == 0:
+        raise Exception(f"Interval has to be in format INT(m|h|d|w|y)")
+    try:
+        x = int(value[:-1])
+    except ValueError:
+        raise Exception(f"Interval has to be in format INT(m|h|d|w|y)")
+    y = value[-1]
+    if y == "m":
+        pass
+    elif y == "h":
+        x = x*60
+    elif y == "d":
+        x = x*1440 # 60*24
+    elif y == "w":
+        x = x*10080 # 60*24*7
+    elif y == "y":
+        x = x*525600 # 60*24*365
+    else:
+        raise Exception(f"Interval has to be in format INT(m|h|d|w|y)")
+    return x
+
 
 def stop(signal, frame):
     """
@@ -80,22 +115,23 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
 
     for etype in etypes:
         # Check if updater is configured for given etype 
-        try: 
-            events_config = updater_config.get(etype).get("updater", {})
-            ttl_tokens_config = updater_config.get(etype).get("ttl_tokens", {})
-        except MissingConfigError:
-            # Updater is not configured for etype
+        events = events_config.get(etype, {})
+        ttl_tokens = ttl_tokens_config.get(etype, {})
+        if not events and not ttl_tokens:
+            # both events and ttl tokens are not configured for etype
+            # nothing to do for etype
             continue
 
         # Get all intervals from config - needed for computing gcd
-        intervals = [_ for _ in events_config]
-        ttl_tokens_intervals = [_ for _ in ttl_tokens_config.values()]
+        intervals = [_ for _ in events.values()]
+        ttl_tokens_intervals = [_ for _ in ttl_tokens.values()]
 
         # Updater calculates gcd (greatest common denominator) 
         # of all configured intervals for given etype.
         # Updater will than process every entity once per gcd hours
         # and check if any event needs to be issued
-        gcd = timedelta(hours=int(numpy.gcd.reduce(intervals)))
+        all_intervals = intervals+ttl_tokens_intervals
+        gcd = timedelta(minutes=int(numpy.gcd.reduce(all_intervals)))
 
         
         # Get list of IDs that needs to be checked
@@ -112,65 +148,72 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
         # Update _lru and possibly issue configured events
         count = 0 # number of issued events - needed for limit implementation
         for eid,lru,ts_added in entities:
+            # Check record's TTL tokens, and either issue normal events or delete the record.
             old_ttl_tokens = db.get_attrib(etype, eid, "_ttl")
             new_ttl_tokens = {}
-            delete_entry = True
-            for token,created in old_ttl_tokens.items():
-                created = parse_rfc_time(created)
+
+            # check if the record still has some valid TTL token. 
+            # If not (all token has expired), the record is no longer valid and record is deleted.
+            # if ttl token wasn't configured don't delete any record (only check for invalid tokens from previous configuration)        
+            delete_entry = True if ttl_tokens else False
+            print(f"zistujem ci sa ma vymazat {eid} {old_ttl_tokens}")
+            for token,ts_created in old_ttl_tokens.items():
+                created = parse_rfc_time(ts_created)
                 try:
-                    val = ttl_tokens_config[token]
+                    val = ttl_tokens[token]
                 except KeyError:
-                    log.error(f"Unknown TTL token {token}. Skipping record {eid}!")
+                    log.error(f"Unknown TTL token '{token}'. Removing this token from record {eid}!")
                     continue
+                # "*" is special value which will hold record in database indefinitely
                 if val == "*":
                     delete_entry = False
                     new_ttl_tokens["token"] = created
                 else:
-                    try:
-                        ttl_interval = int(ttl_tokens_config[token]) 
-                    except Exception:
-                        log.error(f"Invalid value for ttl token {token}. Skipping.")
-                        continue
-                    if created + timedelta(hours=ttl_interval) > start_time:
+                    print(f"{token} {created+timedelta(minutes=val)} {start_time}")
+                    if created + timedelta(minutes=val) > start_time:
                         delete_entry = False
-                        new_ttl_tokens["token"] = created
+                        new_ttl_tokens[token] = ts_created
 
             if delete_entry:
+                # no active token was found - remove record
                 tqw.put_task(etype=etype, ekey=eid, delete=True, src="updater")
                 continue
-
 
             # Time passed until last regular update
             delta_lru = lru - ts_added
             # Time passed until now
             delta_now = start_time - ts_added
 
-            events = []
-            for interval,event in events_config.items():
+            issue_events = []
+            for event,interval in events.items():
                 # From passed time we can calculate number of events 
                 # that was/should be issued
-                old_interval_count = (delta_lru) // timedelta(hours=interval)
-                new_interval_count = (delta_now) // timedelta(hours=interval)
+                old_interval_count = (delta_lru) // timedelta(minutes=interval)
+                new_interval_count = (delta_now) // timedelta(minutes=interval)
 
                 # If new value is bigger than older we need to issue event
                 # In case of longer unaviability of dp3 
                 # max. one event of the same type will be issued.
                 if old_interval_count < new_interval_count:
-                    events.append(event)
+                    issue_events.append(event)
 
             # Additional events should be issued once per day
             old_interval_count = (delta_lru) // timedelta(days=1)
             new_interval_count = (delta_now) // timedelta(days=1)
             if old_interval_count < new_interval_count:
                 for add_event in additional_events[etype]:
-                    events.append(add_event)
+                    issue_events.append(add_event)
 
-            # Set _lru to new value 
+            # Set _lru and _ttl to new value 
             new_lru = ts_added + (delta_now // gcd) * gcd
             attr_updates = [{
                 "op": "set", 
                 "attr": "_lru", 
                 "val": new_lru,
+            },{
+                "op": "set",
+                "attr": "_ttl",
+                "val": new_ttl_tokens
             }]
             count += 1
             # issue max. 'limit' events per second
@@ -183,7 +226,7 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
 
             # Each update request contains the corresponding events,
             # and a change of the '_lru' and "_ruc" attributes.
-            tqw.put_task(etype=etype, ekey=eid, events=events, attr_updates=attr_updates, src="updater")
+            tqw.put_task(etype=etype, ekey=eid, events=issue_events, attr_updates=attr_updates, src="updater")
 
     last_fetch_time = start_time 
 
@@ -230,6 +273,20 @@ if __name__ == "__main__":
     rabbit_params = config.get('processing_core.rabbitmq', {})
     num_processes = config.get('processing_core.worker_processes')
     etypes = [etype for etype in attr_spec]
+    try:
+        events_config = {
+            etype:{
+                event: parse_timedelta(value) for event,value in etype_conf.items()
+            } for etype,etype_conf in updater_config.get("events").items()
+        }
+        ttl_tokens_config = {
+            etype:{
+                ttl_token: parse_timedelta(value) for ttl_token,value in etype_conf.items()
+            } for etype,etype_conf in updater_config.get("ttl_tokens").items()
+        }
+    except Exception as e:
+        log.error(e)
+        sys.exit(1)
 
     # Connect to DB and get list of entities to update
     log.info("Connecting to DB...")

@@ -383,6 +383,7 @@ def push_multiple_datapoints():
                 "data_points": [],
                 "attr_updates": [],
                 "src": src,
+                "ttl_token": "default"
             }
 
         # Add data-points or attr updates

@@ -464,7 +464,7 @@ class TaskExecutor:
             self.elog.log('record_created')
             self.log.debug(f"Task {etype}/{ekey}: New record created")
  
-        if ttl_token is not None:
+        if ttl_token is not None and ttl_token != "":
             rec["_ttl"][ttl_token] = datetime.utcnow().isoformat('T')
             rec.update({
                 "_ttl": rec["_ttl"]

@@ -1,7 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
-import threading
-import hashlib
 import logging
 from collections import defaultdict
 from copy import deepcopy
@@ -10,12 +8,6 @@ from dp3.common.utils import parse_rfc_time
 from dp3.database.record import Record
 from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3 import g
-
-# Hash function used to distribute tasks to worker processes. Takes string, returns int.
-# (last 4 bytes of MD5)
-# Note: this is slightly different function than that in task_processing, but it doesn't matter, the processing here
-# is independent
-HASH = lambda x: int(hashlib.md5(x.encode('utf8')).hexdigest()[-4:], 16)
 
 TAG_PLAIN = 0
 TAG_AGGREGATED = 1

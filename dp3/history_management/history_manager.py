@@ -22,26 +22,6 @@ TAG_AGGREGATED = 1
 TAG_REDUNDANT = 2
 
 
-def get_historic_value(db, config, etype, eid, attr_id, timestamp):
-    attr_spec = config[etype]['attribs'][attr_id]
-    t1 = timestamp - attr_spec.history_params['pre_validity']
-    t2 = timestamp + attr_spec.history_params['post_validity']
-    datapoints = db.get_datapoints_range(etype, attr_id, eid, t1, t2)
-
-    if len(datapoints) < 1:
-        return None
-
-    if attr_spec.multi_value is True:
-        return set([d['v'] for d in datapoints])
-
-    best = None
-    for d in datapoints:
-        confidence = extrapolate_confidence(d, timestamp, attr_spec.history_params)
-        if best is None or confidence > best[1]:
-            best = d['v'], confidence
-    return best[0] if best is not None else None
-
-
 def extrapolate_confidence(datapoint, timestamp, history_params):
     pre_validity = history_params['pre_validity']
     post_validity = history_params['post_validity']
@@ -314,6 +294,26 @@ class HistoryManager:
             # Create expiration events for the entities
             for eid, events in entity_events.items():
                 self._tqw.put_task(etype, eid, events=list(events))
+
+
+def get_historic_value(db, config, etype, eid, attr_id, timestamp):
+    attr_spec = config[etype]['attribs'][attr_id]
+    t1 = timestamp - attr_spec.history_params['pre_validity']
+    t2 = timestamp + attr_spec.history_params['post_validity']
+    datapoints = db.get_datapoints_range(etype, attr_id, eid, t1, t2)
+
+    if len(datapoints) < 1:
+        return None
+
+    if attr_spec.multi_value is True:
+        return set([d['v'] for d in datapoints])
+
+    best = None
+    for d in datapoints:
+        confidence = extrapolate_confidence(d, timestamp, attr_spec.history_params)
+        if best is None or confidence > best[1]:
+            best = d['v'], confidence
+    return best[0] if best is not None else None
 
 
 def csv_union(a, b):

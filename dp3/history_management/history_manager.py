@@ -4,12 +4,12 @@ import threading
 import hashlib
 import logging
 from collections import defaultdict
+from copy import deepcopy
 
 from dp3.common.utils import parse_rfc_time
 from dp3.database.record import Record
 from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3 import g
-from copy import deepcopy
 
 # Hash function used to distribute tasks to worker processes. Takes string, returns int.
 # (last 4 bytes of MD5)
@@ -70,17 +70,7 @@ class HistoryManager:
         self.config = config
         self._tqw = TaskQueueWriter(g.app_name, self.num_workers, g.config['processing_core']['msg_broker'])
 
-    def start(self):
-        if self.worker_index == 0:
-            self.log.info("Starting HistoryManager")
-            self.running = True
-            self.hm_thread = threading.Thread(target=self.history_management_thread, daemon=True)
-            self.hm_thread.start()
-
-    def stop(self):
-        if self.worker_index == 0:
-            self.running = False
-            self.log.info("HistoryManager stopped")
+        g.scheduler.register(self.manage_history, minute=f"*/{self.config['tick_rate']}")
 
     def process_datapoint(self, etype, attr_id, data):
         redundant_ids = []
@@ -219,7 +209,7 @@ class HistoryManager:
         if delete_ids.__len__() > 0:
             self.db.delete_multiple_records(f"{etype}__{attr_id}", delete_ids)
 
-    def history_management_thread(self):
+    def manage_history(self):
         """
         Manages all aspects of maintaining history.
 
@@ -230,110 +220,99 @@ class HistoryManager:
 
         TODO: This function does too many things - separate deleting old records into separate function.
         """
-        # TODO: use apscheduler
-        tick_rate = timedelta(minutes=int(self.config['tick_rate']))
-        next_call = datetime.now()
-        while self.running:
-            t_start = datetime.now()
-            self.log.debug("Starting periodic history management function...")
+        t_start = datetime.now()
+        self.log.debug("Starting history management function...")
 
-            # Delete old records from history tables
-            for etype in self.attr_spec:
-                for attr_id in self.attr_spec[etype]['attribs']:
-                    if self.attr_spec[etype]['attribs'][attr_id].history is False:
+        # Delete old records from history tables
+        for etype in self.attr_spec:
+            for attr_id in self.attr_spec[etype]['attribs']:
+                if self.attr_spec[etype]['attribs'][attr_id].history is False:
+                    continue
+                history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
+                t_old = str(datetime.now() - history_params["max_age"])
+                t_redundant = str(datetime.now() - history_params["aggregation_max_age"])
+                self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant,
+                                              tag=TAG_REDUNDANT)
+
+        for etype in self.attr_spec:
+            entities = self.db.get_entities(etype)
+            entity_events = defaultdict(set)
+
+            # Confidence processing
+            for attr_id, attr_conf in self.attr_spec[etype]['attribs'].items():
+                attr_c = f"{attr_id}:c"
+                if not attr_conf.confidence:
+                    continue
+                t1 = t_start - attr_conf.history_params['post_validity']
+                t2 = t_start + attr_conf.history_params['pre_validity']
+                for eid in entities:
+                    rec = Record(self.db, etype, eid)
+                    if not rec[attr_c]:
                         continue
-                    history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-                    t_old = str(datetime.now() - history_params["max_age"])
-                    t_redundant = str(datetime.now() - history_params["aggregation_max_age"])
-                    self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant, tag=TAG_REDUNDANT)
-
-            for etype in self.attr_spec:
-                entities = self.db.get_entities(etype)
-                entity_events = defaultdict(set)
-
-                # Confidence processing
-                for attr_id, attr_conf in self.attr_spec[etype]['attribs'].items():
-                    attr_c = f"{attr_id}:c"
-                    if not attr_conf.confidence:
-                        continue
-                    t1 = t_start - attr_conf.history_params['post_validity']
-                    t2 = t_start + attr_conf.history_params['pre_validity']
-                    for eid in entities:
-                        rec = Record(self.db, etype, eid)
-                        if not rec[attr_c]:
-                            continue
-                        entity_events[eid].add('!CONFIDENCE')
-                        datapoints = self.db.get_datapoints_range(etype, attr_id, eid, t1, t2)
-                        if attr_conf.multi_value:
-                            best = [0.0 for _ in rec[attr_id]]
-                            for d in datapoints:
-                                if d['v'] not in rec[attr_id]:
-                                    continue
-                                i = rec[attr_id].index(d['v'])
-                                confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
-                                if confidence > best[i]:
-                                    best[i] = confidence
-                            rec[attr_c] = best
-
-                        else:  # single value
-                            best = None
-                            for d in datapoints:
-                                if d['v'] != rec[attr_id]:
-                                    continue
-                                confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
-                                if best is None or confidence > best:
-                                    best = confidence
-                            if best is not None:
-                                rec[attr_c] = best
-                        rec.push_changes_to_db()
-
-                # Expiration processing
-                entities_with_expired_values = set()
-                for attr_id in self.attr_spec[etype]['attribs']:
-                    attr_conf = self.attr_spec[etype]['attribs'][attr_id]
-                    attr_exp = f"{attr_id}:exp"
-                    attr_c = f"{attr_id}:c"
-                    if not attr_conf.history:
-                        continue
+                    entity_events[eid].add('!CONFIDENCE')
+                    datapoints = self.db.get_datapoints_range(etype, attr_id, eid, t1, t2)
                     if attr_conf.multi_value:
-                        entities = self.db.get_entities_with_expired_values(etype, attr_id)
-                        for eid in entities:
-                            entity_events[eid].add('!EXPIRED')
-                            try:
-                                rec = Record(self.db, etype, eid)
-                                new_val = rec[attr_id]
-                                new_exp = rec[attr_exp]
-                                new_c = rec[attr_c] if attr_conf.confidence else None
-                                for exp in rec[attr_exp]:
-                                    if exp < datetime.now():
-                                        idx = rec[attr_exp].index(exp)
-                                        del new_val[idx]
-                                        del new_exp[idx]
-                                        rec[attr_id] = new_val
-                                        rec[attr_exp] = new_exp
-                                        if new_c:
-                                            del new_c[idx]
-                                            rec[attr_c] = new_c
-                                rec.push_changes_to_db()
-                            except Exception as e:
-                                self.log.error(f"history_management_thread(): {etype} / {eid} / {attr_id}: {e}")
-                    else:
-                        entities = self.db.unset_expired_values(etype, attr_id, attr_conf.confidence, return_updated_ids=True)
-                        for eid in entities:
-                            entity_events[eid].add('!EXPIRED')
+                        best = [0.0 for _ in rec[attr_id]]
+                        for d in datapoints:
+                            if d['v'] not in rec[attr_id]:
+                                continue
+                            i = rec[attr_id].index(d['v'])
+                            confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
+                            if confidence > best[i]:
+                                best[i] = confidence
+                        rec[attr_c] = best
 
-                # Create expiration events for the entities
-                for eid, events in entity_events.items():
-                    self._tqw.put_task(etype, eid, events=list(events))
+                    else:  # single value
+                        best = None
+                        for d in datapoints:
+                            if d['v'] != rec[attr_id]:
+                                continue
+                            confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
+                            if best is None or confidence > best:
+                                best = confidence
+                        if best is not None:
+                            rec[attr_c] = best
+                    rec.push_changes_to_db()
 
-            t_finish = datetime.now()
-            next_call = next_call + tick_rate
-            if t_finish < next_call:
-                self.log.debug(f"History processing finished after {t_finish - t_start}, next call at {next_call}")
-                time.sleep((next_call - t_finish).total_seconds())
-            else:
-                self.log.debug(f"History processing took longer than expected ({t_finish - t_start}), can't stay on schedule")
-                next_call = t_finish
+            # Expiration processing
+            entities_with_expired_values = set()
+            for attr_id in self.attr_spec[etype]['attribs']:
+                attr_conf = self.attr_spec[etype]['attribs'][attr_id]
+                attr_exp = f"{attr_id}:exp"
+                attr_c = f"{attr_id}:c"
+                if not attr_conf.history:
+                    continue
+                if attr_conf.multi_value:
+                    entities = self.db.get_entities_with_expired_values(etype, attr_id)
+                    for eid in entities:
+                        entity_events[eid].add('!EXPIRED')
+                        try:
+                            rec = Record(self.db, etype, eid)
+                            new_val = rec[attr_id]
+                            new_exp = rec[attr_exp]
+                            new_c = rec[attr_c] if attr_conf.confidence else None
+                            for exp in rec[attr_exp]:
+                                if exp < datetime.now():
+                                    idx = rec[attr_exp].index(exp)
+                                    del new_val[idx]
+                                    del new_exp[idx]
+                                    rec[attr_id] = new_val
+                                    rec[attr_exp] = new_exp
+                                    if new_c:
+                                        del new_c[idx]
+                                        rec[attr_c] = new_c
+                            rec.push_changes_to_db()
+                        except Exception as e:
+                            self.log.error(f"manage_history(): {etype} / {eid} / {attr_id}: {e}")
+                else:
+                    entities = self.db.unset_expired_values(etype, attr_id, attr_conf.confidence,
+                                                            return_updated_ids=True)
+                    for eid in entities:
+                        entity_events[eid].add('!EXPIRED')
+
+            # Create expiration events for the entities
+            for eid, events in entity_events.items():
+                self._tqw.put_task(etype, eid, events=list(events))
 
 
 def csv_union(a, b):

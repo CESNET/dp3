@@ -24,8 +24,8 @@ TAG_REDUNDANT = 2
 
 def get_historic_value(db, config, etype, eid, attr_id, timestamp):
     attr_spec = config[etype]['attribs'][attr_id]
-    t1 = timestamp - attr_spec.history_params['post_validity']
-    t2 = timestamp + attr_spec.history_params['pre_validity']
+    t1 = timestamp - attr_spec.history_params['pre_validity']
+    t2 = timestamp + attr_spec.history_params['post_validity']
     datapoints = db.get_datapoints_range(etype, attr_id, eid, t1, t2)
 
     if len(datapoints) < 1:
@@ -70,7 +70,11 @@ class HistoryManager:
         self.config = config
         self._tqw = TaskQueueWriter(g.app_name, self.num_workers, g.config['processing_core']['msg_broker'])
 
-        g.scheduler.register(self.manage_history, minute=f"*/{self.config['tick_rate']}")
+        entity_management_period = self.config['entity_management']['tick_rate']
+        datapoint_cleaning_period = self.config['datapoint_cleaning']['tick_rate']
+
+        g.scheduler.register(self.manage_current_entity_values, minute=f"*/{entity_management_period}")
+        g.scheduler.register(self.delete_old_datapoints, minute=f"*/{datapoint_cleaning_period}")
 
     def process_datapoint(self, etype, attr_id, data):
         redundant_ids = []
@@ -209,30 +213,27 @@ class HistoryManager:
         if delete_ids.__len__() > 0:
             self.db.delete_multiple_records(f"{etype}__{attr_id}", delete_ids)
 
-    def manage_history(self):
-        """
-        Manages all aspects of maintaining history.
-
-        Periodically maintains these aspects:
-        - deletes old records (data points) from history tables
-        - updates confidence values in entity tables
-        - deletes expired attribute values from entity tables
-
-        TODO: This function does too many things - separate deleting old records into separate function.
-        """
-        t_start = datetime.now()
-        self.log.debug("Starting history management function...")
-
-        # Delete old records from history tables
+    def delete_old_datapoints(self):
+        """ Deletes old records (data points) from history tables. """
+        self.log.debug("Deleting old records ...")
         for etype in self.attr_spec:
             for attr_id in self.attr_spec[etype]['attribs']:
-                if self.attr_spec[etype]['attribs'][attr_id].history is False:
+                if not self.attr_spec[etype]['attribs'][attr_id].history:
                     continue
                 history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
                 t_old = str(datetime.now() - history_params["max_age"])
                 t_redundant = str(datetime.now() - history_params["aggregation_max_age"])
                 self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant,
                                               tag=TAG_REDUNDANT)
+
+    def manage_current_entity_values(self):
+        """
+        Maintains values in entity tables:
+        - updates confidence values
+        - deletes expired attribute values
+        """
+        t_now = datetime.now()
+        self.log.debug("Updating confidence and deleting expired attribute values ...")
 
         for etype in self.attr_spec:
             entities = self.db.get_entities(etype)
@@ -243,8 +244,8 @@ class HistoryManager:
                 attr_c = f"{attr_id}:c"
                 if not attr_conf.confidence:
                     continue
-                t1 = t_start - attr_conf.history_params['post_validity']
-                t2 = t_start + attr_conf.history_params['pre_validity']
+                t1 = t_now - attr_conf.history_params['pre_validity']
+                t2 = t_now + attr_conf.history_params['post_validity']
                 for eid in entities:
                     rec = Record(self.db, etype, eid)
                     if not rec[attr_c]:
@@ -257,7 +258,7 @@ class HistoryManager:
                             if d['v'] not in rec[attr_id]:
                                 continue
                             i = rec[attr_id].index(d['v'])
-                            confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
+                            confidence = extrapolate_confidence(d, t_now, attr_conf.history_params)
                             if confidence > best[i]:
                                 best[i] = confidence
                         rec[attr_c] = best
@@ -267,7 +268,7 @@ class HistoryManager:
                         for d in datapoints:
                             if d['v'] != rec[attr_id]:
                                 continue
-                            confidence = extrapolate_confidence(d, t_start, attr_conf.history_params)
+                            confidence = extrapolate_confidence(d, t_now, attr_conf.history_params)
                             if best is None or confidence > best:
                                 best = confidence
                         if best is not None:

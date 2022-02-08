@@ -1,4 +1,13 @@
-# Configuration of HistoryManager system, which periodically updates values in entity tables to keep them up to date.
+# Configuration of HistoryManager system, responsible for
+# - updating values in entity tables to keep them up to date
+# - deleting old datapoints
 
-# Tick rate - period in minutes for running the update function
-tick_rate: "2"
+# Updating entity tables
+entity_management:
+# Tick rate - period in minutes for running the function
+  tick_rate: 2
+
+# Deleting old datapoints
+datapoint_cleaning:
+# Tick rate - period in minutes for running the function
+  tick_rate: 30

@@ -1,0 +1,4 @@
+# Configuration of HistoryManager system, which periodically updates values in entity tables to keep them up to date.
+
+# Tick rate - period in minutes for running the update function
+tick_rate: "2"

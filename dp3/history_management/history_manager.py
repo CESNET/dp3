@@ -61,12 +61,13 @@ def extrapolate_confidence(datapoint, timestamp, history_params):
 
 
 class HistoryManager:
-    def __init__(self, db, attr_spec, worker_index, num_workers):
+    def __init__(self, db, attr_spec, worker_index, num_workers, config):
         self.log = logging.getLogger("HistoryManager")
         self.db = db
         self.attr_spec = attr_spec
         self.worker_index = worker_index
         self.num_workers = num_workers
+        self.config = config
         self._tqw = TaskQueueWriter(g.app_name, self.num_workers, g.config['processing_core']['msg_broker'])
 
     def start(self):
@@ -230,7 +231,7 @@ class HistoryManager:
         TODO: This function does too many things - separate deleting old records into separate function.
         """
         # TODO: use apscheduler
-        tick_rate = timedelta(minutes=2)  # TODO add to global config
+        tick_rate = timedelta(minutes=int(self.config['tick_rate']))
         next_call = datetime.now()
         while self.running:
             t_start = datetime.now()

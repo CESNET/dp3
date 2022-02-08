@@ -120,7 +120,7 @@ def main(app_name, config_dir, process_index, verbose):
     g.running = False
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
-    g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes)
+    g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
     te = TaskExecutor(g.db, attr_spec, g.hm)
     g.td = TaskDistributor(config, process_index, num_processes, te)
 

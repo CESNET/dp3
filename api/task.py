@@ -19,6 +19,7 @@ default_create = True
 default_delete = False
 default_src = ""
 default_tags = []
+default_ttl_token = None
 
 valid_operations = [
     "set",
@@ -56,6 +57,7 @@ def validate_task(task, config):
     assert type(task.get("delete")) is bool, err_msg_type.format("delete", "bool")
     assert type(task.get("src")) is str, err_msg_type.format("src", "str")
     assert type(task.get("tags")) is list, err_msg_type.format("tags", "list")
+    assert task.get("ttl_token") is None or type(task.get("ttl_token")) is str, err_msg_type.format("ttl_token", "str")
 
     # Check specification of given entity type
     assert task["etype"] in config, f"no specification found for entity type '{task['etype']}'"
@@ -159,7 +161,8 @@ class Task:
             "create": t.get("create", default_create),
             "delete": t.get("delete", default_delete),
             "src": t.get("src", default_src),
-            "tags": t.get("tags", default_tags)
+            "tags": t.get("tags", default_tags),
+            "ttl_token": t.get("ttl_token", default_ttl_token)
         }
 
         # Validate the task

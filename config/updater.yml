@@ -3,13 +3,34 @@
 # Updater periodically issues tasks to trigger regular updates of all entities in database
 # Regular updates are configured separately for every entity type.
 #
-# Format:
-# {entity_type}:
-#   {interval_in_minutes}: {name_of_event}
-#   {interval_in_minutes}: {name_of_event}
+# If no ttl token is configured for etype, 
+# the etype will not be processed by cleaner and no record will be deleted.
 #
+# Interval has to be in format INT(m|h|d|w|y)
+#   m = minutes
+#   h = hours
+#   d = days
+#   w = weeks
+#   y = years
+# Examples: 1m, 5h, 10d, 1y
+# "*" can be used instead of interval. "*" will hold record in database indefinitely.
+#
+# Format:
+#
+# events:
+#   {entity_type}:
+#     {event_name}: {interval}
+#     {event_name}: {interval}
+# ttl_tokens:
+#   {entity_type}:
+#     {token_name}: {interval}
+#     {token_name}: {interval}
+
 # Example:
-# ip:
-#   1: "!every1m"
-#   60: "!every1h"
-#   1140: "!every1d"
+events:
+  ip:
+    "!every1h": "1h"
+    "!every1d": "1d"
+ttl_tokens:
+  ip:
+    "default": "2w"

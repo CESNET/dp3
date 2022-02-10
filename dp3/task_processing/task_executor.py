@@ -350,11 +350,12 @@ class TaskExecutor:
                     'ts_added': now,
                     'ts_last_update': now,
                     '_lru': now,
+                    '_ttl': {}
                 })
                 new_rec_created = True
                 # New record was created -> add "!NEW" event
                 # self.log.debug("New record ({},{}) was created, injecting event '!NEW'".format(etype,eid))
-                events.insert(0, "!NEW")
+                events.insert(0, "!NEW") 
         return rec, new_rec_created
 
     def get_all_possible_changes(self, etype: str, trigger_attr_name: str) -> set:
@@ -391,8 +392,8 @@ class TaskExecutor:
         return may_change
 
     def _delete_record_from_db(self, etype: str, ekey: str) -> None:
-        self.db.delete(etype, ekey)
-
+        self.db.delete_record(etype, ekey)
+    
     def _update_call_queue(self, call_queue: deque, etype: str, attr_name: str, updated: list) -> None:
         """
         Add all functions, which are hooked to the attribute/event, to the call queue
@@ -419,7 +420,7 @@ class TaskExecutor:
         """
         Main processing function - update attributes or trigger an event.
 
-        :param: task is 8-tuple, which consists of:
+        :param: task is 10-tuple, which consists of:
             etype: entity type (eg. 'ip')
             ekey: entity key ('192.0.2.42')
             attr_updates: dictionary specifying attrbute, which will be updated, operation and its arguments
@@ -433,10 +434,11 @@ class TaskExecutor:
             delete: delete the record
             src: name of source module, mostly for logging
             tags: tags for logging (number of tasks per time interval by tag)
+            ttl_token: time to live token
 
         :return: True if a new record was created, False otherwise.
         """
-        etype, ekey, attr_updates, events, data_points, create, delete, src, tags = task
+        etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token = task
 
         self.log.debug(f"Received new task {etype}/{ekey}, starting processing!")
 
@@ -461,6 +463,12 @@ class TaskExecutor:
         if new_rec_created:
             self.elog.log('record_created')
             self.log.debug(f"Task {etype}/{ekey}: New record created")
+ 
+        if ttl_token is not None and ttl_token != "":
+            rec["_ttl"][ttl_token] = datetime.utcnow().isoformat('T')
+            rec.update({
+                "_ttl": rec["_ttl"]
+            })
 
         # Short-circuit if attr_updates, events or data_points is empty (used to only create a record if it doesn't exist)
         if not attr_updates and not events and not data_points:

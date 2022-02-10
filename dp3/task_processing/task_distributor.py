@@ -68,7 +68,7 @@ class TaskDistributor:
             raise TypeError('Argument "changes" must be iterable and must not be str.')
         self.task_executor.register_handler(func, etype, triggers, changes)
 
-    def request_update(self, etype="", ekey="", attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None):
+    def request_update(self, etype="", ekey="", attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None, ttl_token=None):
         """
         Request an update of one or more attributes of an entity record.
 
@@ -85,10 +85,11 @@ class TaskDistributor:
         :param delete: delete the record
         :param src: name of source module, mostly for logging
         :param tags: tags for logging (number of tasks per time interval by tag)
+        :param ttl_token: time to live token
         :return: None
         """
         # Put task to priority queue, so this can never block due to full queue
-        self._task_queue_writer.put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, priority=True)
+        self._task_queue_writer.put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token, True)
 
     def start(self):
         """Run the worker threads and start consuming from TaskQueue."""
@@ -133,7 +134,7 @@ class TaskDistributor:
         # Cleanup
         self._worker_threads = []
 
-    def _distribute_task(self, msg_id, etype, ekey, attr_updates, events, data_points, create, delete, src, tags):
+    def _distribute_task(self, msg_id, etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token):
         """
         Puts given task into local queue of the corresponding thread.
 
@@ -146,7 +147,7 @@ class TaskDistributor:
         """
         # Distribute tasks to worker threads by hash of (etype,ekey)
         index = hash((etype, ekey)) % self.num_threads
-        self._queues[index].put((msg_id, etype, ekey, attr_updates, events, data_points, create, delete, src, tags))
+        self._queues[index].put((msg_id, etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token))
 
     def _worker_func(self, thread_index):
         """

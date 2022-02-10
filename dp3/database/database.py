@@ -310,6 +310,26 @@ class EntityDatabase:
             return None
         return q_result[attrib_name]
 
+    def get_record(self, table_name, key):
+        """
+        Queries whole record in table.
+        :param table_name: name of table, from which will be record selected
+        :param key: key to selected record
+        :return: selected record as tuple
+        """
+        try:
+            table = self._tables[table_name]
+        except KeyError:
+            self.log.error(f"Cannot get record {key}, because table {table_name} does not exist!")
+            return None
+        select_statement = select([table]).where(self.get_id_condition(table, key))
+        try:
+            q_result = self._db.execute(select_statement).fetchone()
+        except Exception:
+            self.log.error(f"Something went wrong while selecting record {key} from {table_name} table in database!")
+            return
+        return q_result
+
     def update_record(self, table_name: str, key: str, updates: dict):
         """
         Updates all requested values of some record in table.
@@ -458,28 +478,40 @@ class EntityDatabase:
             .where(datapoint_table.c.eid == eid) \
             .order_by(desc(datapoint_table.c.t2)) \
             .limit(1)
-        result = self._db.execute(select_val_of_max_t2)
+        result = self._db.execute(select_val_of_max_t2).fetchone()
         if result is None:
             return None
-        return result.fetchone()[0]
+        return result[0]
 
-    def search(self, etype, attrs=None, query=None, limit=None, **kwargs):
+    def search(self, etype, attrs=None, query=None, limit=None, sort_by=None, sort_ascending=True, **kwargs):
         """TODO"""
         try:
             table = self._tables[etype]
         except KeyError:
             self.log.error(f"search: No table for entity type '{etype}'")
             return None # TODO raise exception?
-        if query:
-            NotImplementedError("query param not implemented yet")
-        if attrs:
-            NotImplementedError("attrs param not implemented yet")
 
         # Prepare SELECT statement
         cols = [table.c.eid]
         select_statement = select(cols) # note: table to use (FROM) is derived automatically from columns
+        if attrs is None:
+            NotImplementedError("attrs param not implemented yet")
+
+        if query:
+            for attr_name,value in query.items():
+                if attr_name not in table.c:
+                    self.log.error(f"Cannot search by attribute {attr_name} of table {etype}, because such attribute"
+                            f" does not exist!")
+                    return None
+                select_statement = select_statement.where(getattr(table.c, attr_name).like(value))
+
         if limit is not None:
             select_statement = select_statement.limit(limit)
+        if sort_by is not None:
+            if sort_ascending:
+                select_statement = select_statement.order_by(asc(sort_by))
+            else:
+                select_statement = select_statement.order_by(desc(sort_by))
 
         # Execute statement
         try:
@@ -491,14 +523,18 @@ class EntityDatabase:
         # Read all rows and return list of matching entity IDs
         return list(row[0] for row in result)
 
-    @staticmethod
-    def get_object_from_db_record(table: Table, db_record):
+    def get_object_from_db_record(self, etype, db_record):
         """
         Loads correct object from database query (one row)
         :param table: row Table instance to correctly match columns to query row
         :param db_record: row of database from SQL query
         :return: correct object loaded query row
         """
+        try:
+            table = self._tables[etype]
+        except KeyError:
+            self.log.error(f"Cannot get object from DB record, because table of {etype} does not exist!")
+            return None
         record_object = {}
         for i, column in enumerate(table.c):
             record_object[column.description] = db_record[i]
@@ -556,7 +592,7 @@ class EntityDatabase:
             return None
         data_points_result = []
         for row in result:
-            data_points_result.append(self.get_object_from_db_record(data_point_table, row))
+            data_points_result.append(self.get_object_from_db_record(full_attr_name, row))
         return data_points_result
 
     def delete_old_datapoints(self, etype: str, attr_name: str, t_old: str, t_redundant: str, tag: int):

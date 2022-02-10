@@ -138,8 +138,8 @@ def push_task(task):
         task["delete"],
         task["src"],
         task["tags"],
-        False, # priority
-        task["ttl_token"]
+        task["ttl_token"],
+        False # priority
     )
 
 

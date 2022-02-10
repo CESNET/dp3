@@ -89,7 +89,7 @@ class TaskDistributor:
         :return: None
         """
         # Put task to priority queue, so this can never block due to full queue
-        self._task_queue_writer.put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, True, ttl_token)
+        self._task_queue_writer.put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token, True)
 
     def start(self):
         """Run the worker threads and start consuming from TaskQueue."""

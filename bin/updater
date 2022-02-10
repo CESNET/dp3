@@ -48,7 +48,7 @@ def parse_timedelta(value:str):
     value format: XY
     X -> integer
     Y in ["m", "h", "d", "w", "y"]
-    (m = mont, h = hour, d = day, w = week, y = year)
+    (m = minute, h = hour, d = day, w = week, y = year)
     Examples: 10m, 5d 4w, 1y, 2y
 
     returns interval in minutes

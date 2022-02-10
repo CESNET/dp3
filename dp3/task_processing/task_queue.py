@@ -189,7 +189,7 @@ class TaskQueueWriter(RobustAMQPConnection):
             raise ExchangeNotDeclared(self.exchange_pri)
         return True
 
-    def put_task(self, etype, ekey, attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None, priority=False, ttl_token=""):
+    def put_task(self, etype, ekey, attr_updates=None, events=None, data_points=None, create=None, delete=False, src="", tags=None, ttl_token="", priority=False):
         """
         Put task (update_request) to the queue of corresponding worker
         :param etype: entity type (eg. 'ip')

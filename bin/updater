@@ -156,7 +156,6 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
             # If not (all token has expired), the record is no longer valid and record is deleted.
             # if ttl token wasn't configured don't delete any record (only check for invalid tokens from previous configuration)        
             delete_entry = True if ttl_tokens else False
-            print(f"zistujem ci sa ma vymazat {eid} {old_ttl_tokens}")
             for token,ts_created in old_ttl_tokens.items():
                 created = parse_rfc_time(ts_created)
                 try:
@@ -169,7 +168,6 @@ def issue_events(db,tqw,log,etypes,args,updater_config):
                     delete_entry = False
                     new_ttl_tokens["token"] = created
                 else:
-                    print(f"{token} {created+timedelta(minutes=val)} {start_time}")
                     if created + timedelta(minutes=val) > start_time:
                         delete_entry = False
                         new_ttl_tokens[token] = ts_created

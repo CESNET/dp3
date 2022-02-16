@@ -4,14 +4,11 @@ import logging
 from collections import defaultdict
 from copy import deepcopy
 
+from .constants import *
 from dp3.common.utils import parse_rfc_time
 from dp3.database.record import Record
 from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3 import g
-
-TAG_PLAIN = 0
-TAG_AGGREGATED = 1
-TAG_REDUNDANT = 2
 
 
 def extrapolate_confidence(datapoint, timestamp, history_params):
@@ -60,7 +57,8 @@ class HistoryManager:
         data['tag'] = TAG_PLAIN
 
         # Check for collisions
-        datapoints = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t1'], data['t2'], closed_interval=False)
+        datapoints = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, eid=data['eid'], t1=data['t1'],
+                                                  t2=data['t2'], closed_interval=False, filter_redundant=None)
         merge_list = []
         for d in datapoints:
             m = mergeable(data, d, history_params)
@@ -88,26 +86,29 @@ class HistoryManager:
                 self.split_datapoint(etype, attr_id, d, t1)
 
         # Merge with non-overlapping datapoints
-        pre = self.db.get_datapoints_range(etype, attr_id, data['eid'], str(t1 - aggregation_interval), data['t1'], closed_interval=False, sort=1)
-        post = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t2'], str(t2 + aggregation_interval), closed_interval=False, sort=0)
-        for d in pre + post:
-            # TODO custom select function? get_datapoints_range() returns all datapoints overlapping with specified interval, we need them to be completely inside the interval here
-            if d['t1'] <= t2 and t1 <= d['t2']:
-                continue
-            if d['tag'] == TAG_REDUNDANT:
-                continue
-            if mergeable(agg, d, history_params):
-                merge(agg, d, history_params)
-                if d['tag'] == TAG_AGGREGATED:
-                    delete_ids.append(d['id'])
+        pre = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, eid=data['eid'],
+                                           t1=str(t1 - aggregation_interval), t2=data['t1'],
+                                           closed_interval=False, sort=1, filter_redundant=True)
+        post = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, eid=data['eid'],
+                                            t1=data['t2'], t2=str(t2 + aggregation_interval),
+                                            closed_interval=False, sort=0, filter_redundant=True)
+        for datapoints in pre, post:
+            for d in datapoints:
+                if d in pre and d['t2'] >= t1 or \
+                   d in post and d['t1'] <= t2:
+                    continue
+                if mergeable(agg, d, history_params):
+                    merge(agg, d, history_params)
+                    if d['tag'] == TAG_AGGREGATED:
+                        delete_ids.append(d['id'])
+                    else:
+                        d['tag'] = TAG_REDUNDANT
+                        redundant_ids.append(d['id'])
+                        redundant_data.append(d)
+                elif multi_value is True:
+                    continue
                 else:
-                    d['tag'] = TAG_REDUNDANT
-                    redundant_ids.append(d['id'])
-                    redundant_data.append(d)
-            elif multi_value is True:
-                continue
-            else:
-                break
+                    break
 
         # Write changes to db
         if agg['t1'] != data['t1'] or agg['t2'] != data['t2']:
@@ -122,7 +123,8 @@ class HistoryManager:
 
     def split_datapoint(self, etype, attr_id, data, timestamp):
         history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-        redundant = self.db.get_datapoints_range(etype, attr_id, data['eid'], data['t1'], data['t2'], sort=0, tag=TAG_REDUNDANT)
+        redundant = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, eid=data['eid'],
+                                                 t1=data['t1'], t2=data['t2'], sort=0, filter_redundant=False)
         assert redundant.__len__() > 0, "split_datapoint(): unable to split, not enough data"
         assert redundant[0]['t1'] < timestamp, "split_datapoint(): unable to split, not enough data"
         agg = deepcopy(redundant[0])
@@ -306,6 +308,6 @@ merge_check = {
 merge_apply = {
     "keep": lambda a, b: a,
     "add": lambda a, b: a + b,
-    "avg": lambda a, b: (a + b) / 2,  # TODO how to compute average?
+    "avg": lambda a, b: (a + b) / 2,
     "csv_union": lambda a, b: csv_union(a, b)
 }

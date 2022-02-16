@@ -9,6 +9,7 @@ from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
 from ..common.attrspec import AttrSpec
+from ..history_management.constants import *
 
 # map supported data types to Postgres SQL data types
 ATTR_TYPE_MAPPING = {
@@ -540,7 +541,7 @@ class EntityDatabase:
             record_object[column.description] = db_record[i]
         return record_object
 
-    def get_datapoints_range(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True, sort: int = None, tag: int = None):
+    def get_datapoints_range(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True, sort: int = None, filter_redundant: bool = True):
         """
         Gets data-points of certain time interval between t1 and t2 from database.
         :param etype: entity type
@@ -550,7 +551,7 @@ class EntityDatabase:
         :param t2: right value of time interval
         :param closed_interval: include interval endpoints? (default = True)
         :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2, None: dont sort
-        :param tag: optional filter for aggregation metadata
+        :param filter_redundant: True (default): return only non-redundant; False: return only redundant; None: dont filter
         :return: list of data-point objects or None on error
         """
         full_attr_name = f"{etype}__{attr_name}"
@@ -566,8 +567,10 @@ class EntityDatabase:
         if eid is not None:
             select_statement = select_statement.where(getattr(data_point_table.c, "eid") == eid)
 
-        if tag is not None:
-            select_statement = select_statement.where(getattr(data_point_table.c, "tag") == tag)
+        if filter_redundant is True:
+            select_statement = select_statement.where(getattr(data_point_table.c, "tag") != TAG_REDUNDANT)
+        elif filter_redundant is False:
+            select_statement = select_statement.where(getattr(data_point_table.c, "tag") == TAG_REDUNDANT)
 
         if t1 is not None:
             if closed_interval:

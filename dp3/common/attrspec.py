@@ -48,7 +48,6 @@ default_max_items = None
 default_expire_time = "inf" # means "never expire"/"infinite validity", stored internally as None instead of timedelta
 default_pre_validity = "0s"
 default_post_validity = "0s"
-default_aggregation_interval = "0s"
 default_aggregation_max_age = "0s"
 default_aggregation_function_value = "keep"
 default_aggregation_function_confidence = "avg"
@@ -262,11 +261,12 @@ class AttrSpec:
                 assert False, err_msg_format.format("post_validity")
 
             if "aggregation_interval" not in self.history_params:
-                self.history_params["aggregation_interval"] = default_aggregation_interval
-            try:
-                self.history_params["aggregation_interval"] = parse_time_duration(self.history_params["aggregation_interval"])
-            except ValueError:
-                assert False, err_msg_format.format("aggregation_interval")
+                self.history_params["aggregation_interval"] = self.history_params["pre_validity"] + self.history_params["post_validity"]
+            else:
+                try:
+                    self.history_params["aggregation_interval"] = parse_time_duration(self.history_params["aggregation_interval"])
+                except ValueError:
+                    assert False, err_msg_format.format("aggregation_interval")
 
             if "aggregation_max_age" not in self.history_params:
                 self.history_params["aggregation_max_age"]  = default_aggregation_max_age

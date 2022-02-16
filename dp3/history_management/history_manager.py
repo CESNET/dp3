@@ -155,36 +155,6 @@ class HistoryManager:
             agg['tag'] = TAG_AGGREGATED
         self.db.create_datapoint(etype, attr_id, agg)
 
-    def process_datapoints_range(self, etype, eid, attr_id, t1, t2):
-        delete_ids = []
-        redundant_ids = []
-        redundant_data = []
-        history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-
-        # TODO select non redundant (in a better way)
-        d1 = self.db.get_datapoints_range(etype, attr_id, eid, t1, t2, sort=0, tag=TAG_PLAIN)
-        d2 = self.db.get_datapoints_range(etype, attr_id, eid, t1, t2, sort=0, tag=TAG_AGGREGATED)
-        datapoints = d1 + d2
-        if not datapoints.__len__() > 0:
-            return
-
-        curr = deepcopy(datapoints[0])
-        for d in datapoints[1:]:
-            if mergeable(curr, d, history_params):
-                merge(curr, d, history_params)
-                if d['tag'] == TAG_AGGREGATED:
-                    delete_ids.append(d['id'])
-                else:
-                    d['tag'] = TAG_REDUNDANT
-                    redundant_ids.append(d['id'])
-                    redundant_data.append(d)
-            else:
-                curr = d
-        if redundant_ids.__len__() > 0:
-            self.db.rewrite_data_points(etype, attr_id, redundant_ids, redundant_data)
-        if delete_ids.__len__() > 0:
-            self.db.delete_multiple_records(f"{etype}__{attr_id}", delete_ids)
-
     def delete_old_datapoints(self):
         """ Deletes old records (data points) from history tables. """
         self.log.debug("Deleting old records ...")

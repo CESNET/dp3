@@ -1,4 +1,5 @@
 from datetime import datetime
+from email.policy import default
 import sys
 import inspect
 from collections import deque, Iterable, OrderedDict, Counter
@@ -465,9 +466,10 @@ class TaskExecutor:
             self.log.debug(f"Task {etype}/{ekey}: New record created")
  
         if ttl_token is not None and ttl_token != "":
-            rec["_ttl"][ttl_token] = datetime.utcnow().isoformat('T')
+            ttl = rec.get("_ttl", default_val={})
+            ttl[ttl_token] = datetime.utcnow().isoformat('T')
             rec.update({
-                "_ttl": rec["_ttl"]
+                "_ttl": ttl 
             })
 
         # Short-circuit if attr_updates, events or data_points is empty (used to only create a record if it doesn't exist)

@@ -220,7 +220,6 @@ class HistoryManager:
                     rec.push_changes_to_db()
 
             # Expiration processing
-            entities_with_expired_values = set()
             for attr_id in self.attr_spec[etype]['attribs']:
                 attr_conf = self.attr_spec[etype]['attribs'][attr_id]
                 attr_exp = f"{attr_id}:exp"
@@ -230,12 +229,19 @@ class HistoryManager:
                 if attr_conf.multi_value:
                     entities = self.db.get_entities_with_expired_values(etype, attr_id)
                     for eid in entities:
-                        entity_events[eid].add('!EXPIRED')
                         try:
                             rec = Record(self.db, etype, eid)
                             new_val = rec[attr_id]
                             new_exp = rec[attr_exp]
                             new_c = rec[attr_c] if attr_conf.confidence else None
+                            if len(new_val) != len(new_exp):
+                                self.log.warning(f"manage_history(): {eid}: {attr_id} "
+                                                 "lengths of value and exp lists differ. Resetting both.")
+                                rec[attr_id] = []
+                                rec[attr_exp] = []
+                                rec.push_changes_to_db()
+                                entity_events[eid].add('!EXPIRED')
+                                continue
                             for exp in rec[attr_exp]:
                                 if exp < datetime.now():
                                     idx = rec[attr_exp].index(exp)
@@ -247,6 +253,7 @@ class HistoryManager:
                                         del new_c[idx]
                                         rec[attr_c] = new_c
                             rec.push_changes_to_db()
+                            entity_events[eid].add('!EXPIRED')
                         except Exception as e:
                             self.log.error(f"manage_history(): {etype} / {eid} / {attr_id}: {e}")
                 else:

@@ -12,7 +12,7 @@ from event_count_logger import EventCountLogger, DummyEventGroup
 from .. import g
 from ..common.utils import get_func_name, parse_rfc_time
 from ..database.record import Record
-
+from ..history_management.history_manager import extrapolate_confidence
 
 class TaskExecutor:
     """
@@ -533,7 +533,10 @@ class TaskExecutor:
                     if valid_since < datetime.utcnow() < valid_until and (attr_conf.multi_value or curr_expiration is None or valid_until > curr_expiration):
                         update = {"attr": attr_name, "val": data_point['v'], "op": "set", "exp": valid_until}
                         if attr_conf.confidence:
-                            update['c'] = data_point['c']
+                            update['c'] = extrapolate_confidence(datapoint={
+                                't1': parse_rfc_time(data_point['t1']), 't2': parse_rfc_time(data_point['t2']),
+                                'c': data_point['c']
+                            }, timestamp=datetime.utcnow(), history_params=attr_conf.history_params)
                         requests_to_process.append(update)
 
                 # add all functions, which are hooked to events, to call queue

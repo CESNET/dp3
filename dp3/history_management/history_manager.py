@@ -165,8 +165,8 @@ class HistoryManager:
                 if not self.attr_spec[etype]['attribs'][attr_id].history:
                     continue
                 history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-                t_old = str(datetime.now() - history_params["max_age"])
-                t_redundant = str(datetime.now() - history_params["aggregation_max_age"])
+                t_old = str(datetime.utcnow() - history_params["max_age"])
+                t_redundant = str(datetime.utcnow() - history_params["aggregation_max_age"])
                 self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant,
                                               tag=TAG_REDUNDANT)
 
@@ -176,7 +176,7 @@ class HistoryManager:
         - updates confidence values
         - deletes expired attribute values
         """
-        t_now = datetime.now()
+        t_now = datetime.utcnow()
         self.log.debug("Updating confidence and deleting expired attribute values ...")
 
         for etype in self.attr_spec:
@@ -243,7 +243,7 @@ class HistoryManager:
                                 entity_events[eid].add('!EXPIRED')
                                 continue
                             for exp in rec[attr_exp]:
-                                if exp < datetime.now():
+                                if exp < t_now:
                                     idx = rec[attr_exp].index(exp)
                                     del new_val[idx]
                                     del new_exp[idx]

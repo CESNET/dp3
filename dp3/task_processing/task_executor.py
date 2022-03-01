@@ -188,7 +188,7 @@ class TaskExecutor:
     def _perform_op_unset(self, rec: Record, key: str, updreq: dict):
         if key in rec:
             del rec[key]
-            return [(updreq['val'], None)]
+            return [(updreq['attr'], None)]
         return None
 
     def _perform_op_unset_multivalue(self, rec: Record, key: str, updreq: dict):
@@ -323,7 +323,7 @@ class TaskExecutor:
             # Return tuple (updated attribute, new value)
             return self._operations_mapping[op](self, rec, key, updreq)
         except KeyError as e:
-            self.log.error(f"perform_update: Unknown operation {op}")
+            self.log.exception(f"perform_update: Unknown operation {op}, in call of {key} with {updreq}")
             return None
 
     def _create_record_if_does_not_exist(self, etype: str, ekey: str, attr_updates: list, events: list, create: bool) -> (Record, bool):

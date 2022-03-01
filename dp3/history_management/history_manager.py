@@ -255,7 +255,7 @@ class HistoryManager:
                             rec.push_changes_to_db()
                             entity_events[eid].add('!EXPIRED')
                         except Exception as e:
-                            self.log.error(f"manage_history(): {etype} / {eid} / {attr_id}: {e}")
+                            self.log.exception(f"manage_history(): {etype} / {eid} / {attr_id}: {e}")
                 else:
                     entities = self.db.unset_expired_values(etype, attr_id, attr_conf.confidence,
                                                             return_updated_ids=True)

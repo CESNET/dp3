@@ -33,10 +33,6 @@ class HistoryManager:
     def __init__(self, db, attr_spec, worker_index, num_workers, config):
         self.log = logging.getLogger("HistoryManager")
 
-        if worker_index != 0:
-            self.log.debug("History management will not be active in this worker instance to avoid race conditions.")
-            return
-
         self.db = db
         self.attr_spec = attr_spec
         self.worker_index = worker_index
@@ -46,6 +42,10 @@ class HistoryManager:
 
         entity_management_period = self.config['entity_management']['tick_rate']
         datapoint_cleaning_period = self.config['datapoint_cleaning']['tick_rate']
+
+        if worker_index != 0:
+            self.log.debug("History management will not be active in this worker instance to avoid race conditions.")
+            return
 
         g.scheduler.register(self.manage_current_entity_values, minute=f"*/{entity_management_period}")
         g.scheduler.register(self.delete_old_datapoints, minute=f"*/{datapoint_cleaning_period}")

@@ -32,6 +32,11 @@ def extrapolate_confidence(datapoint, timestamp, history_params):
 class HistoryManager:
     def __init__(self, db, attr_spec, worker_index, num_workers, config):
         self.log = logging.getLogger("HistoryManager")
+
+        if worker_index != 0:
+            self.log.debug("History management will not be active in this worker instance to avoid race conditions.")
+            return
+
         self.db = db
         self.attr_spec = attr_spec
         self.worker_index = worker_index
@@ -234,14 +239,6 @@ class HistoryManager:
                             new_val = rec[attr_id]
                             new_exp = rec[attr_exp]
                             new_c = rec[attr_c] if attr_conf.confidence else None
-                            if len(new_val) != len(new_exp):
-                                self.log.warning(f"manage_history(): {eid}: {attr_id} "
-                                                 "lengths of value and exp lists differ. Resetting both.")
-                                rec[attr_id] = []
-                                rec[attr_exp] = []
-                                rec.push_changes_to_db()
-                                entity_events[eid].add('!EXPIRED')
-                                continue
                             for exp in rec[attr_exp]:
                                 if exp < t_now:
                                     idx = rec[attr_exp].index(exp)

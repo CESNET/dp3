@@ -484,7 +484,7 @@ class EntityDatabase:
             return None
         return result[0]
 
-    def search(self, etype, attrs=None, query=None, limit=None, sort_by=None, sort_ascending=True, **kwargs):
+    def search(self, etype, attrs=None, query=None, limit=None, offset=None, sort_by=None, sort_ascending=True, **kwargs):
         """TODO"""
         try:
             table = self._tables[etype]
@@ -508,6 +508,8 @@ class EntityDatabase:
 
         if limit is not None:
             select_statement = select_statement.limit(limit)
+        if offset is not None:
+            select_statement = select_statement.offset(offset)
         if sort_by is not None:
             if sort_ascending:
                 select_statement = select_statement.order_by(asc(sort_by))

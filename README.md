@@ -27,13 +27,17 @@ TODO - architecture, main parts of repository (Python package, other files)
 
 `$ pip3 install pipenv`
 
-#### Install all dependencies:
+### Install all dependencies:
 
 **development**: `$ pipenv install`
 
 **production**: `$ pipenv install --ignore-pipfile` 
 
 Generated virtualenv is located at `~/.local/share/virtualenvs`, but should be activated automatically. Deactivate virtualenv with `$ exit`
+
+### Install DP³ platform
+
+`$ pipenv install -e .`
 
 ## Running tests
 

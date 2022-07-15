@@ -1,6 +1,6 @@
 import setuptools
 
-#with open("README.md", "r") as fh:
+# with open("README.md", "r") as fh:
 #    long_description = fh.read()
 long_description = "TODO"
 
@@ -14,6 +14,26 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/CESNET/dp3",
     packages=setuptools.find_packages(),
+    install_requires=[
+        "numpy",
+        "flask",
+        "amqpstorm>=2.7.2",
+        "apscheduler>=3.6.3",
+        "certifi>=2020.4.5.1",
+        "chardet>=3.0.4",
+        "idna>=2.9",
+        "pamqp>=2.3.0",
+        "psycopg2-binary>=2.8.5",
+        "pytz>=2020.1",
+        "pyyaml>=5.3.1",
+        "requests>=2.23.0",
+        "six>=1.15.0",
+        "sqlalchemy>=1.3.17",
+        "tzlocal>=2.1",
+        "urllib3>=1.25.9",
+        "python-dateutil",
+        "event_count_logger",
+    ],
     # TODO include other files as well
     classifiers=[
         "Programming Language :: Python :: 3",

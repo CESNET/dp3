@@ -1,5 +1,7 @@
 import ipaddress
 import re
+import sys
+
 from dp3.common.utils import parse_time_duration
 
 # Error message templates
@@ -20,7 +22,7 @@ primitive_data_types = [
     "ipv6",
     "mac",
     "time",
-    "special", # deprecated, use json instead
+    "special",  # deprecated, use json instead
     "json"
 ]
 
@@ -45,7 +47,7 @@ default_history = False
 # Default history params
 default_max_age = None
 default_max_items = None
-default_expire_time = "inf" # means "never expire"/"infinite validity", stored internally as None instead of timedelta
+default_expire_time = "inf"  # means "never expire"/"infinite validity", stored internally as None instead of timedelta
 default_pre_validity = "0s"
 default_post_validity = "0s"
 default_aggregation_max_age = "0s"
@@ -162,6 +164,7 @@ class AttrSpec:
         self.confidence = spec.get("confidence", default_confidence)
         self.multi_value = spec.get("multi_value", default_multi_value)
         self.history_params = spec.get("history_params", None)
+        self.probability = spec.get("probability", False)
 
         # Check mandatory specification fields
         assert self.id is not None, err_msg_missing_field.format("id")
@@ -177,6 +180,7 @@ class AttrSpec:
         assert type(self.history) is bool, err_msg_type.format("history", "bool")
         assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
         assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
+        assert type(self.probability) is bool, err_msg_type.format("probability", "bool")
 
         # Check color format
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
@@ -206,7 +210,7 @@ class AttrSpec:
             # TODO
             # Should the entity type be validated here? I.e. does the specification for given entity type have to exist?
             self.value_validator = lambda v: v is not None
-        
+
         elif re.match(re_dict, self.data_type):
             key_str = self.data_type.split("<")[1].split(">")[0]
             key_spec = dict(item.split(":") for item in key_str.split(","))
@@ -216,6 +220,22 @@ class AttrSpec:
 
         else:
             raise AssertionError(f"data type '{self.data_type}' is not supported")
+
+        if self.probability:
+            assert self.data_type in primitive_data_types, \
+                f"data type {self.data_type} is not supported as a probability (primitive types only)"
+
+            def probability_validator(val):
+                if type(val) is not dict:
+                    return False
+                for key, prob in val.items():
+                    if not validators[self.data_type] or not isinstance(prob, float):
+                        return False
+                if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
+                    return False
+                return True
+
+            self.value_validator = probability_validator
 
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:
@@ -238,7 +258,7 @@ class AttrSpec:
 
             if "expire_time" not in self.history_params:
                 self.history_params["expire_time"] = default_expire_time
-            if self.history_params["expire_time"] == "inf": # "inf" in config file is stored as None
+            if self.history_params["expire_time"] == "inf":  # "inf" in config file is stored as None
                 self.history_params["expire_time"] = None
             else:
                 try:
@@ -292,7 +312,7 @@ class AttrSpec:
         """Return string whose evaluation would create the same object."""
         attrs = {'name': self.name}
         if self.description:
-           attrs['description'] = self.description
+            attrs['description'] = self.description
         if self.color != default_color:
             attrs['color'] = self.color
         attrs['data_type'] = self.data_type

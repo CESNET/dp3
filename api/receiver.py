@@ -22,6 +22,7 @@ app = Flask(__name__)
 # or as environment variables.
 if __name__ == '__main__' and len(sys.argv) > 1:
     import argparse
+
     argparser = argparse.ArgumentParser()
     argparser.add_argument('app_name', help='Identification of DP3 application')
     argparser.add_argument('conf_dir', help='Configuration directory')
@@ -42,9 +43,9 @@ else:
     sys.exit(1)
 
 # Temporary override
-#conf_dir = '/etc/adict/config'
-#app_name = 'adict'
-#dp_log_file = '/data/datapoints/dp.log'
+# conf_dir = '/etc/adict/config'
+# app_name = 'adict'
+# dp_log_file = '/data/datapoints/dp.log'
 
 
 # Dictionary containing platform configuration
@@ -57,7 +58,7 @@ attr_spec = {}
 task_writer = None
 
 # Logger
-#log = None
+# log = None
 
 # Flag marking if initialization was successful (no request can be handled if this is False)
 initialized = False
@@ -74,6 +75,7 @@ log_dateformat = "%Y-%m-%dT%H:%M:%S"
 logging.basicConfig(level=logging.WARNING, format=log_format, datefmt=log_dateformat)
 log = logging.getLogger()
 log.setLevel(logging.DEBUG if verbose else logging.INFO)
+
 
 @app.before_first_request
 def initialize():
@@ -96,11 +98,12 @@ def initialize():
         log.debug(f"Loaded configuration: {config}")
     except Exception as e:
         log.exception(f"Error when reading configuration: {e}")
-        return # "initialized" stays False, so any request will fail with Error 500
+        return  # "initialized" stays False, so any request will fail with Error 500
 
     # Initialize task queue connection
     try:
-        task_writer = TaskQueueWriter(app_name, config.get("processing_core.worker_processes"), config.get("processing_core.msg_broker"))
+        task_writer = TaskQueueWriter(app_name, config.get("processing_core.worker_processes"),
+                                      config.get("processing_core.msg_broker"))
     except Exception as e:
         log.exception(f"Error when connecting to task queue: {e}")
         return
@@ -119,8 +122,10 @@ def initialize():
 @app.before_request
 def check_initialization():
     if not initialized:
-        return Response("ERROR: Server not correctly initialized, probably due to some error in configuration. See server log for details.", 500)
-    return None # continue processing request as normal
+        return Response("ERROR: Server not correctly initialized, "
+                        "probably due to some error in configuration. See server log for details.",
+                        500)
+    return None  # continue processing request as normal
 
 
 ################################################################################
@@ -139,7 +144,7 @@ def push_task(task):
         task["src"],
         task["tags"],
         task["ttl_token"],
-        False # priority
+        False  # priority
     )
 
 
@@ -153,14 +158,14 @@ def convert_value(value, data_type):
             return int(value)
         elif data_type == "float":
             return float(value)
-        elif data_type in ("string", "category", "ip4", "ip6", "mac", "timestamp"): # TODO validate IP/MAC addresses and time?
+        elif data_type in ("string", "category", "ip4", "ip6", "mac", "timestamp"):  # TODO validate IP/MAC addresses and time?
             return str(value)
         elif data_type.startswith("link<"):
-            return str(value) #TODO: int should also be allowed, depending on what is being linked
+            return str(value)  # TODO: int should also be allowed, depending on what is being linked
         # others: binary, array<>, set<>, dict<>, special
-        elif isinstance(value, str): # passed as string - parse from JSON format
+        elif isinstance(value, str):  # passed as string - parse from JSON format
             return json.loads(value)
-        else: # otherwise no conversion is needed
+        else:  # otherwise no conversion is needed
             return value
     except (TypeError, ValueError):
         raise TypeError
@@ -238,11 +243,24 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         log.info(response)
         return f"{response}\n", 400  # Bad request
 
+    if spec.probability:
+        try:
+            val = json.loads(val)
+        except (TypeError, ValueError):
+            return f"Error: \"v\" is not a probability distribution (JSON loads failed)\n", 400  # Bad request
+        if not spec.value_validator(val):
+            return f"Error: \"v\" is not a probability distribution (format invalid)\n", 400  # Bad request
+
     # Log the datapoint
     try:
         log_datapoints([(entity_type, entity_id, attr_id, val, t1, t2, c, src)])
     except Exception as e:
         print("ERROR: Can't log datapoint:", e, file=sys.stderr)
+
+    if spec.probability:
+        response = "Success"
+        log.debug(response)
+        return f"{response}\n", 200  # OK
 
     # Prepare task
     t = {
@@ -275,18 +293,18 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         traceback.print_exc()
         response = f"Error: Failed to create a task: {type(e)}: {str(e)}"
         log.info(response)
-        return f"{response}\n", 400 # Bad request
+        return f"{response}\n", 400  # Bad request
     try:
         push_task(task)
     except Exception as e:
         traceback.print_exc()
         response = f"Error: Failed to push task: {type(e)}: {str(e)}"
         log.error(response)
-        return f"{response}\n", 500 # Internal server error
+        return f"{response}\n", 500  # Internal server error
 
     response = "Success"
     log.debug(response)
-    return f"{response}\n", 200 # OK
+    return f"{response}\n", 200  # OK
 
 
 @app.route("/datapoints", methods=["POST"])
@@ -302,7 +320,7 @@ def push_multiple_datapoints():
 
     # Request must be valid JSON (dict) and contain a list of records
     try:
-        payload = request.get_json(force=True) # force = ignore mimetype
+        payload = request.get_json(force=True)  # force = ignore mimetype
     except Exception:
         payload = None
 
@@ -316,11 +334,11 @@ def push_multiple_datapoints():
         # Request is invalid, cannot continue
         response = f"Invalid request: {errors}"
         log.info(response)
-        return f"{response}\n", 400 # Bad request
+        return f"{response}\n", 400  # Bad request
 
     # Load all datapoints from POST data
     dps = []
-    for i,record in enumerate(payload, 1):
+    for i, record in enumerate(payload, 1):
         # Check it's a dict
         if type(record) is not dict:
             response = f"Invalid data-point no. {i}: Not a dictionary"
@@ -363,17 +381,28 @@ def push_multiple_datapoints():
             log.info(response)
             return f"{response}\n", 400  # Bad request
 
+        if spec.probability:
+            try:
+                val = json.loads(value)
+            except (TypeError, ValueError):
+                return f"Error: \"v\" is not a probability distribution (JSON loads failed)\n", 400  # Bad request
+            if not spec.value_validator(val):
+                return f"Error: \"v\" is not a probability distribution (format invalid)\n", 400  # Bad request
+
         dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))
 
     # Log all datapoints (regardless of their validity)
     try:
-        log_datapoints([dp[:8] for dp in dps]) # pass all params except the last one (attr spec)
+        log_datapoints([dp[:8] for dp in dps])  # pass all params except the last one (attr spec)
     except Exception as e:
         print("ERROR: Can't log datapoints:", e, file=sys.stderr)
 
     # Create a task for each (etype,ekey) in data-points
     tasks = {}
     for etype, ekey, attr, value, t1, t2, c, src, spec in dps:
+        if spec.probability:
+            continue
+
         key = (etype, ekey)
         if key not in tasks:
             # create new "empty" task
@@ -413,7 +442,7 @@ def push_multiple_datapoints():
             # traceback.print_exc()
             response = f"\nFailed to create a task: {type(e)}: {str(e)}"
             log.info(response)
-            return f"{response}\n", 400 # Bad request
+            return f"{response}\n", 400  # Bad request
 
     # Push valid tasks to platform task queue
     for task in task_list:
@@ -423,7 +452,7 @@ def push_multiple_datapoints():
             traceback.print_exc()
             response = f"\nFailed to push task: {type(e)}: {str(e)}"
             log.error(response)
-            return f"{response}\n", 500 # Internal server error
+            return f"{response}\n", 500  # Internal server error
 
     response = "Success"
     log.debug(response)
@@ -455,7 +484,7 @@ def push_single_task():
         # Request is invalid, cannot continue
         response = f"Invalid request: {errors}"
         log.info(response)
-        return f"{response}\n", 400 # Bad request
+        return f"{response}\n", 400  # Bad request
 
     # Make valid task and push it to platforms task queue
     try:
@@ -464,18 +493,18 @@ def push_single_task():
         traceback.print_exc()
         response = f"Error: Failed to create a task: {str(e)}"
         log.info(response)
-        return f"{response}\n", 400 # Bad request
+        return f"{response}\n", 400  # Bad request
     try:
         push_task(task)
     except Exception as e:
         traceback.print_exc()
         response = f"Error: Failed to push task to queue: {str(e)}"
         log.error(response)
-        return f"{response}\n", 500 # Internal server error
+        return f"{response}\n", 500  # Internal server error
 
     response = "Success"
     log.debug(response)
-    return f"{response}\n", 200 # OK
+    return f"{response}\n", 200  # OK
 
 
 ################################################################################
@@ -517,7 +546,7 @@ def get_attr_value(entity_type, entity_id, attr_id):
         else:
             response = jsonify(content), 200  # OK
     except Exception as e:
-        response = f"Error when querying db: {e}", 500 # Internal server error
+        response = f"Error when querying db: {e}", 500  # Internal server error
 
     return response
 
@@ -541,13 +570,13 @@ def get_attr_history(entity_type, entity_id, attr_id):
     try:
         f = attr_spec[entity_type]["entity"].key_validator
     except KeyError:
-        return f"Error: no entity specification found for '{entity_type}'", 400 # Bad request
+        return f"Error: no entity specification found for '{entity_type}'", 400  # Bad request
     try:
         _ = attr_spec[entity_type]["attribs"][attr_id]
     except KeyError:
         return f"Error: no attribute specification found for '{attr_id}'", 400  # Bad request
     if not f(entity_id):
-        return "Error: invalid entity id", 400 # Bad request
+        return "Error: invalid entity id", 400  # Bad request
 
     t1 = request.args.get("t1", None)
     t2 = request.args.get("t2", None)
@@ -555,12 +584,12 @@ def get_attr_history(entity_type, entity_id, attr_id):
         try:
             _t1 = parse_rfc_time(t1)
         except ValueError:
-            return "Error: invalid timestamp format (t1)", 400 # Bad request
+            return "Error: invalid timestamp format (t1)", 400  # Bad request
     if t2 is not None:
         try:
             _t2 = parse_rfc_time(t2)
         except ValueError:
-            return "Error: invalid timestamp format (t2)", 400 # Bad request
+            return "Error: invalid timestamp format (t2)", 400  # Bad request
     if t1 is not None and \
        t2 is not None and \
        _t2 < _t1:
@@ -569,11 +598,11 @@ def get_attr_history(entity_type, entity_id, attr_id):
     try:
         content = db.get_datapoints_range(entity_type, attr_id, entity_id, t1, t2)
         if content is None:
-            response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404 # Not found
+            response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404  # Not found
         else:
-            response = jsonify(content), 200 # OK
+            response = jsonify(content), 200  # OK
     except Exception as e:
-        response = f"Error when querying db: {e}", 500 # Internal server error
+        response = f"Error when querying db: {e}", 500  # Internal server error
 
     return response
 

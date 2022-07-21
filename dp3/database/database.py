@@ -508,7 +508,7 @@ class EntityDatabase:
                 if type(value) == str:
                     select_statement = select_statement.where(getattr(table.c, attr_name).like(value))
                 else:
-                    select_statement = select_statement.where(getattr(table.c, attr_name) = value)
+                    select_statement = select_statement.where(getattr(table.c, attr_name) == value)
 
         if limit is not None:
             select_statement = select_statement.limit(limit)

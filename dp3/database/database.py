@@ -499,12 +499,16 @@ class EntityDatabase:
             NotImplementedError("attrs param not implemented yet")
 
         if query:
-            for attr_name,value in query.items():
+            for attr_name, value in query.items():
                 if attr_name not in table.c:
                     self.log.error(f"Cannot search by attribute {attr_name} of table {etype}, because such attribute"
                             f" does not exist!")
                     return None
-                select_statement = select_statement.where(getattr(table.c, attr_name).like(value))
+
+                if type(value) == str:
+                    select_statement = select_statement.where(getattr(table.c, attr_name).like(value))
+                else:
+                    select_statement = select_statement.where(getattr(table.c, attr_name) = value)
 
         if limit is not None:
             select_statement = select_statement.limit(limit)

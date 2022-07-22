@@ -11,6 +11,12 @@ invalid_values = [
     {1: 0.6, 2: 0.3},
 ]
 
+non_probability_datapoint = {
+    "type": "test_entity_type", "id": "test_entity_id", "attr": "test_attr_history",
+    "t1": datetime.datetime.now().isoformat(),
+    "v": 42
+}
+
 
 class ProbabilityAttrSingle(unittest.TestCase):
     @staticmethod
@@ -50,7 +56,7 @@ class ProbabilityAttrMultiple(unittest.TestCase):
         response = requests.post(f"{base_url}/datapoints", json=[{
             "type": "test_entity_type", "id": "test_entity_id", "attr": "test_attr_probability",
             "t1": datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"), "v": v
-        }])
+        }, non_probability_datapoint])
         return response
 
     def test_valid_format_multiple(self):

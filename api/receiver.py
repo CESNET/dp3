@@ -247,9 +247,13 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         try:
             val = json.loads(val)
         except (TypeError, ValueError):
-            return f"Error: \"v\" is not a probability distribution (JSON loads failed)\n", 400  # Bad request
+            response = f"Error: \"v\" is not a probability distribution (JSON loads failed)\n"
+            log.info(f"{response}Value: {val}")
+            return response, 400  # Bad request
         if not spec.value_validator(val):
-            return f"Error: \"v\" is not a probability distribution (format invalid)\n", 400  # Bad request
+            response = f"Error: \"v\" is not a probability distribution (format invalid)\n"
+            log.info(f"{response}Value: {val}")
+            return f"{response}\n", 400  # Bad request
 
     # Log the datapoint
     try:
@@ -385,9 +389,13 @@ def push_multiple_datapoints():
             try:
                 val = json.loads(value)
             except (TypeError, ValueError):
-                return f"Error: \"v\" is not a probability distribution (JSON loads failed)\n", 400  # Bad request
+                response = f"Error: \"v\" is not a probability distribution (JSON loads failed)\n"
+                log.info(f"{response}Value: {value}")
+                return response, 400  # Bad request
             if not spec.value_validator(val):
-                return f"Error: \"v\" is not a probability distribution (format invalid)\n", 400  # Bad request
+                response = f"Error: \"v\" is not a probability distribution (format invalid)\n"
+                log.info(f"{response}Value: {val}")
+                return response, 400  # Bad request
 
         dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))
 

@@ -231,8 +231,9 @@ class AttrSpec:
                 for key, prob in val.items():
                     if not validators[self.data_type] or not isinstance(prob, float):
                         return False
-                if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
-                    return False
+                # This can be fixed later in the system by dividing by the sum of all probabilites.
+                # if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
+                #     return False
                 return True
 
             self.value_validator = probability_validator

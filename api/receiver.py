@@ -253,7 +253,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         if not spec.value_validator(val):
             response = f"Error: \"v\" is not a probability distribution (format invalid)\n"
             log.info(f"{response}Value: {val}")
-            return f"{response}\n", 400  # Bad request
+            return response, 400  # Bad request
 
     # Log the datapoint
     try:

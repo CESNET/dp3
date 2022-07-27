@@ -108,8 +108,7 @@ class EntityDatabase:
         self.init_database_schema()
         self.log.info("Database successfully initialized!")
 
-    @staticmethod
-    def are_tables_identical(first_table: Table, second_table: Table) -> bool:
+    def are_tables_identical(self, first_table: Table, second_table: Table) -> bool:
         """
         Check table columns names and their types.
         :param first_table: first table to compare with
@@ -118,6 +117,10 @@ class EntityDatabase:
         """
         db_table_metadata = set([(col.key, col.type.python_type) for col in first_table.columns])
         config_table_metadata = set([(col.key, col.type.python_type) for col in second_table.columns])
+        if db_table_metadata != config_table_metadata:
+            self.log.error("Tables not identical: "
+                           f"expected in db, but missing: {config_table_metadata - db_table_metadata}; "
+                           f"in db, but unexpected: {db_table_metadata - config_table_metadata}")
         return db_table_metadata == config_table_metadata
 
     @staticmethod
@@ -213,7 +216,7 @@ class EntityDatabase:
             return
 
         # if table exists, check if the definition is the same
-        if not EntityDatabase.are_tables_identical(current_table, entity_table):
+        if not self.are_tables_identical(current_table, entity_table):
             raise DatabaseConfigMismatchError(f"Table {table_name} already exists, but has different settings and "
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table

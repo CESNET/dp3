@@ -43,6 +43,7 @@ default_confidence = False
 default_multi_value = False
 default_timestamp = False
 default_history = False
+default_editable = False
 
 # Default history params
 default_max_age = None
@@ -165,6 +166,7 @@ class AttrSpec:
         self.multi_value = spec.get("multi_value", default_multi_value)
         self.history_params = spec.get("history_params", None)
         self.probability = spec.get("probability", False)
+        self.editable = spec.get("editable", default_editable)
 
         # Check mandatory specification fields
         assert self.id is not None, err_msg_missing_field.format("id")
@@ -181,6 +183,7 @@ class AttrSpec:
         assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
         assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
         assert type(self.probability) is bool, err_msg_type.format("probability", "bool")
+        assert type(self.editable) is bool, err_msg_type.format("editable", "bool")
 
         # Check color format
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
@@ -324,6 +327,8 @@ class AttrSpec:
         attrs['history'] = self.history
         if self.history_params:
             attrs['history_params'] = self.history_params
+        attrs['editable'] = self.editable
+
         return f"AttrSpec({self.id!r}, {attrs!r})"
 
     # TODO shorter and more readable __str__ representation?

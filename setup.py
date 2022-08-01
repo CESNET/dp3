@@ -26,7 +26,7 @@ setuptools.setup(
         "psycopg2-binary~=2.8.5",
         "pytz~=2020.1",
         "pyyaml~=5.3.1",
-        "requests~=2.23.0",
+        "requests~=2.28.1",
         "six~=1.15.0",
         "sqlalchemy~=1.3.17",
         "tzlocal~=2.1",

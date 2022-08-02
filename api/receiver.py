@@ -4,6 +4,8 @@ import sys
 import logging
 import traceback
 import json
+import requests
+import time
 from flask import Flask, request, Response, jsonify
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
@@ -623,6 +625,30 @@ def ping():
     Returns a simple text response ("It works!")
     """
     return Response("It works!", status=200, mimetype="text/plain")
+
+
+@app.route("/workers_alive", methods=["GET"])
+def workers_alive():
+    """
+    REST endpoint to check whether any workers are running
+
+    Checks the RabbitMQ statistics twice, if there is any difference,
+    a live worker is assumed.
+    """
+    global config
+
+    connection_config = config.get("processing_core.msg_broker")
+    resp = requests.get(f"http://{connection_config['host']}:15672/api/overview",
+                        auth=(connection_config['username'], connection_config['password']))
+    content = json.loads(resp.content)
+    start_stat = content["message_stats"]["deliver_get"]
+    time.sleep(2)
+    resp = requests.get(f"http://{connection_config['host']}:15672/api/overview",
+                        auth=(connection_config['username'], connection_config['password']))
+    content = json.loads(resp.content)
+    end_stat = content["message_stats"]["deliver_get"]
+    return json.dumps({"workers_alive": not (end_stat == start_stat),
+                       "deliver_get_difference": end_stat - start_stat})
 
 
 if __name__ == "__main__":

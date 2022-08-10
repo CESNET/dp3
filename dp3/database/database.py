@@ -85,11 +85,11 @@ class EntityDatabase:
         #self.log.setLevel("DEBUG")
 
         connection_conf = db_conf.get('connection', {})
-        username = connection_conf.get('username', "adict")
-        password = connection_conf.get('password', "adict")
+        username = connection_conf.get('username', "dp3")
+        password = connection_conf.get('password', "dp3")
         address = connection_conf.get('address', "localhost")
         port = str(connection_conf.get('port', 5432))
-        db_name = connection_conf.get('db_name', "adict")
+        db_name = connection_conf.get('db_name', "dp3")
         database_url = "postgresql://" + username + ":" + password + "@" + address + ":" + port + "/" + db_name
         self.log.debug(f"Connection URL: {database_url}")
         db_engine = create_engine(database_url)

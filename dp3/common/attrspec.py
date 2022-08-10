@@ -43,6 +43,7 @@ default_confidence = False
 default_multi_value = False
 default_timestamp = False
 default_history = False
+default_history_force_graph = False
 default_editable = False
 
 # Default history params
@@ -167,6 +168,7 @@ class AttrSpec:
         self.history_params = spec.get("history_params", None)
         self.probability = spec.get("probability", False)
         self.editable = spec.get("editable", default_editable)
+        self.history_force_graph = spec.get("history_force_graph", default_history_force_graph)
 
         # Check mandatory specification fields
         assert self.id is not None, err_msg_missing_field.format("id")
@@ -184,6 +186,7 @@ class AttrSpec:
         assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
         assert type(self.probability) is bool, err_msg_type.format("probability", "bool")
         assert type(self.editable) is bool, err_msg_type.format("editable", "bool")
+        assert type(self.history_force_graph) is bool, err_msg_type.format("history_force_graph", "bool")
 
         # Check color format
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
@@ -328,6 +331,7 @@ class AttrSpec:
         if self.history_params:
             attrs['history_params'] = self.history_params
         attrs['editable'] = self.editable
+        attrs['history_force_graph'] = self.history_force_graph
 
         return f"AttrSpec({self.id!r}, {attrs!r})"
 

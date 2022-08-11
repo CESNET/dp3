@@ -149,6 +149,19 @@ def valid_dict(obj, key_spec):
     return True
 
 
+# Validate probablity
+def valid_probability(val):
+    if type(val) is not dict:
+        return False
+    for key, prob in val.items():
+        if not validators[self.data_type] or not isinstance(prob, float):
+            return False
+    # This can be fixed later in the system by dividing by the sum of all probabilites.
+    # if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
+    #     return False
+    return True
+
+
 # This class represents specification of an attribute of given id
 class AttrSpec:
     # Class constructor
@@ -191,58 +204,13 @@ class AttrSpec:
         # Check color format
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
 
-        # Initialize attribute's validator function according to its data type
-        if self.data_type in primitive_data_types:
-            self.value_validator = validators[self.data_type]
-
-        elif self.data_type == "category":
-            if self.categories is None:
-                self.value_validator = validators["string"]
-            else:
-                assert type(self.categories) is list, err_msg_type.format("categories", "list")
-                self.value_validator = lambda v: v in self.categories
-
-        elif re.match(re_array, self.data_type):
-            element_type = self.data_type.split("<")[1].split(">")[0]
-            assert element_type in primitive_data_types, f"data type {element_type} is not supported as an array element"
-            self.value_validator = lambda v: valid_array(v, element_type) or validators[element_type]
-
-        elif re.match(re_set, self.data_type):
-            element_type = self.data_type.split("<")[1].split(">")[0]
-            assert element_type in primitive_data_types, f"data type {element_type} is not supported as a set element"
-            self.value_validator = lambda v: valid_set(v, element_type) or validators[element_type]
-
-        elif re.match(re_link, self.data_type):
-            # TODO
-            # Should the entity type be validated here? I.e. does the specification for given entity type have to exist?
-            self.value_validator = lambda v: v is not None
-
-        elif re.match(re_dict, self.data_type):
-            key_str = self.data_type.split("<")[1].split(">")[0]
-            key_spec = dict(item.split(":") for item in key_str.split(","))
-            for k in key_spec:
-                assert key_spec[k] in primitive_data_types, f"data type {key_spec[k]} is not supported as a dict field"
-            self.value_validator = lambda v: valid_dict(v, key_spec)
-
-        else:
-            raise AssertionError(f"data type '{self.data_type}' is not supported")
+        self._init_validator_function()
 
         if self.probability:
             assert self.data_type in primitive_data_types, \
                 f"data type {self.data_type} is not supported as a probability (primitive types only)"
 
-            def probability_validator(val):
-                if type(val) is not dict:
-                    return False
-                for key, prob in val.items():
-                    if not validators[self.data_type] or not isinstance(prob, float):
-                        return False
-                # This can be fixed later in the system by dividing by the sum of all probabilites.
-                # if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
-                #     return False
-                return True
-
-            self.value_validator = probability_validator
+            self.value_validator = valid_probability
 
         # If history is enabled, spec must contain a dict of history parameters
         if self.history is True:
@@ -315,23 +283,64 @@ class AttrSpec:
             assert self.history_params["aggregation_function_source"] in aggregation_functions, err_msg_format.format("aggregation_function_source")
 
 
+    def _init_validator_function(self):
+        # Initialize attribute's validator function according to its data type
+        if self.data_type in primitive_data_types:
+            self.value_validator = validators[self.data_type]
+
+        elif self.data_type == "category":
+            if self.categories is None:
+                self.value_validator = validators["string"]
+            else:
+                assert type(self.categories) is list, err_msg_type.format("categories", "list")
+                self.value_validator = lambda v: v in self.categories
+
+        elif re.match(re_array, self.data_type):
+            element_type = self.data_type.split("<")[1].split(">")[0]
+            assert element_type in primitive_data_types, f"data type {element_type} is not supported as an array element"
+            self.value_validator = lambda v: valid_array(v, element_type) or validators[element_type]
+
+        elif re.match(re_set, self.data_type):
+            element_type = self.data_type.split("<")[1].split(">")[0]
+            assert element_type in primitive_data_types, f"data type {element_type} is not supported as a set element"
+            self.value_validator = lambda v: valid_set(v, element_type) or validators[element_type]
+
+        elif re.match(re_link, self.data_type):
+            # TODO
+            # Should the entity type be validated here? I.e. does the specification for given entity type have to exist?
+            self.value_validator = lambda v: v is not None
+
+        elif re.match(re_dict, self.data_type):
+            key_str = self.data_type.split("<")[1].split(">")[0]
+            key_spec = dict(item.split(":") for item in key_str.split(","))
+            for k in key_spec:
+                assert key_spec[k] in primitive_data_types, f"data type {key_spec[k]} is not supported as a dict field"
+            self.value_validator = lambda v: valid_dict(v, key_spec)
+
+        else:
+            raise AssertionError(f"data type '{self.data_type}' is not supported")
+
+
     def __repr__(self):
         """Return string whose evaluation would create the same object."""
-        attrs = {'name': self.name}
+        attrs = {
+            "name": self.name,
+            "data_type": self.data_type,
+            "confidence": self.confidence,
+            "multi_value": self.multi_value,
+            "editable": self.editable,
+            "history": self.history,
+            "history_force_graph": self.history_force_graph
+        }
+
         if self.description:
-            attrs['description'] = self.description
+            attrs["description"] = self.description
         if self.color != default_color:
-            attrs['color'] = self.color
-        attrs['data_type'] = self.data_type
+            attrs["color"] = self.color
         if self.categories:
-            attrs['categories'] = self.categories
-        attrs['confidence'] = self.confidence
-        attrs['multi_value'] = self.multi_value
-        attrs['history'] = self.history
+            attrs["categories"] = self.categories
         if self.history_params:
-            attrs['history_params'] = self.history_params
-        attrs['editable'] = self.editable
-        attrs['history_force_graph'] = self.history_force_graph
+            attrs["history_params"] = self.history_params
 
         return f"AttrSpec({self.id!r}, {attrs!r})"
 

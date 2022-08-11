@@ -7,10 +7,12 @@ attribs:
   int_attr:
     name: Test attribute (int)
     description: An integer attribute for testing of DP3
+    type: plain
     data_type: int
   string_attr:
     name: Test attribute (str) with history
     description: A string attribute for testing of DP3, this one stores history of previous values
+    type: plain
     data_type: string
     history: true
     history_params:

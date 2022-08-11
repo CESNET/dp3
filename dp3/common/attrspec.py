@@ -10,6 +10,13 @@ err_msg_format = "format of '{}' is invalid"
 err_msg_value = "value of '{}' is invalid"
 err_msg_missing_field = "mandatory field '{}' is missing"
 
+# List of attribute types
+attr_types = [
+    "plain",
+    "observations",
+    "timeseries"
+]
+
 # List of primitive data types
 primitive_data_types = [
     "tag",
@@ -41,7 +48,6 @@ default_color = "#000000"
 default_description = ""
 default_confidence = False
 default_multi_value = False
-default_timestamp = False
 default_history = False
 default_history_force_graph = False
 default_editable = False
@@ -58,7 +64,6 @@ default_aggregation_function_confidence = "avg"
 default_aggregation_function_source = "csv_union"
 
 # Regular expressions for parsing various data types
-re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
 re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
 re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
@@ -82,11 +87,6 @@ def valid_ipv6(address):
         return True
     except ValueError:
         return False
-
-
-# Validate timestamp string
-def valid_rfc3339(timestamp):
-    return re_timestamp.match(timestamp)
 
 
 # Validate MAC string
@@ -169,12 +169,12 @@ class AttrSpec:
     def __init__(self, id, spec):
         # Set default values for missing fields
         self.id = id
+        self.type = spec.get("type", None)
         self.name = spec.get("name", self.id)
         self.description = spec.get("description", default_description)
         self.color = spec.get("color", default_color)
         self.data_type = spec.get("data_type", None)
         self.categories = spec.get("categories", None)
-        self.timestamp = spec.get("timestamp", default_timestamp)
         self.history = spec.get("history", default_history)
         self.confidence = spec.get("confidence", default_confidence)
         self.multi_value = spec.get("multi_value", default_multi_value)
@@ -184,6 +184,7 @@ class AttrSpec:
         self.history_force_graph = spec.get("history_force_graph", default_history_force_graph)
 
         # Check mandatory specification fields
+        assert self.type is not None, err_msg_missing_field.format("type")
         assert self.id is not None, err_msg_missing_field.format("id")
         assert self.data_type is not None, err_msg_missing_field.format("data_type")
 
@@ -193,13 +194,15 @@ class AttrSpec:
         assert type(self.description) is str, err_msg_type.format("description", "str")
         assert type(self.color) is str, err_msg_type.format("color", "str")
         assert type(self.data_type) is str, err_msg_type.format("data_type", "str")
-        assert type(self.timestamp) is bool, err_msg_type.format("timestamp", "bool")
         assert type(self.history) is bool, err_msg_type.format("history", "bool")
         assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
         assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
         assert type(self.probability) is bool, err_msg_type.format("probability", "bool")
         assert type(self.editable) is bool, err_msg_type.format("editable", "bool")
         assert type(self.history_force_graph) is bool, err_msg_type.format("history_force_graph", "bool")
+
+        # Check validity of type
+        assert self.type in attr_types, err_msg_value.format("type")
 
         # Check color format
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
@@ -325,6 +328,7 @@ class AttrSpec:
         """Return string whose evaluation would create the same object."""
         attrs = {
             "name": self.name,
+            "type": self.type,
             "data_type": self.data_type,
             "confidence": self.confidence,
             "multi_value": self.multi_value,

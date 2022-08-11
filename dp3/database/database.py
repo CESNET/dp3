@@ -35,25 +35,25 @@ ATTR_TYPE_MAPPING = {
 
 # static preconfiguration of attribute's history table
 HISTORY_ATTRIBS_CONF = {
-    'id': AttrSpec("id", {'name': "id", 'data_type': "int"}),
-    'eid': AttrSpec("eid", {'name': "eid", 'data_type': "string"}),
+    'id': AttrSpec("id", {'name': "id", 'type': "plain", 'data_type': "int"}),
+    'eid': AttrSpec("eid", {'name': "eid", 'type': "plain", 'data_type': "string"}),
     # 'value' is inserted manually, because it depends on the attribute
-    't1': AttrSpec("t1", {'name': "t1", 'data_type': "time"}),
-    't2': AttrSpec("t2", {'name': "t2", 'data_type': "time"}),
-    'c': AttrSpec("c", {'name': "c", 'data_type': "float"}),
-    'src': AttrSpec("src", {'name': "src", 'data_type': "string"}),
+    't1': AttrSpec("t1", {'name': "t1", 'type': "plain", 'data_type': "time"}),
+    't2': AttrSpec("t2", {'name': "t2", 'type': "plain", 'data_type': "time"}),
+    'c': AttrSpec("c", {'name': "c", 'type': "plain", 'data_type': "float"}),
+    'src': AttrSpec("src", {'name': "src", 'type': "plain", 'data_type': "string"}),
 
-    'tag': AttrSpec("tag", {'name': "tag", 'data_type': "int"}) #TODO rather smallint?
+    'tag': AttrSpec("tag", {'name': "tag", 'type': "plain", 'data_type': "int"}) #TODO rather smallint?
 }
 
 # preconfigured attributes all tables (records) should have
 TABLE_MANDATORY_ATTRIBS = {
-    'ts_added': AttrSpec("ts_added", {'name': "timestamp of record creation", 'data_type': "time"}),
-    'ts_last_update': AttrSpec("ts_last_update", {'name': "timestamp of record last update", 'data_type': "time"}),
+    'ts_added': AttrSpec("ts_added", {'name': "timestamp of record creation", 'type': "plain", 'data_type': "time"}),
+    'ts_last_update': AttrSpec("ts_last_update", {'name': "timestamp of record last update", 'type': "plain", 'data_type': "time"}),
 }
 
 # Preconfiguration of main entity tables
-EID_CONF = {'eid': AttrSpec("eid", {'name': "entity id", 'data_type': "string"})}
+EID_CONF = {'eid': AttrSpec("eid", {'name': "entity id", 'type': "plain", 'data_type': "string"})}
 
 
 # Custom exceptions
@@ -234,7 +234,7 @@ class EntityDatabase:
         for _, attrib_conf in table_attribs.items():
             if attrib_conf.history:
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
-                history_conf['v'] = AttrSpec("v", {'name': "value", 'data_type': attrib_conf.data_type})
+                history_conf['v'] = AttrSpec("v", {'name': "value", 'type': "plain", 'data_type': attrib_conf.data_type})
                 # History tables are named as <entity_name>__<attr_name> (e.g. "ip__activity_flows")
                 table_name = f"{table_name_prefix}__{attrib_conf.id}"
                 self.create_table(table_name, {'attribs': history_conf}, db_current_state, True)

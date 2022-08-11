@@ -64,6 +64,7 @@ default_aggregation_function_confidence = "avg"
 default_aggregation_function_source = "csv_union"
 
 # Regular expressions for parsing various data types
+re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
 re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
 re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
@@ -87,6 +88,11 @@ def valid_ipv6(address):
         return True
     except ValueError:
         return False
+
+
+# Validate timestamp string
+def valid_rfc3339(timestamp):
+    return re_timestamp.match(timestamp)
 
 
 # Validate MAC string

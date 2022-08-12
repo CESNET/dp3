@@ -337,3 +337,40 @@ class AttrSpec:
         if "aggregation_function_source" not in self.history_params:
             self.history_params["aggregation_function_source"] = default_aggregation_function_source
         assert self.history_params["aggregation_function_source"] in aggregation_functions, err_msg_format.format("aggregation_function_source")
+
+
+    def __repr__(self):
+        """Return string whose evaluation would create the same object."""
+        attrs = {
+            "name": self.name,
+            "type": self.type
+        }
+
+        # Optional common fields
+        if self.description:
+            attrs["description"] = self.description
+        if self.color != default_color:
+            attrs["color"] = self.color
+
+        # Type-specific fields
+        if (self.type == "plain" or
+            self.type == "observations"):
+            attrs["data_type"] = self.data_type
+            attrs["confidence"] = self.confidence
+            attrs["probability"] = self.probability
+            attrs["editable"] = self.editable
+
+            if self.categories:
+                attrs["categories"] = self.categories
+
+        if self.type == "plain":
+            pass
+
+        if self.type == "observations":
+            attrs["multi_value"] = self.multi_value
+            attrs["history_params"] = self.history_params
+            attrs["history_force_graph"] = self.history_force_graph
+
+        return f"AttrSpec({self.id!r}, {attrs!r})"
+
+    # TODO shorter and more readable __str__ representation?

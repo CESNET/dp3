@@ -48,15 +48,17 @@ default_color = "#000000"
 default_description = ""
 
 # Default history params
-default_max_age = None
-default_max_items = None
-default_expire_time = "inf"  # means "never expire"/"infinite validity", stored internally as None instead of timedelta
-default_pre_validity = "0s"
-default_post_validity = "0s"
-default_aggregation_max_age = "0s"
-default_aggregation_function_value = "keep"
-default_aggregation_function_confidence = "avg"
-default_aggregation_function_source = "csv_union"
+default_history_params = {
+    "max_age": None,
+    "max_items": None,
+    "expire_time": "inf",  # means "never expire"/"infinite validity", stored internally as None instead of timedelta
+    "pre_validity": "0s",
+    "post_validity": "0s",
+    "aggregation_max_age": "0s",
+    "aggregation_function_value": "keep",
+    "aggregation_function_confidence": "avg",
+    "aggregation_function_source": "csv_union"
+}
 
 # Regular expressions for parsing various data types
 re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
@@ -273,70 +275,47 @@ class AttrSpec:
         assert self.history_params is not None, err_msg_missing_field.format("history_params")
         assert type(self.history_params) is dict, err_msg_type.format("history_params", "dict")
 
-        if "max_items" not in self.history_params:
-            self.history_params["max_items"] = default_max_items
+        # Fill empty fields with default values 
+        self.history_params = default_history_params | self.history_params
+
         if self.history_params["max_items"] is not None:
             assert type(self.history_params["max_items"]) is int, err_msg_type.format("max_items", "int")
             assert self.history_params["max_items"] > 0, err_msg_value.format("max_items")
 
-        if "max_age" not in self.history_params:
-            self.history_params["max_age"] = default_max_age
         if self.history_params["max_age"] is not None:
-            try:
-                self.history_params["max_age"] = parse_time_duration(self.history_params["max_age"])
-            except ValueError:
-                assert False, err_msg_format.format("max_age")
+            self.history_params["max_age"] = self._parse_time_duration_safe(self.history_params["max_age"], "max_age")
 
-        if "expire_time" not in self.history_params:
-            self.history_params["expire_time"] = default_expire_time
         if self.history_params["expire_time"] == "inf":  # "inf" in config file is stored as None
             self.history_params["expire_time"] = None
         else:
-            try:
-                self.history_params["expire_time"] = parse_time_duration(self.history_params["expire_time"])
-            except ValueError:
-                assert False, err_msg_format.format("expire_time")
+            self.history_params["expire_time"] = self._parse_time_duration_safe(self.history_params["expire_time"], "expire_time")
 
-        if "pre_validity" not in self.history_params:
-            self.history_params["pre_validity"] = default_pre_validity
-        try:
-            self.history_params["pre_validity"] = parse_time_duration(self.history_params["pre_validity"])
-        except ValueError:
-            assert False, err_msg_format.format("pre_validity")
-
-        if "post_validity" not in self.history_params:
-            self.history_params["post_validity"] = default_post_validity
-        try:
-            self.history_params["post_validity"] = parse_time_duration(self.history_params["post_validity"])
-        except ValueError:
-            assert False, err_msg_format.format("post_validity")
+        self.history_params["pre_validity"] = self._parse_time_duration_safe(self.history_params["pre_validity"], "pre_validity")
+        self.history_params["post_validity"] = self._parse_time_duration_safe(self.history_params["post_validity"], "post_validity")
 
         if "aggregation_interval" not in self.history_params:
             self.history_params["aggregation_interval"] = self.history_params["pre_validity"] + self.history_params["post_validity"]
         else:
-            try:
-                self.history_params["aggregation_interval"] = parse_time_duration(self.history_params["aggregation_interval"])
-            except ValueError:
-                assert False, err_msg_format.format("aggregation_interval")
+            self.history_params["aggregation_interval"] = self._parse_time_duration_safe(self.history_params["aggregation_interval"], "aggregation_interval")
 
-        if "aggregation_max_age" not in self.history_params:
-            self.history_params["aggregation_max_age"]  = default_aggregation_max_age
-        try:
-            self.history_params["aggregation_max_age"] = parse_time_duration(self.history_params["aggregation_max_age"])
-        except ValueError:
-            assert False, err_msg_format.format("aggregation_max_age")
+        self.history_params["aggregation_max_age"] = self._parse_time_duration_safe(self.history_params["aggregation_max_age"], "aggregation_max_age")
 
-        if "aggregation_function_value" not in self.history_params:
-            self.history_params["aggregation_function_value"] = default_aggregation_function_value
         assert self.history_params["aggregation_function_value"] in aggregation_functions, err_msg_format.format("aggregation_function_value")
-
-        if "aggregation_function_confidence" not in self.history_params:
-            self.history_params["aggregation_function_confidence"] = default_aggregation_function_confidence
         assert self.history_params["aggregation_function_confidence"] in aggregation_functions, err_msg_format.format("aggregation_function_confidence")
-
-        if "aggregation_function_source" not in self.history_params:
-            self.history_params["aggregation_function_source"] = default_aggregation_function_source
         assert self.history_params["aggregation_function_source"] in aggregation_functions, err_msg_format.format("aggregation_function_source")
+
+
+    @staticmethod
+    def _parse_time_duration_safe(time_duration, field_id):
+        """Simple wrapper around `dp3.common.utils.parse_time_duration` function.
+
+        Effectively only changes error class from ValueError to AssertionError
+        and error message.
+        """
+        try:
+            return parse_time_duration(time_duration)
+        except ValueError:
+            raise AssertionError(err_msg_format.format(field_id))
 
 
     def __repr__(self):

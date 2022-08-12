@@ -306,7 +306,7 @@ class TaskExecutor:
         # check confidence and/or expiration date (if required by configuration) and set default values if needed
         if attrib_conf.confidence and 'c' not in updreq:
             updreq['c'] = 1
-        if attrib_conf.history and 'exp' not in updreq:
+        if attrib_conf.type == "observations" and 'exp' not in updreq:
             updreq['exp'] = datetime.now()
 
         # multi value attributes have special operations that handle confidence/expiration on their own
@@ -315,7 +315,7 @@ class TaskExecutor:
         else:
             if attrib_conf.confidence:
                 rec[f"{key}:c"] = updreq['c']
-            if attrib_conf.history:
+            if attrib_conf.type == "observations":
                 rec[f"{key}:exp"] = updreq['exp']
 
         try:

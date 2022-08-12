@@ -167,7 +167,7 @@ class EntityDatabase:
                 columns.append(Column(attrib_id + ":c", column_type))
 
             # Add value expiration date for attributes with history
-            if attrib_conf.history:
+            if attrib_conf.type == "observations":
                 column_type = TIMESTAMP
                 # Multi-value attributes can have different expiration date for each individual value
                 if attrib_conf.multi_value:
@@ -216,7 +216,7 @@ class EntityDatabase:
             return
 
         # if table exists, check if the definition is the same
-        if not self.are_tables_identical(current_table, entity_table):
+        if not EntityDatabase.are_tables_identical(current_table, entity_table):
             raise DatabaseConfigMismatchError(f"Table {table_name} already exists, but has different settings and "
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table
@@ -232,7 +232,7 @@ class EntityDatabase:
         # TODO How to handle history_params (max_age, expire_time, etc.)? It will be probably handled by secondary
         #  modules.
         for _, attrib_conf in table_attribs.items():
-            if attrib_conf.history:
+            if attrib_conf.type == "observations":
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
                 history_conf['v'] = AttrSpec("v", {'name': "value", 'type': "plain", 'data_type': attrib_conf.data_type})
                 # History tables are named as <entity_name>__<attr_name> (e.g. "ip__activity_flows")

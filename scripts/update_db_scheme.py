@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 
 """
-Script loads and checks configuration from given directory, then edits database scheme according to configuration.
+Load and check dp3 configuration files from given directory and update database scheme as needed.
 
-After that it connects to database, checks if there are any columns and tables that need to be added, if so then adds them. 
+The Script requires an argument with the path to the configuration.
 
-Script also checks if the data type of columns in database and data type in configuration are the same, 
-if they are not it  gives option to change data type of column in database to data type from configuration.
+IMPORTANT: ALL WORKERS MUST BE STOPPED BEFORE RUNNING THIS SCRIPT.
+To check if any workers are running, use the '-u' argument and pass the URL where the script can check if any worker
+is active.
+
+The script connects to the database, checks the existing tables and columns, compares them with the current
+configuration and if needed, it automatically adds the tables and columns needed to match the configuration.
+
+It also checks if data types of columns in the database and data types in configuration are the same.
+If not, it gives you an option to change the data type of the database column to the data type from configuration.
 
 Script also checks if there any columns in database that shouldn't be here. 
-If it finds column or table like this it gives you the option to drop this table or column.
-
-Script requires argument with path to the configuration. 
-If you want to check running workers at first, use argument '-u' to give URL where script can check if any worker is active.
-
+If it finds a column or table like this it gives you the option to drop this table or column.
 """
 
-# from distutils.command.config import config
 import inspect
 import yaml
 import sys
@@ -24,7 +26,6 @@ import os
 import argparse
 import requests
 import json
-from migrate import ChangesetColumn
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, REAL, JSON
 from sqlalchemy import create_engine, inspect, Table, Column, MetaData, func
 
@@ -60,10 +61,10 @@ def create_config_column_list(config_item, attr_spec):
     columns_in_attr = list()
     for attr_col in attr_columns.keys():
         columns_in_attr.append(attr_col) # adds name of attribute to list of columns that should be in the table
-        if attr_columns.get(attr_col).history: # if attribute has history set to true, column with stamp :exe has to be added
+        if attr_columns.get(attr_col).history: # if attribute has history set to true, column with stamp :exp has to be added
             exp = attr_col + ":exp"
             columns_in_attr.append(exp)
-        if attr_columns.get(attr_col).confidence: # if attribute has confidence set to true, column with stamp :exe has to be added
+        if attr_columns.get(attr_col).confidence: # if attribute has confidence set to true, column with stamp :exp has to be added
             columns_in_attr.append(attr_col + ":c")
 
     return columns_in_attr
@@ -216,7 +217,7 @@ def get_table_names_attr(attr_spec):
 def delete_table(table_name, meta, db_engine):
     # drops table
     while True:
-        delete = input(f"Do you realy want to delete table {table_name} (yes/no)? ")
+        delete = input(f"Do you really want to delete table {table_name} (yes/no)? ")
         delete = delete.lower()
         if delete == "yes":
             table = meta.tables.get(table_name)
@@ -269,7 +270,7 @@ def validity_of_config(args):
         config = read_config_dir(args.config_dir, True)
         attr_spec = load_attr_spec(config.get("db_entities"))
     except Exception as e:
-        print(f"CONFIGURATIN ERROR: {e}")
+        print(f"CONFIGURATION ERROR: {e}")
         sys.exit(1)
 
     print("Configuration is valid.")
@@ -283,15 +284,15 @@ def validity_of_config(args):
 
 def get_db_connection(config_dir):
     # connecting to ADiCT database
-    database_dir = os.path.join(config_dir, "database.yml")
-    with open(database_dir, "r") as f:
+    db_config_file = os.path.join(config_dir, "database.yml")
+    with open(db_config_file, "r") as f:
         db = yaml.safe_load(f)
     connection_conf = db.get('connection', {})
-    username = connection_conf.get('username', "adict")
-    password = connection_conf.get('password', "adict")
+    username = connection_conf.get('username')
+    password = connection_conf.get('password', "")
     address = connection_conf.get('address', "localhost")
     port = str(connection_conf.get('port', 5432))
-    db_name = connection_conf.get('db_name', "adict")
+    db_name = connection_conf.get('db_name')
     database_url = "postgresql://" + username + ":" + password + "@" + address + ":" + port + "/" + db_name
     print(f"Connection URL: {database_url}")
     print("Connecting to database...")
@@ -299,8 +300,8 @@ def get_db_connection(config_dir):
         db_engine = create_engine(url=database_url)
     except Exception as e:
         print(f"CONNECTION ERROR: {e}")
+        sys.exit(2)
     
-    print("Checking if database scheme is the same as configuration...")
     return db_engine
 
 def check_workers(worker_check_url):
@@ -317,15 +318,13 @@ def check_workers(worker_check_url):
 def parse_arguments():
     # Parse arguments
     parser = argparse.ArgumentParser(
-        prog="db_validity",
-        description="Load configuration from given directory and check its validity. When configuration is OK, program "
-                    "exits immediately with status code 0, otherwise it prints error messages on stderr and exits with non-zero "
-                    "status."
+        prog="update_db_scheme",
+        description="Load and check dp3 configuration files from given directory and update database scheme as needed."
     )
     parser.add_argument('config_dir', metavar='CONFIG_DIRECTORY',
                         help="Path to a directory containing configuration files (e.g. /etc/my_app/config)")
     parser.add_argument('-u','--worker_check_url', metavar='WORKER_CHECK_URL',
-                        help="URL where we can check if any workers are active e.g. http://adict-devel.liberouter.org/adict/")
+                        help='Base URL of an API where we can check if any workers are active (via "workers_alive" endpoint)')
     parser.add_argument('-v', '--verbose', action="store_true", help="Verbose mode - print parsed configuration", default=False)
     return parser.parse_args()
 
@@ -343,6 +342,7 @@ def main():
     except Exception as e:
         print(f"ERROR: {e}")
         exit(1)
+    print("Checking if the database scheme matches the configuration...")
     db_inspector = inspect(db_engine)
     meta = MetaData()
     meta.reflect(bind=db_engine)

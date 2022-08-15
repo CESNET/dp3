@@ -293,6 +293,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         }]
     else:
         # TODO - timeseries
+        pass
 
     # Make valid task using the attr_spec template and push it to platform's task queue
     try:
@@ -445,6 +446,7 @@ def push_multiple_datapoints():
             })
         else:
             # TODO - timeseries
+            pass
 
     task_list = []
 

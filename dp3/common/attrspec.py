@@ -17,6 +17,13 @@ attr_types = [
     "timeseries"
 ]
 
+# List of timeseries types
+timeseries_types = [
+    "regular",
+    "irregular",
+    "irregular_intervals"
+]
+
 # List of primitive data types
 primitive_data_types = [
     "tag",
@@ -31,6 +38,13 @@ primitive_data_types = [
     "time",
     "special",  # deprecated, use json instead
     "json"
+]
+
+# List of primitive data types allowed in timeseries
+primitive_data_types_series = [
+    "time",
+    "int",
+    "float"
 ]
 
 # List of aggregation functions
@@ -176,6 +190,7 @@ class AttrSpec:
         self.name = spec.get("name", self.id)
         self.description = spec.get("description", default_description)
         self.color = spec.get("color", default_color)
+        self.history = False
         self.data_type = spec.get("data_type", None)
         self.categories = spec.get("categories", None)
         self.confidence = spec.get("confidence", False)
@@ -184,6 +199,8 @@ class AttrSpec:
         self.probability = spec.get("probability", False)
         self.editable = spec.get("editable", False)
         self.history_force_graph = spec.get("history_force_graph", False)
+        self.timeseries_type = spec.get("timeseries_type", None)
+        self.series = spec.get("series", None)
 
         # Check common mandatory specification fields
         assert self.type is not None, err_msg_missing_field.format("type")
@@ -204,6 +221,9 @@ class AttrSpec:
         # Type-specific fields
         if (self.type == "plain" or
             self.type == "observations"):
+            self.timeseries_type = None
+            self.series = None
+
             assert self.data_type is not None, err_msg_missing_field.format("data_type")
             assert type(self.data_type) is str, err_msg_type.format("data_type", "str")
             assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
@@ -231,6 +251,25 @@ class AttrSpec:
             assert type(self.history_force_graph) is bool, err_msg_type.format("history_force_graph", "bool")
 
             self._validate_history_params()
+
+        if self.type == "timeseries":
+            self.history = False
+            self.data_type = None
+            self.categories = None
+            self.confidence = None
+            self.multi_value = False
+            self.history_params = None
+            self.probability = False
+            self.editable = False
+            self.history_force_graph = False
+
+            assert self.timeseries_type in timeseries_types, err_msg_value.format("timeseries_type")
+            assert type(self.series) is list, err_msg_type.format("series", "list")
+
+            for item in self.series:
+                assert type(item) is dict, err_msg_type.format("series item", "dict")
+                assert type(item.get("id")) is str, err_msg_type.format("series item - id", "str")
+                assert item.get("type") in primitive_data_types_series, err_msg_value.format("series item - type")
 
 
     def _init_validator_function(self):

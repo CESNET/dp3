@@ -275,8 +275,8 @@ class AttrSpec:
         assert self.history_params is not None, err_msg_missing_field.format("history_params")
         assert type(self.history_params) is dict, err_msg_type.format("history_params", "dict")
 
-        # Fill empty fields with default values 
-        self.history_params = default_history_params | self.history_params
+        # Fill empty fields with default values (merge dictionaries)
+        self.history_params = { **default_history_params, **self.history_params }
 
         if self.history_params["max_items"] is not None:
             assert type(self.history_params["max_items"]) is int, err_msg_type.format("max_items", "int")

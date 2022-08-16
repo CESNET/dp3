@@ -220,7 +220,7 @@ class EntityDatabase:
             return
 
         # if table exists, check if the definition is the same
-        if not EntityDatabase.are_tables_identical(current_table, entity_table):
+        if not self.are_tables_identical(current_table, entity_table):
             raise DatabaseConfigMismatchError(f"Table {table_name} already exists, but has different settings and "
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table

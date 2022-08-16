@@ -132,9 +132,13 @@ class EntityDatabase:
         :return: list of Columns
         """
         columns = []
+
         for attrib_id, attrib_conf in table_attribs.items():
             # Get database type of column
-            if attrib_conf.data_type.startswith(("array", "set")):
+            if attrib_conf.type == "timeseries":
+                # No column with current value of timeseries
+                continue
+            elif attrib_conf.data_type.startswith(("array", "set")):
                 # e.g. "array<int>" --> ["array", "int>"] --> "int"
                 data_type = attrib_conf.data_type.split('<')[1][:-1]
                 column_type = ARRAY(ATTR_TYPE_MAPPING[data_type])
@@ -144,7 +148,7 @@ class EntityDatabase:
                 column_type = ATTR_TYPE_MAPPING[attrib_conf.data_type]
 
             # If the attribute is multi-value, convert column into an array
-            if not history and attrib_conf.multi_value is True:
+            if not history and attrib_conf.multi_value:
                 column_type = ARRAY(column_type)
 
             # Create column

@@ -31,10 +31,10 @@ CONVERTERS = {
 def get_converter(attr_data_type:str) -> Callable[[str], Any]:
     """Return a function converting a string to given data type.
 
-    TODO: Add `type` as parameter, not only data_type.
+    TODO: Add `type` as parameter, not only `data_type`.
     """
     # empty type (typically timeseries)
-    if not data_type:
+    if not attr_data_type:
         return lambda v: None
     # basic type
     if attr_data_type in CONVERTERS:
@@ -82,6 +82,9 @@ def get_element_type(attr_data_type:str) -> str:
     raise Exception(f'Element type not configured in DB: {element_type}')
 
 def is_iterable(attr_data_type:str) -> bool:
+    if not attr_data_type:
+        return False
+
     return bool(re.match(re_array, attr_data_type)
                 or re.match(re_set, attr_data_type)
                 or re.match(re_dict, attr_data_type))

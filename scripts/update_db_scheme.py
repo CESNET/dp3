@@ -26,6 +26,7 @@ import os
 import argparse
 import requests
 import json
+from migrate import ChangesetColumn
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, REAL, JSON
 from sqlalchemy import create_engine, inspect, Table, Column, MetaData, func
 
@@ -56,16 +57,15 @@ ATTR_TYPE_MAPPING = {
 
 def create_config_column_list(config_item, attr_spec):
     # creating list of names of columns required by attributes
-    # print(config_item)
     attr_columns = attr_spec.get(config_item).get("attribs")
     columns_in_attr = list()
     for attr_col in attr_columns.keys():
-        columns_in_attr.append(attr_col) # adds name of attribute to list of columns that should be in the table
-        if attr_columns.get(attr_col).history: # if attribute has history set to true, column with stamp :exp has to be added
-            exp = attr_col + ":exp"
-            columns_in_attr.append(exp)
-        if attr_columns.get(attr_col).confidence: # if attribute has confidence set to true, column with stamp :exp has to be added
-            columns_in_attr.append(attr_col + ":c")
+        if attr_columns.get(attr_col).type != "timeseries":
+            columns_in_attr.append(attr_col)
+            if attr_columns.get(attr_col).type == "observations":
+                columns_in_attr.append(attr_col + ":exp")
+            if attr_columns.get(attr_col).confidence:
+                columns_in_attr.append(attr_col + ":c")
 
     return columns_in_attr
 
@@ -123,7 +123,7 @@ def create_history_table(table_name, meta, db_engine, data_type):
         Column("ts_added", TIMESTAMP)
     )
     meta.create_all(db_engine)
-    print(f'New history table {table_name} was created.')
+    print(f'New history table "{table_name}" was created.')
 
 
 def get_data_type(item, attributes):
@@ -150,15 +150,16 @@ def get_data_type(item, attributes):
 def change_col_data_type(config_item, col_name, config_col_type, meta):
     # when data type of column in database is not the same as in configuration, type of column in db can be changed
     while True:
-        answer = input(f'Do you want to change type of column "{col_name}" in table "{config_item}" in database according to configuration (yes/no)? ')
+        answer = input(f'Do you want to change type of column "{col_name}" in table "{config_item}" in database according to configuration (data from this column will be lost) (yes/no)? ')
         answer = answer.lower()
         if answer == "yes":
-            # delete and create 
+            # delete with old type and create column with new type
             table = meta.tables[config_item]
             column = table.c[col_name]
             column.drop()
             new_column = Column(col_name, config_col_type)
             new_column.create(table)
+            print(f'Data type of column "{col_name}" was changed.')
             break
         elif answer == "no":
             break
@@ -167,8 +168,7 @@ def change_col_data_type(config_item, col_name, config_col_type, meta):
 
 
 def add_table_or_column(attr_spec, db_inspector, db_engine, meta):
-    """ checks if any tables or colums have to be added """
-    
+    # checks if any tables or colums have to be added
     db_table = db_inspector.get_table_names(schema="public")
     for config_item in attr_spec.keys():
         columns_in_attr = create_config_column_list(config_item, attr_spec)
@@ -217,11 +217,12 @@ def get_table_names_attr(attr_spec):
 def delete_table(table_name, meta, db_engine):
     # drops table
     while True:
-        delete = input(f"Do you really want to delete table {table_name} (yes/no)? ")
+        delete = input(f'Do you really want to delete table "{table_name}" (data from this table will be lost) (yes/no)? ')
         delete = delete.lower()
         if delete == "yes":
             table = meta.tables.get(table_name)
             table.drop(db_engine)
+            print(f'Table "{table_name}" was deleted.')
             break
         elif delete == "no":
             break
@@ -232,11 +233,12 @@ def delete_table(table_name, meta, db_engine):
 def delete_column(table_name, col, meta):
     # drops column from table
     while True:
-        delete = input(f'Do you really want to delete column "{col}" from table "{table_name}" (yes/no)? ')
+        delete = input(f'Do you really want to delete column "{col}" from table "{table_name}" (data from this column will be lost) (yes/no)? ')
         delete = delete.lower()
         if delete == "yes": 
             column = meta.tables[table_name].c[col]
             column.drop()
+            print(f'Column "{col}" from table "{table_name}" was deleted.')
             break
         elif delete == "no":
             break
@@ -252,7 +254,6 @@ def delete_table_or_column(attr_spec, db_inspector, db_engine, meta, connection)
         if table_name not in attr_table:
             delete_table(table_name, meta, db_engine)
             continue
-            # db_table.remove(table_name)
 
         if "__" not in table_name:
             config_list = create_config_column_list(table_name, attr_spec)
@@ -305,9 +306,10 @@ def get_db_connection(config_dir):
     return db_engine
 
 def check_workers(worker_check_url):
+    # Check if any workers are alive
     print("Checking workers...")
     url = os.path.join(worker_check_url, "workers_alive")
-    for x in range(5):
+    for x in range(5): # try five times to be accurate and to be sure, that no worker is alive
         res = requests.get(url)
         workers = json.loads(res.content).get("workers_alive")
         if workers:

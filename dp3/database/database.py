@@ -476,10 +476,16 @@ class EntityDatabase:
         full_attr_name = f"{etype}__{attr_name}"
         try:
             datapoint_table = self._tables[full_attr_name]
+            attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
         except KeyError:
             self.log.error(f"Cannot create datapoint of attribute {full_attr_name}, because such history table does not exist!")
             return False
+
         try:
+            # Timeseries' `v` in datapoint represents multiple columns at once.
+            if attrib_conf.type == "timeseries":
+                datapoint_body = self.process_timeseries_datapoint(datapoint_body)
+
             datapoint_body.update({'ts_added': datetime.utcnow()})
             self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body)
             #self.log.debug(f"Data-point stored: {datapoint_body}")
@@ -760,3 +766,27 @@ class EntityDatabase:
 
         # Read all rows and return set of matching entity IDs
         return result 
+
+    def process_timeseries_datapoint(self, datapoint_body: dict):
+        """Splits timeseries datapoints' value into multiple values.
+
+        Timeseries' `v` in datapoint represents multiple columns at once.
+        Split it into multiple fields/columns according to attribute's spec.
+        """
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+        v = datapoint_body["v"]
+
+        if len(v) != len(attrib_conf.series):
+            raise ValueError(f"{len(v)} values in datapoint supplied instead of {len(attrib_conf.series)}")
+
+        # Check if all value arrays are the same length
+        values_len = [ len(v_i) for v_i in v ]
+        if len(set(values_len)) != 1:
+            raise ValueError(f"Datapoint arrays have different lengths: {values_len}")
+
+        # Split `v`
+        for i, v_i in enumerate(v):
+            prefixed_id = "v_" + attr_conf.series[i]["id"]
+            datapoint_body[prefixed_id] = v_i
+
+        return datapoint_body

@@ -216,7 +216,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         log.info(response)
         return f"{response}\n", 400  # Bad request
 
-    if spec.history is True and t1 is None:
+    if spec.type == "observations" and t1 is None:
         response = f"Invalid data-point: Missing mandatory field 't1'"
         log.info(response)
         return f"{response}\n", 400  # Bad request
@@ -276,7 +276,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         "ttl_token": "default"
     }
 
-    if spec.history is True:
+    if spec.type == "observations":
         t["data_points"] = [{
             "attr": attr_id,
             "v": val,
@@ -285,12 +285,15 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
             "c": c,
             "src": src
         }]
-    else:
+    elif spec.type == "plain":
         t["attr_updates"] = [{
             "attr": attr_id,
             "op": "set",
             "val": val
         }]
+    else:
+        # TODO - timeseries
+        pass
 
     # Make valid task using the attr_spec template and push it to platform's task queue
     try:
@@ -426,7 +429,7 @@ def push_multiple_datapoints():
             }
 
         # Add data-points or attr updates
-        if spec.history is True:
+        if spec.type == "observations":
             tasks[key]["data_points"].append({
                 "attr": attr,
                 "v": value,
@@ -435,12 +438,15 @@ def push_multiple_datapoints():
                 "c": c,
                 "src": src
             })
-        else:
+        elif spec.type == "plain":
             tasks[key]["attr_updates"].append({
                 "attr": attr,
                 "op": "set",
                 "val": value
             })
+        else:
+            # TODO - timeseries
+            pass
 
     task_list = []
 
@@ -525,7 +531,7 @@ def get_attr_value(entity_type, entity_id, attr_id):
     """
     REST endpoint to read current value for an attribute of given entity
 
-    It is also possible to read historic values by providing a specific timestamp as a query parameter (only for attributes with history)
+    It is also possible to read historic values by providing a specific timestamp as a query parameter (only for observations)
 
     Entity type, entity id and attribute id must be provided
 
@@ -544,9 +550,9 @@ def get_attr_value(entity_type, entity_id, attr_id):
 
     try:
         timestamp = request.values.get("t", None)
-        history = attr_spec[entity_type]['attribs'][attr_id].history
+        observations = attr_spec[entity_type]['attribs'][attr_id].type == "observations"
 
-        if timestamp is not None and history is True:
+        if timestamp is not None and observations:
             content = get_historic_value(db, attr_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp))
         else:
             content = db.get_attrib(entity_type, entity_id, attr_id)

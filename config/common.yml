@@ -1,8 +1,0 @@
-# TODO is this needed, when read_config_dir() can be called? Probably at least path to modules should be held in config.
-# paths to other configuration files
-cfg_files:
-  modules: "modules"
-  db: "database.yml"
-  processing_core: "processing_core.yml"
-  attr_spec: "attributes_specification.yml"
-  updater: "updater.yml"

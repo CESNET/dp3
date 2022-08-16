@@ -167,7 +167,7 @@ class HistoryManager:
         self.log.debug("Deleting old records ...")
         for etype in self.attr_spec:
             for attr_id in self.attr_spec[etype]['attribs']:
-                if not self.attr_spec[etype]['attribs'][attr_id].history:
+                if not self.attr_spec[etype]['attribs'][attr_id].type == "observations":
                     continue
                 history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
                 t_old = str(datetime.utcnow() - history_params["max_age"])

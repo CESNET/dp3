@@ -10,6 +10,13 @@ err_msg_format = "format of '{}' is invalid"
 err_msg_value = "value of '{}' is invalid"
 err_msg_missing_field = "mandatory field '{}' is missing"
 
+# List of attribute types
+attr_types = [
+    "plain",
+    "observations",
+    "timeseries"
+]
+
 # List of primitive data types
 primitive_data_types = [
     "tag",
@@ -39,22 +46,19 @@ aggregation_functions = [
 # Default specification fields
 default_color = "#000000"
 default_description = ""
-default_confidence = False
-default_multi_value = False
-default_timestamp = False
-default_history = False
-default_editable = False
 
 # Default history params
-default_max_age = None
-default_max_items = None
-default_expire_time = "inf"  # means "never expire"/"infinite validity", stored internally as None instead of timedelta
-default_pre_validity = "0s"
-default_post_validity = "0s"
-default_aggregation_max_age = "0s"
-default_aggregation_function_value = "keep"
-default_aggregation_function_confidence = "avg"
-default_aggregation_function_source = "csv_union"
+default_history_params = {
+    "max_age": None,
+    "max_items": None,
+    "expire_time": "inf",  # means "never expire"/"infinite validity", stored internally as None instead of timedelta
+    "pre_validity": "0s",
+    "post_validity": "0s",
+    "aggregation_max_age": "0s",
+    "aggregation_function_value": "keep",
+    "aggregation_function_confidence": "avg",
+    "aggregation_function_source": "csv_union"
+}
 
 # Regular expressions for parsing various data types
 re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
@@ -148,6 +152,19 @@ def valid_dict(obj, key_spec):
     return True
 
 
+# Validate probablity
+def valid_probability(val):
+    if type(val) is not dict:
+        return False
+    for key, prob in val.items():
+        if not validators[self.data_type] or not isinstance(prob, float):
+            return False
+    # This can be fixed later in the system by dividing by the sum of all probabilites.
+    # if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
+    #     return False
+    return True
+
+
 # This class represents specification of an attribute of given id
 class AttrSpec:
     # Class constructor
@@ -155,39 +172,68 @@ class AttrSpec:
     def __init__(self, id, spec):
         # Set default values for missing fields
         self.id = id
+        self.type = spec.get("type", None)
         self.name = spec.get("name", self.id)
         self.description = spec.get("description", default_description)
         self.color = spec.get("color", default_color)
         self.data_type = spec.get("data_type", None)
         self.categories = spec.get("categories", None)
-        self.timestamp = spec.get("timestamp", default_timestamp)
-        self.history = spec.get("history", default_history)
-        self.confidence = spec.get("confidence", default_confidence)
-        self.multi_value = spec.get("multi_value", default_multi_value)
+        self.confidence = spec.get("confidence", False)
+        self.multi_value = spec.get("multi_value", False)
         self.history_params = spec.get("history_params", None)
         self.probability = spec.get("probability", False)
-        self.editable = spec.get("editable", default_editable)
+        self.editable = spec.get("editable", False)
+        self.history_force_graph = spec.get("history_force_graph", False)
 
-        # Check mandatory specification fields
+        # Check common mandatory specification fields
+        assert self.type is not None, err_msg_missing_field.format("type")
         assert self.id is not None, err_msg_missing_field.format("id")
-        assert self.data_type is not None, err_msg_missing_field.format("data_type")
 
-        # Check data type of specification fields
+        # Check validity of type
+        assert self.type in attr_types, err_msg_value.format("type")
+
+        # Check data type of common specification fields
         assert type(self.id) is str, err_msg_type.format("id", "str")
         assert type(self.name) is str, err_msg_type.format("name", "str")
         assert type(self.description) is str, err_msg_type.format("description", "str")
         assert type(self.color) is str, err_msg_type.format("color", "str")
-        assert type(self.data_type) is str, err_msg_type.format("data_type", "str")
-        assert type(self.timestamp) is bool, err_msg_type.format("timestamp", "bool")
-        assert type(self.history) is bool, err_msg_type.format("history", "bool")
-        assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
-        assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
-        assert type(self.probability) is bool, err_msg_type.format("probability", "bool")
-        assert type(self.editable) is bool, err_msg_type.format("editable", "bool")
 
         # Check color format
         assert re.match(r"#([0-9a-fA-F]){6}", self.color), err_msg_format.format("color")
 
+        # Type-specific fields
+        if (self.type == "plain" or
+            self.type == "observations"):
+            assert self.data_type is not None, err_msg_missing_field.format("data_type")
+            assert type(self.data_type) is str, err_msg_type.format("data_type", "str")
+            assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
+            assert type(self.probability) is bool, err_msg_type.format("probability", "bool")
+            assert type(self.editable) is bool, err_msg_type.format("editable", "bool")
+
+            if self.probability:
+                assert self.data_type in primitive_data_types, \
+                    f"data type {self.data_type} is not supported as a probability (primitive types only)"
+
+                self.value_validator = valid_probability
+
+            self._init_validator_function()
+
+        if self.type == "plain":
+            self.history = False
+            self.multi_value = False
+            self.history_params = None
+            self.history_force_graph = False
+
+        if self.type == "observations":
+            self.history = True
+
+            assert type(self.multi_value) is bool, err_msg_type.format("multi_value", "bool")
+            assert type(self.history_force_graph) is bool, err_msg_type.format("history_force_graph", "bool")
+
+            self._validate_history_params()
+
+
+    def _init_validator_function(self):
         # Initialize attribute's validator function according to its data type
         if self.data_type in primitive_data_types:
             self.value_validator = validators[self.data_type]
@@ -224,110 +270,85 @@ class AttrSpec:
         else:
             raise AssertionError(f"data type '{self.data_type}' is not supported")
 
-        if self.probability:
-            assert self.data_type in primitive_data_types, \
-                f"data type {self.data_type} is not supported as a probability (primitive types only)"
 
-            def probability_validator(val):
-                if type(val) is not dict:
-                    return False
-                for key, prob in val.items():
-                    if not validators[self.data_type] or not isinstance(prob, float):
-                        return False
-                # This can be fixed later in the system by dividing by the sum of all probabilites.
-                # if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
-                #     return False
-                return True
+    def _validate_history_params(self):
+        assert self.history_params is not None, err_msg_missing_field.format("history_params")
+        assert type(self.history_params) is dict, err_msg_type.format("history_params", "dict")
 
-            self.value_validator = probability_validator
+        # Fill empty fields with default values (merge dictionaries)
+        self.history_params = { **default_history_params, **self.history_params }
 
-        # If history is enabled, spec must contain a dict of history parameters
-        if self.history is True:
-            assert self.history_params is not None, err_msg_missing_field.format("history_params")
-            assert type(self.history_params) is dict, err_msg_type.format("history_params", "dict")
+        if self.history_params["max_items"] is not None:
+            assert type(self.history_params["max_items"]) is int, err_msg_type.format("max_items", "int")
+            assert self.history_params["max_items"] > 0, err_msg_value.format("max_items")
 
-            if "max_items" not in self.history_params:
-                self.history_params["max_items"] = default_max_items
-            if self.history_params["max_items"] is not None:
-                assert type(self.history_params["max_items"]) is int, err_msg_type.format("max_items", "int")
-                assert self.history_params["max_items"] > 0, err_msg_value.format("max_items")
+        if self.history_params["max_age"] is not None:
+            self.history_params["max_age"] = self._parse_time_duration_safe(self.history_params["max_age"], "max_age")
 
-            if "max_age" not in self.history_params:
-                self.history_params["max_age"] = default_max_age
-            if self.history_params["max_age"] is not None:
-                try:
-                    self.history_params["max_age"] = parse_time_duration(self.history_params["max_age"])
-                except ValueError:
-                    assert False, err_msg_format.format("max_age")
+        if self.history_params["expire_time"] == "inf":  # "inf" in config file is stored as None
+            self.history_params["expire_time"] = None
+        else:
+            self.history_params["expire_time"] = self._parse_time_duration_safe(self.history_params["expire_time"], "expire_time")
 
-            if "expire_time" not in self.history_params:
-                self.history_params["expire_time"] = default_expire_time
-            if self.history_params["expire_time"] == "inf":  # "inf" in config file is stored as None
-                self.history_params["expire_time"] = None
-            else:
-                try:
-                    self.history_params["expire_time"] = parse_time_duration(self.history_params["expire_time"])
-                except ValueError:
-                    assert False, err_msg_format.format("expire_time")
+        self.history_params["pre_validity"] = self._parse_time_duration_safe(self.history_params["pre_validity"], "pre_validity")
+        self.history_params["post_validity"] = self._parse_time_duration_safe(self.history_params["post_validity"], "post_validity")
 
-            if "pre_validity" not in self.history_params:
-                self.history_params["pre_validity"] = default_pre_validity
-            try:
-                self.history_params["pre_validity"] = parse_time_duration(self.history_params["pre_validity"])
-            except ValueError:
-                assert False, err_msg_format.format("pre_validity")
+        if "aggregation_interval" not in self.history_params:
+            self.history_params["aggregation_interval"] = self.history_params["pre_validity"] + self.history_params["post_validity"]
+        else:
+            self.history_params["aggregation_interval"] = self._parse_time_duration_safe(self.history_params["aggregation_interval"], "aggregation_interval")
 
-            if "post_validity" not in self.history_params:
-                self.history_params["post_validity"] = default_post_validity
-            try:
-                self.history_params["post_validity"] = parse_time_duration(self.history_params["post_validity"])
-            except ValueError:
-                assert False, err_msg_format.format("post_validity")
+        self.history_params["aggregation_max_age"] = self._parse_time_duration_safe(self.history_params["aggregation_max_age"], "aggregation_max_age")
 
-            if "aggregation_interval" not in self.history_params:
-                self.history_params["aggregation_interval"] = self.history_params["pre_validity"] + self.history_params["post_validity"]
-            else:
-                try:
-                    self.history_params["aggregation_interval"] = parse_time_duration(self.history_params["aggregation_interval"])
-                except ValueError:
-                    assert False, err_msg_format.format("aggregation_interval")
+        assert self.history_params["aggregation_function_value"] in aggregation_functions, err_msg_format.format("aggregation_function_value")
+        assert self.history_params["aggregation_function_confidence"] in aggregation_functions, err_msg_format.format("aggregation_function_confidence")
+        assert self.history_params["aggregation_function_source"] in aggregation_functions, err_msg_format.format("aggregation_function_source")
 
-            if "aggregation_max_age" not in self.history_params:
-                self.history_params["aggregation_max_age"]  = default_aggregation_max_age
-            try:
-                self.history_params["aggregation_max_age"] = parse_time_duration(self.history_params["aggregation_max_age"])
-            except ValueError:
-                assert False, err_msg_format.format("aggregation_max_age")
 
-            if "aggregation_function_value" not in self.history_params:
-                self.history_params["aggregation_function_value"] = default_aggregation_function_value
-            assert self.history_params["aggregation_function_value"] in aggregation_functions, err_msg_format.format("aggregation_function_value")
+    @staticmethod
+    def _parse_time_duration_safe(time_duration, field_id):
+        """Simple wrapper around `dp3.common.utils.parse_time_duration` function.
 
-            if "aggregation_function_confidence" not in self.history_params:
-                self.history_params["aggregation_function_confidence"] = default_aggregation_function_confidence
-            assert self.history_params["aggregation_function_confidence"] in aggregation_functions, err_msg_format.format("aggregation_function_confidence")
-
-            if "aggregation_function_source" not in self.history_params:
-                self.history_params["aggregation_function_source"] = default_aggregation_function_source
-            assert self.history_params["aggregation_function_source"] in aggregation_functions, err_msg_format.format("aggregation_function_source")
+        Effectively only changes error class from ValueError to AssertionError
+        and error message.
+        """
+        try:
+            return parse_time_duration(time_duration)
+        except ValueError:
+            raise AssertionError(err_msg_format.format(field_id))
 
 
     def __repr__(self):
         """Return string whose evaluation would create the same object."""
-        attrs = {'name': self.name}
+        attrs = {
+            "name": self.name,
+            "type": self.type
+        }
+
+        # Optional common fields
         if self.description:
-            attrs['description'] = self.description
+            attrs["description"] = self.description
         if self.color != default_color:
-            attrs['color'] = self.color
-        attrs['data_type'] = self.data_type
-        if self.categories:
-            attrs['categories'] = self.categories
-        attrs['confidence'] = self.confidence
-        attrs['multi_value'] = self.multi_value
-        attrs['history'] = self.history
-        if self.history_params:
-            attrs['history_params'] = self.history_params
-        attrs['editable'] = self.editable
+            attrs["color"] = self.color
+
+        # Type-specific fields
+        if (self.type == "plain" or
+            self.type == "observations"):
+            attrs["data_type"] = self.data_type
+            attrs["confidence"] = self.confidence
+            attrs["probability"] = self.probability
+            attrs["editable"] = self.editable
+
+            if self.categories:
+                attrs["categories"] = self.categories
+
+        if self.type == "plain":
+            pass
+
+        if self.type == "observations":
+            attrs["multi_value"] = self.multi_value
+            attrs["history_params"] = self.history_params
+            attrs["history_force_graph"] = self.history_force_graph
 
         return f"AttrSpec({self.id!r}, {attrs!r})"
 

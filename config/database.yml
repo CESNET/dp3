@@ -1,6 +1,7 @@
+# Connection parameters to PostgreSQL database
 connection:
-  username: "adict"
-  password: "adict"
+  username: "{{DP3_APP}}"
+  password: "{{DP3_APP}}"
   address: "127.0.0.1"
   port: 5432
-  db_name: "adict"
+  db_name: "{{DP3_APP}}"

@@ -35,25 +35,25 @@ ATTR_TYPE_MAPPING = {
 
 # static preconfiguration of attribute's history table
 HISTORY_ATTRIBS_CONF = {
-    'id': AttrSpec("id", {'name': "id", 'data_type': "int"}),
-    'eid': AttrSpec("eid", {'name': "eid", 'data_type': "string"}),
+    'id': AttrSpec("id", {'name': "id", 'type': "plain", 'data_type': "int"}),
+    'eid': AttrSpec("eid", {'name': "eid", 'type': "plain", 'data_type': "string"}),
     # 'value' is inserted manually, because it depends on the attribute
-    't1': AttrSpec("t1", {'name': "t1", 'data_type': "time"}),
-    't2': AttrSpec("t2", {'name': "t2", 'data_type': "time"}),
-    'c': AttrSpec("c", {'name': "c", 'data_type': "float"}),
-    'src': AttrSpec("src", {'name': "src", 'data_type': "string"}),
+    't1': AttrSpec("t1", {'name': "t1", 'type': "plain", 'data_type': "time"}),
+    't2': AttrSpec("t2", {'name': "t2", 'type': "plain", 'data_type': "time"}),
+    'c': AttrSpec("c", {'name': "c", 'type': "plain", 'data_type': "float"}),
+    'src': AttrSpec("src", {'name': "src", 'type': "plain", 'data_type': "string"}),
 
-    'tag': AttrSpec("tag", {'name': "tag", 'data_type': "int"}) #TODO rather smallint?
+    'tag': AttrSpec("tag", {'name': "tag", 'type': "plain", 'data_type': "int"}) #TODO rather smallint?
 }
 
 # preconfigured attributes all tables (records) should have
 TABLE_MANDATORY_ATTRIBS = {
-    'ts_added': AttrSpec("ts_added", {'name': "timestamp of record creation", 'data_type': "time"}),
-    'ts_last_update': AttrSpec("ts_last_update", {'name': "timestamp of record last update", 'data_type': "time"}),
+    'ts_added': AttrSpec("ts_added", {'name': "timestamp of record creation", 'type': "plain", 'data_type': "time"}),
+    'ts_last_update': AttrSpec("ts_last_update", {'name': "timestamp of record last update", 'type': "plain", 'data_type': "time"}),
 }
 
 # Preconfiguration of main entity tables
-EID_CONF = {'eid': AttrSpec("eid", {'name': "entity id", 'data_type': "string"})}
+EID_CONF = {'eid': AttrSpec("eid", {'name': "entity id", 'type': "plain", 'data_type': "string"})}
 
 
 # Custom exceptions
@@ -85,11 +85,11 @@ class EntityDatabase:
         #self.log.setLevel("DEBUG")
 
         connection_conf = db_conf.get('connection', {})
-        username = connection_conf.get('username', "adict")
-        password = connection_conf.get('password', "adict")
+        username = connection_conf.get('username', "dp3")
+        password = connection_conf.get('password', "dp3")
         address = connection_conf.get('address', "localhost")
         port = str(connection_conf.get('port', 5432))
-        db_name = connection_conf.get('db_name', "adict")
+        db_name = connection_conf.get('db_name', "dp3")
         database_url = "postgresql://" + username + ":" + password + "@" + address + ":" + port + "/" + db_name
         self.log.debug(f"Connection URL: {database_url}")
         db_engine = create_engine(database_url)
@@ -167,7 +167,7 @@ class EntityDatabase:
                 columns.append(Column(attrib_id + ":c", column_type))
 
             # Add value expiration date for attributes with history
-            if attrib_conf.history:
+            if attrib_conf.type == "observations":
                 column_type = TIMESTAMP
                 # Multi-value attributes can have different expiration date for each individual value
                 if attrib_conf.multi_value:
@@ -216,7 +216,7 @@ class EntityDatabase:
             return
 
         # if table exists, check if the definition is the same
-        if not self.are_tables_identical(current_table, entity_table):
+        if not EntityDatabase.are_tables_identical(current_table, entity_table):
             raise DatabaseConfigMismatchError(f"Table {table_name} already exists, but has different settings and "
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table
@@ -232,9 +232,9 @@ class EntityDatabase:
         # TODO How to handle history_params (max_age, expire_time, etc.)? It will be probably handled by secondary
         #  modules.
         for _, attrib_conf in table_attribs.items():
-            if attrib_conf.history:
+            if attrib_conf.type == "observations":
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
-                history_conf['v'] = AttrSpec("v", {'name': "value", 'data_type': attrib_conf.data_type})
+                history_conf['v'] = AttrSpec("v", {'name': "value", 'type': "plain", 'data_type': attrib_conf.data_type})
                 # History tables are named as <entity_name>__<attr_name> (e.g. "ip__activity_flows")
                 table_name = f"{table_name_prefix}__{attrib_conf.id}"
                 self.create_table(table_name, {'attribs': history_conf}, db_current_state, True)

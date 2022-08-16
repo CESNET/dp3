@@ -225,9 +225,9 @@ class EntityDatabase:
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table
 
-    def init_history_tables(self, table_name_prefix: str, table_attribs: dict, db_current_state: MetaData):
+    def init_history_timeseries_tables(self, table_name_prefix: str, table_attribs: dict, db_current_state: MetaData):
         """
-        Initialize all history tables in database schema.
+        Initialize all history and timeseries tables in database schema.
         :param table_name_prefix: prefix of table names (entity_name)
         :param table_attribs: configuration of table's attributes, some of them may contain history=True
         :param db_current_state: current state of database (needed to check if table already exists and if it is identical)
@@ -236,9 +236,30 @@ class EntityDatabase:
         # TODO How to handle history_params (max_age, expire_time, etc.)? It will be probably handled by secondary
         #  modules.
         for _, attrib_conf in table_attribs.items():
-            if attrib_conf.type == "observations":
+            if attrib_conf.type == "observations" or attrib_conf.type == "timeseries":
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
-                history_conf['v'] = AttrSpec("v", {'name': "value", 'type': "plain", 'data_type': attrib_conf.data_type})
+
+                if attrib_conf.type == "timeseries":
+                    # Create one "value" column for all series
+                    for series_item in attrib_conf.series:
+                        series_item_id = series_item["id"]
+                        series_item_type = series_item["type"]
+
+                        # Data type is array of configured data type.
+                        # Incoming data points are arrays and they are stored
+                        # in the same format.
+                        history_conf[series_item_id] = AttrSpec(series_item_id, {
+                            'name': series_item_id,
+                            'type': "plain",
+                            'data_type': f"array<{series_item_type}>"
+                        })
+                else:
+                    history_conf['v'] = AttrSpec("v", {
+                        'name': "value",
+                        'type': "plain",
+                        'data_type': attrib_conf.data_type
+                    })
+
                 # History tables are named as <entity_name>__<attr_name> (e.g. "ip__activity_flows")
                 table_name = f"{table_name_prefix}__{attrib_conf.id}"
                 self.create_table(table_name, {'attribs': history_conf}, db_current_state, True)
@@ -256,7 +277,7 @@ class EntityDatabase:
 
         for entity_name, entity_conf in self._db_schema_config.items():
             self.create_table(entity_name, entity_conf, db_current_state)
-            self.init_history_tables(entity_name, entity_conf['attribs'], db_current_state)
+            self.init_history_timeseries_tables(entity_name, entity_conf['attribs'], db_current_state)
 
     def exists(self, table_name: str, key_to_record: str):
         """

@@ -244,11 +244,12 @@ class EntityDatabase:
                     for series_item in attrib_conf.series:
                         series_item_id = series_item["id"]
                         series_item_type = series_item["type"]
+                        prefixed_id = "v_" + series_item_id
 
                         # Data type is array of configured data type.
                         # Incoming data points are arrays and they are stored
                         # in the same format.
-                        history_conf[series_item_id] = AttrSpec(series_item_id, {
+                        history_conf[prefixed_id] = AttrSpec(prefixed_id, {
                             'name': series_item_id,
                             'type': "plain",
                             'data_type': f"array<{series_item_type}>"

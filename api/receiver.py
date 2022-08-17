@@ -150,8 +150,13 @@ def push_task(task):
     )
 
 
-def convert_value(value, data_type):
+def convert_value(value, attr_type, data_type):
     try:
+        # Timeseries
+        if attr_type == "timeseries":
+            return value
+
+        # Plain or observations
         if data_type == "tag":
             return True
         elif data_type == "binary":
@@ -231,7 +236,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     # Convert value from string (JSON) to proper data type
     try:
-        val = convert_value(raw_val, spec.data_type)
+        val = convert_value(raw_val, spec.type, spec.data_type)
     except TypeError:
         response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
         log.info(response)
@@ -276,7 +281,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         "ttl_token": "default"
     }
 
-    if spec.type == "observations":
+    if spec.type == "observations" or spec.type == "timeseries":
         t["data_points"] = [{
             "attr": attr_id,
             "v": val,
@@ -285,15 +290,12 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
             "c": c,
             "src": src
         }]
-    elif spec.type == "plain":
+    else:
         t["attr_updates"] = [{
             "attr": attr_id,
             "op": "set",
             "val": val
         }]
-    else:
-        # TODO - timeseries
-        pass
 
     # Make valid task using the attr_spec template and push it to platform's task queue
     try:
@@ -376,7 +378,7 @@ def push_multiple_datapoints():
 
         # Convert value from string (JSON) to proper data type
         try:
-            value = convert_value(raw_val, spec.data_type)
+            value = convert_value(raw_val, spec.type, spec.data_type)
         except TypeError:
             response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
             log.info(f"{response}\nRecord: {record}")
@@ -429,7 +431,7 @@ def push_multiple_datapoints():
             }
 
         # Add data-points or attr updates
-        if spec.type == "observations":
+        if spec.type == "observations" or spec.type == "timeseries":
             tasks[key]["data_points"].append({
                 "attr": attr,
                 "v": value,
@@ -438,15 +440,12 @@ def push_multiple_datapoints():
                 "c": c,
                 "src": src
             })
-        elif spec.type == "plain":
+        else:
             tasks[key]["attr_updates"].append({
                 "attr": attr,
                 "op": "set",
                 "val": value
             })
-        else:
-            # TODO - timeseries
-            pass
 
     task_list = []
 

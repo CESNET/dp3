@@ -271,6 +271,9 @@ class AttrSpec:
                 assert type(item.get("id")) is str, err_msg_type.format("series item - id", "str")
                 assert item.get("type") in primitive_data_types_series, err_msg_value.format("series item - type")
 
+            # Register dumb validator (validation will be done elsewhere)
+            self.value_validator = lambda v: True
+
 
     def _init_validator_function(self):
         # Initialize attribute's validator function according to its data type

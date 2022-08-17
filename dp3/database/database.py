@@ -8,7 +8,8 @@ from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER,
 from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
-from ..common.attrspec import AttrSpec
+from ..common.attrspec import AttrSpec, validators
+from ..common.utils import parse_rfc_time
 from ..history_management.constants import *
 
 # map supported data types to Postgres SQL data types
@@ -484,7 +485,7 @@ class EntityDatabase:
         try:
             # Timeseries' `v` in datapoint represents multiple columns at once.
             if attrib_conf.type == "timeseries":
-                datapoint_body = self.process_timeseries_datapoint(datapoint_body)
+                datapoint_body = self.process_timeseries_datapoint(datapoint_body, etype, attr_name)
 
             datapoint_body.update({'ts_added': datetime.utcnow()})
             self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body)
@@ -767,7 +768,7 @@ class EntityDatabase:
         # Read all rows and return set of matching entity IDs
         return result 
 
-    def process_timeseries_datapoint(self, datapoint_body: dict):
+    def process_timeseries_datapoint(self, datapoint_body: dict, etype: str, attr_name: str):
         """Splits timeseries datapoints' value into multiple values.
 
         Timeseries' `v` in datapoint represents multiple columns at once.
@@ -786,7 +787,21 @@ class EntityDatabase:
 
         # Split `v`
         for i, v_i in enumerate(v):
-            prefixed_id = "v_" + attr_conf.series[i]["id"]
+            series_conf = attrib_conf.series[i]
+            series_type = series_conf["type"]
+            prefixed_id = "v_" + series_conf["id"]
+
+            # Validate values
+            for j, primitive in enumerate(v_i):
+                if not validators[series_conf["type"]](primitive):
+                    raise ValueError(f"Series value {primitive} is invalid (type should be {series_type})")
+
+            # Convert timestamps
+            if series_type == "time":
+                v_i = [ parse_rfc_time(p) for p in v_i ]
+
             datapoint_body[prefixed_id] = v_i
+
+        del datapoint_body["v"]
 
         return datapoint_body

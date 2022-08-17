@@ -54,12 +54,17 @@ class HistoryManager:
         redundant_ids = []
         redundant_data = []
         delete_ids = []
-        history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-        multi_value = self.attr_spec[etype]['attribs'][attr_id].multi_value
-        aggregation_interval = history_params["aggregation_interval"]
+        attr_spec = self.attr_spec[etype]['attribs'][attr_id]
+        history_params = attr_spec.history_params
+        multi_value = attr_spec.multi_value
         t1 = parse_rfc_time(data['t1'])
         t2 = parse_rfc_time(data['t2'])
         data['tag'] = TAG_PLAIN
+
+        # Don't aggregate,... timeseries data
+        if attr_spec.type == "timeseries":
+            self.db.create_datapoint(etype, attr_id, data)
+            return
 
         # Check for collisions
         datapoints = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, eid=data['eid'], t1=data['t1'],
@@ -91,6 +96,7 @@ class HistoryManager:
                 self.split_datapoint(etype, attr_id, d, t1)
 
         # Merge with non-overlapping datapoints
+        aggregation_interval = history_params["aggregation_interval"]
         pre = self.db.get_datapoints_range(etype=etype, attr_name=attr_id, eid=data['eid'],
                                            t1=str(t1 - aggregation_interval), t2=data['t1'],
                                            closed_interval=False, sort=1, filter_redundant=True)

@@ -776,6 +776,8 @@ class EntityDatabase:
         """
         attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
         v = datapoint_body["v"]
+        t1 = parse_rfc_time(datapoint_body["t1"])
+        t2 = parse_rfc_time(datapoint_body["t2"])
 
         if len(v) != len(attrib_conf.series):
             raise ValueError(f"{len(v)} values in datapoint supplied instead of {len(attrib_conf.series)}")
@@ -799,6 +801,11 @@ class EntityDatabase:
             # Convert timestamps
             if series_type == "time":
                 v_i = [ parse_rfc_time(p) for p in v_i ]
+
+                # Validate all timestamps
+                for dt in v_i:
+                    if not t1 <= dt <= t2:
+                        raise ValueError(f"Series value {dt} is invalid (must be in [{t1}, {t2}] interval)")
 
             datapoint_body[prefixed_id] = v_i
 

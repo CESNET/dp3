@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER,
 from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
-from ..common.attrspec import AttrSpec, validators
+from ..common.attrspec import AttrSpec, validators, timeseries_types
 from ..common.utils import parse_rfc_time
 from ..history_management.constants import *
 
@@ -833,6 +833,14 @@ class EntityDatabase:
 
         attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
 
+        # Get id of first default series (should be "time" or "time_first")
+        # If it doesn't work, just assume default value "time", but log this event.
+        try:
+            time_id = timeseries_types[attrib_conf.timeseries_type]["default_series"][0]["id"]
+        except KeyError:
+            time_id = "time"
+            self.log.warning(f"Couldn't get id of first default series for timeseries type {attrib_conf.timeseries_type}. Assuming 'time'.")
+
         try:
             # Build query
             select_fields = []
@@ -849,7 +857,7 @@ class EntityDatabase:
             if t2 is not None:
                 query = query.where(table.c.t1 <= t2 if closed_interval else table.c.t1 < t2)
 
-            query = query.order_by(asc("time"))
+            query = query.order_by(asc(time_id))
 
             query_result = self._db.execute(query)
         except Exception as e:
@@ -868,4 +876,3 @@ class EntityDatabase:
                 series_result[prefixed_id].append(row[prefixed_id])
 
         return series_result
-

@@ -17,12 +17,25 @@ attr_types = [
     "timeseries"
 ]
 
-# List of timeseries types
-timeseries_types = [
-    "regular",
-    "irregular",
-    "irregular_intervals"
-]
+# Dict of timeseries type spec
+timeseries_types = {
+    "regular": {
+        "default_series": [
+            { "id": "time", "type": "time" }
+        ]
+    },
+    "irregular": {
+        "default_series": [
+            { "id": "time", "type": "time" }
+        ]
+    },
+    "irregular_intervals": {
+        "default_series": [
+            { "id": "time_first", "type": "time" },
+            { "id": "time_last", "type": "time" }
+        ]
+    }
+}
 
 # List of primitive data types
 primitive_data_types = [
@@ -265,6 +278,9 @@ class AttrSpec:
 
             assert self.timeseries_type in timeseries_types, err_msg_value.format("timeseries_type")
             assert type(self.series) is list, err_msg_type.format("series", "list")
+
+            # Automatically prepend default series
+            self.series = timeseries_types[self.timeseries_type]["default_series"] + self.series
 
             for item in self.series:
                 assert type(item) is dict, err_msg_type.format("series item", "dict")

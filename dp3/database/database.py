@@ -805,3 +805,60 @@ class EntityDatabase:
         del datapoint_body["v"]
 
         return datapoint_body
+
+    def get_irregular_timeseries(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
+        """
+        Gets irregular timeseries of certain time interval between t1 and t2 from database.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: dict of series lists or None on error
+        """
+        full_attr_name = f"{etype}__{attr_name}"
+        try:
+            table = self._tables[full_attr_name]
+        except KeyError:
+            self.log.error(f"Cannot get timeseries, because history table of {full_attr_name} does not exist!")
+            return None
+
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+
+        try:
+            # Build query
+            select_fields = []
+            for series in attrib_conf.series:
+                column = getattr(table.c, "v_" + series["id"])
+                select_fields.append(func.unnest(column).label(series["id"]))
+
+            query = select(select_fields)
+
+            if eid is not None:
+                query = query.where(table.c.eid == eid)
+            if t1 is not None:
+                query = query.where(table.c.t2 >= t1 if closed_interval else table.c.t2 > t1)
+            if t2 is not None:
+                query = query.where(table.c.t1 <= t2 if closed_interval else table.c.t1 < t2)
+
+            query = query.order_by(asc("time"))
+
+            query_result = self._db.execute(query)
+        except Exception as e:
+            self.log.error(f"Select of timeseries from {t1} to {t2} failed: {e}")
+            return None
+
+        # Convert to list of dicts
+        query_result_dicts = list(map(dict, query_result))
+
+        # Convert to dict of lists
+        series_ids = [ s["id"] for s in attrib_conf.series ]  # [ "time", "bytes", ... ]
+        series_result = dict((s, []) for s in series_ids)     # { "time": [], "bytes": [], ... }
+
+        for row in query_result_dicts:
+            for prefixed_id in row:
+                series_result[prefixed_id].append(row[prefixed_id])
+
+        return series_result
+

@@ -209,7 +209,6 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
     # Extract datapoint fields from the POST part
     raw_val = request.values.get("v", None)
     t1 = request.values.get("t1", None)
-    t2 = request.values.get("t2", t1)
     c = request.values.get("c", 1.0)
     src = request.values.get("src", "")
 
@@ -220,6 +219,16 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         response = f"Error: no specification found for {entity_type}/{attr_id}"
         log.info(response)
         return f"{response}\n", 400  # Bad request
+
+    # Get t2
+    if spec.type == "timeseries" and spec.timeseries_type == "regular":
+        # Length of first series
+        series_len = len(list(raw_val.values())[0])
+
+        default_dt = parse_rfc_time(t1) + (series_len - 1)*spec.time_step
+        t2 = request.values.get("t2", default_dt.isoformat("T"))
+    else:
+        t2 = request.values.get("t2", t1)
 
     if spec.type == "observations" and t1 is None:
         response = f"Invalid data-point: Missing mandatory field 't1'"
@@ -364,7 +373,6 @@ def push_multiple_datapoints():
             log.info(f"{response}\nRecord: {record}")
             return f"{response}\n", 400
         raw_val = record.get("v", None)
-        t2 = record.get("t2", t1)
         c = record.get("c", 1.0)
         src = record.get("src", "")
 
@@ -375,6 +383,16 @@ def push_multiple_datapoints():
             response = f"Error: no specification found for {etype}/{attr}"
             log.info(f"{response}\nRecord: {record}")
             return f"{response}\n", 400  # Bad request
+
+        # Get t2
+        if spec.type == "timeseries" and spec.timeseries_type == "regular":
+            # Length of first series
+            series_len = len(list(raw_val.values())[0])
+
+            default_dt = parse_rfc_time(t1) + (series_len - 1)*spec.time_step
+            t2 = request.values.get("t2", default_dt.isoformat("T"))
+        else:
+            t2 = request.values.get("t2", t1)
 
         # Convert value from string (JSON) to proper data type
         try:

@@ -784,8 +784,6 @@ class EntityDatabase:
         if len(set(values_len)) != 1:
             raise ValueError(f"Datapoint arrays have different lengths: {values_len}")
 
-        # TODO: calculate missing t2
-
         # Check t2
         if attrib_conf.timeseries_type == "regular":
             if t2 - t1 != (values_len[0] - 1)*time_step:

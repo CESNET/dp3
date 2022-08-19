@@ -20,20 +20,20 @@ attr_types = [
 # Dict of timeseries type spec
 timeseries_types = {
     "regular": {
-        "default_series": [
-            { "id": "time", "type": "time" }
-        ]
+        "default_series": {
+            "time": { "data_type": "time" }
+        }
     },
     "irregular": {
-        "default_series": [
-            { "id": "time", "type": "time" }
-        ]
+        "default_series": {
+            "time": { "data_type": "time" }
+        }
     },
     "irregular_intervals": {
-        "default_series": [
-            { "id": "time_first", "type": "time" },
-            { "id": "time_last", "type": "time" }
-        ]
+        "default_series": {
+            "time_first": { "data_type": "time" },
+            "time_last": { "data_type": "time" }
+        }
     }
 }
 
@@ -277,15 +277,16 @@ class AttrSpec:
             self.history_force_graph = False
 
             assert self.timeseries_type in timeseries_types, err_msg_value.format("timeseries_type")
-            assert type(self.series) is list, err_msg_type.format("series", "list")
+            assert type(self.series) is dict, err_msg_type.format("series", "dict")
 
-            # Automatically prepend default series
-            self.series = timeseries_types[self.timeseries_type]["default_series"] + self.series
+            # Automatically add default series
+            self.series = { **self.series, **timeseries_types[self.timeseries_type]["default_series"] }
 
-            for item in self.series:
-                assert type(item) is dict, err_msg_type.format("series item", "dict")
-                assert type(item.get("id")) is str, err_msg_type.format("series item - id", "str")
-                assert item.get("type") in primitive_data_types_series, err_msg_value.format("series item - type")
+            for series_id in self.series:
+                assert type(series_id) is str, err_msg_type.format(f"series identifier '{series_id}'", "str")
+                assert type(self.series.get(series_id)) is dict, err_msg_type.format(f"series['{series_id}']", "dict")
+                assert self.series[series_id].get("data_type") in primitive_data_types_series, \
+                    err_msg_value.format(f"series['{series_id}']['data_type']")
 
             # Register dumb validator (validation will be done elsewhere)
             self.value_validator = lambda v: True

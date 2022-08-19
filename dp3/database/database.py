@@ -242,18 +242,17 @@ class EntityDatabase:
 
                 if attrib_conf.type == "timeseries":
                     # Create one "value" column for all series
-                    for series_item in attrib_conf.series:
-                        series_item_id = series_item["id"]
-                        series_item_type = series_item["type"]
-                        prefixed_id = "v_" + series_item_id
+                    for series_id, series_item in attrib_conf.series.items():
+                        series_data_type = series_item["data_type"]
+                        prefixed_id = "v_" + series_id
 
                         # Data type is array of configured data type.
                         # Incoming data points are arrays and they are stored
                         # in the same format.
                         history_conf[prefixed_id] = AttrSpec(prefixed_id, {
-                            'name': series_item_id,
+                            'name': series_id,
                             'type': "plain",
-                            'data_type': f"array<{series_item_type}>"
+                            'data_type': f"array<{series_data_type}>"
                         })
                 else:
                     history_conf['v'] = AttrSpec("v", {
@@ -779,27 +778,29 @@ class EntityDatabase:
         t1 = parse_rfc_time(datapoint_body["t1"])
         t2 = parse_rfc_time(datapoint_body["t2"])
 
-        if len(v) != len(attrib_conf.series):
-            raise ValueError(f"{len(v)} values in datapoint supplied instead of {len(attrib_conf.series)}")
+        # Check all series are present
+        for series_id in attrib_conf.series:
+            if not series_id in v:
+                raise ValueError(f"Datapoint is missing values for '{series_id}' series")
 
         # Check if all value arrays are the same length
-        values_len = [ len(v_i) for v_i in v ]
+        values_len = [ len(v_i) for _, v_i in v.items() ]
         if len(set(values_len)) != 1:
             raise ValueError(f"Datapoint arrays have different lengths: {values_len}")
 
         # Split `v`
-        for i, v_i in enumerate(v):
-            series_conf = attrib_conf.series[i]
-            series_type = series_conf["type"]
-            prefixed_id = "v_" + series_conf["id"]
+        for v_id, v_i in v.items():
+            series_conf = attrib_conf.series[v_id]
+            series_data_type = series_conf["data_type"]
+            prefixed_id = "v_" + v_id
 
             # Validate values
             for j, primitive in enumerate(v_i):
-                if not validators[series_conf["type"]](primitive):
-                    raise ValueError(f"Series value {primitive} is invalid (type should be {series_type})")
+                if not validators[series_data_type](primitive):
+                    raise ValueError(f"Series value {primitive} is invalid (type should be {series_data_type})")
 
             # Convert timestamps
-            if series_type == "time":
+            if series_data_type == "time":
                 v_i = [ parse_rfc_time(p) for p in v_i ]
 
                 # Validate all timestamps
@@ -836,7 +837,7 @@ class EntityDatabase:
         # Get id of first default series (should be "time" or "time_first")
         # If it doesn't work, just assume default value "time", but log this event.
         try:
-            time_id = timeseries_types[attrib_conf.timeseries_type]["default_series"][0]["id"]
+            time_id = list(timeseries_types[attrib_conf.timeseries_type]["default_series"].keys())[0]
         except KeyError:
             time_id = "time"
             self.log.warning(f"Couldn't get id of first default series for timeseries type {attrib_conf.timeseries_type}. Assuming 'time'.")
@@ -844,9 +845,9 @@ class EntityDatabase:
         try:
             # Build query
             select_fields = []
-            for series in attrib_conf.series:
-                column = getattr(table.c, "v_" + series["id"])
-                select_fields.append(func.unnest(column).label(series["id"]))
+            for series_id in attrib_conf.series:
+                column = getattr(table.c, "v_" + series_id)
+                select_fields.append(func.unnest(column).label(series_id))
 
             query = select(select_fields)
 
@@ -868,8 +869,8 @@ class EntityDatabase:
         query_result_dicts = list(map(dict, query_result))
 
         # Convert to dict of lists
-        series_ids = [ s["id"] for s in attrib_conf.series ]  # [ "time", "bytes", ... ]
-        series_result = dict((s, []) for s in series_ids)     # { "time": [], "bytes": [], ... }
+        series_ids = list(attrib_conf.series.keys())       # [ "time", "bytes", ... ]
+        series_result = dict((s, []) for s in series_ids)  # { "time": [], "bytes": [], ... }
 
         for row in query_result_dicts:
             for prefixed_id in row:

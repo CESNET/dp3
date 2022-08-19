@@ -777,16 +777,27 @@ class EntityDatabase:
         v = datapoint_body["v"]
         t1 = parse_rfc_time(datapoint_body["t1"])
         t2 = parse_rfc_time(datapoint_body["t2"])
-
-        # Check all series are present
-        for series_id in attrib_conf.series:
-            if not series_id in v:
-                raise ValueError(f"Datapoint is missing values for '{series_id}' series")
+        time_step = attrib_conf.time_step
 
         # Check if all value arrays are the same length
         values_len = [ len(v_i) for _, v_i in v.items() ]
         if len(set(values_len)) != 1:
             raise ValueError(f"Datapoint arrays have different lengths: {values_len}")
+
+        # TODO: calculate missing t2
+
+        # Check t2
+        if attrib_conf.timeseries_type == "regular":
+            if t2 - t1 != (values_len[0] - 1)*time_step:
+                raise ValueError(f"Difference of t1 and t2 is invalid. Must be (n-1)*time_step")
+
+        # Check all series are present
+        for series_id in attrib_conf.series:
+            # Time for regular timeseries will be added automatically later
+            if series_id == "time" and attrib_conf.timeseries_type == "regular":
+                continue
+            if not series_id in v:
+                raise ValueError(f"Datapoint is missing values for '{series_id}' series")
 
         # Split `v`
         for v_id, v_i in v.items():
@@ -809,6 +820,10 @@ class EntityDatabase:
                         raise ValueError(f"Series value {dt} is invalid (must be in [{t1}, {t2}] interval)")
 
             datapoint_body[prefixed_id] = v_i
+
+        # Add time for regular timeseries
+        if attrib_conf.timeseries_type == "regular":
+            datapoint_body["v_time"] = [ t1 + n*time_step for n in range(values_len[0]) ]
 
         del datapoint_body["v"]
 

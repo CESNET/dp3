@@ -214,6 +214,7 @@ class AttrSpec:
         self.history_force_graph = spec.get("history_force_graph", False)
         self.timeseries_type = spec.get("timeseries_type", None)
         self.series = spec.get("series", None)
+        self.time_step = spec.get("time_step", None)
 
         # Check common mandatory specification fields
         assert self.type is not None, err_msg_missing_field.format("type")
@@ -278,6 +279,11 @@ class AttrSpec:
 
             assert self.timeseries_type in timeseries_types, err_msg_value.format("timeseries_type")
             assert type(self.series) is dict, err_msg_type.format("series", "dict")
+
+            if self.timeseries_type == "regular":
+                self.time_step = self._parse_time_duration_safe(self.time_step, "time_step")
+            else:
+                self.time_step = None
 
             # Automatically add default series
             self.series = { **self.series, **timeseries_types[self.timeseries_type]["default_series"] }

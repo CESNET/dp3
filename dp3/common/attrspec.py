@@ -22,18 +22,21 @@ timeseries_types = {
     "regular": {
         "default_series": {
             "time": { "data_type": "time" }
-        }
+        },
+        "sort_by": "t1"
     },
     "irregular": {
         "default_series": {
             "time": { "data_type": "time" }
-        }
+        },
+        "sort_by": "time"
     },
     "irregular_intervals": {
         "default_series": {
             "time_first": { "data_type": "time" },
             "time_last": { "data_type": "time" }
-        }
+        },
+        "sort_by": "time_first"
     }
 }
 

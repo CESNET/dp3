@@ -848,12 +848,7 @@ class EntityDatabase:
         attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
 
         # Get id of first default series (should be "time" or "time_first")
-        # If it doesn't work, just assume default value "time", but log this event.
-        try:
-            time_id = list(timeseries_types[attrib_conf.timeseries_type]["default_series"].keys())[0]
-        except KeyError:
-            time_id = "time"
-            self.log.warning(f"Couldn't get id of first default series for timeseries type {attrib_conf.timeseries_type}. Assuming 'time'.")
+        sort_by = timeseries_types[attrib_conf.timeseries_type]["sort_by"]
 
         try:
             # Build query
@@ -871,7 +866,7 @@ class EntityDatabase:
             if t2 is not None:
                 query = query.where(table.c.t1 <= t2 if closed_interval else table.c.t1 < t2)
 
-            query = query.order_by(asc(time_id))
+            query = query.order_by(asc(sort_by))
 
             query_result = self._db.execute(query)
         except Exception as e:

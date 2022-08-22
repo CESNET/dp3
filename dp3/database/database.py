@@ -787,7 +787,7 @@ class EntityDatabase:
         # Check t2
         if attrib_conf.timeseries_type == "regular":
             if t2 - t1 != (values_len[0] - 1)*time_step:
-                raise ValueError(f"Difference of t1 and t2 is invalid. Must be (n-1)*time_step")
+                raise ValueError(f"Difference of t1 and t2 is invalid. Must be (n-1)*time_step.")
 
         # Check all series are present
         for series_id in attrib_conf.series:
@@ -799,7 +799,9 @@ class EntityDatabase:
 
         # Split `v`
         for v_id, v_i in v.items():
-            series_conf = attrib_conf.series[v_id]
+            series_conf = attrib_conf.series.get(v_id)
+            if not series_conf:
+                raise ValueError(f"Series {v_id} doesn't exist")
             series_data_type = series_conf["data_type"]
             prefixed_id = "v_" + v_id
 

@@ -786,8 +786,8 @@ class EntityDatabase:
 
         # Check t2
         if attrib_conf.timeseries_type == "regular":
-            if t2 - t1 != (values_len[0] - 1)*time_step:
-                raise ValueError(f"Difference of t1 and t2 is invalid. Must be (n-1)*time_step.")
+            if t2 - t1 != values_len[0]*time_step:
+                raise ValueError(f"Difference of t1 and t2 is invalid. Must be n*time_step.")
 
         # Check all series are present
         for series_id in attrib_conf.series:
@@ -825,7 +825,7 @@ class EntityDatabase:
         if attrib_conf.timeseries_type == "regular":
             eid = datapoint_body["eid"]
 
-            overlapping_count = self.get_overlapping_dp_count(etype, attr_name, eid, t1 - time_step, t2 + time_step)
+            overlapping_count = self.get_overlapping_dp_count(etype, attr_name, eid, t1, t2)
             if overlapping_count > 0:
                 raise ValueError(f"Datapoint is overlapping with {overlapping_count} other datapoints")
 

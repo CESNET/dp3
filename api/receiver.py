@@ -225,7 +225,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         # Length of first series
         series_len = len(list(raw_val.values())[0])
 
-        default_dt = parse_rfc_time(t1) + (series_len - 1)*spec.time_step
+        default_dt = parse_rfc_time(t1) + series_len*spec.time_step
         t2 = request.values.get("t2", default_dt.isoformat("T"))
     else:
         t2 = request.values.get("t2", t1)
@@ -389,7 +389,7 @@ def push_multiple_datapoints():
             # Length of first series
             series_len = len(list(raw_val.values())[0])
 
-            default_dt = parse_rfc_time(t1) + (series_len - 1)*spec.time_step
+            default_dt = parse_rfc_time(t1) + series_len*spec.time_step
             t2 = request.values.get("t2", default_dt.isoformat("T"))
         else:
             t2 = request.values.get("t2", t1)

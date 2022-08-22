@@ -821,6 +821,23 @@ class EntityDatabase:
 
             datapoint_body[prefixed_id] = v_i
 
+        # Check for overlapping records
+        if attrib_conf.timeseries_type == "regular":
+            full_attr_name = f"{etype}__{attr_name}"
+            table = self._tables[full_attr_name]
+            eid = datapoint_body["eid"]
+
+            # Build a query
+            query = select([func.count()]).select_from(table)
+            query = query.where(table.c.eid == eid)
+            query = query.where(table.c.t2 > t1 - time_step)
+            query = query.where(table.c.t1 < t2 + time_step)
+            overlapping_count = self._db.execute(query).scalar()
+
+            if overlapping_count > 0:
+                print(query)
+                raise ValueError(f"Datapoint is overlapping with {overlapping_count} other datapoints")
+
         del datapoint_body["v"]
 
         return datapoint_body

@@ -823,24 +823,41 @@ class EntityDatabase:
 
         # Check for overlapping records
         if attrib_conf.timeseries_type == "regular":
-            full_attr_name = f"{etype}__{attr_name}"
-            table = self._tables[full_attr_name]
             eid = datapoint_body["eid"]
 
-            # Build a query
-            query = select([func.count()]).select_from(table)
-            query = query.where(table.c.eid == eid)
-            query = query.where(table.c.t2 > t1 - time_step)
-            query = query.where(table.c.t1 < t2 + time_step)
-            overlapping_count = self._db.execute(query).scalar()
-
+            overlapping_count = self.get_overlapping_dp_count(etype, attr_name, eid, t1 - time_step, t2 + time_step)
             if overlapping_count > 0:
-                print(query)
                 raise ValueError(f"Datapoint is overlapping with {overlapping_count} other datapoints")
 
         del datapoint_body["v"]
 
         return datapoint_body
+
+    def get_overlapping_dp_count(self, etype: str, attr_name: str, eid: str = None, t1: datetime = None, t2: datetime = None):
+        """
+        Counts overlapping datapoints with new record that spans between t1 and t2.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: int or None on error
+        """
+        full_attr_name = f"{etype}__{attr_name}"
+        try:
+            table = self._tables[full_attr_name]
+        except KeyError:
+            self.log.error(f"Cannot get timeseries, because history table of {full_attr_name} does not exist!")
+            return None
+
+        # Build a query
+        query = select([func.count()]).select_from(table)
+        query = query.where(table.c.eid == eid)
+        query = query.where(table.c.t2 > t1)
+        query = query.where(table.c.t1 < t2)
+
+        return self._db.execute(query).scalar()
 
     def get_irregular_timeseries(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
         """

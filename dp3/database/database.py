@@ -819,10 +819,6 @@ class EntityDatabase:
 
             datapoint_body[prefixed_id] = v_i
 
-        # Add time for regular timeseries
-        if attrib_conf.timeseries_type == "regular":
-            datapoint_body["v_time"] = [ t1 + n*time_step for n in range(values_len[0]) ]
-
         del datapoint_body["v"]
 
         return datapoint_body

@@ -20,9 +20,7 @@ attr_types = [
 # Dict of timeseries type spec
 timeseries_types = {
     "regular": {
-        "default_series": {
-            "time": { "data_type": "time" }
-        },
+        "default_series": {},
         "sort_by": "t1"
     },
     "irregular": {

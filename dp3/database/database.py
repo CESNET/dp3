@@ -1,7 +1,7 @@
 import logging
 from typing import List
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine, Table, Column, MetaData, func
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, REAL, JSON
@@ -859,16 +859,84 @@ class EntityDatabase:
 
         return self._db.execute(query).scalar()
 
-    def get_irregular_timeseries(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
+    def get_timeseries(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
         """
-        Gets irregular timeseries of certain time interval between t1 and t2 from database.
+        Gets timeseries of certain time interval between t1 and t2 from database.
         :param etype: entity type
         :param attr_name: name of attribute
         :param eid: id of entity, to which data-points correspond (optional)
         :param t1: left value of time interval
         :param t2: right value of time interval
         :param closed_interval: include interval endpoints? (default = True)
-        :return: dict of series lists or None on error
+        :return: dict
+        """
+        # Get raw data
+        query_result_dicts = self.get_timeseries_raw(etype, attr_name, eid, t1, t2, closed_interval)
+
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+
+        if t1 is not None:
+            t1 = parse_rfc_time(t1)
+        if t2 is not None:
+            t2 = parse_rfc_time(t2)
+
+        # Convert to dict of lists
+        series_ids = list(attrib_conf.series.keys())       # [ "time", "bytes", ... ]
+        series_result = dict((s, []) for s in series_ids)  # { "time": [], "bytes": [], ... }
+
+        if attrib_conf.timeseries_type == "regular":
+            if len(query_result_dicts) > 0:
+                if t1 or t2:
+                    query_result_dicts = self.discard_dp_outside_interval_regular_timeseries(query_result_dicts, attrib_conf, t1, t2, series_ids)
+
+                if not t1:
+                    t1 = query_result_dicts[0]["t1"]
+                if not t2:
+                    t2 = query_result_dicts[-1]["t2"]
+
+            # Add additional data to result
+            series_result["t1"] = t1
+            series_result["t2"] = t2
+            series_result["time_step"] = int(attrib_conf.time_step.total_seconds())
+
+            # t2s has +[t1], so that t2s[-1] index does work correctly
+            t1s = [ row["t1"] for row in query_result_dicts ]
+            t2s = [ row["t2"] for row in query_result_dicts ] + [ t1 ]
+
+            # Process series
+            for i, row in enumerate(query_result_dicts):
+                # Check for time without any data
+                # Calculate how many "cycles" were skipped between previous
+                # t2 and current t1 and corresponding count of None values.
+                t2_t1_delta = t1s[i] - t2s[i-1]
+                if t2_t1_delta:
+                    cycles_skipped = t2_t1_delta // attrib_conf.time_step
+                    for series_id in series_ids:
+                        series_result[series_id] += cycles_skipped * [ None ]
+
+                for series_id in series_ids:
+                    # Concatenate timeseries
+                    series_result[series_id] += row["v_" + series_id]
+        else:
+            # Process series
+            for i, row in enumerate(query_result_dicts):
+                for series_id in series_ids:
+                    # Concatenate timeseries' datapoints
+                    series_result[series_id].append(row[series_id])
+
+        return series_result
+
+    def get_timeseries_raw(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
+        """
+        Gets raw timeseries data of certain time interval between t1 and t2 from database.
+        Wrapper around SQL query.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: list of dicts
         """
         full_attr_name = f"{etype}__{attr_name}"
         try:
@@ -884,10 +952,13 @@ class EntityDatabase:
 
         try:
             # Build query
-            select_fields = []
-            for series_id in attrib_conf.series:
-                column = getattr(table.c, "v_" + series_id)
-                select_fields.append(func.unnest(column).label(series_id))
+            if attrib_conf.timeseries_type == "regular":
+                select_fields = [table]
+            else:
+                select_fields = []
+                for series_id in attrib_conf.series:
+                    column = getattr(table.c, "v_" + series_id)
+                    select_fields.append(func.unnest(column).label(series_id))
 
             query = select(select_fields)
 
@@ -906,14 +977,38 @@ class EntityDatabase:
             return None
 
         # Convert to list of dicts
-        query_result_dicts = list(map(dict, query_result))
+        return list(map(dict, query_result))
 
-        # Convert to dict of lists
-        series_ids = list(attrib_conf.series.keys())       # [ "time", "bytes", ... ]
-        series_result = dict((s, []) for s in series_ids)  # { "time": [], "bytes": [], ... }
+    def discard_dp_outside_interval_regular_timeseries(self, query_result_dicts: list, attrib_conf: AttrSpec, t1: datetime, t2: datetime, series_ids: list):
+        """
+        Discards datapoints outside interval [t1, t2]. Only valid for regular
+        timeseries.
+        :param query_result_dicts: list of SQL query rows (as dicts)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :return: list of dicts
+        """
+        if len(query_result_dicts) > 0:
+            if t1:
+                # First row may include items before (in front of) [t1, t2] interval.
+                # Discard them.
+                delta = t1 - query_result_dicts[0]["t1"]
+                if delta > timedelta(seconds=0):
+                    items_to_discard = delta // attrib_conf.time_step
+                    for series_id in series_ids:
+                        # Discard first items_to_discard items
+                        prefixed_id = "v_" + series_id
+                        del query_result_dicts[0][prefixed_id][:items_to_discard]
 
-        for row in query_result_dicts:
-            for prefixed_id in row:
-                series_result[prefixed_id].append(row[prefixed_id])
+            if t2:
+                # Last row may include items after [t1, t2] interval.
+                # Discard them.
+                delta = query_result_dicts[-1]["t2"] - t2
+                if delta > timedelta(seconds=0):
+                    items_to_discard = delta // attrib_conf.time_step
+                    for series_id in series_ids:
+                        # Discard last items_to_discard items
+                        prefixed_id = "v_" + series_id
+                        del query_result_dicts[-1][prefixed_id][-items_to_discard:]
 
-        return series_result
+        return query_result_dicts

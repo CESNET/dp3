@@ -882,7 +882,8 @@ class EntityDatabase:
 
         # Convert to dict of lists
         series_ids = list(attrib_conf.series.keys())       # [ "time", "bytes", ... ]
-        series_result = dict((s, []) for s in series_ids)  # { "time": [], "bytes": [], ... }
+        result_series = dict((s, []) for s in series_ids)  # { "time": [], "bytes": [], ... }
+        result = {}
 
         if attrib_conf.timeseries_type == "regular":
             if len(query_result_dicts) > 0:
@@ -895,9 +896,9 @@ class EntityDatabase:
                     t2 = query_result_dicts[-1]["t2"]
 
             # Add additional data to result
-            series_result["t1"] = t1
-            series_result["t2"] = t2
-            series_result["time_step"] = int(attrib_conf.time_step.total_seconds())
+            result["t1"] = t1
+            result["t2"] = t2
+            result["time_step"] = int(attrib_conf.time_step.total_seconds())
 
             # t2s has +[t1], so that t2s[-1] index does work correctly
             t1s = [ row["t1"] for row in query_result_dicts ]
@@ -912,19 +913,21 @@ class EntityDatabase:
                 if t2_t1_delta:
                     cycles_skipped = t2_t1_delta // attrib_conf.time_step
                     for series_id in series_ids:
-                        series_result[series_id] += cycles_skipped * [ None ]
+                        result_series[series_id] += cycles_skipped * [ None ]
 
                 for series_id in series_ids:
                     # Concatenate timeseries
-                    series_result[series_id] += row["v_" + series_id]
+                    result_series[series_id] += row["v_" + series_id]
         else:
             # Process series
             for i, row in enumerate(query_result_dicts):
                 for series_id in series_ids:
                     # Concatenate timeseries' datapoints
-                    series_result[series_id].append(row[series_id])
+                    result_series[series_id].append(row[series_id])
 
-        return series_result
+        result["series"] = result_series
+
+        return result
 
     def get_timeseries_raw(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
         """

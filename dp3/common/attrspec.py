@@ -282,6 +282,7 @@ class AttrSpec:
             assert type(self.series) is dict, err_msg_type.format("series", "dict")
 
             if self.timeseries_type == "regular":
+                assert type(self.time_step) is str, err_msg_type.format("time_step", "str")
                 self.time_step = self._parse_time_duration_safe(self.time_step, "time_step")
             else:
                 self.time_step = None

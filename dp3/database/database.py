@@ -929,6 +929,85 @@ class EntityDatabase:
 
         return result
 
+    def get_timeseries_dp(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
+        """
+        Gets timeseries of certain time interval between t1 and t2 from database.
+        Outputs them in format:
+            [
+                {
+                    "t1": ...,
+                    "t2": ...,
+                    "v": {
+                        "series1": ...,
+                        "series2": ...
+                    }
+                },
+                ...
+            ]
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: list of dicts
+        """
+        # Get raw data
+        query_result_dicts = self.get_timeseries_raw(etype, attr_name, eid, t1, t2, closed_interval)
+
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+
+        result = []
+
+        # Should be ["time"] or ["time_first", "time_last"] for irregular
+        # timeseries and [] for regular timeseries
+        time_series = list(timeseries_types[attrib_conf.timeseries_type]["default_series"].keys())
+
+        # User-defined series
+        user_series = list(filter(lambda i: i not in time_series, attrib_conf.series.keys()))
+
+        if not user_series or len(user_series) == 0:
+            return []
+
+        if attrib_conf.timeseries_type == "regular":
+            time_step = attrib_conf.time_step
+
+            for row in query_result_dicts:
+                # Length of all series arrays/lists in this row
+                values_len = len(row["v_" + user_series[0]])
+
+                for i in range(values_len):
+                    row_t1 = row["t1"] + i*time_step
+                    row_t2 = row_t1 + time_step
+
+                    row_new = {
+                        "t1": row_t1,
+                        "t2": row_t2,
+                        "v": {}
+                    }
+
+                    for s in user_series:
+                        row_new["v"][s] = row["v_" + s][i]
+
+                    result.append(row_new)
+        else:
+            for row in query_result_dicts:
+                row_t1 = row.get(time_series[0]) if len(time_series) >= 1 else None
+                row_t2 = row.get(time_series[1]) if len(time_series) >= 2 else row_t1
+
+                row_new = {
+                    "t1": row_t1,
+                    "t2": row_t2,
+                    "v": {}
+                }
+
+                for s in user_series:
+                    row_new["v"][s] = row[s]
+
+                result.append(row_new)
+
+        return result
+
     def get_timeseries_raw(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
         """
         Gets raw timeseries data of certain time interval between t1 and t2 from database.

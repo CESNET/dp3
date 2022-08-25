@@ -17,6 +17,27 @@ attr_types = [
     "timeseries"
 ]
 
+# Dict of timeseries type spec
+timeseries_types = {
+    "regular": {
+        "default_series": {},
+        "sort_by": "t1"
+    },
+    "irregular": {
+        "default_series": {
+            "time": { "data_type": "time" }
+        },
+        "sort_by": "time"
+    },
+    "irregular_intervals": {
+        "default_series": {
+            "time_first": { "data_type": "time" },
+            "time_last": { "data_type": "time" }
+        },
+        "sort_by": "time_first"
+    }
+}
+
 # List of primitive data types
 primitive_data_types = [
     "tag",
@@ -31,6 +52,13 @@ primitive_data_types = [
     "time",
     "special",  # deprecated, use json instead
     "json"
+]
+
+# List of primitive data types allowed in timeseries
+primitive_data_types_series = [
+    "time",
+    "int",
+    "float"
 ]
 
 # List of aggregation functions
@@ -176,6 +204,7 @@ class AttrSpec:
         self.name = spec.get("name", self.id)
         self.description = spec.get("description", default_description)
         self.color = spec.get("color", default_color)
+        self.history = False
         self.data_type = spec.get("data_type", None)
         self.categories = spec.get("categories", None)
         self.confidence = spec.get("confidence", False)
@@ -184,6 +213,9 @@ class AttrSpec:
         self.probability = spec.get("probability", False)
         self.editable = spec.get("editable", False)
         self.history_force_graph = spec.get("history_force_graph", False)
+        self.timeseries_type = spec.get("timeseries_type", None)
+        self.series = spec.get("series", None)
+        self.time_step = spec.get("time_step", None)
 
         # Check common mandatory specification fields
         assert self.type is not None, err_msg_missing_field.format("type")
@@ -204,6 +236,9 @@ class AttrSpec:
         # Type-specific fields
         if (self.type == "plain" or
             self.type == "observations"):
+            self.timeseries_type = None
+            self.series = None
+
             assert self.data_type is not None, err_msg_missing_field.format("data_type")
             assert type(self.data_type) is str, err_msg_type.format("data_type", "str")
             assert type(self.confidence) is bool, err_msg_type.format("confidence", "bool")
@@ -231,6 +266,38 @@ class AttrSpec:
             assert type(self.history_force_graph) is bool, err_msg_type.format("history_force_graph", "bool")
 
             self._validate_history_params()
+
+        if self.type == "timeseries":
+            self.history = False
+            self.data_type = None
+            self.categories = None
+            self.confidence = None
+            self.multi_value = False
+            self.history_params = None
+            self.probability = False
+            self.editable = False
+            self.history_force_graph = False
+
+            assert self.timeseries_type in timeseries_types, err_msg_value.format("timeseries_type")
+            assert type(self.series) is dict, err_msg_type.format("series", "dict")
+
+            if self.timeseries_type == "regular":
+                assert type(self.time_step) is str, err_msg_type.format("time_step", "str")
+                self.time_step = self._parse_time_duration_safe(self.time_step, "time_step")
+            else:
+                self.time_step = None
+
+            # Automatically add default series
+            self.series = { **self.series, **timeseries_types[self.timeseries_type]["default_series"] }
+
+            for series_id in self.series:
+                assert type(series_id) is str, err_msg_type.format(f"series identifier '{series_id}'", "str")
+                assert type(self.series.get(series_id)) is dict, err_msg_type.format(f"series['{series_id}']", "dict")
+                assert self.series[series_id].get("data_type") in primitive_data_types_series, \
+                    err_msg_value.format(f"series['{series_id}']['data_type']")
+
+            # Register dumb validator (validation will be done elsewhere)
+            self.value_validator = lambda v: True
 
 
     def _init_validator_function(self):

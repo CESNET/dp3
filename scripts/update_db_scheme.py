@@ -70,6 +70,14 @@ def create_config_column_list(config_item, attr_spec):
     return columns_in_attr
 
 
+def create_config_timeseries_list(attr_config):
+    timeseries = list()
+    for key in attr_config.keys():
+        if attr_config.get(key).type == "timeseries":
+            timeseries.append(key)
+    return timeseries
+
+
 def create_db_column_list(config_item, db_inspector):
     # creates list with names of columns that are already in database
     db_columns = db_inspector.get_columns(config_item, schema="public") 
@@ -167,9 +175,9 @@ def change_col_data_type(config_item, col_name, config_col_type, meta):
             print('Answer "yes" or "no".')
 
 
-def add_table_or_column(attr_spec, db_inspector, db_engine, meta):
+def add_table_or_column(attr_spec, db_inspector, db_engine, meta, db_table):
     # checks if any tables or colums have to be added
-    db_table = db_inspector.get_table_names(schema="public")
+    # db_table = db_inspector.get_table_names(schema="public")
     for config_item in attr_spec.keys():
         columns_in_attr = create_config_column_list(config_item, attr_spec)
         # if table that should be in database is not there, this table is created
@@ -198,7 +206,7 @@ def add_table_or_column(attr_spec, db_inspector, db_engine, meta):
         for col_name in columns_in_attr:
             if not col_name.endswith((":c", ":exp")):
                 table_name = config_item + "__" + col_name
-                if table_name not in db_table and attr_spec.get(config_item).get("attribs").get(col_name).history:
+                if table_name not in db_table and attr_spec.get(config_item).get("attribs").get(col_name).type == "observations":
                     data_type = get_data_type(col_name, attr_spec.get(config_item).get("attribs"))
                     create_history_table(table_name, meta, db_engine, data_type)
 
@@ -209,7 +217,7 @@ def get_table_names_attr(attr_spec):
     for table in attr_spec.keys():
         attribs = attr_spec.get(table).get("attribs")
         for item in attribs:
-            if attribs.get(item).history:
+            if attribs.get(item).type == "observations" or attribs.get(item).type == "timeseries":
                 attr_table.append(table + "__" + item)
     return attr_table
 
@@ -263,7 +271,66 @@ def delete_table_or_column(attr_spec, db_inspector, db_engine, meta, connection)
             for col in db_list:
                 if col not in config_list and col not in col_list:
                     delete_column(table_name, col, meta)
+
+
+def create_timeseries_table(ts_table_name, meta, db_engine, ts_attr):
+    columns = list()
+    for name in ts_attr.series:
+        data_type = ATTR_TYPE_MAPPING[ts_attr.series[name].get("data_type")]
+        columns.append(Column("v_" + name, ARRAY(data_type)))
+
+    table = Table(
+        ts_table_name, meta,
+        Column("id", INTEGER, primary_key=True),
+        Column("eid", VARCHAR, index=True),
+        Column("t1", TIMESTAMP),
+        Column("t2", TIMESTAMP),
+        Column("c", REAL),
+        Column("src", VARCHAR),
+        Column("tag", INTEGER),
+        *columns,
+        Column("ts_added", TIMESTAMP)
+    )
+    meta.create_all(db_engine)
+    print(f'New table "{ts_table_name}" for storing time series was created.')
         
+
+def check_timeseries_tables(attr_spec, meta, db_engine, db_inspector, db_table):
+    # time series table
+    for config_item in attr_spec.keys():
+        timeseries = create_config_timeseries_list(attr_spec.get(config_item).get("attribs"))
+        for ts in timeseries:
+            ts_table_name = config_item + "__" + ts
+            # create new table for storing time_serie
+            if ts_table_name not in db_table:
+                create_timeseries_table(ts_table_name, meta, db_engine, attr_spec.get(config_item).get("attribs").get(ts))
+                continue
+            # add and chanege data type of column
+            table = meta.tables.get(ts_table_name)
+            col_in_db =  create_db_column_list(ts_table_name, db_inspector)
+            col_in_spec = list()
+            for col_name in attr_spec.get(config_item).get("attribs").get(ts).series:
+                col = "v_" + col_name
+                col_in_spec.append(col)
+                data_type = ATTR_TYPE_MAPPING[attr_spec.get(config_item).get("attribs").get(ts).series[col_name].get("data_type")]
+                # when column is in specification but not in DB - add column
+                if col not in col_in_db:
+                    column = Column(col, ARRAY(data_type))
+                    column.create(table)
+                    print(f'Added column "{col}" into "{ts_table_name}" table.')
+                else:
+                    # check data type of column
+                    db_data_type = table.columns[col].type.item_type
+                    if type(db_data_type) != data_type:
+                        change_col_data_type(ts_table_name, col, ARRAY(data_type), meta)
+
+            default_columns = ["id", "eid", "t1", "t2", "c", "src", "tag", "ts_added"]
+            # drop column
+            for column in col_in_db:
+                if column not in col_in_spec and column not in default_columns:
+                    delete_column(ts_table_name, column, meta)
+                
+
 
 def validity_of_config(args):
     # checking if the configuration is valid
@@ -350,9 +417,15 @@ def main():
     meta.reflect(bind=db_engine)
     meta.bind = db_engine
 
+
+    db_table = db_inspector.get_table_names(schema="public")
     # checking if any changes in database schema have to be made
-    add_table_or_column(attr_spec, db_inspector, db_engine, meta)
+    add_table_or_column(attr_spec, db_inspector, db_engine, meta, db_table) # observations and plain
+    check_timeseries_tables(attr_spec, meta, db_engine, db_inspector, db_table) # check timeseries
     delete_table_or_column(attr_spec, db_inspector,db_engine, meta, connection)
+
+    
+    
     
     # closing database connection
     connection.close()

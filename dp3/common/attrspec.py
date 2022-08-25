@@ -417,6 +417,14 @@ class AttrSpec:
             attrs["history_params"] = self.history_params
             attrs["history_force_graph"] = self.history_force_graph
 
+        if self.type == "timeseries":
+            default_series = timeseries_types[self.timeseries_type]["default_series"]
+            attrs["timeseries_type"] = self.timeseries_type
+            attrs["series"] = dict(filter(lambda s: s[0] not in default_series, self.series.items()))
+            
+            if self.timeseries_type == "regular":
+                attrs["time_step"] = self.time_step
+
         return f"AttrSpec({self.id!r}, {attrs!r})"
 
     # TODO shorter and more readable __str__ representation?

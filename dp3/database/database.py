@@ -1,14 +1,15 @@
 import logging
 from typing import List
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine, Table, Column, MetaData, func
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, REAL, JSON
 from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
-from ..common.attrspec import AttrSpec
+from ..common.attrspec import AttrSpec, validators, timeseries_types
+from ..common.utils import parse_rfc_time
 from ..history_management.constants import *
 
 # map supported data types to Postgres SQL data types
@@ -132,9 +133,13 @@ class EntityDatabase:
         :return: list of Columns
         """
         columns = []
+
         for attrib_id, attrib_conf in table_attribs.items():
             # Get database type of column
-            if attrib_conf.data_type.startswith(("array", "set")):
+            if attrib_conf.type == "timeseries":
+                # No column with current value of timeseries
+                continue
+            elif attrib_conf.data_type.startswith(("array", "set")):
                 # e.g. "array<int>" --> ["array", "int>"] --> "int"
                 data_type = attrib_conf.data_type.split('<')[1][:-1]
                 column_type = ARRAY(ATTR_TYPE_MAPPING[data_type])
@@ -144,7 +149,7 @@ class EntityDatabase:
                 column_type = ATTR_TYPE_MAPPING[attrib_conf.data_type]
 
             # If the attribute is multi-value, convert column into an array
-            if not history and attrib_conf.multi_value is True:
+            if not history and attrib_conf.multi_value:
                 column_type = ARRAY(column_type)
 
             # Create column
@@ -216,14 +221,14 @@ class EntityDatabase:
             return
 
         # if table exists, check if the definition is the same
-        if not EntityDatabase.are_tables_identical(current_table, entity_table):
+        if not self.are_tables_identical(current_table, entity_table):
             raise DatabaseConfigMismatchError(f"Table {table_name} already exists, but has different settings and "
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table
 
-    def init_history_tables(self, table_name_prefix: str, table_attribs: dict, db_current_state: MetaData):
+    def init_history_timeseries_tables(self, table_name_prefix: str, table_attribs: dict, db_current_state: MetaData):
         """
-        Initialize all history tables in database schema.
+        Initialize all history and timeseries tables in database schema.
         :param table_name_prefix: prefix of table names (entity_name)
         :param table_attribs: configuration of table's attributes, some of them may contain history=True
         :param db_current_state: current state of database (needed to check if table already exists and if it is identical)
@@ -232,9 +237,30 @@ class EntityDatabase:
         # TODO How to handle history_params (max_age, expire_time, etc.)? It will be probably handled by secondary
         #  modules.
         for _, attrib_conf in table_attribs.items():
-            if attrib_conf.type == "observations":
+            if attrib_conf.type == "observations" or attrib_conf.type == "timeseries":
                 history_conf = deepcopy(HISTORY_ATTRIBS_CONF)
-                history_conf['v'] = AttrSpec("v", {'name': "value", 'type': "plain", 'data_type': attrib_conf.data_type})
+
+                if attrib_conf.type == "timeseries":
+                    # Create one "value" column for all series
+                    for series_id, series_item in attrib_conf.series.items():
+                        series_data_type = series_item["data_type"]
+                        prefixed_id = "v_" + series_id
+
+                        # Data type is array of configured data type.
+                        # Incoming data points are arrays and they are stored
+                        # in the same format.
+                        history_conf[prefixed_id] = AttrSpec(prefixed_id, {
+                            'name': series_id,
+                            'type': "plain",
+                            'data_type': f"array<{series_data_type}>"
+                        })
+                else:
+                    history_conf['v'] = AttrSpec("v", {
+                        'name': "value",
+                        'type': "plain",
+                        'data_type': attrib_conf.data_type
+                    })
+
                 # History tables are named as <entity_name>__<attr_name> (e.g. "ip__activity_flows")
                 table_name = f"{table_name_prefix}__{attrib_conf.id}"
                 self.create_table(table_name, {'attribs': history_conf}, db_current_state, True)
@@ -252,7 +278,7 @@ class EntityDatabase:
 
         for entity_name, entity_conf in self._db_schema_config.items():
             self.create_table(entity_name, entity_conf, db_current_state)
-            self.init_history_tables(entity_name, entity_conf['attribs'], db_current_state)
+            self.init_history_timeseries_tables(entity_name, entity_conf['attribs'], db_current_state)
 
     def exists(self, table_name: str, key_to_record: str):
         """
@@ -450,10 +476,16 @@ class EntityDatabase:
         full_attr_name = f"{etype}__{attr_name}"
         try:
             datapoint_table = self._tables[full_attr_name]
+            attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
         except KeyError:
             self.log.error(f"Cannot create datapoint of attribute {full_attr_name}, because such history table does not exist!")
             return False
+
         try:
+            # Timeseries' `v` in datapoint represents multiple columns at once.
+            if attrib_conf.type == "timeseries":
+                datapoint_body = self.process_timeseries_datapoint(datapoint_body, etype, attr_name)
+
             datapoint_body.update({'ts_added': datetime.utcnow()})
             self.create_record(full_attr_name, datapoint_body['eid'], datapoint_body)
             #self.log.debug(f"Data-point stored: {datapoint_body}")
@@ -734,3 +766,331 @@ class EntityDatabase:
 
         # Read all rows and return set of matching entity IDs
         return result 
+
+    def process_timeseries_datapoint(self, datapoint_body: dict, etype: str, attr_name: str):
+        """Splits timeseries datapoints' value into multiple values.
+
+        Timeseries' `v` in datapoint represents multiple columns at once.
+        Split it into multiple fields/columns according to attribute's spec.
+        """
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+        v = datapoint_body["v"]
+        t1 = parse_rfc_time(datapoint_body["t1"])
+        t2 = parse_rfc_time(datapoint_body["t2"])
+        time_step = attrib_conf.time_step
+
+        # Check if all value arrays are the same length
+        values_len = [ len(v_i) for _, v_i in v.items() ]
+        if len(set(values_len)) != 1:
+            raise ValueError(f"Datapoint arrays have different lengths: {values_len}")
+
+        # Check t2
+        if attrib_conf.timeseries_type == "regular":
+            if t2 - t1 != values_len[0]*time_step:
+                raise ValueError(f"Difference of t1 and t2 is invalid. Must be n*time_step.")
+
+        # Check all series are present
+        for series_id in attrib_conf.series:
+            # Time for regular timeseries will be added automatically later
+            if series_id == "time" and attrib_conf.timeseries_type == "regular":
+                continue
+            if not series_id in v:
+                raise ValueError(f"Datapoint is missing values for '{series_id}' series")
+
+        # Split `v`
+        for v_id, v_i in v.items():
+            series_conf = attrib_conf.series.get(v_id)
+            if not series_conf:
+                raise ValueError(f"Series {v_id} doesn't exist")
+            series_data_type = series_conf["data_type"]
+            prefixed_id = "v_" + v_id
+
+            # Validate values
+            for j, primitive in enumerate(v_i):
+                if not validators[series_data_type](primitive):
+                    raise ValueError(f"Series value {primitive} is invalid (type should be {series_data_type})")
+
+            # Convert timestamps
+            if series_data_type == "time":
+                v_i = [ parse_rfc_time(p) for p in v_i ]
+
+                # Validate all timestamps
+                for dt in v_i:
+                    if not t1 <= dt <= t2:
+                        raise ValueError(f"Series value {dt} is invalid (must be in [{t1}, {t2}] interval)")
+
+            datapoint_body[prefixed_id] = v_i
+
+        # Check for overlapping records
+        if attrib_conf.timeseries_type == "regular":
+            eid = datapoint_body["eid"]
+
+            overlapping_count = self.get_overlapping_dp_count(etype, attr_name, eid, t1, t2)
+            if overlapping_count > 0:
+                raise ValueError(f"Datapoint is overlapping with {overlapping_count} other datapoints")
+
+        del datapoint_body["v"]
+
+        return datapoint_body
+
+    def get_overlapping_dp_count(self, etype: str, attr_name: str, eid: str = None, t1: datetime = None, t2: datetime = None):
+        """
+        Counts overlapping datapoints with new record that spans between t1 and t2.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: int or None on error
+        """
+        full_attr_name = f"{etype}__{attr_name}"
+        try:
+            table = self._tables[full_attr_name]
+        except KeyError:
+            self.log.error(f"Cannot get timeseries, because history table of {full_attr_name} does not exist!")
+            return None
+
+        # Build a query
+        query = select([func.count()]).select_from(table)
+        query = query.where(table.c.eid == eid)
+        query = query.where(table.c.t2 > t1)
+        query = query.where(table.c.t1 < t2)
+
+        return self._db.execute(query).scalar()
+
+    def get_timeseries(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
+        """
+        Gets timeseries of certain time interval between t1 and t2 from database.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: dict
+        """
+        # Get raw data
+        query_result_dicts = self.get_timeseries_raw(etype, attr_name, eid, t1, t2, closed_interval)
+
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+
+        if t1 is not None:
+            t1 = parse_rfc_time(t1)
+        if t2 is not None:
+            t2 = parse_rfc_time(t2)
+
+        # Convert to dict of lists
+        series_ids = list(attrib_conf.series.keys())       # [ "time", "bytes", ... ]
+        result_series = dict((s, []) for s in series_ids)  # { "time": [], "bytes": [], ... }
+        result = {}
+
+        if attrib_conf.timeseries_type == "regular":
+            if len(query_result_dicts) > 0:
+                if t1 or t2:
+                    query_result_dicts = self.discard_dp_outside_interval_regular_timeseries(query_result_dicts, attrib_conf, t1, t2, series_ids)
+
+                if not t1:
+                    t1 = query_result_dicts[0]["t1"]
+                if not t2:
+                    t2 = query_result_dicts[-1]["t2"]
+
+            # Add additional data to result
+            result["t1"] = t1
+            result["t2"] = t2
+            result["time_step"] = int(attrib_conf.time_step.total_seconds())
+
+            # t2s has +[t1], so that t2s[-1] index does work correctly
+            t1s = [ row["t1"] for row in query_result_dicts ]
+            t2s = [ row["t2"] for row in query_result_dicts ] + [ t1 ]
+
+            # Process series
+            for i, row in enumerate(query_result_dicts):
+                # Check for time without any data
+                # Calculate how many "cycles" were skipped between previous
+                # t2 and current t1 and corresponding count of None values.
+                t2_t1_delta = t1s[i] - t2s[i-1]
+                if t2_t1_delta:
+                    cycles_skipped = t2_t1_delta // attrib_conf.time_step
+                    for series_id in series_ids:
+                        result_series[series_id] += cycles_skipped * [ None ]
+
+                for series_id in series_ids:
+                    # Concatenate timeseries
+                    result_series[series_id] += row["v_" + series_id]
+        else:
+            # Process series
+            for i, row in enumerate(query_result_dicts):
+                for series_id in series_ids:
+                    # Concatenate timeseries' datapoints
+                    result_series[series_id].append(row[series_id])
+
+        result["series"] = result_series
+
+        return result
+
+    def get_timeseries_dp(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
+        """
+        Gets timeseries of certain time interval between t1 and t2 from database.
+        Outputs them in format:
+            [
+                {
+                    "t1": ...,
+                    "t2": ...,
+                    "v": {
+                        "series1": ...,
+                        "series2": ...
+                    }
+                },
+                ...
+            ]
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: list of dicts
+        """
+        # Get raw data
+        query_result_dicts = self.get_timeseries_raw(etype, attr_name, eid, t1, t2, closed_interval)
+
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+
+        result = []
+
+        # Should be ["time"] or ["time_first", "time_last"] for irregular
+        # timeseries and [] for regular timeseries
+        time_series = list(timeseries_types[attrib_conf.timeseries_type]["default_series"].keys())
+
+        # User-defined series
+        user_series = list(filter(lambda i: i not in time_series, attrib_conf.series.keys()))
+
+        if not user_series or len(user_series) == 0:
+            return []
+
+        if attrib_conf.timeseries_type == "regular":
+            time_step = attrib_conf.time_step
+
+            for row in query_result_dicts:
+                # Length of all series arrays/lists in this row
+                values_len = len(row["v_" + user_series[0]])
+
+                for i in range(values_len):
+                    row_t1 = row["t1"] + i*time_step
+                    row_t2 = row_t1 + time_step
+
+                    row_new = {
+                        "t1": row_t1,
+                        "t2": row_t2,
+                        "v": {}
+                    }
+
+                    for s in user_series:
+                        row_new["v"][s] = row["v_" + s][i]
+
+                    result.append(row_new)
+        else:
+            for row in query_result_dicts:
+                row_t1 = row.get(time_series[0]) if len(time_series) >= 1 else None
+                row_t2 = row.get(time_series[1]) if len(time_series) >= 2 else row_t1
+
+                row_new = {
+                    "t1": row_t1,
+                    "t2": row_t2,
+                    "v": {}
+                }
+
+                for s in user_series:
+                    row_new["v"][s] = row[s]
+
+                result.append(row_new)
+
+        return result
+
+    def get_timeseries_raw(self, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True):
+        """
+        Gets raw timeseries data of certain time interval between t1 and t2 from database.
+        Wrapper around SQL query.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :return: list of dicts
+        """
+        full_attr_name = f"{etype}__{attr_name}"
+        try:
+            table = self._tables[full_attr_name]
+        except KeyError:
+            self.log.error(f"Cannot get timeseries, because history table of {full_attr_name} does not exist!")
+            return None
+
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+
+        # Get id of first default series (should be "time" or "time_first")
+        sort_by = timeseries_types[attrib_conf.timeseries_type]["sort_by"]
+
+        try:
+            # Build query
+            if attrib_conf.timeseries_type == "regular":
+                select_fields = [table]
+            else:
+                select_fields = []
+                for series_id in attrib_conf.series:
+                    column = getattr(table.c, "v_" + series_id)
+                    select_fields.append(func.unnest(column).label(series_id))
+
+            query = select(select_fields)
+
+            if eid is not None:
+                query = query.where(table.c.eid == eid)
+            if t1 is not None:
+                query = query.where(table.c.t2 >= t1 if closed_interval else table.c.t2 > t1)
+            if t2 is not None:
+                query = query.where(table.c.t1 <= t2 if closed_interval else table.c.t1 < t2)
+
+            query = query.order_by(asc(sort_by))
+
+            query_result = self._db.execute(query)
+        except Exception as e:
+            self.log.error(f"Select of timeseries from {t1} to {t2} failed: {e}")
+            return None
+
+        # Convert to list of dicts
+        return list(map(dict, query_result))
+
+    def discard_dp_outside_interval_regular_timeseries(self, query_result_dicts: list, attrib_conf: AttrSpec, t1: datetime, t2: datetime, series_ids: list):
+        """
+        Discards datapoints outside interval [t1, t2]. Only valid for regular
+        timeseries.
+        :param query_result_dicts: list of SQL query rows (as dicts)
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :return: list of dicts
+        """
+        if len(query_result_dicts) > 0:
+            if t1:
+                # First row may include items before (in front of) [t1, t2] interval.
+                # Discard them.
+                delta = t1 - query_result_dicts[0]["t1"]
+                if delta > timedelta(seconds=0):
+                    items_to_discard = delta // attrib_conf.time_step
+                    for series_id in series_ids:
+                        # Discard first items_to_discard items
+                        prefixed_id = "v_" + series_id
+                        del query_result_dicts[0][prefixed_id][:items_to_discard]
+
+            if t2:
+                # Last row may include items after [t1, t2] interval.
+                # Discard them.
+                delta = query_result_dicts[-1]["t2"] - t2
+                if delta > timedelta(seconds=0):
+                    items_to_discard = delta // attrib_conf.time_step
+                    for series_id in series_ids:
+                        # Discard last items_to_discard items
+                        prefixed_id = "v_" + series_id
+                        del query_result_dicts[-1][prefixed_id][-items_to_discard:]
+
+        return query_result_dicts

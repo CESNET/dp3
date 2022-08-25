@@ -1,5 +1,7 @@
 """
 Allows conversion of attributes from strings to their specified types.
+
+TODO: consider adding `attr_type` (plain, observations, timeseries).
 """
 import re
 import json
@@ -26,21 +28,27 @@ CONVERTERS = {
     "json": json.loads,
 }
 
-def get_converter(attr_type:str) -> Callable[[str], Any]:
-    """Return a function converting a string to given data type."""
+def get_converter(attr_data_type:str) -> Callable[[str], Any]:
+    """Return a function converting a string to given data type.
+
+    TODO: Add `type` as parameter, not only `data_type`.
+    """
+    # empty type (typically timeseries)
+    if not attr_data_type:
+        return lambda v: None
     # basic type
-    if attr_type in CONVERTERS:
-        return CONVERTERS[attr_type]
+    if attr_data_type in CONVERTERS:
+        return CONVERTERS[attr_data_type]
     # array<X>
-    m = re.match(re_array, attr_type)
+    m = re.match(re_array, attr_data_type)
     if m:
         return lambda x: _parse_array_str(x, m.group(1))
     # set<X>
-    m = re.match(re_set, attr_type)
+    m = re.match(re_set, attr_data_type)
     if m:
         return lambda x: _parse_set_str(x, m.group(1))
     # dict<X,Y,Z>
-    m = re.match(re_dict, attr_type)
+    m = re.match(re_dict, attr_data_type)
     if m:
         # note: example dict spec format: dict<port:int,protocol:string,tag?:string>
         #       regex matches everything between <,> as group 1
@@ -48,38 +56,41 @@ def get_converter(attr_type:str) -> Callable[[str], Any]:
         dtype_mapping = {key.rstrip("?"): dtype for key,dtype in (item.split(":") for item in m.group(1).split(','))}
         return lambda x: _parse_dict_str(x, dtype_mapping)
     # link<X>
-    m = re.match(re_link, attr_type)
+    m = re.match(re_link, attr_data_type)
     if m:
         # TODO here we need to get data_type of ID of the linked entity_type
         # for now, assume it's string
         return lambda x: str(x)
-    raise ValueError(f"No conversion function for attribute type '{attr_type}'")
+    raise ValueError(f"No conversion function for attribute type '{attr_data_type}'")
 
-def convert(attr_type:str, val:str) -> Any:
+def convert(attr_data_type:str, val:str) -> Any:
     """Convert given value to its specified type"""
     try:
-        return get_converter(attr_type)(val)
+        return get_converter(attr_data_type)(val)
     except ValueError:
-        raise ValueError(f"Can't convert '{val}' to '{attr_type}'")
+        raise ValueError(f"Can't convert '{val}' to '{attr_data_type}'")
 
-def get_element_type(attr_type:str) -> str:
+def get_element_type(attr_data_type:str) -> str:
     """Get data type of elements of given list or set attribute type"""
-    if not is_iterable(attr_type):
-        raise Exception(f'Given type is not iterable: {attr_type}')
-    if re_dict.match(attr_type):
-        return _get_dict_types(attr_type)
-    element_type = attr_type.split("<")[1].split(">")[0]
+    if not is_iterable(attr_data_type):
+        raise Exception(f'Given type is not iterable: {attr_data_type}')
+    if re_dict.match(attr_data_type):
+        return _get_dict_types(attr_data_type)
+    element_type = attr_data_type.split("<")[1].split(">")[0]
     if element_type in CONVERTERS:
         return element_type
     raise Exception(f'Element type not configured in DB: {element_type}')
 
-def is_iterable(attr_type:str) -> bool:
-    return bool(re.match(re_array, attr_type)
-                or re.match(re_set, attr_type)
-                or re.match(re_dict, attr_type))
+def is_iterable(attr_data_type:str) -> bool:
+    if not attr_data_type:
+        return False
 
-def is_primitive_type(attr_type:str) -> bool:
-    return attr_type in CONVERTERS
+    return bool(re.match(re_array, attr_data_type)
+                or re.match(re_set, attr_data_type)
+                or re.match(re_dict, attr_data_type))
+
+def is_primitive_type(attr_data_type:str) -> bool:
+    return attr_data_type in CONVERTERS
 
 ##########
 # local helper functions
@@ -112,7 +123,7 @@ def _pass_valid(validator_function, value):
     raise ValueError(f'The value {value} has invalid format.')
 
 
-def _get_dict_types(attr_type: str) -> dict:
-    dict_type_str = attr_type.split("<")[1].split(">")[0]
+def _get_dict_types(attr_data_type: str) -> dict:
+    dict_type_str = attr_data_type.split("<")[1].split(">")[0]
     dict_type_list = [item.split(":") for item in dict_type_str.split(",")]
     return dict((k[:-1] if k[-1] == '?' else k, v) for k, v in dict_type_list)

@@ -790,10 +790,7 @@ class EntityDatabase:
                 raise ValueError(f"Difference of t1 and t2 is invalid. Must be n*time_step.")
 
         # Check all series are present
-        for series_id in attrib_conf.series:
-            # Time for regular timeseries will be added automatically later
-            if series_id == "time" and attrib_conf.timeseries_type == "regular":
-                continue
+        for series_id in attrib_conf.series_nondefault:
             if not series_id in v:
                 raise ValueError(f"Datapoint is missing values for '{series_id}' series")
 
@@ -961,10 +958,10 @@ class EntityDatabase:
 
         # Should be ["time"] or ["time_first", "time_last"] for irregular
         # timeseries and [] for regular timeseries
-        time_series = list(timeseries_types[attrib_conf.timeseries_type]["default_series"].keys())
+        time_series = list(attrib_conf.series_default.keys())
 
         # User-defined series
-        user_series = list(filter(lambda i: i not in time_series, attrib_conf.series.keys()))
+        user_series = list(attrib_conf.series_nondefault.keys())
 
         if not user_series or len(user_series) == 0:
             return []

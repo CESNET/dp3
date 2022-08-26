@@ -215,6 +215,8 @@ class AttrSpec:
         self.history_force_graph = spec.get("history_force_graph", False)
         self.timeseries_type = spec.get("timeseries_type", None)
         self.series = spec.get("series", None)
+        self.series_default = None
+        self.series_nondefault = spec.get("series", None)
         self.time_step = spec.get("time_step", None)
 
         # Check common mandatory specification fields
@@ -287,8 +289,11 @@ class AttrSpec:
             else:
                 self.time_step = None
 
+            self.series_default = timeseries_types[self.timeseries_type]["default_series"]
+            self.series_nondefault = self.series
+
             # Automatically add default series
-            self.series = { **self.series, **timeseries_types[self.timeseries_type]["default_series"] }
+            self.series = { **self.series_nondefault, **self.series_default }
 
             for series_id in self.series:
                 assert type(series_id) is str, err_msg_type.format(f"series identifier '{series_id}'", "str")
@@ -418,9 +423,8 @@ class AttrSpec:
             attrs["history_force_graph"] = self.history_force_graph
 
         if self.type == "timeseries":
-            default_series = timeseries_types[self.timeseries_type]["default_series"]
             attrs["timeseries_type"] = self.timeseries_type
-            attrs["series"] = dict(filter(lambda s: s[0] not in default_series, self.series.items()))
+            attrs["series"] = self.series_nondefault
             
             if self.timeseries_type == "regular":
                 attrs["time_step"] = self.time_step

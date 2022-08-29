@@ -88,6 +88,11 @@ default_history_params = {
     "aggregation_function_source": "csv_union"
 }
 
+# Default timeseries params
+default_timeseries_params = {
+    "max_age": None,
+}
+
 # Regular expressions for parsing various data types
 re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
 re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
@@ -218,6 +223,7 @@ class AttrSpec:
         self.series_default = None
         self.series_nondefault = spec.get("series", None)
         self.time_step = spec.get("time_step", None)
+        self.timeseries_params = spec.get("timeseries_params", default_timeseries_params)
 
         # Check common mandatory specification fields
         assert self.type is not None, err_msg_missing_field.format("type")
@@ -239,6 +245,7 @@ class AttrSpec:
         if (self.type == "plain" or
             self.type == "observations"):
             self.timeseries_type = None
+            self.timeseries_params = None
             self.series = None
 
             assert self.data_type is not None, err_msg_missing_field.format("data_type")
@@ -303,6 +310,8 @@ class AttrSpec:
 
             # Register dumb validator (validation will be done elsewhere)
             self.value_validator = lambda v: True
+
+            self._validate_timeseries_params()
 
 
     def _init_validator_function(self):
@@ -375,6 +384,17 @@ class AttrSpec:
         assert self.history_params["aggregation_function_value"] in aggregation_functions, err_msg_format.format("aggregation_function_value")
         assert self.history_params["aggregation_function_confidence"] in aggregation_functions, err_msg_format.format("aggregation_function_confidence")
         assert self.history_params["aggregation_function_source"] in aggregation_functions, err_msg_format.format("aggregation_function_source")
+
+
+    def _validate_timeseries_params(self):
+        # assert self.timeseries_params is not None, err_msg_missing_field.format("timeseries_params")
+        assert type(self.timeseries_params) is dict, err_msg_type.format("timeseries_params", "dict")
+
+        # Fill empty fields with default values (merge dictionaries)
+        self.timeseries_params = { **default_timeseries_params, **self.timeseries_params }
+
+        if self.timeseries_params["max_age"] is not None:
+            self.timeseries_params["max_age"] = self._parse_time_duration_safe(self.timeseries_params["max_age"], "max_age")
 
 
     @staticmethod

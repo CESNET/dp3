@@ -646,8 +646,17 @@ class EntityDatabase:
         except KeyError:
             self.log.error(f"Cannot get data-points range, because history table of {full_attr_name} does not exist!")
             return None
+
         # Delete all datapoints older than 't_old' and redundant datapoints older than 't_redundant'
-        delete_statement = delete(data_point_table).where((getattr(data_point_table.c, "t2") < t_old) | ((getattr(data_point_table.c, "t2") < t_redundant) & (getattr(data_point_table.c, "tag") == tag)))
+        delete_statement = delete(data_point_table)
+        if t_redundant:
+            delete_statement = delete_statement.where(
+                (data_point_table.c.t2 < t_old) |
+                ((data_point_table.c.t2 < t_redundant) & (data_point_table.c.tag == tag))
+            )
+        else:
+            delete_statement = delete_statement.where(data_point_table.c.t2 < t_old)
+
         try:
             result = self._db.execute(delete_statement)
         except Exception as e:

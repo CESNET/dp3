@@ -173,11 +173,21 @@ class HistoryManager:
         self.log.debug("Deleting old records ...")
         for etype in self.attr_spec:
             for attr_id in self.attr_spec[etype]['attribs']:
-                if not self.attr_spec[etype]['attribs'][attr_id].type == "observations":
+                attr_conf = self.attr_spec[etype]['attribs'][attr_id]
+
+                if attr_conf.type == "observations":
+                    t_old = str(datetime.utcnow() - attr_conf.history_params["max_age"])
+                    t_redundant = str(datetime.utcnow() - attr_conf.history_params["aggregation_max_age"])
+                elif attr_conf.type == "timeseries":
+                    max_age = attr_conf.timeseries_params["max_age"]
+                    if not max_age:
+                        continue
+
+                    t_old = str(datetime.utcnow() - max_age)
+                    t_redundant = None
+                else:
                     continue
-                history_params = self.attr_spec[etype]['attribs'][attr_id].history_params
-                t_old = str(datetime.utcnow() - history_params["max_age"])
-                t_redundant = str(datetime.utcnow() - history_params["aggregation_max_age"])
+
                 self.db.delete_old_datapoints(etype=etype, attr_name=attr_id, t_old=t_old, t_redundant=t_redundant,
                                               tag=TAG_REDUNDANT)
 

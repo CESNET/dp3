@@ -390,9 +390,9 @@ def push_multiple_datapoints():
             series_len = len(list(raw_val.values())[0])
 
             default_dt = parse_rfc_time(t1) + series_len*spec.time_step
-            t2 = request.values.get("t2", default_dt.isoformat("T"))
+            t2 = record.get("t2", default_dt.isoformat("T"))
         else:
-            t2 = request.values.get("t2", t1)
+            t2 = record.get("t2", t1)
 
         # Convert value from string (JSON) to proper data type
         try:

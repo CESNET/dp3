@@ -329,7 +329,6 @@ def check_timeseries_tables(attr_spec, meta, db_engine, db_inspector, db_table):
             for column in col_in_db:
                 if column not in col_in_spec and column not in default_columns:
                     delete_column(ts_table_name, column, meta)
-                
 
 
 def validity_of_config(args):
@@ -417,15 +416,11 @@ def main():
     meta.reflect(bind=db_engine)
     meta.bind = db_engine
 
-
     db_table = db_inspector.get_table_names(schema="public")
     # checking if any changes in database schema have to be made
     add_table_or_column(attr_spec, db_inspector, db_engine, meta, db_table) # observations and plain
     check_timeseries_tables(attr_spec, meta, db_engine, db_inspector, db_table) # check timeseries
     delete_table_or_column(attr_spec, db_inspector,db_engine, meta, connection)
-
-    
-    
     
     # closing database connection
     connection.close()

@@ -9,7 +9,7 @@ from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
 
 from ..common.config import load_attr_spec
 from ..common.attrspec import AttrSpec, validators, timeseries_types
-from ..common.utils import parse_rfc_time
+from ..common.utils import parse_rfc_time, parse_time_duration
 from ..history_management.constants import *
 
 # map supported data types to Postgres SQL data types
@@ -646,8 +646,17 @@ class EntityDatabase:
         except KeyError:
             self.log.error(f"Cannot get data-points range, because history table of {full_attr_name} does not exist!")
             return None
+
         # Delete all datapoints older than 't_old' and redundant datapoints older than 't_redundant'
-        delete_statement = delete(data_point_table).where((getattr(data_point_table.c, "t2") < t_old) | ((getattr(data_point_table.c, "t2") < t_redundant) & (getattr(data_point_table.c, "tag") == tag)))
+        delete_statement = delete(data_point_table)
+        if t_redundant:
+            delete_statement = delete_statement.where(
+                (data_point_table.c.t2 < t_old) |
+                ((data_point_table.c.t2 < t_redundant) & (data_point_table.c.tag == tag))
+            )
+        else:
+            delete_statement = delete_statement.where(data_point_table.c.t2 < t_old)
+
         try:
             result = self._db.execute(delete_statement)
         except Exception as e:
@@ -790,10 +799,7 @@ class EntityDatabase:
                 raise ValueError(f"Difference of t1 and t2 is invalid. Must be n*time_step.")
 
         # Check all series are present
-        for series_id in attrib_conf.series:
-            # Time for regular timeseries will be added automatically later
-            if series_id == "time" and attrib_conf.timeseries_type == "regular":
-                continue
+        for series_id in attrib_conf.series_nondefault:
             if not series_id in v:
                 raise ValueError(f"Datapoint is missing values for '{series_id}' series")
 
@@ -961,10 +967,10 @@ class EntityDatabase:
 
         # Should be ["time"] or ["time_first", "time_last"] for irregular
         # timeseries and [] for regular timeseries
-        time_series = list(timeseries_types[attrib_conf.timeseries_type]["default_series"].keys())
+        time_series = list(attrib_conf.series_default.keys())
 
         # User-defined series
-        user_series = list(filter(lambda i: i not in time_series, attrib_conf.series.keys()))
+        user_series = list(attrib_conf.series_nondefault.keys())
 
         if not user_series or len(user_series) == 0:
             return []
@@ -1094,3 +1100,88 @@ class EntityDatabase:
                         del query_result_dicts[-1][prefixed_id][-items_to_discard:]
 
         return query_result_dicts
+
+    def resample_regular_timeseries(self, time_step: str, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True, func: str = "avg"):
+        """
+        Resamples regular timeseries with specified time_step.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param eid: id of entity, to which data-points correspond (optional)
+        :param time_step: new time step for resampling
+        :param t1: left value of time interval
+        :param t2: right value of time interval
+        :param closed_interval: include interval endpoints? (default = True)
+        :param func: sampling function - one of sum, avg, min, max
+        :return: dict or None
+        """
+        try:
+            attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+        except KeyError:
+            return None
+
+        if attrib_conf.type != "timeseries" or attrib_conf.timeseries_type != "regular":
+            return None
+
+        # Don't resample data if time interval is shorter than original interval
+        time_step = parse_time_duration(time_step)
+        if time_step <= attrib_conf.time_step:
+            return self.get_timeseries(etype, attr_name, eid, t1, t2, closed_interval)
+
+        query_result_dicts = self.get_timeseries_dp(etype, attr_name, eid, t1, t2, closed_interval)
+
+        series_ids = list(attrib_conf.series.keys())       # [ "time", "bytes", ... ]
+        result_series = dict((s, []) for s in series_ids)  # { "time": [], "bytes": [], ... }
+        result = {}
+
+        if len(query_result_dicts) > 0:
+            if not t1:
+                t1 = query_result_dicts[0]["t1"]
+            if not t2:
+                t2 = query_result_dicts[-1]["t2"]
+
+        # Add additional data to result
+        result["t1"] = t1
+        result["t2"] = t2
+        result["time_step"] = int(time_step.total_seconds())
+
+        interval_count = (t2 - t1) // time_step
+        if interval_count == 0:
+            interval_count = 1
+        buckets = [[] for i in range(interval_count)]
+
+        # Split data into samples buckets
+        for d in query_result_dicts:
+            t = d["t1"] + (d["t2"] - d["t1"]) / 2
+
+            nth_bucket = (t - t1) // time_step
+            if nth_bucket < 0:
+                nth_bucket = 0
+            if nth_bucket >= interval_count:
+                nth_bucket = interval_count - 1
+
+            buckets[nth_bucket].append(d)
+
+        # Assemble and sample
+        for b in buckets:
+            for series_id in attrib_conf.series_nondefault:
+                value = None
+
+                if len(b) > 0:
+                    series_bucket_data = list(map(lambda x: x["v"][series_id], b))
+
+                    if func == "min":
+                        value = min(series_bucket_data)
+                    elif func == "max":
+                        value = max(series_bucket_data)
+                    elif func == "sum":
+                        value = sum(series_bucket_data)
+                    elif func == "avg":
+                        value = sum(series_bucket_data) / len(series_bucket_data)
+                    else:
+                        value = None
+
+                result_series[series_id].append(value)
+
+        result["series"] = result_series
+
+        return result

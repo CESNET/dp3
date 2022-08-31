@@ -364,7 +364,7 @@ def get_db_connection(config_dir):
     print(f"Connection URL: {database_url}")
     print("Connecting to database...")
     try:
-        db_engine = create_engine(url=database_url)
+        db_engine = create_engine(database_url)
     except Exception as e:
         print(f"CONNECTION ERROR: {e}")
         sys.exit(2)

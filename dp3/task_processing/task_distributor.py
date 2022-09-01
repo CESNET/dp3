@@ -1,17 +1,21 @@
 import logging
-import threading
 import queue
-from datetime import datetime
+import threading
 import time
 from collections import Iterable
 from copy import deepcopy
+from datetime import datetime
+from typing import Callable
 
+from dp3.common.config import HierarchicalDict
+from dp3.task_processing.task_executor import TaskExecutor
 from .task_queue import TaskQueueReader, TaskQueueWriter
 from .. import g
 
 
 class TaskDistributor:
-    def __init__(self, config, process_index, num_processes, task_executor):
+    def __init__(self, config: HierarchicalDict, process_index: int, num_processes: int,
+                 task_executor: TaskExecutor) -> None:
         assert (isinstance(process_index, int) and isinstance(num_processes, int)), "num_processes and process_index " \
                                                                                     "must be int"
         assert (num_processes >= 1), "number of processed muse be positive number"
@@ -49,7 +53,7 @@ class TaskDistributor:
         # Register watchdog to scheduler
         g.scheduler.register(self._watchdog, second="*/30")
 
-    def register_handler(self, func, etype, triggers, changes):
+    def register_handler(self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]) -> None:
         """
         Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
         once!
@@ -91,13 +95,13 @@ class TaskDistributor:
         # Put task to priority queue, so this can never block due to full queue
         self._task_queue_writer.put_task(etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token, True)
 
-    def start(self):
+    def start(self) -> None:
         """Run the worker threads and start consuming from TaskQueue."""
         self.log.info("Connecting to RabbitMQ")
         self._task_queue_reader.connect()
-        self._task_queue_reader.check() # check presence of needed queues
+        self._task_queue_reader.check()  # check presence of needed queues
         self._task_queue_writer.connect()
-        self._task_queue_writer.check() # check presence of needed exchanges
+        self._task_queue_writer.check()  # check presence of needed exchanges
 
         self.log.info("Starting {} worker threads".format(self.num_threads))
         self.running = True
@@ -110,7 +114,7 @@ class TaskDistributor:
         self.log.info("Starting consuming tasks from main queue")
         self._task_queue_reader.start()
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Stop the manager
         """

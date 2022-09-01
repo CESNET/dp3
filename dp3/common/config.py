@@ -1,10 +1,13 @@
 """
 NERDd - config file reader
 """
-import yaml
 import os
-from .attrspec import AttrSpec
-from .entityspec import EntitySpec
+from typing import Union
+
+import yaml
+
+from dp3.common.attrspec import AttrSpec
+from dp3.common.entityspec import EntitySpec
 from .base_attrs import BASE_ATTRIBS
 
 
@@ -80,7 +83,7 @@ class HierarchicalDict(dict):
         return HierarchicalDict(dict.copy(self))
 
 
-def read_config(filepath):
+def read_config(filepath: str) -> HierarchicalDict:
     """
     Read configuration file and return config as a dict-like object.
 
@@ -97,7 +100,7 @@ def read_config(filepath):
         return HierarchicalDict(yaml.safe_load(file_content))
 
 
-def read_config_dir(dir_path, recursive=False):
+def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
     """
     Same as read_config but it loads whole configuration directory of YAML files, so only files ending with ".yml" are
     loaded. Each loaded configuration is located under key named after configuration filename.
@@ -127,7 +130,7 @@ def read_config_dir(dir_path, recursive=False):
 
 
 # TODO: This should be moved elsewhere, this file should be generic, independent of entitiy/attribute config format
-def load_attr_spec(config_in):
+def load_attr_spec(config_in: HierarchicalDict) -> dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]:
     """
     Load and validate entity/attribute specification
     Provided configuration must be a dict of following structure:

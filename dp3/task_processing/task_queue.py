@@ -31,12 +31,13 @@ parallel:
   processes: 1
 """
 
-import logging
-import hashlib
-import time
-import json
-import threading
 import collections
+import hashlib
+import json
+import logging
+import threading
+import time
+from typing import Any, Callable
 
 import amqpstorm
 
@@ -80,7 +81,8 @@ class RobustAMQPConnection:
     Common TaskQueue wrapper, handles connection to RabbitMQ server with automatic reconnection.
     TaskQueueWriter and TaskQueueReader are derived from this.
     """
-    def __init__(self, rabbit_config={}):
+
+    def __init__(self, rabbit_config={}) -> None:
         """
         :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
             host, port, virtual_host, username, password
@@ -99,7 +101,7 @@ class RobustAMQPConnection:
     def __del__(self):
         self.disconnect()
 
-    def connect(self):
+    def connect(self) -> None:
         """Create a connection (or reconnect after error).
 
         If connection can't be established, try it again indefinitely.
@@ -127,13 +129,13 @@ class RobustAMQPConnection:
             except KeyboardInterrupt:
                 break
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         if self.connection:
             self.connection.close()
         self.connection = None
         self.channel = None
 
-    def check_queue_existence(self, queue_name):
+    def check_queue_existence(self, queue_name: str) -> bool:
         assert self.channel is not None, "not connected"
         try:
             self.channel.queue.declare(queue_name, passive=True)
@@ -141,7 +143,7 @@ class RobustAMQPConnection:
             return False
         return True
 
-    def check_exchange_existence(self, exchange_name):
+    def check_exchange_existence(self, exchange_name: str) -> bool:
         assert self.channel is not None, "not connected"
         try:
             self.channel.exchange.declare(exchange_name, passive=True)
@@ -151,7 +153,8 @@ class RobustAMQPConnection:
 
 
 class TaskQueueWriter(RobustAMQPConnection):
-    def __init__(self, app_name, workers=1, rabbit_config={}, exchange=None, priority_exchange=None, config_path=None):
+    def __init__(self, app_name: str, workers: int = 1, rabbit_config={},
+                 exchange: None = None, priority_exchange: None = None, config_path: None = None) -> None:
         """
         Create an object for writing tasks into the main Task Queue.
 
@@ -181,7 +184,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         self.exchange = exchange
         self.exchange_pri = priority_exchange
 
-    def check(self):
+    def check(self) -> bool:
         """Check that needed exchanges are declared, return True or raise RuntimeError"""
         if not self.check_exchange_existence(self.exchange):
             raise ExchangeNotDeclared(self.exchange)
@@ -268,7 +271,8 @@ class TaskQueueWriter(RobustAMQPConnection):
 
 
 class TaskQueueReader(RobustAMQPConnection):
-    def __init__(self, callback, app_name, worker_index=0, rabbit_config={}, queue=None, priority_queue=None):
+    def __init__(self, callback: Callable, app_name: str, worker_index: int = 0, rabbit_config: dict[Any, Any] = {},
+                 queue: None = None, priority_queue: None = None) -> None:
         """
         Create an object for reading tasks from the main Task Queue.
 
@@ -322,7 +326,7 @@ class TaskQueueReader(RobustAMQPConnection):
             self._stop_processing_thread()
         super().__del__()
 
-    def start(self):
+    def start(self) -> None:
         """Start receiving tasks."""
         if self.running:
             raise RuntimeError("Already running")
@@ -341,7 +345,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self._processing_thread = threading.Thread(None, self._msg_processing_thread_func)
         self._processing_thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop receiving tasks."""
         if not self.running:
             raise RuntimeError("Not running")
@@ -350,7 +354,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self._stop_processing_thread()
         self.log.info("TaskQueueReader stopped")
 
-    def check(self):
+    def check(self) -> bool:
         """Check that needed queues are declared, return True or raise RuntimeError"""
         if not self.check_queue_existence(self.queue_name):
             raise QueueNotDeclared(self.queue_name)
@@ -425,7 +429,7 @@ class TaskQueueReader(RobustAMQPConnection):
             # Pass message to user's callback function
             self.callback(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token)
 
-    def _stop_consuming_thread(self):
+    def _stop_consuming_thread(self) -> None:
         if self._consuming_thread:
             if self._consuming_thread.is_alive:
                 try:
@@ -435,7 +439,7 @@ class TaskQueueReader(RobustAMQPConnection):
             self._consuming_thread.join()
         self._consuming_thread = None
 
-    def _stop_processing_thread(self):
+    def _stop_processing_thread(self) -> None:
         if self._processing_thread:
             if self._processing_thread.is_alive:
                 self.running = False  # tell processing thread to stop

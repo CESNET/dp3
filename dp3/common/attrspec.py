@@ -1,6 +1,7 @@
 import ipaddress
 import re
-import sys
+from datetime import timedelta
+from typing import Any
 
 from dp3.common.utils import parse_time_duration
 
@@ -202,7 +203,7 @@ def valid_probability(val):
 class AttrSpec:
     # Class constructor
     # Raises AssertionError if the specification is invalid
-    def __init__(self, id, spec):
+    def __init__(self, id: str, spec: dict[str, Any]) -> None:
         # Set default values for missing fields
         self.id = id
         self.type = spec.get("type", None)
@@ -313,8 +314,7 @@ class AttrSpec:
 
             self._validate_timeseries_params()
 
-
-    def _init_validator_function(self):
+    def _init_validator_function(self) -> None:
         # Initialize attribute's validator function according to its data type
         if self.data_type in primitive_data_types:
             self.value_validator = validators[self.data_type]
@@ -351,13 +351,12 @@ class AttrSpec:
         else:
             raise AssertionError(f"data type '{self.data_type}' is not supported")
 
-
-    def _validate_history_params(self):
+    def _validate_history_params(self) -> None:
         assert self.history_params is not None, err_msg_missing_field.format("history_params")
         assert type(self.history_params) is dict, err_msg_type.format("history_params", "dict")
 
         # Fill empty fields with default values (merge dictionaries)
-        self.history_params = { **default_history_params, **self.history_params }
+        self.history_params = {**default_history_params, **self.history_params}
 
         if self.history_params["max_items"] is not None:
             assert type(self.history_params["max_items"]) is int, err_msg_type.format("max_items", "int")
@@ -385,20 +384,19 @@ class AttrSpec:
         assert self.history_params["aggregation_function_confidence"] in aggregation_functions, err_msg_format.format("aggregation_function_confidence")
         assert self.history_params["aggregation_function_source"] in aggregation_functions, err_msg_format.format("aggregation_function_source")
 
-
-    def _validate_timeseries_params(self):
+    def _validate_timeseries_params(self) -> None:
         # assert self.timeseries_params is not None, err_msg_missing_field.format("timeseries_params")
         assert type(self.timeseries_params) is dict, err_msg_type.format("timeseries_params", "dict")
 
         # Fill empty fields with default values (merge dictionaries)
-        self.timeseries_params = { **default_timeseries_params, **self.timeseries_params }
+        self.timeseries_params = {**default_timeseries_params, **self.timeseries_params}
 
         if self.timeseries_params["max_age"] is not None:
-            self.timeseries_params["max_age"] = self._parse_time_duration_safe(self.timeseries_params["max_age"], "max_age")
-
+            self.timeseries_params["max_age"] = self._parse_time_duration_safe(self.timeseries_params["max_age"],
+                                                                               "max_age")
 
     @staticmethod
-    def _parse_time_duration_safe(time_duration, field_id):
+    def _parse_time_duration_safe(time_duration: str, field_id: str) -> timedelta:
         """Simple wrapper around `dp3.common.utils.parse_time_duration` function.
 
         Effectively only changes error class from ValueError to AssertionError

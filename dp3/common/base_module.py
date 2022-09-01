@@ -2,7 +2,7 @@ class BaseModule:
     """
     Abstract class for platform modules. Every module must inherit this abstract class for automatic loading of module!
     """
-    def start(self):
+    def start(self) -> None:
         """
         Run the module - used to run own thread if needed.
 
@@ -11,7 +11,7 @@ class BaseModule:
         """
         pass
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Stop the module - used to stop own thread.
 

@@ -1,14 +1,16 @@
 import logging
-from typing import List
 from copy import deepcopy
 from datetime import datetime, timedelta
+from typing import Union
 
-from sqlalchemy import create_engine, Table, Column, MetaData, func
+from sqlalchemy import create_engine, Table, Column, MetaData
 from sqlalchemy.dialects.postgresql import VARCHAR, TIMESTAMP, BOOLEAN, INTEGER, BIGINT, ARRAY, REAL, JSON
-from sqlalchemy.sql import text, select, delete, func, and_, desc, asc
+from sqlalchemy.sql import text, select, delete, func, desc, asc
 
-from ..common.config import load_attr_spec
-from ..common.attrspec import AttrSpec, validators, timeseries_types
+from dp3.common.attrspec import AttrSpec
+from dp3.common.config import HierarchicalDict
+from dp3.common.entityspec import EntitySpec
+from ..common.attrspec import validators, timeseries_types
 from ..common.utils import parse_rfc_time, parse_time_duration
 from ..history_management.constants import *
 
@@ -81,9 +83,11 @@ class EntityDatabase:
     db_conf - configuration of database connection (content of database.yml)
     attr_spec - configuration of data model (entities and attributes, result of config.load_attr_spec function)
     """
-    def __init__(self, db_conf, attr_spec):
+
+    def __init__(self, db_conf: HierarchicalDict,
+                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]) -> None:
         self.log = logging.getLogger("EntityDatabase")
-        #self.log.setLevel("DEBUG")
+        # self.log.setLevel("DEBUG")
 
         connection_conf = db_conf.get('connection', {})
         username = connection_conf.get('username', "dp3")
@@ -125,7 +129,7 @@ class EntityDatabase:
         return db_table_metadata == config_table_metadata
 
     @staticmethod
-    def init_table_columns(table_attribs: dict, history: bool) -> List[Column]:
+    def init_table_columns(table_attribs: dict, history: bool) -> list[Column]:
         """
         Instantiate Columns based on attributes configuration.
         :param table_attribs: dictionary of AttrSpecs
@@ -181,7 +185,8 @@ class EntityDatabase:
 
         return columns
 
-    def create_table(self, table_name: str, table_conf: dict, db_current_state: MetaData, history=False):
+    def create_table(self, table_name: str, table_conf: dict, db_current_state: MetaData,
+                     history: bool = False) -> None:
         """
         Creates new table in database schema.
         :param table_name: name of new table
@@ -226,7 +231,8 @@ class EntityDatabase:
                                               f"migration is not supported yet!")
         self._tables[table_name] = entity_table
 
-    def init_history_timeseries_tables(self, table_name_prefix: str, table_attribs: dict, db_current_state: MetaData):
+    def init_history_timeseries_tables(self, table_name_prefix: str, table_attribs: dict,
+                                       db_current_state: MetaData) -> None:
         """
         Initialize all history and timeseries tables in database schema.
         :param table_name_prefix: prefix of table names (entity_name)
@@ -265,7 +271,7 @@ class EntityDatabase:
                 table_name = f"{table_name_prefix}__{attrib_conf.id}"
                 self.create_table(table_name, {'attribs': history_conf}, db_current_state, True)
 
-    def init_database_schema(self):
+    def init_database_schema(self) -> None:
         """
         Check if database configuration is same as in database server or only new tables were added. If any already
         existing table has updated configuration, cannot continue. If db schema is empty, whole db schema will be

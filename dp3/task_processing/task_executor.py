@@ -1,18 +1,21 @@
-from datetime import datetime
-from email.policy import default
-import sys
 import inspect
-from collections import deque, Iterable, OrderedDict, Counter
 import logging
+from collections import deque
 from copy import deepcopy
-import traceback
+from datetime import datetime
+from typing import Any, Callable, Union, Iterable
 
 from event_count_logger import EventCountLogger, DummyEventGroup
 
+from dp3.common.attrspec import AttrSpec
+from dp3.common.entityspec import EntitySpec
+from dp3.database.database import EntityDatabase
+from dp3.history_management.history_manager import HistoryManager
 from .. import g
 from ..common.utils import get_func_name, parse_rfc_time
 from ..database.record import Record
 from ..history_management.history_manager import extrapolate_confidence
+
 
 class TaskExecutor:
     """
@@ -55,7 +58,9 @@ class TaskExecutor:
 
     _OPERATION_FUNCTION_PREFIX = "_perform_op_"
 
-    def __init__(self, db, attr_spec, history_manager):
+    def __init__(self, db: EntityDatabase,
+                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+                 history_manager: HistoryManager) -> None:
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
@@ -107,8 +112,7 @@ class TaskExecutor:
         if not_configured_groups:
             self.log.warning(f"EventCountLogger: No configuration for event group(s) '{','.join(not_configured_groups)}' found, such events will not be logged (check event_logging.yml)")
 
-
-    def _init_may_change_cache(self):
+    def _init_may_change_cache(self) -> dict[str, dict[Any, Any]]:
         """
         Initializes _may_change_cache with all supported Entity types
         :return: None
@@ -118,7 +122,7 @@ class TaskExecutor:
             may_change_cache[etype] = {}
         return may_change_cache
 
-    def register_handler(self, func, etype, triggers, changes):
+    def register_handler(self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]) -> None:
         """
         Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
         once! Type check is already done in TaskDistributor.

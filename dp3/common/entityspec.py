@@ -1,4 +1,6 @@
 # Error message templates
+from typing import Union
+
 err_msg_type = "type of '{}' is invalid (must be '{}')"
 err_msg_missing_field = "mandatory field '{}' is missing"
 
@@ -18,7 +20,7 @@ validators = {
 class EntitySpec:
     # Class constructor
     # Raises AssertionError if the specification is invalid
-    def __init__(self, id, spec):
+    def __init__(self, id: str, spec: dict[str, Union[str, bool]]) -> None:
         # Set default values for missing fields
         self.id = id
         self.name = spec.get("name", self.id)

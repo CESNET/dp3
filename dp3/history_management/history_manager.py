@@ -1,14 +1,18 @@
-from datetime import datetime
-import time
 import logging
 from collections import defaultdict
 from copy import deepcopy
+from datetime import datetime
+from typing import Union
 
-from .constants import *
+from dp3 import g
+from dp3.common.attrspec import AttrSpec
+from dp3.common.config import HierarchicalDict
+from dp3.common.entityspec import EntitySpec
 from dp3.common.utils import parse_rfc_time
+from dp3.database.database import EntityDatabase
 from dp3.database.record import Record
 from dp3.task_processing.task_queue import TaskQueueWriter
-from dp3 import g
+from .constants import *
 
 
 def extrapolate_confidence(datapoint, timestamp, history_params):
@@ -30,7 +34,9 @@ def extrapolate_confidence(datapoint, timestamp, history_params):
 
 
 class HistoryManager:
-    def __init__(self, db, attr_spec, worker_index, num_workers, config):
+    def __init__(self, db: EntityDatabase,
+                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+                 worker_index: int, num_workers: int, config: HierarchicalDict) -> None:
         self.log = logging.getLogger("HistoryManager")
 
         self.db = db

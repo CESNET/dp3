@@ -3,13 +3,14 @@
 
 Don't run directly. Import and run the main() function.
 """
+import inspect
 import logging
 from importlib import import_module
 import sys
 import os
-import inspect
-import threading
 import signal
+import threading
+from importlib import import_module
 
 if __name__ == "__main__":
     import sys
@@ -25,7 +26,8 @@ from .task_processing.task_distributor import TaskDistributor
 from .history_management.history_manager import HistoryManager
 from . import g
 
-def load_modules(modules_dir, enabled_modules, log):
+
+def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
     """Load plug-in modules
 
     Import Python modules with names in 'enabled_modules' from 'modules_dir' directory and return all found classes
@@ -67,7 +69,7 @@ def load_modules(modules_dir, enabled_modules, log):
     return modules_main_objects
 
 
-def main(app_name, config_dir, process_index, verbose):
+def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> None:
     """
     Run worker process.
 

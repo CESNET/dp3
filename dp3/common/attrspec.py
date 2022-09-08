@@ -1,3 +1,4 @@
+import functools
 import ipaddress
 import re
 from datetime import timedelta
@@ -187,15 +188,12 @@ def valid_dict(obj, key_spec):
 
 
 # Validate probablity
-def valid_probability(val):
+def valid_probability(val, data_type):
     if type(val) is not dict:
         return False
     for key, prob in val.items():
-        if not validators[self.data_type] or not isinstance(prob, float):
+        if not validators[data_type] or not isinstance(prob, float):
             return False
-    # This can be fixed later in the system by dividing by the sum of all probabilites.
-    # if abs(sum(val.values()) - 1.0) >= sys.float_info.epsilon:
-    #     return False
     return True
 
 
@@ -259,9 +257,9 @@ class AttrSpec:
                 assert self.data_type in primitive_data_types, \
                     f"data type {self.data_type} is not supported as a probability (primitive types only)"
 
-                self.value_validator = valid_probability
-
-            self._init_validator_function()
+                self.value_validator = functools.partial(valid_probability, data_type=self.data_type)
+            else:
+                self._init_validator_function()
 
         if self.type == "plain":
             self.history = False

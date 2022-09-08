@@ -8,7 +8,6 @@ base_url = 'http://127.0.0.1:5000/'
 invalid_values = [
     {"A": "A", "B": "B", "C": "C", "D": "D"},
     "'xs'",
-    {1: 0.6, 2: 0.3},
 ]
 
 non_probability_datapoint = {

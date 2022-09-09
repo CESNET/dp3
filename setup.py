@@ -30,7 +30,7 @@ setuptools.setup(
         "six~=1.15.0",
         "sqlalchemy~=1.3.17",
         "tzlocal~=2.1",
-        "urllib3~=1.25.9",
+        "urllib3>=1.25.9,<1.27.0",
         "python-dateutil",
         "event_count_logger",
     ],

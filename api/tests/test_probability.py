@@ -1,12 +1,14 @@
 import datetime
 import json
 import logging
+import os
 import time
 import unittest
 
 import requests
 
-base_url = 'http://127.0.0.1:5000/'
+base_url = os.getenv("BASE_URL", default='http://127.0.0.1:5000/')
+api_up = None
 MAX_RETRY_ATTEMPTS = 5
 
 invalid_values = [
@@ -32,14 +34,27 @@ def retry_request_on_error(request):
                 raise err
 
 
-class ProbabilityAttrSingle(unittest.TestCase):
+class APITest(unittest.TestCase):
+    def setUp(self) -> None:
+        # Test the base endpoint is live before running tests.
+        global api_up
+        if api_up is None:
+            try:
+                retry_request_on_error(lambda: requests.get(base_url))
+                api_up = True
+            except requests.exceptions.ConnectionError:
+                api_up = False
+        return self.assertTrue(api_up, msg="API is down.")
+
+
+class ProbabilityAttrSingle(APITest):
     @staticmethod
     def helper_send_to_single(v):
         def request(path, *args):
             args_str = '&'.join(args)
             if args_str != "":
                 args_str = f"?{args_str}"
-            return retry_request_on_error(lambda: requests.post(f"{base_url}/{path}{args_str}", timeout=5))
+            return requests.post(f"{base_url}/{path}{args_str}", timeout=5)
 
         response = request(f"test_entity_type/test_entity_id/test_attr_probability", f"v={v}")
         return response
@@ -61,14 +76,13 @@ class ProbabilityAttrSingle(unittest.TestCase):
         self.assertEqual(400, response.status_code)
 
 
-class ProbabilityAttrMultiple(unittest.TestCase):
+class ProbabilityAttrMultiple(APITest):
     @staticmethod
     def helper_send_to_multiple(v):
-        response = retry_request_on_error(
-            lambda: requests.post(f"{base_url}/datapoints", json=[{
-                "type": "test_entity_type", "id": "test_entity_id", "attr": "test_attr_probability",
-                "t1": datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"), "v": v
-            }, non_probability_datapoint], timeout=5))
+        response = requests.post(f"{base_url}/datapoints", json=[{
+            "type": "test_entity_type", "id": "test_entity_id", "attr": "test_attr_probability",
+            "t1": datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"), "v": v
+        }, non_probability_datapoint], timeout=5)
         return response
 
     def test_valid_format_multiple(self):

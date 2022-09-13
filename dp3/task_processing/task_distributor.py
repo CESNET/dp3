@@ -26,7 +26,7 @@ class TaskDistributor:
         self.process_index = process_index
         self.num_processes = num_processes
 
-        self.rabbit_params = config.get('rabbitmq', {})
+        self.rabbit_params = config.get('processing_core.msg_broker', {})
 
         self.entity_types = list(config.get('db_entities').keys()) # List of configured entity types
 

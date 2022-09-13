@@ -1,12 +1,13 @@
 import sys
 import traceback
+import requests
 
 from test_push_single import test_push_single
 from test_push_multiple import test_push_multiple
 from test_push_task import test_push_task
 from test_get_value import test_get_value
 from test_get_history import test_get_history
-
+from test_probability import retry_request_on_error
 
 base_url = None
 verbose = None
@@ -33,6 +34,9 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"usage: {sys.argv[0]} <base_url> <enable_verbose>")
         exit()
+
+    # Test the base endpoint is live before running tests.
+    retry_request_on_error(lambda : requests.get(base_url))
 
     for test in test_suite:
         log(test.__name__, 1)

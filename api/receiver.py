@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
+import json
+import logging
 import os
 import sys
-import logging
-import traceback
-import json
-import requests
 import time
+import traceback
+
+import requests
 from flask import Flask, request, Response, jsonify
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
@@ -371,7 +372,7 @@ def push_multiple_datapoints():
 
         # Extract fields
         try:
-            etype, ekey, attr, t1 = record["type"], record["id"], record["attr"], record["t1"]
+            etype, ekey, attr = record["type"], record["id"], record["attr"]
         except KeyError as e:
             response = f"Invalid data-point no. {i}: Missing field '{str(e)}'"
             log.info(f"{response}\nRecord: {record}")
@@ -388,14 +389,23 @@ def push_multiple_datapoints():
             log.info(f"{response}\nRecord: {record}")
             return f"{response}\n", 400  # Bad request
 
+        # Get t1
+        if spec.type in ["observations", "timeseries"]:
+            try:
+                t1 = record["t1"]
+            except KeyError as e:
+                response = f"Invalid data-point no. {i}: Missing field '{str(e)}'"
+                log.info(f"{response}\nRecord: {record}")
+                return f"{response}\n", 400
+
         # Get t2
         if spec.type == "timeseries" and spec.timeseries_type == "regular":
             # Length of first series
             series_len = len(list(raw_val.values())[0])
 
-            default_dt = parse_rfc_time(t1) + series_len*spec.time_step
+            default_dt = parse_rfc_time(t1) + series_len * spec.time_step
             t2 = record.get("t2", default_dt.isoformat("T"))
-        else:
+        elif spec.type == "observations":
             t2 = record.get("t2", t1)
 
         # Convert value from string (JSON) to proper data type
@@ -426,7 +436,11 @@ def push_multiple_datapoints():
                 log.info(f"{response}Value: {val}")
                 return response, 400  # Bad request
 
-        dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))
+        if spec.type in ["observations", "timeseries"]:
+            dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))
+        else:  # spec.type == "plain"
+            dps.append((etype, ekey, attr, value, None, None, c, src, spec))
+
 
     # Log all datapoints (regardless of their validity)
     try:

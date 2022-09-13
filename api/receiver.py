@@ -694,7 +694,8 @@ def workers_alive():
 
 if __name__ == "__main__":
     verbose = True
+    host = os.getenv("HOST", "127.0.0.1")
     try:
-        app.run()
+        app.run(host=host)
     except Exception as e:
         print(e)

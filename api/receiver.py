@@ -160,7 +160,11 @@ def convert_value(value, attr_type, data_type):
         if data_type == "tag":
             return True
         elif data_type == "binary":
-            return bool(value)
+            parsed_val = json.loads(value)
+            if isinstance(parsed_val, bool):
+                return parsed_val
+            assert parsed_val == 0 or parsed_val == 1
+            return bool(parsed_val)
         elif data_type == "int" or data_type == "int64":
             return int(value)
         elif data_type == "float":
@@ -174,7 +178,7 @@ def convert_value(value, attr_type, data_type):
             return json.loads(value)
         else:  # otherwise no conversion is needed
             return value
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, AssertionError):
         raise TypeError
 
 

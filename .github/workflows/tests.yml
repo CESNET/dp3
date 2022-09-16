@@ -1,0 +1,29 @@
+name: Tests
+on:
+  push:
+    branches: [ "testing" ]
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup running platform stack
+        run: docker-compose up --build -d
+      - name: Build Test 1
+        run: docker build -f docker/python/Dockerfile --target apitest -t apitest .
+      - name: Test 1
+        run: docker run --network container:dp3_receiver_api -it apitest
+      - name: Build Test 2
+        run: docker build -f docker/python/Dockerfile --target apitest2 -t apitest2 .
+      - name: Test 2
+        run: docker run --network container:dp3_receiver_api -it apitest2
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build Test
+        run: docker build -f docker/python/Dockerfile --target unittest -t unittest .
+      - name: Test
+        run: docker run -it unittest

@@ -2,6 +2,7 @@ version: "3.4"
 
 services:
   rabbitmq:
+    container_name: "rabbitmq"
     build: "docker/rabbitmq"
     ports:
       - "5672:5672"
@@ -11,6 +12,7 @@ services:
       DP3_WORKER_NUM: 1
 
   postgres:
+    container_name: "postgres"
     build: "docker/postgres"
     ports:
       - "5432:5432"
@@ -20,12 +22,14 @@ services:
       POSTGRES_DB: test
 
   redis:
+    container_name: "redis"
     image: redis
     ports:
       - "6379:6379"
     command: [ "redis-server", "--appendonly", "yes" ]
 
   receiver_api:
+    container_name: "dp3_receiver_api"
     build:
       context: .
       dockerfile: "docker/python/Dockerfile"
@@ -37,6 +41,7 @@ services:
     command: [ "python", "api/receiver.py", "test", "./tests/test_config" ]
 
   worker:
+    container_name: "dp3_worker"
     build:
       context: .
       dockerfile: "docker/python/Dockerfile"
@@ -45,26 +50,3 @@ services:
     depends_on:
       - rabbitmq
       - postgres
-
-  api_tests:
-    build:
-      context: .
-      dockerfile: "docker/python/Dockerfile"
-      target: "base"
-    environment:
-      BASE_URL: "http://receiver_api:5000/"
-    command: [ "python", "-m", "unittest",  "api/tests/test_probability.py" ]
-
-  api_tests2:
-    build:
-      context: .
-      dockerfile: "docker/python/Dockerfile"
-      target: "base"
-    command: [ "python", "api/tests/test_api.py",  "http://receiver_api:5000/", "2" ]
-
-  unit_tests:
-    build:
-      context: .
-      dockerfile: "docker/python/Dockerfile"
-      target: "base"
-    command: [ "python", "-m", "unittest",  "tests/test_common/test_config.py" ]

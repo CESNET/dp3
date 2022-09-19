@@ -2,19 +2,13 @@ import sys
 import traceback
 import requests
 
-from test_push_multiple import test_push_multiple
-from test_push_task import test_push_task
-from test_get_value import test_get_value
+from common import retry_request_on_error
 from test_get_history import test_get_history
-from test_probability import retry_request_on_error
 
 base_url = None
 verbose = None
 
 test_suite = [
-    test_push_multiple,
-    test_push_task,
-    test_get_value,
     test_get_history
 ]
 

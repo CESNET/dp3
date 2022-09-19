@@ -1,8 +1,7 @@
 import common
-from test_probability import APITest
 
 
-class PushSingle(APITest):
+class PushSingle(common.APITest):
 
     def test_unknown_entity_type(self):
         response = self.helper_send_to_single("xyz/test_entity_id/test_attr_int", v=123)

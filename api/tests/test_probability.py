@@ -1,15 +1,7 @@
 import datetime
 import json
-import logging
-import os
-import time
-import unittest
+from common import APITest
 
-import requests
-
-base_url = os.getenv("BASE_URL", default='http://127.0.0.1:5000/')
-api_up = None
-MAX_RETRY_ATTEMPTS = 5
 
 invalid_values = [
     {"A": "A", "B": "B", "C": "C", "D": "D"},
@@ -21,47 +13,6 @@ non_probability_datapoint = {
     "t1": datetime.datetime.now().isoformat(),
     "v": 42
 }
-
-
-def retry_request_on_error(request):
-    for attempt in range(MAX_RETRY_ATTEMPTS):
-        try:
-            return request()
-        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as err:
-            logging.warning("Connection failed, retrying (attempt %d)", attempt + 1)
-            time.sleep(5)
-            if attempt + 1 == MAX_RETRY_ATTEMPTS:
-                raise err
-
-
-class APITest(unittest.TestCase):
-    def setUp(self) -> None:
-        # Test the base endpoint is live before running tests.
-        global api_up
-        if api_up is None:
-            try:
-                retry_request_on_error(lambda: requests.get(base_url))
-                api_up = True
-            except requests.exceptions.ConnectionError:
-                api_up = False
-        return self.assertTrue(api_up, msg="API is down.")
-
-    @staticmethod
-    def helper_send_to_single(endpoint_path: str, **kwargs):
-        def request(path, **kw_args):
-            args_str = '&'.join([f"{key}={value}" for key, value in kw_args.items()])
-            if args_str != "":
-                args_str = f"?{args_str}"
-            return retry_request_on_error(lambda: requests.post(f"{base_url}/{path}{args_str}", timeout=5))
-
-        response = request(endpoint_path, **kwargs)
-        return response
-
-    @staticmethod
-    def helper_send_to_multiple(json_data):
-        response = retry_request_on_error(
-            lambda: requests.post(f"{base_url}/datapoints", json=json_data, timeout=5))
-        return response
 
 
 class ProbabilityAttrSingle(APITest):

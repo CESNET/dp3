@@ -33,8 +33,11 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
+      - name: Test docker image presence
+        run: docker images
+
       - name: Setup running platform stack
-        run: docker-compose up --build -d
+        run: docker-compose up -d
 
       - name: Build Test 1
         run: docker build -f docker/python/Dockerfile --target apitest -t apitest .

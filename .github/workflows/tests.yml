@@ -39,7 +39,7 @@ jobs:
         with:
           push: false
           load: true
-          context: .
+          context: docker/rabbitmq
           builder: ${{ steps.buildx.outputs.name }}
           file: docker/rabbitmq/Dockerfile
           tags: dp3_rabbitmq
@@ -51,7 +51,7 @@ jobs:
         with:
           push: false
           load: true
-          context: .
+          context: docker/postgres
           builder: ${{ steps.buildx.outputs.name }}
           file: docker/postgres/Dockerfile
           tags: dp3_postgres

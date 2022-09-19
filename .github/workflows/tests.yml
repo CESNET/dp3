@@ -27,4 +27,4 @@ jobs:
         run: docker build -f docker/python/Dockerfile --target base -t dp3_interpreter .
 
       - name: Test
-        run: docker run dp3_interpreter python -m unittest api/tests/test_probability.py
+        run: docker run dp3_interpreter python -m unittest tests/test_common/test_config.py

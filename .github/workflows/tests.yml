@@ -40,15 +40,15 @@ jobs:
       - name: Setup running platform stack
         run: docker-compose up -d
 
-      - name: Build Test 1
-        run: docker build -f docker/python/Dockerfile --target apitest -t apitest .
+#      - name: Build Test 1
+#        run: docker build -f docker/python/Dockerfile --target apitest -t apitest .
       - name: Test 1
-        run: docker run --network container:dp3_receiver_api apitest
+        run: docker run --network container:dp3_receiver_api dp3_interpreter python api/tests/test_api.py http://receiver_api:5000/ 2
 
-      - name: Build Test 2
-        run: docker build -f docker/python/Dockerfile --target apitest2 -t apitest2 .
+#      - name: Build Test 2
+#        run: docker build -f docker/python/Dockerfile --target apitest2 -t apitest2 .
       - name: Test 2
-        run: docker run --network container:dp3_receiver_api apitest2
+        run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest api/tests/test_probability.py
 
       - name: Test docker image presence (after run)
         run: docker images

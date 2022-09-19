@@ -3,6 +3,7 @@ version: "3.4"
 services:
   rabbitmq:
     container_name: "rabbitmq"
+    image: "dp3_rabbitmq"
     build: "docker/rabbitmq"
     ports:
       - "5672:5672"
@@ -13,6 +14,7 @@ services:
 
   postgres:
     container_name: "postgres"
+    image: "dp3_postgres"
     build: "docker/postgres"
     ports:
       - "5432:5432"

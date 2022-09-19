@@ -34,19 +34,39 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
+      - name: Build rabbitmq image
+        uses: docker/build-push-action@v2
+        with:
+          push: false
+          load: true
+          context: .
+          builder: ${{ steps.buildx.outputs.name }}
+          file: docker/rabbitmq/Dockerfile
+          tags: dp3_rabbitmq
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+
+      - name: Build postgres image
+        uses: docker/build-push-action@v2
+        with:
+          push: false
+          load: true
+          context: .
+          builder: ${{ steps.buildx.outputs.name }}
+          file: docker/postgres/Dockerfile
+          tags: dp3_postgres
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+
       - name: Test docker image presence
         run: docker images
 
       - name: Setup running platform stack
         run: docker-compose up -d
 
-#      - name: Build Test 1
-#        run: docker build -f docker/python/Dockerfile --target apitest -t apitest .
       - name: Test 1
         run: docker run --network container:dp3_receiver_api dp3_interpreter python api/tests/test_api.py http://receiver_api:5000/ 2
 
-#      - name: Build Test 2
-#        run: docker build -f docker/python/Dockerfile --target apitest2 -t apitest2 .
       - name: Test 2
         run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest api/tests/test_probability.py
 

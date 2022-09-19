@@ -33,7 +33,6 @@ jobs:
           tags: dp3_interpreter
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
-
       - name: Build rabbitmq image
         uses: docker/build-push-action@v2
         with:
@@ -45,7 +44,6 @@ jobs:
           tags: dp3_rabbitmq
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
-
       - name: Build postgres image
         uses: docker/build-push-action@v2
         with:

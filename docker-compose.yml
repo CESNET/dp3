@@ -30,6 +30,7 @@ services:
 
   receiver_api:
     container_name: "dp3_receiver_api"
+    image: "dp3_interpreter"
     build:
       context: .
       dockerfile: "docker/python/Dockerfile"
@@ -42,6 +43,7 @@ services:
 
   worker:
     container_name: "dp3_worker"
+    image: "dp3_interpreter"
     build:
       context: .
       dockerfile: "docker/python/Dockerfile"

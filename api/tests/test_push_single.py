@@ -1,84 +1,42 @@
-import requests
-
 import common
-
-base_url = None
-verbose = None
+from test_probability import APITest
 
 
-def log(msg, verbose_lvl):
-    global verbose
-    if verbose >= verbose_lvl:
-        print(msg)
+class PushSingle(APITest):
 
+    def test_unknown_entity_type(self):
+        response = self.helper_send_to_single("xyz/test_entity_id/test_attr_int", v=123)
+        self.assertEqual(400, response.status_code)
 
-def request(path, *args):
-    try:
-        args_str = '&'.join(args)
-        if args_str != "":
-            args_str = f"?{args_str}"
-        return requests.post(f"{base_url}/{path}{args_str}")
-    except Exception as e:
-        return f"error: {e}"
+    def test_unknown_attr_name(self):
+        response = self.helper_send_to_single("test_entity_type/test_entity_id/xyz", v=123)
+        self.assertEqual(400, response.status_code)
 
+    def test_invalid_timestamp(self):
+        response = self.helper_send_to_single("test_entity_type/test_entity_id/test_attr_history", v=123, t1="xyz")
+        self.assertEqual(400, response.status_code)
 
-def check_response(expected, response):
-    log(f"      expected: {expected}", 3)
-    log(f"      response: {response} ({response.content})", 3)
-    try:
-        assert str(response) == expected
-        log("   PASS", 2)
-    except AssertionError:
-        log("   FAIL", 2)
-        raise Exception
+    def test_missing_value(self):
+        response = self.helper_send_to_single("test_entity_type/test_entity_id/test_attr_int")
+        self.assertEqual(400, response.status_code)
 
+    def test_missing_value_tag(self):
+        response = self.helper_send_to_single("test_entity_type/test_entity_id/test_attr_tag")
+        self.assertEqual(200, response.status_code)
 
-def test_push_single(url, v):
-    global verbose
-    global base_url
-    verbose = v
-    base_url = url
+    def helper_test_datatype_values(self, data_type: str, values: list, expected_code: int):
+        for v in values:
+            response = self.helper_send_to_single(f"test_entity_type/test_entity_id/test_attr_{data_type}", v=v)
+            self.assertEqual(expected_code, response.status_code)
 
-    expected = "<Response [400]>"
+    def test_data_type_values_valid(self):
+        for data_type in common.data_types:
+            with self.subTest(data_type=data_type):
+                valid = common.values["valid"][data_type]
+                self.helper_test_datatype_values(data_type, valid, 200)
 
-    log("   unknown entity type", 2)
-    response = request(f"xyz/test_entity_id/test_attr_int", "v=123")
-    check_response(expected, response)
-
-    # log("   unknown entity id")
-    # response = request(f"test_entity_type/xyz/test_attr_int", "v=123")  # TODO int id
-    # check_response(expected, response)
-
-    log("   unknown attr name", 2)
-    response = request(f"test_entity_type/test_entity_id/xyz", "v=123")
-    check_response(expected, response)
-
-    log("   invalid timestamp", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_history", "v=123", "t1=xyz")
-    check_response(expected, response)
-
-    log("   missing value", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_int")
-    check_response(expected, response)
-
-    expected = "<Response [200]>"
-
-    log("   missing value (tag)", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_tag")
-    check_response(expected, response)
-
-    for data_type in common.data_types:
-        valid = common.values["valid"][data_type]
-        invalid = common.values["invalid"][data_type]
-
-        expected = "<Response [200]>"
-        for v in valid:
-            log(f"   {data_type} | v={v}", 2)
-            response = request(f"test_entity_type/test_entity_id/test_attr_{data_type}", f"v={v}")
-            check_response(expected, response)
-
-        expected = "<Response [400]>"
-        for v in invalid:
-            log(f"   {data_type} | v={v}", 2)
-            response = request(f"test_entity_type/test_entity_id/test_attr_{data_type}", f"v={v}")
-            check_response(expected, response)
+    def test_data_type_values_invalid(self):
+        for data_type in common.data_types:
+            with self.subTest(data_type=data_type):
+                invalid = common.values["invalid"][data_type]
+                self.helper_test_datatype_values(data_type, invalid, 400)

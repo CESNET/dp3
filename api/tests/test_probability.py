@@ -46,58 +46,64 @@ class APITest(unittest.TestCase):
                 api_up = False
         return self.assertTrue(api_up, msg="API is down.")
 
-
-class ProbabilityAttrSingle(APITest):
     @staticmethod
-    def helper_send_to_single(v):
-        def request(path, *args):
-            args_str = '&'.join(args)
+    def helper_send_to_single(endpoint_path: str, **kwargs):
+        def request(path, **kw_args):
+            args_str = '&'.join([f"{key}={value}" for key, value in kw_args.items()])
             if args_str != "":
                 args_str = f"?{args_str}"
             return retry_request_on_error(lambda: requests.post(f"{base_url}/{path}{args_str}", timeout=5))
 
-        response = request(f"test_entity_type/test_entity_id/test_attr_probability", f"v={v}")
+        response = request(endpoint_path, **kwargs)
         return response
+
+    @staticmethod
+    def helper_send_to_multiple(json_data):
+        response = retry_request_on_error(
+            lambda: requests.post(f"{base_url}/datapoints", json=json_data, timeout=5))
+        return response
+
+
+class ProbabilityAttrSingle(APITest):
+    path = "test_entity_type/test_entity_id/test_attr_probability"
 
     def test_valid_format(self):
         v = {"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05}
-        response = self.helper_send_to_single(json.dumps(v))
+        response = self.helper_send_to_single(self.path, v=json.dumps(v))
         self.assertEqual(200, response.status_code)
 
     def test_invalid_format(self):
         for v in invalid_values:
             with self.subTest(v=v):
-                response = self.helper_send_to_single(json.dumps(v))
+                response = self.helper_send_to_single(self.path, v=json.dumps(v))
                 self.assertEqual(400, response.status_code)
 
     def test_invalid_json(self):
         v = "{'A':1.0}"
-        response = self.helper_send_to_single(v)
+        response = self.helper_send_to_single(self.path, v=v)
         self.assertEqual(400, response.status_code)
 
 
 class ProbabilityAttrMultiple(APITest):
     @staticmethod
-    def helper_send_to_multiple(v):
-        response = retry_request_on_error(
-            lambda: requests.post(f"{base_url}/datapoints", json=[{
-                "type": "test_entity_type", "id": "test_entity_id", "attr": "test_attr_probability",
-                "t1": datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"), "v": v
-            }, non_probability_datapoint], timeout=5))
-        return response
+    def value_to_json_data(v):
+        return [{
+            "type": "test_entity_type", "id": "test_entity_id", "attr": "test_attr_probability",
+            "t1": datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"), "v": json.dumps(v)
+        }, non_probability_datapoint]
 
     def test_valid_format_multiple(self):
         v = {"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05}
-        response = self.helper_send_to_multiple(json.dumps(v))
+        response = self.helper_send_to_multiple(self.value_to_json_data(v))
         self.assertEqual(200, response.status_code)
 
     def test_invalid_format_multiple(self):
         for v in invalid_values:
             with self.subTest(v=v):
-                response = self.helper_send_to_multiple(json.dumps(v))
+                response = self.helper_send_to_multiple(self.value_to_json_data(v))
                 self.assertEqual(400, response.status_code)
 
     def test_invalid_json(self):
         v = "{'A':1.0}"
-        response = self.helper_send_to_multiple(v)
+        response = self.helper_send_to_multiple(self.value_to_json_data(v))
         self.assertEqual(400, response.status_code)

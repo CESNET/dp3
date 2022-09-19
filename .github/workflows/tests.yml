@@ -16,7 +16,7 @@ jobs:
         run: docker run --network container:dp3_receiver_api dp3_interpreter python api/tests/test_api.py http://receiver_api:5000/ 2
 
       - name: Test API (new)
-        run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest api/tests/test_probability.py
+        run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest discover -s api/tests -v
 
   unit-tests:
     runs-on: ubuntu-latest

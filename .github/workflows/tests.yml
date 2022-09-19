@@ -9,81 +9,22 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
-
-      - name: Cache Docker layers
-        uses: actions/cache@v2
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-single-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-single-buildx
-
-      - name: Build interpreter image
-        uses: docker/build-push-action@v2
-        with:
-          push: false
-          load: true
-          context: .
-          builder: ${{ steps.buildx.outputs.name }}
-          file: docker/python/Dockerfile
-          target: base
-          tags: dp3_interpreter
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
-      - name: Build rabbitmq image
-        uses: docker/build-push-action@v2
-        with:
-          push: false
-          load: true
-          context: docker/rabbitmq
-          builder: ${{ steps.buildx.outputs.name }}
-          file: docker/rabbitmq/Dockerfile
-          tags: dp3_rabbitmq
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
-      - name: Build postgres image
-        uses: docker/build-push-action@v2
-        with:
-          push: false
-          load: true
-          context: docker/postgres
-          builder: ${{ steps.buildx.outputs.name }}
-          file: docker/postgres/Dockerfile
-          tags: dp3_postgres
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
-
-      - name: Test docker image presence
-        run: docker images
-
       - name: Setup running platform stack
-        run: docker-compose up -d
+        run: docker-compose up --build -d
 
-      - name: Test 1
+      - name: Test API (old tests)
         run: docker run --network container:dp3_receiver_api dp3_interpreter python api/tests/test_api.py http://receiver_api:5000/ 2
 
-      - name: Test 2
+      - name: Test API (new)
         run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest api/tests/test_probability.py
-
-      - name: Test docker image presence (after run)
-        run: docker images
-
-      - # Temp fix
-        # https://github.com/docker/build-push-action/issues/252
-        # https://github.com/moby/buildkit/issues/1896
-        name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
   unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+
       - name: Build Test
-        run: docker build -f docker/python/Dockerfile --target unittest -t unittest .
+        run: docker build -f docker/python/Dockerfile --target base -t dp3_interpreter .
+
       - name: Test
-        run: docker run unittest
+        run: docker run dp3_interpreter python -m unittest api/tests/test_probability.py

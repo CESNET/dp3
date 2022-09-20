@@ -12,10 +12,7 @@ jobs:
       - name: Setup running platform stack
         run: docker-compose up --build -d
 
-      - name: Test API (old tests)
-        run: docker run --network container:dp3_receiver_api dp3_interpreter python api/tests/test_api.py http://receiver_api:5000/ 2
-
-      - name: Test API (new)
+      - name: Integration tests - API
         run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest discover -s api/tests -v
 
   unit-tests:

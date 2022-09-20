@@ -1,80 +1,36 @@
-import requests
-
-base_url = None
-verbose = None
+import common
 
 
-def log(msg, verbose_lvl):
-    global verbose
-    if verbose >= verbose_lvl:
-        print(msg)
+class GetHistory(common.APITest):
+    def test_unknown_entity_type(self):
+        response = self.get_request("xyz/test_entity_id/test_attr_history/history")
+        self.assertEqual(400, response.status_code)
 
+    def test_unknown_attr_name(self):
+        response = self.get_request("test_entity_type/test_entity_id/xyz/history")
+        self.assertEqual(400, response.status_code)
 
-def request(path, *args):
-    try:
-        args_str = '&'.join(args)
-        if args_str != "":
-            args_str = f"?{args_str}"
-        return requests.get(f"{base_url}/{path}{args_str}")
-    except Exception as e:
-        return f"error: {e}"
+    def test_invalid_timestamp(self):
+        response = self.get_request("test_entity_type/test_entity_id/test_attr_history/history", t1="xyz")
+        self.assertEqual(400, response.status_code)
 
+    def test_unknown_entity_id(self):
+        response = self.get_request("test_entity_type/xyz/test_attr_history/history")
+        self.assertEqual(200, response.status_code)
 
-def check_response(expected, response):
-    log(f"      expected: {expected}", 3)
-    log(f"      response: {response} ({response.content})", 3)
-    try:
-        assert str(response) == expected
-        log("   PASS", 2)
-    except AssertionError:
-        log("   FAIL", 2)
-        raise Exception
+    def test_valid_time_intervals(self):
+        time_intervals = {
+            "<T1, T2>": {"t1": "2020-01-01T00:00:00", "t2": "2020-01-01T00:00:00"},
+            "<T1, _>": {"t1": "2020-01-01T00:00:00"},
+            "<_, T2>": {"t2": "2020-01-01T00:00:00"},
+            "<_, _>": {},
+        }
+        for msg, intervals in time_intervals.items():
+            with self.subTest(msg=msg):
+                response = self.get_request("test_entity_type/test_entity_id/test_attr_history/history", **intervals)
+                self.assertEqual(200, response.status_code)
 
-
-def test_get_history(url, v):
-    global verbose
-    global base_url
-    verbose = v
-    base_url = url
-
-    expected = "<Response [400]>"
-
-    log("   unknown entity type", 2)
-    response = request(f"xyz/test_entity_id/test_attr_history/history")
-    check_response(expected, response)
-
-    log("   unknown attr name", 2)
-    response = request(f"test_entity_type/test_entity_id/xyz/history")
-    check_response(expected, response)
-
-    log("   invalid timestamp", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_history/history", "t1=xyz")
-    check_response(expected, response)
-
-    expected = "<Response [200]>"
-
-    log("   unknown entity id (no records)", 2)
-    response = request(f"test_entity_type/xyz/test_attr_history/history")  # TODO int id
-    check_response(expected, response)
-
-    log("   valid time interval <T1, T2>", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_history/history", "t1=2020-01-01T00:00:00", "t2=2020-01-01T00:00:00")
-    check_response(expected, response)
-
-    log("   valid time interval <T1, _>", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_history/history", "t1=2020-01-01T00:00:00")
-    check_response(expected, response)
-
-    log("   valid time interval <_, T2>", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_history/history", "t2=2020-01-01T00:00:00")
-    check_response(expected, response)
-
-    log("   valid time interval <_, _>", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_history/history")
-    check_response(expected, response)
-
-    expected = "<Response [400]>"
-
-    log("   invalid time interval (T1 > T2)", 2)
-    response = request(f"test_entity_type/test_entity_id/test_attr_history/history", "t1=2020-01-01T00:00:01", "t2=2020-01-01T00:00:00")
-    check_response(expected, response)
+    def test_invalid_time_interval(self):
+        response = self.get_request("test_entity_type/test_entity_id/test_attr_history/history",
+                                    t1="2020-01-01T00:00:01", t2="2020-01-01T00:00:00")
+        self.assertEqual(400, response.status_code, "Should not be valid, T1 > T2")

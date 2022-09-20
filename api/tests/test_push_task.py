@@ -42,13 +42,13 @@ class PushTask(common.APITest):
                 response = self.push_task({**self.base_task, "data_points": invalid_value})
                 self.assertEqual(400, response.status_code, f"invalid data_points ({description})")
 
-    def test_invalid_data_points(self):
+    def test_invalid_events(self):
         invalid_events = {
             "not a list": "xyz",
             "list element is not a string": [123],
         }
         for description, invalid_value in invalid_events.items():
-            with self.subTest(msg=f"invalid events ({description})"):
+            with self.subTest(msg=f"invalid events ({description})", events=invalid_value):
                 response = self.push_task({**self.base_task, "events": invalid_value})
                 self.assertEqual(400, response.status_code, f"invalid events ({description})")
 

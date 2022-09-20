@@ -17,7 +17,7 @@ class GetValue(common.APITest):
         self.assertEqual(404, response.status_code)
 
     def test_valid_get(self):
-        response = self.helper_send_to_single("test_entity_type/test_entity_id/test_attr_int", v=123)
+        response = self.push_single("test_entity_type/test_entity_id/test_attr_int", v=123)
         self.assertEqual(200, response.status_code, "setup push failed")
         time.sleep(2)
         response = self.get_request("test_entity_type/test_entity_id/test_attr_int")

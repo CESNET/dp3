@@ -155,6 +155,24 @@ def get_data_type(item, attributes):
     return data_type
 
 
+def get_data_type_new_table(item, attributes):
+    name = item
+    if item.endswith(":c"):
+        name = item.split(":")[0]
+        data_type = REAL
+    elif item.endswith(":exp"):
+        name = item.split(":")[0]
+        data_type = TIMESTAMP
+    elif attributes.get(item).data_type.startswith(("set", "array")):
+        data_type = ARRAY(ATTR_TYPE_MAPPING[attributes.get(item).data_type.split('<')[1][:-1]])
+    elif attributes.get(item).data_type.startswith("dict"):
+        data_type =  ATTR_TYPE_MAPPING["dict"]
+    else:
+        data_type = ATTR_TYPE_MAPPING[attributes.get(item).data_type]
+
+    return data_type
+
+
 def change_col_data_type(config_item, col_name, config_col_type, meta):
     # when data type of column in database is not the same as in configuration, type of column in db can be changed
     while True:
@@ -207,7 +225,7 @@ def add_table_or_column(attr_spec, db_inspector, db_engine, meta, db_table):
             if not col_name.endswith((":c", ":exp")):
                 table_name = config_item + "__" + col_name
                 if table_name not in db_table and attr_spec.get(config_item).get("attribs").get(col_name).type == "observations":
-                    data_type = get_data_type(col_name, attr_spec.get(config_item).get("attribs"))
+                    data_type = get_data_type_new_table(col_name, attr_spec.get(config_item).get("attribs"))
                     create_history_table(table_name, meta, db_engine, data_type)
 
 

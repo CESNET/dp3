@@ -1,4 +1,5 @@
 import logging
+import time
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Union
@@ -58,6 +59,8 @@ TABLE_MANDATORY_ATTRIBS = {
 # Preconfiguration of main entity tables
 EID_CONF = {'eid': AttrSpec("eid", {'name': "entity id", 'type': "plain", 'data_type': "string"})}
 
+# number of seconds to wait for the i-th attempt to reconnect after error
+RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 
 # Custom exceptions
 class DatabaseConfigMismatchError(Exception):
@@ -99,10 +102,15 @@ class EntityDatabase:
         self.log.debug(f"Connection URL: {database_url}")
         db_engine = create_engine(database_url)
 
-        try:
-            self._db = db_engine.connect()
-        except Exception as e:
-            raise DatabaseError(f"Cannot connect to database with specified connection arguments: {e}")
+        for attempt, delay in enumerate(RECONNECT_DELAYS):
+            try:
+                self._db = db_engine.connect()
+            except Exception as e:
+                if attempt + 1 == len(RECONNECT_DELAYS):
+                    raise DatabaseError(f"Cannot connect to database with specified connection arguments: {e}")
+                else:
+                    self.log.error("Cannot connect to database (attempt %d, retrying in %ds).", attempt + 1, delay)
+                    time.sleep(delay)
 
         # internal structure for storing table objects
         self._tables = {}

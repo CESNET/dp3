@@ -1,0 +1,6 @@
+connection:
+  username: "test"
+  password: "test"
+  address: "postgres"
+  port: 5432
+  db_name: "test"

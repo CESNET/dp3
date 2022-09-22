@@ -185,7 +185,19 @@ class TaskQueueWriter(RobustAMQPConnection):
         self.exchange_pri = priority_exchange
 
     def check(self) -> bool:
-        """Check that needed exchanges are declared, return True or raise RuntimeError"""
+        """
+        Check that needed exchanges are declared, return True or raise RuntimeError.
+
+        If needed exchanges are not declared, reconnect and try again. (max 5 times)
+        """
+        for attempt, sleep_time in enumerate(RECONNECT_DELAYS):
+            if self.check_exchange_existence(self.exchange) and self.check_exchange_existence(self.exchange_pri):
+                return True
+            self.log.warning("RabbitMQ exchange configuration doesn't match (attempt %d of %d, retrying in %ds)",
+                             attempt + 1, len(RECONNECT_DELAYS), sleep_time)
+            time.sleep(sleep_time)
+            self.disconnect()
+            self.connect()
         if not self.check_exchange_existence(self.exchange):
             raise ExchangeNotDeclared(self.exchange)
         if not self.check_exchange_existence(self.exchange_pri):
@@ -355,7 +367,20 @@ class TaskQueueReader(RobustAMQPConnection):
         self.log.info("TaskQueueReader stopped")
 
     def check(self) -> bool:
-        """Check that needed queues are declared, return True or raise RuntimeError"""
+        """
+        Check that needed queues are declared, return True or raise RuntimeError.
+
+        If needed queues are not declared, reconnect and try again. (max 5 times)
+        """
+
+        for attempt, sleep_time in enumerate(RECONNECT_DELAYS):
+            if self.check_queue_existence(self.queue_name) and self.check_queue_existence(self.priority_queue_name):
+                return True
+            self.log.warning("RabbitMQ queue configuration doesn't match (attempt %d of %d, retrying in %ds)",
+                             attempt + 1, len(RECONNECT_DELAYS), sleep_time)
+            time.sleep(sleep_time)
+            self.disconnect()
+            self.connect()
         if not self.check_queue_existence(self.queue_name):
             raise QueueNotDeclared(self.queue_name)
         if not self.check_queue_existence(self.priority_queue_name):

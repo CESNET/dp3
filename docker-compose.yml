@@ -1,0 +1,56 @@
+version: "3.4"
+
+services:
+  rabbitmq:
+    container_name: "rabbitmq"
+    image: "dp3_rabbitmq"
+    build: "docker/rabbitmq"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      DP3_APP_NAME: test
+      DP3_WORKER_NUM: 1
+
+  postgres:
+    container_name: "postgres"
+    image: "dp3_postgres"
+    build: "docker/postgres"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: test
+      POSTGRES_USER: test
+      POSTGRES_DB: test
+
+  redis:
+    container_name: "redis"
+    image: redis
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+
+  receiver_api:
+    container_name: "dp3_receiver_api"
+    image: "dp3_interpreter"
+    build:
+      context: .
+      dockerfile: "docker/python/Dockerfile"
+      target: "base"
+    ports:
+      - "5000:5000"
+    environment:
+      HOST: "0.0.0.0"
+    command: [ "python", "api/receiver.py", "test", "./tests/test_config" ]
+
+  worker:
+    container_name: "dp3_worker"
+    image: "dp3_interpreter"
+    build:
+      context: .
+      dockerfile: "docker/python/Dockerfile"
+      target: "base"
+    command: [ "bin/worker", "test", "./tests/test_config", "0", "-v" ]
+    depends_on:
+      - rabbitmq
+      - postgres

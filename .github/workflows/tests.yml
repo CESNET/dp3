@@ -1,0 +1,32 @@
+name: Tests
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup running platform stack
+        run: docker-compose up --build -d
+
+      - name: Integration tests - API
+        run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest discover -s tests/test_api -v
+
+      - name: Get API logs
+        run: docker-compose logs receiver_api
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build Test
+        run: docker build -f docker/python/Dockerfile --target base -t dp3_interpreter .
+
+      - name: Test
+        run: docker run dp3_interpreter python -m unittest tests/test_common/test_config.py

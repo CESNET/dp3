@@ -1,8 +1,8 @@
-import unittest
 import os
+import unittest
 from copy import deepcopy
 
-from src.common.config import HierarchicalDict, read_config_dir
+from dp3.common.config import HierarchicalDict, read_config_dir
 
 
 class TestHierarchicalDict(unittest.TestCase):
@@ -131,63 +131,77 @@ class TestHierarchicalDict(unittest.TestCase):
 
 class TestReadConfig(unittest.TestCase):
     test_config_dir_recursive = {
-        'msg_broker': {
-            'host': "localhost",
-            'port': 5672,
-            'virtual_host': "/",
-            'username': "guest",
-            'password': "guest"
+        'file1': {
+            'msg_broker': {
+                'host': "localhost",
+                'port': 5672,
+                'virtual_host': "/",
+                'username': "guest",
+                'password': "guest"
+            },
+            'worker_processes': 1,
         },
-        'worker_processes': 1,
-        'mongodb': {
-            'host': "localhost",
-            'port': 27017,
-            'dbname': "nerd"
+        'file2': {
+            'mongodb': {
+                'host': "localhost",
+                'port': 27017,
+                'dbname': "nerd"
+            }
         },
         'modules': {
-            'record_life_length': {
-                'warden': 14,
-                'misp': 180,
-                'highly_active': 14,
-                'long_active': 28
+            'module1': {
+                'record_life_length': {
+                    'warden': 14,
+                    'misp': 180,
+                    'highly_active': 14,
+                    'long_active': 28
+                },
+                'record_life_threshold': {
+                    'highly_active': 1000,
+                    'long_active': 30
+                },
             },
-            'record_life_threshold': {
-                'highly_active': 1000,
-                'long_active': 30
-            },
-            'rate-limit': {
-                'tokens-per-sec': 1,
-                'bucket-size': 60,
-                'redis': {
-                    'db-index': 1
+            'module2': {
+                'rate-limit': {
+                    'tokens-per-sec': 1,
+                    'bucket-size': 60,
+                    'redis': {
+                        'db-index': 1
+                    }
                 }
             }
         }
     }
 
     test_config_dir_nonrecursive = {
-        'msg_broker': {
-            'host': "localhost",
-            'port': 5672,
-            'virtual_host': "/",
-            'username': "guest",
-            'password': "guest"
+        'file1': {
+            'msg_broker': {
+                'host': "localhost",
+                'port': 5672,
+                'virtual_host': "/",
+                'username': "guest",
+                'password': "guest"
+            },
+            'worker_processes': 1,
         },
-        'worker_processes': 1,
-        'mongodb': {
-            'host': "localhost",
-            'port': 27017,
-            'dbname': "nerd"
+        'file2': {
+            'mongodb': {
+                'host': "localhost",
+                'port': 27017,
+                'dbname': "nerd"
+            }
         }
     }
 
     CONFIG_TEST_DIR = "config_test_files"
 
-    def test_read_config_dir(self):
+    def test_read_config_dir_recursive(self):
         loaded_config = read_config_dir(os.path.join(os.path.dirname(os.path.abspath(__file__)), self.CONFIG_TEST_DIR),
                                         recursive=True)
-        self.assertEqual(loaded_config, self.test_config_dir_recursive,
+        self.assertEqual(self.test_config_dir_recursive, loaded_config,
                          "Loaded config from {} directory recursively did not match!".format(self.CONFIG_TEST_DIR))
+
+    def test_read_config_dir_nonrecursive(self):
         loaded_config = read_config_dir(os.path.join(os.path.dirname(os.path.abspath(__file__)), self.CONFIG_TEST_DIR))
-        self.assertEqual(loaded_config, self.test_config_dir_nonrecursive,
+        self.assertEqual(self.test_config_dir_nonrecursive, loaded_config,
                          "Loaded config from {} directory nonrecursively did not match!".format(self.CONFIG_TEST_DIR))

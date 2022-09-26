@@ -9,14 +9,13 @@ import traceback
 import requests
 from flask import Flask, request, Response, jsonify
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3.common.config import read_config_dir, load_attr_spec
 from dp3.database.database import EntityDatabase
 from dp3.common.utils import parse_rfc_time
 from dp3.history_management.history_manager import get_historic_value
 
-from task import Task
+from api.task import Task
 
 app = Flask(__name__)
 

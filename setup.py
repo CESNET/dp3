@@ -42,4 +42,14 @@ setuptools.setup(
         "Development Status :: 3 - Alpha",
     ],
     python_requires='~=3.9',
+    scripts=[
+        "bin/worker",
+        "bin/updater",
+        "bin/update_all",
+    ],
+    entry_points={
+        "console_scripts": [
+            "dp3-receiver=api.receiver"
+        ]
+    }
 )

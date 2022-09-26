@@ -46,10 +46,6 @@ setuptools.setup(
         "bin/worker",
         "bin/updater",
         "bin/update_all",
-    ],
-    entry_points={
-        "console_scripts": [
-            "dp3-receiver=api.receiver"
-        ]
-    }
+        "api/receiver.py"
+    ]
 )

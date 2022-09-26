@@ -9,6 +9,7 @@ import traceback
 import requests
 from flask import Flask, request, Response, jsonify
 
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
 from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3.common.config import read_config_dir, load_attr_spec
 from dp3.database.database import EntityDatabase

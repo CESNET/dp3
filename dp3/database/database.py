@@ -1118,6 +1118,7 @@ class EntityDatabase:
     def resample_regular_timeseries(self, time_step: str, etype: str, attr_name: str, eid: str = None, t1: str = None, t2: str = None, closed_interval: bool = True, func: str = "avg"):
         """
         Resamples regular timeseries with specified time_step.
+        If attribute doesn't exist or isn't regular timeseries, KeyError is raised.
         :param etype: entity type
         :param attr_name: name of attribute
         :param eid: id of entity, to which data-points correspond (optional)
@@ -1126,15 +1127,15 @@ class EntityDatabase:
         :param t2: right value of time interval
         :param closed_interval: include interval endpoints? (default = True)
         :param func: sampling function - one of sum, avg, min, max
-        :return: dict or None
+        :return: dict or KeyError
         """
         try:
             attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
-        except KeyError:
-            return None
+        except KeyError as e:
+            raise KeyError(f"Attribute `{attr_name}` of entity `{etype}` doesn't exist.") from e
 
         if attrib_conf.type != "timeseries" or attrib_conf.timeseries_type != "regular":
-            return None
+            raise KeyError(f"Attribute `{attr_name}` is not regular timeseries.")
 
         # Don't resample data if time interval is shorter than original interval
         time_step = parse_time_duration(time_step)

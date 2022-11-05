@@ -399,12 +399,16 @@ def push_multiple_datapoints():
                 return f"{response}\n", 400
 
         # Get t2
-        if spec.type == "timeseries" and spec.timeseries_type == "regular":
-            # Length of first series
-            series_len = len(list(raw_val.values())[0])
-
-            default_dt = parse_rfc_time(t1) + series_len * spec.time_step
-            t2 = record.get("t2", default_dt.isoformat("T"))
+        if spec.type == "timeseries":
+            t2 = record.get("t2", None)
+            if t2 is None:
+                if spec.timeseries_type == "regular":
+                    series_len = len(list(raw_val.values())[0]) # length of first series
+                    t2 = parse_rfc_time(t1) + series_len * spec.time_step
+                elif spec.timeseries_type == "irregular":
+                    t2 = parse_rfc_time(raw_val["time"][-1]) # set t2 to last timestamp
+                elif spec.timeseries_type == "irregular_intervals":
+                    t2 = parse_rfc_time(raw_val["time_last"][-1]) # set t2 to last end timestamp
         elif spec.type == "observations":
             t2 = record.get("t2", t1)
 

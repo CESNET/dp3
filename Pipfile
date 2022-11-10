@@ -23,6 +23,7 @@ urllib3 = ">=1.26.5"
 python-dateutil = "*"
 event-count-logger = "*"
 numpy = "*"
+pydantic = "~=1.10"
 
 [requires]
 python_version = "3.9"

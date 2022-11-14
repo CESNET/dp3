@@ -45,11 +45,6 @@ else:
     print("  DP3_DP_LOG_FILE - (optional) file to store all incoming datapoints (as CSV)", file=sys.stderr)
     sys.exit(1)
 
-# Temporary override
-# conf_dir = '/etc/adict/config'
-# app_name = 'adict'
-# dp_log_file = '/data/datapoints/dp.log'
-
 
 # Dictionary containing platform configuration
 config = None

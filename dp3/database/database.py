@@ -11,7 +11,8 @@ from sqlalchemy.sql import text, select, delete, func, desc, asc
 from dp3.common.attrspec import AttrSpec
 from dp3.common.config import HierarchicalDict
 from dp3.common.entityspec import EntitySpec
-from ..common.attrspec import validators, timeseries_types
+from ..common.attrspec import timeseries_types
+from ..common.datatype import validators
 from ..common.utils import parse_rfc_time, parse_time_duration
 from ..history_management.constants import *
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, confloat
 
 from dp3.common.attrspec import AttrSpec, AttrType
 
@@ -26,7 +26,7 @@ class DataPoint(BaseModel):
     src: Optional[str] = None
     t1: datetime
     t2: datetime
-    c: Optional[float] = 1.0
+    c: Optional[confloat(ge=0.0, le=1.0)] = 1.0
 
     def __init__(self, attr_type: AttrType, **data):
         # Plain attributes don't have any t1 and t2.

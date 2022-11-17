@@ -4,11 +4,11 @@ from pydantic import BaseModel, validator
 
 
 class EntitySpec(BaseModel):
-    """
-    Entity specification
+    """Entity specification
 
     This class represents specification of an entity type (e.g. ip, asn, ...)
     """
+
     id: str
     name: str
     auto_create_record: Optional[bool] = False

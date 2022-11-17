@@ -7,10 +7,9 @@ from dp3.common.attrspec import AttrSpec, AttrType
 
 
 class DataPoint(BaseModel):
-    """
-    Data-point
+    """Data-point
 
-    Contains single raw data value received via API - plain, observation or
+    Contains single raw data value received on API - plain, observation or
     timeseries. In case of plain data-point, it's not really a data-point, but
     we use the same class for simplicity.
 
@@ -18,6 +17,7 @@ class DataPoint(BaseModel):
 
     Internal usage: inside Task, created by TaskExecutor
     """
+
     attr_type: AttrType
     etype: str
     eid: str

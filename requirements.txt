@@ -17,3 +17,4 @@ urllib3==1.26.5
 python-dateutil
 event_count_logger
 numpy
+sqlalchemy-migrate

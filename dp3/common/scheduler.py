@@ -65,4 +65,3 @@ class Scheduler():
     def resume_job(self, id):
         """Resume previously paused job with given ID"""
         self.sched.resume_job(str(id))
-

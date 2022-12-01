@@ -10,13 +10,12 @@ import requests
 from flask import Flask, request, Response, jsonify
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
-from dp3.task_processing.task_queue import TaskQueueWriter
+from dp3.common import Task
 from dp3.common.config import read_config_dir, load_attr_spec
-from dp3.database.database import EntityDatabase
 from dp3.common.utils import parse_rfc_time
+from dp3.database.database import EntityDatabase
 from dp3.history_management.history_manager import get_historic_value
-
-from api.task import Task
+from dp3.task_processing.task_queue import TaskQueueWriter
 
 app = Flask(__name__)
 
@@ -44,12 +43,6 @@ else:
     print("  DP3_CONFIG_DIR - directory containing configuration files", file=sys.stderr)
     print("  DP3_DP_LOG_FILE - (optional) file to store all incoming datapoints (as CSV)", file=sys.stderr)
     sys.exit(1)
-
-# Temporary override
-# conf_dir = '/etc/adict/config'
-# app_name = 'adict'
-# dp_log_file = '/data/datapoints/dp.log'
-
 
 # Dictionary containing platform configuration
 config = None

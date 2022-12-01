@@ -7,8 +7,8 @@ from typing import Union
 import yaml
 
 from dp3.common.attrspec import AttrSpec
+from dp3.common.base_attrs import BASE_ATTRIBS
 from dp3.common.entityspec import EntitySpec
-from .base_attrs import BASE_ATTRIBS
 
 
 class NoDefault:

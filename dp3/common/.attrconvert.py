@@ -5,7 +5,7 @@ TODO: consider adding `attr_type` (plain, observations, timeseries).
 """
 import re
 import json
-from .attrspec import (
+from .datatype import (
     re_array, re_dict, re_set, re_link,
     valid_ipv4, valid_ipv6, valid_mac
 )

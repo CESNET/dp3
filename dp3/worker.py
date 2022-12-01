@@ -18,55 +18,55 @@ if __name__ == "__main__":
     sys.exit(1)
 
 from .common.config import read_config_dir, load_attr_spec
-from .common import scheduler
-from .common.base_module import BaseModule
+#from .common import scheduler
+#from .common.base_module import BaseModule
 from .database.database import EntityDatabase
 from .task_processing.task_executor import TaskExecutor
 from .task_processing.task_distributor import TaskDistributor
-from .history_management.history_manager import HistoryManager
+#from .history_management.history_manager import HistoryManager
 from . import g
 
 
-def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
-    """Load plug-in modules
+# def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
+#     """Load plug-in modules
 
-    Import Python modules with names in 'enabled_modules' from 'modules_dir' directory and return all found classes
-    derived from BaseModule class.
-    """
-    # Get list of all modules available in given folder
-    # [:-3] is for removing '.py' suffix from module filenames
-    available_modules = []
-    for item in os.scandir(modules_dir):
-        # A module can be a Python file or a Python package (i.e. a directory with "__init__.py" file)
-        if item.is_file() and item.name.endswith(".py"):
-            available_modules.append(item.name[:-3]) # name without .py
-        if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
-            available_modules.append(item.name)
-    log.debug(f"Available modules: {', '.join(available_modules)}")
-    log.debug(f"Enabled modules: {', '.join(enabled_modules)}")
+#     Import Python modules with names in 'enabled_modules' from 'modules_dir' directory and return all found classes
+#     derived from BaseModule class.
+#     """
+#     # Get list of all modules available in given folder
+#     # [:-3] is for removing '.py' suffix from module filenames
+#     available_modules = []
+#     for item in os.scandir(modules_dir):
+#         # A module can be a Python file or a Python package (i.e. a directory with "__init__.py" file)
+#         if item.is_file() and item.name.endswith(".py"):
+#             available_modules.append(item.name[:-3]) # name without .py
+#         if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
+#             available_modules.append(item.name)
+#     log.debug(f"Available modules: {', '.join(available_modules)}")
+#     log.debug(f"Enabled modules: {', '.join(enabled_modules)}")
 
-    # check if all desired modules are in modules folder
-    missing_modules = (set(enabled_modules) - set(available_modules))
-    if missing_modules:
-        log.fatal(f"Some of desired modules are not available (not in modules folder), specifically: {missing_modules}")
-        sys.exit(2)
-    # do imports of desired modules from 'modules' folder
-    # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
-    log.debug("Importing modules ...")
-    sys.path.insert(0, modules_dir)
-    imported_modules = [import_module(module_name) for module_name in enabled_modules]
-    del sys.path[0]
-    # final list will contain main classes from all desired modules, which has BaseModule as parent
-    modules_main_objects = []
-    for module in imported_modules:
-        for _, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) and BaseModule in obj.__bases__:
-                # append instance of module class (obj is class --> obj() is instance) --> call init, which
-                # registers handler
-                modules_main_objects.append(obj())
-                log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
+#     # check if all desired modules are in modules folder
+#     missing_modules = (set(enabled_modules) - set(available_modules))
+#     if missing_modules:
+#         log.fatal(f"Some of desired modules are not available (not in modules folder), specifically: {missing_modules}")
+#         sys.exit(2)
+#     # do imports of desired modules from 'modules' folder
+#     # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
+#     log.debug("Importing modules ...")
+#     sys.path.insert(0, modules_dir)
+#     imported_modules = [import_module(module_name) for module_name in enabled_modules]
+#     del sys.path[0]
+#     # final list will contain main classes from all desired modules, which has BaseModule as parent
+#     modules_main_objects = []
+#     for module in imported_modules:
+#         for _, obj in inspect.getmembers(module):
+#             if inspect.isclass(obj) and BaseModule in obj.__bases__:
+#                 # append instance of module class (obj is class --> obj() is instance) --> call init, which
+#                 # registers handler
+#                 modules_main_objects.append(obj())
+#                 log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
 
-    return modules_main_objects
+#     return modules_main_objects
 
 
 def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> None:
@@ -101,9 +101,11 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.config_base_path = os.path.abspath(config_dir)
     log.debug(f"Loading config directory {g.config_base_path}")
 
-    # whole configuration should be loaded
+    # Whole configuration should be loaded
     config = read_config_dir(g.config_base_path, recursive=True)
     attr_spec = load_attr_spec(config.get("db_entities"))
+
+    print(attr_spec)
 
     num_processes = config.get('processing_core.worker_processes')
     assert (isinstance(num_processes, int) and num_processes > 0),\
@@ -120,11 +122,11 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.config = config
     g.attr_spec = attr_spec
     g.running = False
-    g.scheduler = scheduler.Scheduler()
+    #g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
-    g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
-    te = TaskExecutor(g.db, attr_spec, g.hm)
-    g.td = TaskDistributor(config, process_index, num_processes, te)
+    #g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
+    #te = TaskExecutor(g.db, attr_spec)
+    #g.td = TaskDistributor(config, process_index, num_processes, te)
 
     ##############################################
     # Load all plug-in modules
@@ -134,10 +136,10 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     custom_modules_dir = config.get('processing_core.modules_dir')
     custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
 
-    core_module_list = load_modules(core_modules_dir, {}, log)
-    custom_module_list = load_modules(custom_modules_dir, config.get('processing_core.enabled_modules'), log)
+    #core_module_list = load_modules(core_modules_dir, {}, log)
+    #custom_module_list = load_modules(custom_modules_dir, config.get('processing_core.enabled_modules'), log)
 
-    module_list = core_module_list + custom_module_list
+    module_list = []#core_module_list + custom_module_list
 
     # Lock used to control when the program stops.
     g.daemon_stop_lock = threading.Lock()
@@ -166,10 +168,10 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         module.start()
 
     # start TaskDistributor (which starts TaskExecutors in several worker threads)
-    g.td.start()
+    #g.td.start()
 
     # Run scheduler
-    g.scheduler.start()
+    #g.scheduler.start()
 
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.
@@ -191,8 +193,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     log.info("Stopping running components ...")
     g.running = False
-    g.scheduler.stop()
-    g.td.stop()
+    #g.scheduler.stop()
+    #g.td.stop()
     for module in module_list:
         module.stop()
 

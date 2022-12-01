@@ -18,7 +18,7 @@ if __name__ == "__main__":
     sys.exit(1)
 
 from .common.config import read_config_dir, load_attr_spec
-#from .common import scheduler
+from .common import scheduler
 #from .common.base_module import BaseModule
 from .database.database import EntityDatabase
 from .task_processing.task_executor import TaskExecutor
@@ -122,7 +122,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.config = config
     g.attr_spec = attr_spec
     g.running = False
-    #g.scheduler = scheduler.Scheduler()
+    g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
     #g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
     #te = TaskExecutor(g.db, attr_spec)
@@ -171,7 +171,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     #g.td.start()
 
     # Run scheduler
-    #g.scheduler.start()
+    g.scheduler.start()
 
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.
@@ -193,7 +193,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     log.info("Stopping running components ...")
     g.running = False
-    #g.scheduler.stop()
+    g.scheduler.stop()
     #g.td.stop()
     for module in module_list:
         module.stop()

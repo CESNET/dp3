@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, confloat
 
 from dp3.common.attrspec import AttrSpec, AttrType
+from dp3.common.entityspec import EntitySpec
 
 
 class DataPoint(BaseModel):
@@ -43,3 +44,17 @@ class DataPoint(BaseModel):
         data = default_values | data
 
         super().__init__(attr_type=attr_type, **data)
+
+    def validate_against_attr_spec(self, attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]):
+        """Validates self against provided attributes specification
+
+        This method is called when creating Task.
+        """
+        assert self.etype in attr_spec, f"Invalid etype '{self.etype}'"
+        assert self.attr in attr_spec[self.etype]["attribs"], \
+            f"Invalid attribute '{self.attr}' of entity '{self.etype}'"
+
+        attrib_spec = attr_spec[self.etype]["attribs"][self.attr]
+
+        assert self.attr_type == attrib_spec.t, \
+            f"Invalid attribute type: DP has '{self.attr_type}', but attribute '{self.attr}' of entity '{self.etype}' has {attrib_spec.t}"

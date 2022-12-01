@@ -10,11 +10,13 @@ import requests
 from flask import Flask, request, Response, jsonify
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
-from dp3.common import Task
+from dp3.common.attrspec import AttrType
+from dp3.common.datatype import DataTypeContainer
 from dp3.common.config import read_config_dir, load_attr_spec
+from dp3.common.task import Task
 from dp3.common.utils import parse_rfc_time
 from dp3.database.database import EntityDatabase
-from dp3.history_management.history_manager import get_historic_value
+#from dp3.history_management.history_manager import get_historic_value
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 app = Flask(__name__)
@@ -52,9 +54,6 @@ attr_spec = {}
 
 # TaskQueueWriter instance used for sending tasks to the processing core
 task_writer = None
-
-# Logger
-# log = None
 
 # Flag marking if initialization was successful (no request can be handled if this is False)
 initialized = False
@@ -129,43 +128,34 @@ def check_initialization():
 
 def push_task(task):
     """Push given task (instance of task.Task) to platform's task queue (RabbitMQ)"""
-    task_writer.put_task(
-        task["etype"],
-        task["ekey"],
-        task["attr_updates"],
-        task["events"],
-        task["data_points"],
-        task["create"],
-        task["delete"],
-        task["src"],
-        task["tags"],
-        task["ttl_token"],
-        False  # priority
-    )
+    task_writer.put_task(task, False)
 
 
-def convert_value(value, attr_type, data_type):
+def convert_value(value, attr_type: AttrType, data_type: DataTypeContainer):
     try:
         # Timeseries
-        if attr_type == "timeseries":
+        if attr_type is AttrType.TIMESERIES:
             return value
 
+        # Use only string representation of data-type
+        data_type_str = data_type.data_type
+
         # Plain or observations
-        if data_type == "tag":
+        if data_type_str == "tag":
             return True
-        elif data_type == "binary":
+        elif data_type_str == "binary":
             parsed_val = json.loads(value)
             if isinstance(parsed_val, bool):
                 return parsed_val
             assert parsed_val == 0 or parsed_val == 1
             return bool(parsed_val)
-        elif data_type == "int" or data_type == "int64":
+        elif data_type_str == "int" or data_type_str == "int64":
             return int(value)
-        elif data_type == "float":
+        elif data_type_str == "float":
             return float(value)
-        elif data_type in ("string", "category", "ip4", "ip6", "mac", "timestamp"):  # TODO validate IP/MAC addresses and time?
+        elif data_type_str in ("string", "category", "ip4", "ip6", "mac", "timestamp"):  # TODO validate IP/MAC addresses and time?
             return str(value)
-        elif data_type.startswith("link<"):
+        elif data_type_str.startswith("link<"):
             return str(value)  # TODO: int should also be allowed, depending on what is being linked
         # others: binary, array<>, set<>, dict<>, special
         elif isinstance(value, str):  # passed as string - parse from JSON format
@@ -219,16 +209,16 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         return f"{response}\n", 400  # Bad request
 
     # Get t2
-    if spec.type == "timeseries" and spec.timeseries_type == "regular":
+    if spec.t == AttrType.TIMESERIES and spec.timeseries_type == "regular":
         # Length of first series
         series_len = len(list(raw_val.values())[0])
 
-        default_dt = parse_rfc_time(t1) + series_len*spec.time_step
+        default_dt = parse_rfc_time(t1) + series_len * spec.time_step
         t2 = request.values.get("t2", default_dt.isoformat("T"))
     else:
         t2 = request.values.get("t2", t1)
 
-    if spec.type == "observations" and t1 is None:
+    if spec.t == AttrType.OBSERVATIONS and t1 is None:
         response = f"Invalid data-point: Missing mandatory field 't1'"
         log.info(response)
         return f"{response}\n", 400  # Bad request
@@ -243,7 +233,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     # Convert value from string (JSON) to proper data type
     try:
-        val = convert_value(raw_val, spec.type, spec.data_type)
+        val = convert_value(raw_val, spec.t, spec.data_type)
     except TypeError:
         response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
         log.info(response)
@@ -257,38 +247,21 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
         log.info(response)
         return f"{response}\n", 400  # Bad request
 
-    if spec.probability:
-        try:
-            val = json.loads(val)
-        except (TypeError, ValueError):
-            response = f"Error: \"v\" is not a probability distribution (JSON loads failed)\n"
-            log.info(f"{response}Value: {val}")
-            return response, 400  # Bad request
-        if not spec.value_validator(val):
-            response = f"Error: \"v\" is not a probability distribution (format invalid)\n"
-            log.info(f"{response}Value: {val}")
-            return response, 400  # Bad request
-
     # Log the datapoint
     try:
         log_datapoints([(entity_type, entity_id, attr_id, val, t1, t2, c, src)])
     except Exception as e:
         print("ERROR: Can't log datapoint:", e, file=sys.stderr)
 
-    if spec.probability:
-        response = "Success"
-        log.debug(response)
-        return f"{response}\n", 200  # OK
-
     # Prepare task
     t = {
         "etype": entity_type,
         "ekey": entity_id,
         "src": src,
-        "ttl_token": "default"
+        "ttl_token": None
     }
 
-    if spec.type == "observations" or spec.type == "timeseries":
+    if spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
         t["data_points"] = [{
             "attr": attr_id,
             "v": val,
@@ -306,7 +279,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     # Make valid task using the attr_spec template and push it to platform's task queue
     try:
-        task = Task(t, attr_spec)
+        task = Task(attr_spec=attr_spec, **t)
     except Exception as e:
         traceback.print_exc()
         response = f"Error: Failed to create a task: {type(e)}: {str(e)}"
@@ -383,7 +356,7 @@ def push_multiple_datapoints():
             return f"{response}\n", 400  # Bad request
 
         # Get t1
-        if spec.type in ["observations", "timeseries"]:
+        if spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
             try:
                 t1 = record["t1"]
             except KeyError as e:
@@ -392,7 +365,7 @@ def push_multiple_datapoints():
                 return f"{response}\n", 400
 
         # Get t2
-        if spec.type == "timeseries":
+        if spec.t == AttrType.TIMESERIES:
             t2 = record.get("t2", None)
             if t2 is None:
                 if spec.timeseries_type == "regular":
@@ -402,12 +375,12 @@ def push_multiple_datapoints():
                     t2 = parse_rfc_time(raw_val["time"][-1]) # set t2 to last timestamp
                 elif spec.timeseries_type == "irregular_intervals":
                     t2 = parse_rfc_time(raw_val["time_last"][-1]) # set t2 to last end timestamp
-        elif spec.type == "observations":
+        elif spec.t == AttrType.OBSERVATIONS:
             t2 = record.get("t2", t1)
 
         # Convert value from string (JSON) to proper data type
         try:
-            value = convert_value(raw_val, spec.type, spec.data_type)
+            value = convert_value(raw_val, spec.t, spec.data_type)
         except TypeError:
             response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
             log.info(f"{response}\nRecord: {record}")
@@ -421,21 +394,9 @@ def push_multiple_datapoints():
             log.info(response)
             return f"{response}\n", 400  # Bad request
 
-        if spec.probability:
-            try:
-                val = json.loads(value)
-            except (TypeError, ValueError):
-                response = f"Error: \"v\" is not a probability distribution (JSON loads failed)\n"
-                log.info(f"{response}Value: {value}")
-                return response, 400  # Bad request
-            if not spec.value_validator(val):
-                response = f"Error: \"v\" is not a probability distribution (format invalid)\n"
-                log.info(f"{response}Value: {val}")
-                return response, 400  # Bad request
-
-        if spec.type in ["observations", "timeseries"]:
+        if spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
             dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))
-        else:  # spec.type == "plain"
+        else:  # spec.t == "plain"
             dps.append((etype, ekey, attr, value, None, None, c, src, spec))
 
 
@@ -448,9 +409,6 @@ def push_multiple_datapoints():
     # Create a task for each (etype,ekey) in data-points
     tasks = {}
     for etype, ekey, attr, value, t1, t2, c, src, spec in dps:
-        if spec.probability:
-            continue
-
         key = (etype, ekey)
         if key not in tasks:
             # create new "empty" task
@@ -460,11 +418,11 @@ def push_multiple_datapoints():
                 "data_points": [],
                 "attr_updates": [],
                 "src": src,
-                "ttl_token": "default"
+                "ttl_token": None
             }
 
         # Add data-points or attr updates
-        if spec.type == "observations" or spec.type == "timeseries":
+        if spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
             tasks[key]["data_points"].append({
                 "attr": attr,
                 "v": value,
@@ -485,7 +443,7 @@ def push_multiple_datapoints():
     # Make valid tasks using the attr_spec template
     for k in tasks:
         try:
-            task_list.append(Task(tasks[k], attr_spec))
+            task_list.append(Task(attr_spec=attr_spec, **tasks[k]))
         except Exception as e:
             # traceback.print_exc()
             response = f"\nFailed to create a task: {type(e)}: {str(e)}"
@@ -536,7 +494,7 @@ def push_single_task():
 
     # Make valid task and push it to platforms task queue
     try:
-        task = Task(payload, attr_spec)
+        task = Task(attr_spec=attr_spec, **payload)
     except Exception as e:
         traceback.print_exc()
         response = f"Error: Failed to create a task: {str(e)}"
@@ -558,45 +516,45 @@ def push_single_task():
 ################################################################################
 # Endpoints to read data
 
-@app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
-def get_attr_value(entity_type, entity_id, attr_id):
-    """
-    REST endpoint to read current value for an attribute of given entity
+# @app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>", methods=["GET"])
+# def get_attr_value(entity_type, entity_id, attr_id):
+#     """
+#     REST endpoint to read current value for an attribute of given entity
 
-    It is also possible to read historic values by providing a specific timestamp as a query parameter (only for observations)
+#     It is also possible to read historic values by providing a specific timestamp as a query parameter (only for observations)
 
-    Entity type, entity id and attribute id must be provided
+#     Entity type, entity id and attribute id must be provided
 
-    Examples:
-        /ip/1.2.3.4/test_attr
-        /ip/1.2.3.4/test_attr?t=2000-01-01T00:00:00
-    """
-    log.debug(f"Received new GET request from {request.remote_addr}")
+#     Examples:
+#         /ip/1.2.3.4/test_attr
+#         /ip/1.2.3.4/test_attr?t=2000-01-01T00:00:00
+#     """
+#     log.debug(f"Received new GET request from {request.remote_addr}")
 
-    try:
-        _ = attr_spec[entity_type]["attribs"][attr_id]
-    except KeyError:
-        response = f"Error: no specification found for {entity_type}/{attr_id}"
-        log.info(response)
-        return f"{response}\n", 400  # Bad request
+#     try:
+#         _ = attr_spec[entity_type]["attribs"][attr_id]
+#     except KeyError:
+#         response = f"Error: no specification found for {entity_type}/{attr_id}"
+#         log.info(response)
+#         return f"{response}\n", 400  # Bad request
 
-    try:
-        timestamp = request.values.get("t", None)
-        observations = attr_spec[entity_type]['attribs'][attr_id].type == "observations"
+#     try:
+#         timestamp = request.values.get("t", None)
+#         observations = attr_spec[entity_type]['attribs'][attr_id].t == AttrType.OBSERVATIONS
 
-        if timestamp is not None and observations:
-            content = get_historic_value(db, attr_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp))
-        else:
-            content = db.get_attrib(entity_type, entity_id, attr_id)
+#         if timestamp is not None and observations:
+#             content = get_historic_value(db, attr_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp))
+#         else:
+#             content = db.get_attrib(entity_type, entity_id, attr_id)
 
-        if content is None:
-            response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404  # Not found
-        else:
-            response = jsonify(content), 200  # OK
-    except Exception as e:
-        response = f"Error when querying db: {e}", 500  # Internal server error
+#         if content is None:
+#             response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404  # Not found
+#         else:
+#             response = jsonify(content), 200  # OK
+#     except Exception as e:
+#         response = f"Error when querying db: {e}", 500  # Internal server error
 
-    return response
+#     return response
 
 
 @app.route("/<string:entity_type>/<string:entity_id>/<string:attr_id>/history", methods=["GET"])

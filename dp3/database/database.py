@@ -1,11 +1,13 @@
-import logging
-import time
-from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Union
+import logging
+import urllib
 
-from dp3.common.attrspec import AttrSpec
+import pymongo
+
+from dp3.common.attrspec import AttrSpecGeneric, AttrType
 from dp3.common.config import HierarchicalDict
+from dp3.common.datapoint import DataPoint
 from dp3.common.entityspec import EntitySpec
 
 
@@ -27,13 +29,114 @@ class EntityDatabase:
     """
 
     def __init__(self, db_conf: HierarchicalDict,
-                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]) -> None:
+                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpecGeneric]]]]) -> None:
         self.log = logging.getLogger("EntityDatabase")
-        # self.log.setLevel("DEBUG")
+        self.log.setLevel("DEBUG")
 
         connection_conf = db_conf.get("connection", {})
-        username = connection_conf.get("username", "dp3")
-        password = connection_conf.get("password", "dp3")
+        username = urllib.parse.quote_plus(connection_conf.get("username", "dp3"))
+        password = urllib.parse.quote_plus(connection_conf.get("password", "dp3"))
         address = connection_conf.get("address", "localhost")
         port = str(connection_conf.get("port", 27017))
         db_name = connection_conf.get("db_name", "dp3")
+
+        try:
+            self._db = pymongo.MongoClient(f"mongodb://{username}:{password}@{address}:{port}/")
+        except pymongo.errors.ConnectionFailure as e:
+            raise DatabaseError(f"Cannot connect to database with specified connection arguments.") from e
+
+        self._db_schema_config = attr_spec
+
+        # Init and switch to correct database
+        self._init_database_schema(db_name)
+        self._db = self._db[db_name]
+
+        self.log.info("Database successfully initialized!")
+
+    def _init_database_schema(self, db_name) -> None:
+        """Runs full check and update of database schema.
+
+        Checks whether `db_name` database exists. If not, creates it.
+        Checks whether all collections exist. If not, creates them.
+
+        This all is done automatically in MongoDB, so this function doesn't do
+        anything.
+        """
+        pass
+
+    @staticmethod
+    def _master_col_name(entity: str) -> str:
+        """Returns name of master collection for `entity`."""
+        return f"{entity}_master"
+
+    @staticmethod
+    def _snapshots_col_name(entity: str) -> str:
+        """Returns name of snapshots collection for `entity`."""
+        return f"{entity}_snapshots"
+
+    @staticmethod
+    def _raw_col_name(entity: str) -> str:
+        """Returns name of raw data collection for `entity`."""
+        return f"{entity}_raw"
+
+    def insert_datapoints(self, etype: str, ekey: str, dps: list[DataPoint]) -> None:
+        """Inserts datapoint to raw data collection and updates master collection."""
+        if len(dps) == 0:
+            return
+
+        # Insert raw datapoints
+        raw_col = self._raw_col_name(dp.etype)
+        self._db[raw_col].insert_many(dps)
+        self.log.debug("Inserted datapoints to raw collection:", dps)
+
+        # Update master document
+        master_changes = {"$push": {}}
+        for dp in dps:
+            # Rewrite value of plain attribute
+            if dp.attr_type == AttrType.PLAIN:
+                master_changes[dp.attr] = {"v": dp.v, "ts_last_update": dp.t1}
+
+            # Push new data of observation or timeseries
+            if dp.attr_type in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
+                master_changes["$push"][dp.attr] = {
+                    "t1": dp.t1,
+                    "t2": dp.t2,
+                    "v": dp.v,
+                    "c": dp.c
+                }
+
+        master_col = self._master_col_name(dp.etype)
+        self._db[master_col].update_one({_id: ekey}, master_changes, upsert=True)
+        self.log.debug(f"Updated master collection of {etype} {ekey}:", master_changes)
+
+    def take_snapshot(self):
+        """Takes snapshot of current master document."""
+        pass
+
+    def get_latest_snapshot(self):
+        """Get latest snapshot of given `eid`.
+
+        This method is useful for displaying data on web.
+        """
+        pass
+
+    def get_snapshots(self):
+        """Get all (or filtered) snapshots of given `eid`.
+
+        This method is useful for displaying `eid`'s history on web.
+        """
+        pass
+
+    def get_observation_history(self):
+        """Get all (or filtered) history of observation attribute.
+
+        This method is useful for displaying `eid`'s history on web.
+        """
+        pass
+
+    def get_timeseries_history(self):
+        """Get all (or filtered) history of observation attribute.
+
+        This method is useful for displaying `eid`'s history on web.
+        """
+        pass

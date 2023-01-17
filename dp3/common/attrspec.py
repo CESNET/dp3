@@ -80,8 +80,9 @@ class TimeseriesTSParams(BaseModel):
     """Timeseries parameters field of timeseries attribute"""
 
     max_age: Optional[timedelta] = None
+    time_step: Optional[timedelta] = None
 
-    @validator("max_age", pre=True)
+    @validator("max_age", "time_step", pre=True)
     def parse_time_duration(cls, v):
         if v:
             return parse_time_duration(v)

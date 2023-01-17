@@ -26,5 +26,5 @@ class Task(BaseModel):
     def validate_data_points(cls, v, values):
         if values["attr_spec"]:
             for dp in v:
-                dp.validate_against_attr_spec(values["attr_spec"])
+                dp.validate_against_attr_spec(etype, values["attr_spec"])
         return v

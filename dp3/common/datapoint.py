@@ -45,11 +45,12 @@ class DataPoint(BaseModel):
 
         super().__init__(attr_type=attr_type, **data)
 
-    def validate_against_attr_spec(self, attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]):
+    def validate_against_attr_spec(self, etype: str, attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]):
         """Validates self against provided attributes specification
 
         This method is called when creating Task.
         """
+        assert self.etype == etype, f"etype of task and contained datapoint don't match: {self.etype} != {etype}"
         assert self.etype in attr_spec, f"Invalid etype '{self.etype}'"
         assert self.attr in attr_spec[self.etype]["attribs"], \
             f"Invalid attribute '{self.attr}' of entity '{self.etype}'"

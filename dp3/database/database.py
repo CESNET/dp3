@@ -84,20 +84,29 @@ class EntityDatabase:
         if len(dps) == 0:
             return
 
+        etype = dps[0].etype
+
         # Insert raw datapoints
-        raw_col = self._raw_col_name(dp.etype)
-        self._db[raw_col].insert_many(dps)
-        self.log.debug("Inserted datapoints to raw collection:", dps)
+        raw_col = self._raw_col_name(etype)
+        dps_dicts = [dp.dict(exclude={"attr_type"}) for dp in dps]
+        try:
+            self._db[raw_col].insert_many(dps_dicts)
+            self.log.debug(f"Inserted datapoints to raw collection:\n{dps}")
+        except Exception as e:
+            self.log.error(f"Couldn't insert datapoints: {e}\n{dps}")
 
         # Update master document
-        master_changes = {"$push": {}}
+        master_changes = {"$push": {}, "$set": {}}
         for dp in dps:
             # Rewrite value of plain attribute
             if dp.attr_type == AttrType.PLAIN:
-                master_changes[dp.attr] = {"v": dp.v, "ts_last_update": dp.t1}
+                master_changes["$set"][dp.attr] = {
+                    "v": dp.v,
+                    "ts_last_update": dp.t1
+                }
 
-            # Push new data of observation or timeseries
-            if dp.attr_type in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
+            # Push new data of observation
+            if dp.attr_type == AttrType.OBSERVATIONS:
                 master_changes["$push"][dp.attr] = {
                     "t1": dp.t1,
                     "t2": dp.t2,
@@ -105,9 +114,20 @@ class EntityDatabase:
                     "c": dp.c
                 }
 
-        master_col = self._master_col_name(dp.etype)
-        self._db[master_col].update_one({_id: ekey}, master_changes, upsert=True)
-        self.log.debug(f"Updated master collection of {etype} {ekey}:", master_changes)
+            # Push new data of timeseries
+            if dp.attr_type == AttrType.TIMESERIES:
+                master_changes["$push"][dp.attr] = {
+                    "t1": dp.t1,
+                    "t2": dp.t2,
+                    "v": dp.v
+                }
+
+        master_col = self._master_col_name(etype)
+        try:
+            self._db[master_col].update_one({"_id": ekey}, master_changes, upsert=True)
+            self.log.debug(f"Updated master collection of {etype} {ekey}: {master_changes}")
+        except Exception as e:
+            self.log.error(f"Couldn't update master collection: {e}\n{dps}")
 
     def take_snapshot(self):
         """Takes snapshot of current master document."""

@@ -61,7 +61,7 @@ class DataPoint(BaseModel):
         assert self.attr_type == attrib_spec.t, \
             f"Invalid attribute type: DP has '{self.attr_type}', but attribute '{self.attr}' of entity '{self.etype}' has {attrib_spec.t}"
 
-        if self.attr_type == AttrType.OBSERVATIONS:
+        if self.attr_type == AttrType.TIMESERIES:
             # Check if all value arrays are the same length
             values_len = [ len(v_i) for _, v_i in self.v.items() ]
             assert len(set(values_len)) == 1, f"Datapoint arrays have different lengths: {values_len}"
@@ -69,9 +69,10 @@ class DataPoint(BaseModel):
             # Check t2
             if attrib_spec.timeseries_type == "regular":
                 time_step = attrib_spec.timeseries_params.time_step
-                assert t2 - t1 == values_len[0] * time_step, \
-                    f"Difference of t1 and t2 is invalid. Must be n*time_step."
+                assert time_step, "Time step of regular timeseries is not defined. Check your config."
+                assert self.t2 - self.t1 == values_len[0] * time_step, \
+                    f"Difference of t1 and t2 is invalid. Must be values_len*time_step."
 
             # Check all series are present
-            for series_id in attrib_conf.series:
-                assert series_id in v, f"Datapoint is missing values for '{series_id}' series"
+            for series_id in attrib_spec.series:
+                assert series_id in self.v, f"Datapoint is missing values for '{series_id}' series"

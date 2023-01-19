@@ -233,7 +233,7 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     # Convert value from string (JSON) to proper data type
     try:
-        val = convert_value(raw_val, spec.t, spec.data_type)
+        val = raw_val  # TODO: whole validation should be done inside DataPoint class and everything here should be rewritten
     except TypeError:
         response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
         log.info(response)
@@ -386,7 +386,7 @@ def push_multiple_datapoints():
 
         # Convert value from string (JSON) to proper data type
         try:
-            value = convert_value(raw_val, spec.t, spec.data_type)
+            value = raw_val  # TODO: whole validation should be done inside DataPoint class and everything here should be rewritten
         except TypeError:
             response = f'Error: type of "v" is invalid ("{raw_val}" is not {spec.data_type})'
             log.info(f"{response}\nRecord: {record}")

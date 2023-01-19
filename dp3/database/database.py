@@ -67,17 +67,17 @@ class EntityDatabase:
     @staticmethod
     def _master_col_name(entity: str) -> str:
         """Returns name of master collection for `entity`."""
-        return f"{entity}_master"
+        return f"{entity}#master"
 
     @staticmethod
     def _snapshots_col_name(entity: str) -> str:
         """Returns name of snapshots collection for `entity`."""
-        return f"{entity}_snapshots"
+        return f"{entity}#snapshots"
 
     @staticmethod
     def _raw_col_name(entity: str) -> str:
         """Returns name of raw data collection for `entity`."""
-        return f"{entity}_raw"
+        return f"{entity}#raw"
 
     def insert_datapoints(self, etype: str, ekey: str, dps: list[DataPoint]) -> None:
         """Inserts datapoint to raw data collection and updates master collection."""

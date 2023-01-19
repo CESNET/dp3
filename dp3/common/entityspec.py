@@ -11,11 +11,9 @@ class EntitySpec(BaseModel):
 
     id: str
     name: str
-    auto_create_record: Optional[bool] = False
 
     def __init__(self, id: str, spec: dict[str, Union[str, bool]]):
         super().__init__(
             id=id,
             name=spec.get("name"),
-            auto_create_record=spec.get("auto_create_record")
         )

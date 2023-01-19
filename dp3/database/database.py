@@ -129,6 +129,17 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Couldn't update master collection: {e}\n{dps}") from e
 
+    def _get_master_record(self, etype: str, ekey: str) -> dict:
+        """Get current master record for etype/ekey.
+
+        If doesn't exist, returns {}.
+        """
+        if etype not in self._db_schema_config:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
+        master_col = self._master_col_name(etype)
+        return self._db[master_col].find_one({"_id": ekey}) or {}
+
     def take_snapshot(self):
         """Takes snapshot of current master document."""
         pass

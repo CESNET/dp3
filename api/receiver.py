@@ -263,6 +263,9 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
 
     if spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
         t["data_points"] = [{
+            "attr_type": spec.t,
+            "etype": entity_type,
+            "eid": entity_id,
             "attr": attr_id,
             "v": val,
             "t1": t1,
@@ -271,10 +274,13 @@ def push_single_datapoint(entity_type, entity_id, attr_id):
             "src": src
         }]
     else:
-        t["attr_updates"] = [{
+        t["data_points"] = [{
+            "attr_type": spec.t,
+            "etype": entity_type,
+            "eid": entity_id,
             "attr": attr_id,
-            "op": "set",
-            "val": val
+            "v": val,
+            "src": src
         }]
 
     # Make valid task using the attr_spec template and push it to platform's task queue
@@ -395,9 +401,9 @@ def push_multiple_datapoints():
             return f"{response}\n", 400  # Bad request
 
         if spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
-            dps.append((etype, ekey, attr, value, t1, t2, c, src, spec))
+            dps.append((spec.t, etype, ekey, attr, value, t1, t2, c, src, spec))
         else:  # spec.t == "plain"
-            dps.append((etype, ekey, attr, value, None, None, c, src, spec))
+            dps.append((spec.t, etype, ekey, attr, value, None, None, c, src, spec))
 
 
     # Log all datapoints (regardless of their validity)
@@ -408,7 +414,7 @@ def push_multiple_datapoints():
 
     # Create a task for each (etype,ekey) in data-points
     tasks = {}
-    for etype, ekey, attr, value, t1, t2, c, src, spec in dps:
+    for attr_type, etype, ekey, attr, value, t1, t2, c, src, spec in dps:
         key = (etype, ekey)
         if key not in tasks:
             # create new "empty" task
@@ -424,6 +430,9 @@ def push_multiple_datapoints():
         # Add data-points or attr updates
         if spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
             tasks[key]["data_points"].append({
+                "attr_type": attr_type,
+                "etype": etype,
+                "eid": ekey,
                 "attr": attr,
                 "v": value,
                 "t1": t1,
@@ -432,10 +441,13 @@ def push_multiple_datapoints():
                 "src": src
             })
         else:
-            tasks[key]["attr_updates"].append({
+            tasks[key]["data_points"].append({
+                "attr_type": attr_type,
+                "etype": etype,
+                "eid": ekey,
                 "attr": attr,
-                "op": "set",
-                "val": value
+                "v": value,
+                "src": src
             })
 
     task_list = []
@@ -445,7 +457,7 @@ def push_multiple_datapoints():
         try:
             task_list.append(Task(attr_spec=attr_spec, **tasks[k]))
         except Exception as e:
-            # traceback.print_exc()
+            traceback.print_exc()
             response = f"\nFailed to create a task: {type(e)}: {str(e)}"
             log.info(response)
             return f"{response}\n", 400  # Bad request

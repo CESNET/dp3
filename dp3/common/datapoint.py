@@ -81,13 +81,13 @@ class DataPoint(BaseModel):
         if self.attr_type in AttrType.PLAIN | AttrType.OBSERVATIONS:
             data_type_obj = attrib_spec.data_type
             assert data_type_obj.value_validator(self.v), \
-                f"Datapoint for {self.etype} '{self.eid}', attr '{self.attr}' contains invalid value '{self.v}' (must be data type {data_type_obj.data_type})"
+                f"Datapoint for '{self.attr}' of {self.etype}/{self.eid} contains invalid value '{self.v}' (must be data type {data_type_obj.data_type})"
 
         elif self.attr_type == AttrType.TIMESERIES:
             for series in self.v:
                 data_type_obj = attrib_spec.series[series].data_type
                 assert type(self.v[series]) is list, \
-                    f"Series '{series}' in datapoint for {self.etype} '{self.eid}', attr '{self.attr}' must be list."
+                    f"Series '{series}' in datapoint for {self.etype}/{self.eid}, attr '{self.attr}' must be list."
                 for v in self.v[series]:
                     assert data_type_obj.value_validator(v), \
-                        f"Datapoint for {self.etype} '{self.eid}', attr '{self.attr}' contains invalid value '{v}' in series {series} (must be data type {data_type_obj.data_type})"
+                        f"Datapoint for '{self.attr}' of {self.etype}/{self.eid} contains invalid value '{v}' in series {series} (must be data type {data_type_obj.data_type})"

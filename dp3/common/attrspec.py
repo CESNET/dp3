@@ -91,7 +91,13 @@ class TimeseriesTSParams(BaseModel):
 class TimeseriesSeries(BaseModel):
     """Series of timeseries attribute"""
 
-    data_type: Literal["int", "int64", "float", "time"]
+    data_type: DataTypeContainer
+
+    @validator("data_type")
+    def check_series_data_type(cls, v):
+        assert v.data_type in ["int", "int64", "float", "time"], \
+            f"Data type of series must be one of int, int64, float, time; not {v.data_type}"
+        return v
 
 
 class AttrSpecGeneric(BaseModel):

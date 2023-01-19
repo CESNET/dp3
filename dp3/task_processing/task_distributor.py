@@ -73,16 +73,6 @@ class TaskDistributor:
             raise TypeError('Argument "changes" must be iterable and must not be str.')
         self.task_executor.register_handler(func, etype, triggers, changes)
 
-    def request_update(self, task: Task):
-        """
-        Request an update of one or more attributes of an entity record.
-
-        Put given requests into the main task queue to be processed by some of the workers.
-        Requests may request changes of some attribute or they may issue events.
-        """
-        # Put task to priority queue, so this can never block due to full queue
-        self._task_queue_writer.put_task(task, True)
-
     def start(self) -> None:
         """Run the worker threads and start consuming from TaskQueue."""
         self.log.info("Connecting to RabbitMQ")

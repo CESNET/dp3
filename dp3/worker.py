@@ -125,8 +125,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
     #g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
-    #te = TaskExecutor(g.db, attr_spec)
-    #g.td = TaskDistributor(config, process_index, num_processes, te)
+    te = TaskExecutor(g.db, attr_spec)
+    g.td = TaskDistributor(config, process_index, num_processes, te)
 
     ##############################################
     # Load all plug-in modules
@@ -168,7 +168,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         module.start()
 
     # start TaskDistributor (which starts TaskExecutors in several worker threads)
-    #g.td.start()
+    g.td.start()
 
     # Run scheduler
     g.scheduler.start()
@@ -194,7 +194,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     log.info("Stopping running components ...")
     g.running = False
     g.scheduler.stop()
-    #g.td.stop()
+    g.td.stop()
     for module in module_list:
         module.stop()
 

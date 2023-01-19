@@ -80,11 +80,17 @@ class EntityDatabase:
         return f"{entity}#raw"
 
     def insert_datapoints(self, etype: str, ekey: str, dps: list[DataPoint]) -> None:
-        """Inserts datapoint to raw data collection and updates master collection."""
+        """Inserts datapoint to raw data collection and updates master record.
+
+        Raises DatabaseError when insert or update fails.
+        """
         if len(dps) == 0:
             return
 
         etype = dps[0].etype
+
+        if etype not in self._db_schema_config:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
 
         # Insert raw datapoints
         raw_col = self._raw_col_name(etype)
@@ -93,7 +99,7 @@ class EntityDatabase:
             self._db[raw_col].insert_many(dps_dicts)
             self.log.debug(f"Inserted datapoints to raw collection:\n{dps}")
         except Exception as e:
-            raise DatabaseError(f"Couldn't insert datapoints: {e}\n{dps}") from e
+            raise DatabaseError(f"Insert of datapoints failed: {e}\n{dps}") from e
 
         # Update master document
         master_changes = {"$push": {}, "$set": {}}
@@ -125,9 +131,9 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         try:
             self._db[master_col].update_one({"_id": ekey}, master_changes, upsert=True)
-            self.log.debug(f"Updated master collection of {etype} {ekey}: {master_changes}")
+            self.log.debug(f"Updated master record of {etype} {ekey}: {master_changes}")
         except Exception as e:
-            raise DatabaseError(f"Couldn't update master collection: {e}\n{dps}") from e
+            raise DatabaseError(f"Update of master record failed: {e}\n{dps}") from e
 
     def _get_master_record(self, etype: str, ekey: str) -> dict:
         """Get current master record for etype/ekey.
@@ -145,29 +151,29 @@ class EntityDatabase:
         pass
 
     def get_latest_snapshot(self):
-        """Get latest snapshot of given `eid`.
+        """Get latest snapshot of given `ekey`.
 
         This method is useful for displaying data on web.
         """
         pass
 
     def get_snapshots(self):
-        """Get all (or filtered) snapshots of given `eid`.
+        """Get all (or filtered) snapshots of given `ekey`.
 
-        This method is useful for displaying `eid`'s history on web.
+        This method is useful for displaying `ekey`'s history on web.
         """
         pass
 
     def get_observation_history(self):
         """Get all (or filtered) history of observation attribute.
 
-        This method is useful for displaying `eid`'s history on web.
+        This method is useful for displaying `ekey`'s history on web.
         """
         pass
 
     def get_timeseries_history(self):
         """Get all (or filtered) history of observation attribute.
 
-        This method is useful for displaying `eid`'s history on web.
+        This method is useful for displaying `ekey`'s history on web.
         """
         pass

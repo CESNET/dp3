@@ -120,11 +120,18 @@ class TaskExecutor:
             return False
 
         # *** Now we have the record, process the requested updates ***
-        self.db.insert_datapoints(task.etype, task.ekey, task.data_points)
-        self.log.debug(f"Task {task.etype}/{task.ekey}: All changes written to DB, processing finished.")
+        created = False
+        try:
+            self.db.insert_datapoints(task.etype, task.ekey, task.data_points)
+            self.log.debug(f"Task {task.etype}/{task.ekey}: All changes written to DB, processing finished.")
+            created = True
+        except DatabaseError as e:
+            self.log.error(f"Task {task.etype}/{task.ekey}: DB error: {e}")
 
         # Log the processed task
         self.elog.log('task_processed')
         self.elog_by_src.log(task.src) # empty src is ok, empty string is a valid event id
         for tag in task.tags:
             self.elog_by_src.log(tag)
+
+        return created

@@ -93,7 +93,7 @@ class EntityDatabase:
             self._db[raw_col].insert_many(dps_dicts)
             self.log.debug(f"Inserted datapoints to raw collection:\n{dps}")
         except Exception as e:
-            self.log.error(f"Couldn't insert datapoints: {e}\n{dps}")
+            raise DatabaseError(f"Couldn't insert datapoints: {e}\n{dps}") from e
 
         # Update master document
         master_changes = {"$push": {}, "$set": {}}
@@ -127,7 +127,7 @@ class EntityDatabase:
             self._db[master_col].update_one({"_id": ekey}, master_changes, upsert=True)
             self.log.debug(f"Updated master collection of {etype} {ekey}: {master_changes}")
         except Exception as e:
-            self.log.error(f"Couldn't update master collection: {e}\n{dps}")
+            raise DatabaseError(f"Couldn't update master collection: {e}\n{dps}") from e
 
     def take_snapshot(self):
         """Takes snapshot of current master document."""

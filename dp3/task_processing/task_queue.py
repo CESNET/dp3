@@ -417,7 +417,7 @@ class TaskQueueReader(RobustAMQPConnection):
 
             # Parse and check validity of received message
             try:
-                task = Task(json.loads(body))
+                task = Task(**json.loads(body))
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error(f"Erroneous message received from main task queue. Error: {str(e)}, Message: '{body}'")
@@ -425,7 +425,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 continue
 
             # Pass message to user's callback function
-            self.callback(task)
+            self.callback(tag, task)
 
     def _stop_consuming_thread(self) -> None:
         if self._consuming_thread:

@@ -135,6 +135,23 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Update of master record failed: {e}\n{dps}") from e
 
+    def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> None:
+        """Delete old datapoints from master collection.
+
+        Periodically called for all `etype`s from HistoryManager.
+        """
+        master_col = self._master_col_name(etype)
+        try:
+            self._db[master_col].update_many({}, {
+                "$pull": {
+                    attr_name: {
+                        "t2": {"$lt": t_old}
+                    }
+                }
+            })
+        except Exception as e:
+            raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
+
     def _get_master_record(self, etype: str, ekey: str) -> dict:
         """Get current master record for etype/ekey.
 

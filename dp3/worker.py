@@ -23,7 +23,7 @@ from .common import scheduler
 from .database.database import EntityDatabase
 from .task_processing.task_executor import TaskExecutor
 from .task_processing.task_distributor import TaskDistributor
-#from .history_management.history_manager import HistoryManager
+from .history_management.history_manager import HistoryManager
 from . import g
 
 
@@ -124,7 +124,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.running = False
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
-    #g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
+    g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
     te = TaskExecutor(g.db, attr_spec)
     g.td = TaskDistributor(config, process_index, num_processes, te)
 

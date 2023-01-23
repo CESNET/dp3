@@ -5,7 +5,7 @@ import urllib
 
 import pymongo
 
-from dp3.common.attrspec import AttrSpecGeneric, AttrType
+from dp3.common.attrspec import AttrSpecGeneric, AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict
 from dp3.common.datapoint import DataPoint
 from dp3.common.entityspec import EntitySpec
@@ -164,16 +164,131 @@ class EntityDatabase:
         """
         pass
 
-    def get_observation_history(self):
-        """Get all (or filtered) history of observation attribute.
+    def get_observation_history(self, etype: str, attr_name: str, ekey: str,
+                                t1: datetime = datetime.fromtimestamp(0),
+                                t2: datetime = datetime.now(), sort: int = None) -> list[dict]:
+        """Get full (or filtered) history of observation attribute.
 
         This method is useful for displaying `ekey`'s history on web.
-        """
-        pass
+        Also used to feed data into `get_timeseries_history()`.
 
-    def get_timeseries_history(self):
-        """Get all (or filtered) history of observation attribute.
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param ekey: id of entity, to which data-points correspond
+        :param t1: left value of time interval (inclusive)
+        :param t2: right value of time interval (inclusive)
+        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2, None: don't sort
+        :return: list of dicts (reduced datapoints)
+        """
+        # Get attribute history
+        mr = self._get_master_record(etype, ekey)
+        attr_history = mr.get(attr_name, [])
+
+        # Filter
+        attr_history_filtered = [row for row in attr_history if row["t1"] <= t2 and row["t2"] >= t1]
+
+        # Sort
+        if sort == 1:
+            attr_history_filtered.sort(key=lambda row: row["t1"])
+        elif sort == 2:
+            attr_history_filtered.sort(key=lambda row: row["t2"], reverse=True)
+
+        return attr_history_filtered
+
+    def get_timeseries_history(self, etype: str, attr_name: str, ekey: str,
+                               t1: datetime = datetime.fromtimestamp(0),
+                               t2: datetime = datetime.now(), sort: int = None) -> list[dict]:
+        """Get full (or filtered) history of timeseries attribute.
+        Outputs them in format:
+            [
+                {
+                    "t1": ...,
+                    "t2": ...,
+                    "v": {
+                        "series1": ...,
+                        "series2": ...
+                    }
+                },
+                ...
+            ]
 
         This method is useful for displaying `ekey`'s history on web.
+
+        :param etype: entity type
+        :param attr_name: name of attribute
+        :param ekey: id of entity, to which data-points correspond
+        :param t1: left value of time interval (inclusive)
+        :param t2: right value of time interval (inclusive)
+        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2, None: don't sort
+        :return: list of dicts (reduced datapoints) - each represents just one point at time
         """
-        pass
+        attr_history = self.get_observation_history(etype, attr_name, ekey, t1, t2, sort)
+        if not attr_history:
+            return []
+
+        attr_history_split = self._split_timeseries_dps(etype, attr_name, attr_history)
+
+        # Filter out rows outside [t1, t2] interval
+        attr_history_filtered = [row for row in attr_history_split if row["t1"] <= t2 and row["t2"] >= t1]
+
+        return attr_history_filtered
+
+    def _split_timeseries_dps(self, etype: str, attr_name: str, attr_history: list[dict]) -> list[dict]:
+        """Helper to split "datapoints" (rows) of timeseries to "datapoints" containing just one value per series."""
+        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+        timeseries_type = attrib_conf.timeseries_type
+
+        result = []
+
+        # Should be ["time"] or ["time_first", "time_last"] for irregular
+        # timeseries and [] for regular timeseries
+        time_series = list(timeseries_types[timeseries_type]["default_series"].keys())
+
+        # User-defined series
+        user_series = list(set(attrib_conf.series.keys()) - set(time_series))
+
+        if not user_series:
+            return []
+
+        if timeseries_type == "regular":
+            time_step = attrib_conf.timeseries_params.time_step
+
+            for row in attr_history:
+                # Length of all series arrays/lists in this row
+                values_len = len(row["v"][user_series[0]])
+
+                for i in range(values_len):
+                    row_t1 = row["t1"] + i*time_step
+                    row_t2 = row_t1 + time_step
+
+                    row_new = {
+                        "t1": row_t1,
+                        "t2": row_t2,
+                        "v": {}
+                    }
+
+                    for s in user_series:
+                        row_new["v"][s] = row["v"][s][i]
+
+                    result.append(row_new)
+        else:
+            for row in attr_history:
+                # Length of all series arrays/lists in this row
+                values_len = len(row["v"][user_series[0]])
+
+                for i in range(values_len):
+                    row_t1 = row["v"].get(time_series[0])[i] if len(time_series) >= 1 else None
+                    row_t2 = row["v"].get(time_series[1])[i] if len(time_series) >= 2 else row_t1
+
+                    row_new = {
+                        "t1": row_t1,
+                        "t2": row_t2,
+                        "v": {}
+                    }
+
+                    for s in user_series:
+                        row_new["v"][s] = row["v"][s][i]
+
+                    result.append(row_new)
+
+        return result

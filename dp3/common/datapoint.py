@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional, Union
 
-from pydantic import BaseModel, confloat
+from pydantic import BaseModel, confloat, root_validator, validator
 
 from dp3.common.attrspec import AttrSpecGeneric, AttrType
 from dp3.common.entityspec import EntitySpec
@@ -19,75 +19,119 @@ class DataPoint(BaseModel):
     Internal usage: inside Task, created by TaskExecutor
     """
 
-    attr_type: AttrType
+    # Attribute spec just for internal validation. Discarded after that.
+    attr_spec: Optional[dict[str, dict[str, Union[EntitySpec, dict[str, Any]]]]] = None
+
     etype: str
     eid: str
     attr: str
     v: Any
     src: Optional[str] = None
-    t1: datetime
-    t2: datetime
-    c: Optional[confloat(ge=0.0, le=1.0)] = 1.0
+    t1: Optional[datetime] = None
+    t2: Optional[datetime] = None
+    c: confloat(ge=0.0, le=1.0) = 1.0
 
-    def __init__(self, attr_type: AttrType, **data):
-        # Plain attributes don't have any t1 and t2.
-        # Let be t1 and t2 current timestamps, as the change was made now.
-        if attr_type == AttrType.PLAIN:
-            default_values = {
-                "t1": datetime.now(),
-                "t2": datetime.now()
-            }
-        else:
-            default_values = {}
+    @validator("etype")
+    def validate_etype(cls, v, values):
+        if values["attr_spec"]:
+            assert v in values["attr_spec"], f"Invalid etype '{self.etype}'"
+        return v
 
-        # Merge data with default values
-        data = default_values | data
+    @validator("attr")
+    def validate_attr(cls, v, values):
+        if values["attr_spec"] and "etype" in values:
+            assert v in values["attr_spec"][values["etype"]]["attribs"], \
+                f"Invalid attribute '{self.attr}'"
+        return v
 
-        super().__init__(attr_type=attr_type, **data)
+    @validator("v")
+    def validate_value(cls, v, values):
+        if values["attr_spec"] and "etype" in values and "attr" in values:
+            attrib_conf = values["attr_spec"][values["etype"]]["attribs"][values["attr"]]
 
-    def validate_against_attr_spec(self, etype: str, attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpecGeneric]]]]):
-        """Validates self against provided attributes specification
+            # Check value using data type's value_validator()
+            if attrib_conf.t in AttrType.PLAIN | AttrType.OBSERVATIONS:
+                data_type_obj = attrib_conf.data_type
+                assert data_type_obj.value_validator(v), \
+                    f"Invalid value '{v}' (must be data type {data_type_obj.data_type})"
 
-        This method is called when creating Task.
-        """
-        assert self.etype == etype, \
-            f"etype of task and contained datapoint don't match: {self.etype} != {etype}"
-        assert self.etype in attr_spec, f"Invalid etype '{self.etype}'"
-        assert self.attr in attr_spec[self.etype]["attribs"], \
-            f"Invalid attribute '{self.attr}' of entity '{self.etype}'"
+            elif attrib_conf.t == AttrType.TIMESERIES:
+                assert type(v) is dict, f"Invalid value '{v}' (must be dictionary of lists)"
 
-        attrib_spec = attr_spec[self.etype]["attribs"][self.attr]
+                for series in v:
+                    assert series in attrib_conf.series, f"Series '{series}' doesn't exist"
 
-        assert self.attr_type == attrib_spec.t, \
-            f"Invalid attribute type: DP has '{self.attr_type}', but attribute '{self.attr}' of entity '{self.etype}' has {attrib_spec.t}"
+                    data_type_obj = attrib_conf.series[series].data_type
 
-        if self.attr_type == AttrType.TIMESERIES:
-            # Check if all value arrays are the same length
-            values_len = [ len(v_i) for _, v_i in self.v.items() ]
-            assert len(set(values_len)) == 1, f"Datapoint arrays have different lengths: {values_len}"
+                    assert type(v[series]) is list, f"Series '{series}' must be list"
+                    for v_i in v[series]:
+                        assert data_type_obj.value_validator(v_i), \
+                            f"Invalid value '{v_i}' in series {series} (must be data type {data_type_obj.data_type})"
 
-            # Check t2
-            if attrib_spec.timeseries_type == "regular":
-                time_step = attrib_spec.timeseries_params.time_step
-                assert time_step, "Time step of regular timeseries is not defined. Check your config."
-                assert self.t2 - self.t1 == values_len[0] * time_step, \
-                    f"Difference of t1 and t2 is invalid. Must be values_len*time_step."
+                # Check all series are present
+                for series in attrib_conf.series:
+                    assert series in v, f"Series '{series}' is missing in datapoint"
 
-            # Check all series are present
-            for series_id in attrib_spec.series:
-                assert series_id in self.v, f"Datapoint is missing values for '{series_id}' series"
+                # Check if all value arrays are the same length
+                values_len = [ len(v_i) for _, v_i in v.items() ]
+                assert len(set(values_len)) == 1, f"Series values have different lengths: {values_len}"
 
-        # Validate value
-        if self.attr_type in AttrType.PLAIN | AttrType.OBSERVATIONS:
-            data_type_obj = attrib_spec.data_type
-            assert data_type_obj.value_validator(self.v), \
-                f"Datapoint for '{self.attr}' of {self.etype}/{self.eid} contains invalid value '{self.v}' (must be data type {data_type_obj.data_type})"
+        return v
 
-        elif self.attr_type == AttrType.TIMESERIES:
-            for series in self.v:
-                data_type_obj = attrib_spec.series[series].data_type
-                assert type(self.v[series]) is list, \
-                    f"Series '{series}' in datapoint for {self.etype}/{self.eid}, attr '{self.attr}' must be list."
-                for v in self.v[series]:
-                    assert data_type_obj.value_validator(v), \
-                        f"Datapoint for '{self.attr}' of {self.etype}/{self.eid} contains invalid value '{v}' in series {series} (must be data type {data_type_obj.data_type})"
+    @validator("t1", pre=True, always=True)
+    def set_t1_plain(cls, v, values):
+        if values["attr_spec"] and "etype" in values and "attr" in values:
+            attrib_conf = values["attr_spec"][values["etype"]]["attribs"][values["attr"]]
+            if attrib_conf.t == AttrType.PLAIN:
+                return datetime.now()
+        return v
+
+    @validator("t1", always=True)
+    def validate_t1(cls, v, values):
+        if values["attr_spec"] and "etype" in values and "attr" in values:
+            assert type(v) is datetime, "Field 't1' is missing"
+        return v
+
+    @validator("t2", pre=True, always=True)
+    def set_t2_plain(cls, v, values):
+        if values["attr_spec"] and "etype" in values and "attr" in values:
+            attrib_conf = values["attr_spec"][values["etype"]]["attribs"][values["attr"]]
+            if attrib_conf.t == AttrType.PLAIN:
+                return values["t1"]
+        return v
+
+    @validator("t2", always=True)
+    def validate_t2(cls, v, values):
+        if values["attr_spec"] and "etype" in values and "attr" in values:
+            assert type(v) is datetime, "Field 't2' is missing"
+            assert values["t1"] <= v, "'t2' is before 't1'"
+
+            attrib_conf = values["attr_spec"][values["etype"]]["attribs"][values["attr"]]
+            if attrib_conf.t == AttrType.TIMESERIES and "v" in values:  # `v` won't be in values in case it's check failed
+                if attrib_conf.timeseries_type == "regular":
+                    time_step = attrib_conf.timeseries_params.time_step
+                    assert time_step, "Time step of regular timeseries is not defined. Check your config."
+
+                    # Get length of first value series included in datapoint
+                    first_series = list(attrib_conf.series.keys())[0]
+                    series_len = len(values["v"][first_series])
+
+                    assert v == values["t1"] + series_len*time_step, \
+                        "Difference of t1 and t2 is invalid. Must be values_len*time_step."
+
+                elif attrib_conf.timeseries_type == "irregular":
+                    last_time = values["v"]["time"][-1]
+                    assert v >= last_time, f"'t2' is below last item in 'time' series ({last_time})"
+
+                elif attrib_conf.timeseries_type == "irregular_intervals":
+                    last_time = values["v"]["time_last"][-1]
+                    assert v >= last_time, f"'t2' is below last item in 'time_last' series ({last_time})"
+
+        return v
+
+    @root_validator
+    def discard_attr_spec(cls, values):
+        # This is run at the end of validation.
+        # Discard attribute specification.
+        del values["attr_spec"]
+        return values

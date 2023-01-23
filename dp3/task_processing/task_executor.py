@@ -57,16 +57,10 @@ class TaskExecutor:
         # EventCountLogger - count number of events across multiple processes using shared counters in Redis
         ecl = EventCountLogger(g.config.get("event_logging.groups"), g.config.get("event_logging.redis"))
         self.elog = ecl.get_group("te") or DummyEventGroup()
-        self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
-        self.elog_by_tag = ecl.get_group("tasks_by_tag") or DummyEventGroup()
         # Print warning if some event group is not configured
         not_configured_groups = []
         if isinstance(self.elog, DummyEventGroup):
             not_configured_groups.append("te")
-        if isinstance(self.elog_by_src, DummyEventGroup):
-            not_configured_groups.append("tasks_by_src")
-        if isinstance(self.elog_by_tag, DummyEventGroup):
-            not_configured_groups.append("tasks_by_tag")
         if not_configured_groups:
             self.log.warning(f"EventCountLogger: No configuration for event group(s) '{','.join(not_configured_groups)}' found, such events will not be logged (check event_logging.yml)")
 
@@ -130,8 +124,5 @@ class TaskExecutor:
 
         # Log the processed task
         self.elog.log('task_processed')
-        self.elog_by_src.log(task.src) # empty src is ok, empty string is a valid event id
-        for tag in task.tags:
-            self.elog_by_src.log(tag)
 
         return created

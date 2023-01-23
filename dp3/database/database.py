@@ -104,15 +104,16 @@ class EntityDatabase:
         # Update master document
         master_changes = {"$push": {}, "$set": {}}
         for dp in dps:
+            attr_spec = self._db_schema_config[etype]["attribs"][dp.attr]
             # Rewrite value of plain attribute
-            if dp.attr_type == AttrType.PLAIN:
+            if attr_spec.t == AttrType.PLAIN:
                 master_changes["$set"][dp.attr] = {
                     "v": dp.v,
                     "ts_last_update": dp.t1
                 }
 
             # Push new data of observation
-            if dp.attr_type == AttrType.OBSERVATIONS:
+            if attr_spec.t == AttrType.OBSERVATIONS:
                 master_changes["$push"][dp.attr] = {
                     "t1": dp.t1,
                     "t2": dp.t2,
@@ -121,7 +122,7 @@ class EntityDatabase:
                 }
 
             # Push new data of timeseries
-            if dp.attr_type == AttrType.TIMESERIES:
+            if attr_spec.t == AttrType.TIMESERIES:
                 master_changes["$push"][dp.attr] = {
                     "t1": dp.t1,
                     "t2": dp.t2,

@@ -10,7 +10,7 @@ from event_count_logger import EventCountLogger, DummyEventGroup
 from dp3.common.attrspec import AttrSpec
 from dp3.common.entityspec import EntitySpec
 from dp3.common.task import Task
-from dp3.database.database import EntityDatabase
+from dp3.database.database import DatabaseError, EntityDatabase
 from .. import g
 from ..common.utils import get_func_name, parse_rfc_time
 

@@ -6,7 +6,7 @@ from dp3 import g
 from dp3.common.attrspec import AttrSpec, AttrType
 from dp3.common.config import HierarchicalDict
 from dp3.common.entityspec import EntitySpec
-from dp3.database.database import EntityDatabase
+from dp3.database.database import DatabaseError, EntityDatabase
 
 
 class HistoryManager:

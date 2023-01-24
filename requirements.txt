@@ -18,3 +18,4 @@ python-dateutil
 event_count_logger
 numpy
 pydantic~=1.10
+pymongo~=4.3.3

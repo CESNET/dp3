@@ -33,6 +33,8 @@ setuptools.setup(
         "urllib3>=1.25.9,<1.27.0",
         "python-dateutil",
         "event_count_logger",
+        "pydantic~=1.10",
+        "pymongo~=4.3.3",
     ],
     # TODO include other files as well
     classifiers=[

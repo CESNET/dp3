@@ -1,6 +1,6 @@
 connection:
   username: "test"
   password: "test"
-  address: "postgres"
-  port: 5432
+  address: "mongo"
+  port: 27017
   db_name: "test"

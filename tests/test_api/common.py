@@ -56,7 +56,7 @@ def retry_request_on_error(request):
             return request()
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as err:
             logging.warning("Connection failed, retrying (attempt %d)", attempt + 1)
-            time.sleep(5)
+            time.sleep(2)
             if attempt + 1 == MAX_RETRY_ATTEMPTS:
                 raise err
 

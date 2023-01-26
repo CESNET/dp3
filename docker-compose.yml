@@ -12,16 +12,13 @@ services:
       DP3_APP_NAME: test
       DP3_WORKER_NUM: 1
 
-  postgres:
-    container_name: "postgres"
-    image: "dp3_postgres"
-    build: "docker/postgres"
+  mongo:
+    image: mongo:latest
     ports:
-      - "5432:5432"
+      - "27017:27017"
     environment:
-      POSTGRES_PASSWORD: test
-      POSTGRES_USER: test
-      POSTGRES_DB: test
+      MONGO_INITDB_ROOT_USERNAME: test
+      MONGO_INITDB_ROOT_PASSWORD: test
 
   redis:
     container_name: "redis"
@@ -53,4 +50,5 @@ services:
     command: [ "bin/worker", "test", "./tests/test_config", "0", "-v" ]
     depends_on:
       - rabbitmq
-      - postgres
+      - mongo
+      - redis

@@ -5,58 +5,74 @@ entity:
   auto_create_record: true
 attribs:
   test_attr_tag:
+    name: test_attr_tag
     type: plain
     data_type: tag
   test_attr_binary:
+    name: test_attr_binary
     type: plain
     data_type: binary
   test_attr_int:
+    name: test_attr_int
     type: plain
     data_type: int
   test_attr_int64:
+    name: test_attr_int64
     type: plain
     data_type: int64
   test_attr_string:
+    name: test_attr_string
     type: plain
     data_type: string
   test_attr_float:
+    name: test_attr_float
     type: plain
     data_type: float
   test_attr_ipv4:
+    name: test_attr_ipv4
     type: plain
     data_type: ipv4
   test_attr_ipv6:
+    name: test_attr_ipv6
     type: plain
     data_type: ipv6
   test_attr_mac:
+    name: test_attr_mac
     type: plain
     data_type: mac
   test_attr_time:
+    name: test_attr_time
     type: plain
     data_type: time
   test_attr_json:
+    name: test_attr_json
     type: plain
     data_type: json
   test_attr_category:
+    name: test_attr_category
     type: plain
     data_type: category
     categories: [ "cat1" ]
   test_attr_array:
+    name: test_attr_array
     type: plain
     data_type: array<int>
   test_attr_set:
+    name: test_attr_set
     type: plain
     data_type: set<int>
   test_attr_dict:
+    name: test_attr_dict
     type: plain
     data_type: dict<key1:int,key2:string>
   test_attr_history:
+    name: test_attr_history
     type: observations
     data_type: int
     history_params:
       max_age: 7d
   test_attr_probability:
+    name: test_attr_probability
     type: plain
     data_type: string
     probability: true
-

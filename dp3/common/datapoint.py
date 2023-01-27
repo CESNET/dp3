@@ -52,7 +52,7 @@ class DataPoint(BaseModel):
             # Check value using data type's value_validator()
             if attrib_conf.t in AttrType.PLAIN | AttrType.OBSERVATIONS:
                 data_type_obj = attrib_conf.data_type
-                assert data_type_obj.value_validator(v), \
+                assert data_type_obj.value_validator(v, attrib_conf), \
                     f"Invalid value '{v}' (must be data type {data_type_obj.data_type})"
 
             elif attrib_conf.t == AttrType.TIMESERIES:
@@ -65,7 +65,7 @@ class DataPoint(BaseModel):
 
                     assert type(v[series]) is list, f"Series '{series}' must be list"
                     for v_i in v[series]:
-                        assert data_type_obj.value_validator(v_i), \
+                        assert data_type_obj.value_validator(v_i, attrib_conf), \
                             f"Invalid value '{v_i}' in series {series} (must be data type {data_type_obj.data_type})"
 
                 # Check all series are present

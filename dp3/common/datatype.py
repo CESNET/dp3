@@ -34,7 +34,7 @@ re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
 
 
 # Validate ipv4 string
-def valid_ipv4(address):
+def valid_ipv4(address, attr_spec):
     try:
         ipaddress.IPv4Address(address)
         return True
@@ -43,7 +43,7 @@ def valid_ipv4(address):
 
 
 # Validate ipv6 string
-def valid_ipv6(address):
+def valid_ipv6(address, attr_spec):
     try:
         ipaddress.IPv6Address(address)
         return True
@@ -52,56 +52,56 @@ def valid_ipv6(address):
 
 
 # Validate timestamp string
-def valid_rfc3339(timestamp):
+def valid_rfc3339(timestamp, attr_spec):
     return re_timestamp.match(timestamp)
 
 
 # Validate MAC string
-def valid_mac(address):
+def valid_mac(address, attr_spec):
     return re_mac.match(address)
 
 
 # Dictionary containing validator functions for primitive data types
 validators = {
-    "tag": lambda v: type(v) is bool,
-    "binary": lambda v: type(v) is bool,
-    "string": lambda v: type(v) is str,
-    "int": lambda v: type(v) is int,
-    "int64": lambda v: type(v) is int,
-    "float": lambda v: type(v) is float,
+    "tag": lambda v, attr_spec: type(v) is bool,
+    "binary": lambda v, attr_spec: type(v) is bool,
+    "string": lambda v, attr_spec: type(v) is str,
+    "int": lambda v, attr_spec: type(v) is int,
+    "int64": lambda v, attr_spec: type(v) is int,
+    "float": lambda v, attr_spec: type(v) is float,
     "ipv4": valid_ipv4,
     "ipv6": valid_ipv6,
     "mac": valid_mac,
     "time": valid_rfc3339,
-    "special": lambda v: v is not None,
-    "json": lambda v: v is not None  # TODO validate json format?
+    "special": lambda v, attr_spec: v is not None,
+    "json": lambda v, attr_spec: v is not None  # TODO validate json format?
 }
 
 
 # Validate array object
-def valid_array(obj, data_type):
+def valid_array(obj, data_type, attr_spec):
     if type(obj) is not list:
         return False
     f = validators[data_type]
     for item in obj:
-        if not f(item):
+        if not f(item, attr_spec):
             return False
     return True
 
 
 # Validate set object
-def valid_set(obj, data_type):
+def valid_set(obj, data_type, attr_spec):
     if type(obj) is not list:
         return False
     f = validators[data_type]
     for item in obj:
-        if not f(item) or obj.count(item) > 1:
+        if not f(item, attr_spec) or obj.count(item) > 1:
             return False
     return True
 
 
 # Validate dict object
-def valid_dict(obj, key_spec):
+def valid_dict(obj, key_spec, attr_spec):
     if type(obj) is not dict:
         return False
     for key in key_spec:
@@ -111,7 +111,7 @@ def valid_dict(obj, key_spec):
             else:
                 return False
         f = validators[key_spec[key]]
-        if not f(obj[key]):
+        if not f(obj[key], attr_spec):
             return False
     return True
 
@@ -144,7 +144,7 @@ class DataTypeContainer:
     - `value_validator` function for incoming value validation
     """
 
-    def __init__(self, data_type: str, value_validator: Callable[[Any], bool]):
+    def __init__(self, data_type: str, value_validator: Callable[[Any, Any], bool]):
         self.data_type = data_type
         self.value_validator = value_validator
 
@@ -167,24 +167,24 @@ class DataTypeContainer:
             value_validator = validators[data_type]
 
         elif data_type == "category":
-            value_validator = lambda v: v in self.categories
+            value_validator = lambda v, attr_spec: v in attr_spec.categories
 
         elif re.match(re_array, data_type):
             element_type = data_type.split("<")[1].split(">")[0]
             if element_type not in primitive_data_types:
                 raise TypeError(f"Data type {element_type} is not supported as an array element")
-            value_validator = lambda v: valid_array(v, element_type)
+            value_validator = lambda v, attr_spec: valid_array(v, element_type, attr_spec)
 
         elif re.match(re_set, data_type):
             element_type = data_type.split("<")[1].split(">")[0]
             if element_type not in primitive_data_types:
                 raise TypeError(f"Data type {element_type} is not supported as an set element")
-            value_validator = lambda v: valid_set(v, element_type)
+            value_validator = lambda v, attr_spec: valid_set(v, element_type, attr_spec)
 
         elif re.match(re_link, data_type):
             # TODO
             # Should the entity type be validated here? I.e. does the specification for given entity type have to exist?
-            value_validator = lambda v: v is not None
+            value_validator = lambda v, attr_spec: v is not None
 
         elif re.match(re_dict, data_type):
             key_str = data_type.split("<")[1].split(">")[0]
@@ -194,7 +194,7 @@ class DataTypeContainer:
                 if key_spec[k] not in primitive_data_types:
                     raise TypeError(f"Data type {element_type} is not supported as an dict field")
 
-            value_validator = lambda v: valid_dict(v, key_spec)
+            value_validator = lambda v, attr_spec: valid_dict(v, key_spec, attr_spec)
 
         else:
             raise TypeError(f"Data type '{data_type}' is not supported")

@@ -5,9 +5,11 @@ import time
 from collections.abc import Iterable
 from copy import deepcopy
 from datetime import datetime
-from typing import Callable
+from typing import Callable, Union
 
+from dp3.common.attrspec import AttrSpec
 from dp3.common.config import HierarchicalDict
+from dp3.common.entityspec import EntitySpec
 from dp3.common.task import Task
 from dp3.task_processing.task_executor import TaskExecutor
 from .task_queue import TaskQueueReader, TaskQueueWriter
@@ -16,7 +18,8 @@ from .. import g
 
 class TaskDistributor:
     def __init__(self, config: HierarchicalDict, process_index: int, num_processes: int,
-                 task_executor: TaskExecutor) -> None:
+                 task_executor: TaskExecutor,
+                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]) -> None:
         assert (isinstance(process_index, int) and isinstance(num_processes, int)), "num_processes and process_index " \
                                                                                     "must be int"
         assert (num_processes >= 1), "number of processed muse be positive number"
@@ -26,6 +29,7 @@ class TaskDistributor:
 
         self.process_index = process_index
         self.num_processes = num_processes
+        self.attr_spec = attr_spec
 
         self.rabbit_params = config.get('processing_core.msg_broker', {})
 
@@ -42,7 +46,7 @@ class TaskDistributor:
 
         # Connections to main task queue
         # Reader - reads tasks from a pair of queues (one pair per process) and distributes them to worker threads
-        self._task_queue_reader = TaskQueueReader(self._distribute_task, g.app_name, self.process_index, self.rabbit_params)
+        self._task_queue_reader = TaskQueueReader(self._distribute_task, g.app_name, self.attr_spec, self.process_index, self.rabbit_params)
         # Writer - allows modules to write new tasks
         self._task_queue_writer = TaskQueueWriter(g.app_name, self.num_processes, self.rabbit_params)
         self.task_executor = task_executor

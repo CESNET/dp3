@@ -37,11 +37,12 @@ import json
 import logging
 import threading
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Optional, Union
 
 import amqpstorm
 
-from dp3.common.datapoint import DataPoint
+from dp3.common.attrspec import AttrSpec
+from dp3.common.entityspec import EntitySpec
 from dp3.common.task import Task
 from dp3.common.utils import conv_from_json, conv_to_json
 
@@ -261,7 +262,9 @@ class TaskQueueWriter(RobustAMQPConnection):
 
 
 class TaskQueueReader(RobustAMQPConnection):
-    def __init__(self, callback: Callable, app_name: str, worker_index: int = 0, rabbit_config: dict[Any, Any] = {},
+    def __init__(self, callback: Callable, app_name: str,
+                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+                 worker_index: int = 0, rabbit_config: dict[Any, Any] = {},
                  queue: None = None, priority_queue: None = None) -> None:
         """
         Create an object for reading tasks from the main Task Queue.
@@ -279,6 +282,7 @@ class TaskQueueReader(RobustAMQPConnection):
             host, port, virtual_host, username, password
         :param queue: Name of RabbitMQ queue to read from (default: "<app-name>-worker-<index>")
         :param priority_queue: Name of RabbitMQ queue to read from (priority messages) (default: "<app-name>-worker-<index>-pri")
+        :param attr_spec: Attribute specification. Used for `Task` validation.
         """
         assert callable(callback), "callback must be callable object"
         assert isinstance(worker_index, int) and worker_index >= 0, "worker_index must be positive number"
@@ -290,6 +294,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self.log = logging.getLogger('TaskQueueReader')
 
         self.callback = callback
+        self.attr_spec = attr_spec
 
         if queue is None:
             queue = DEFAULT_QUEUE.format(app_name, worker_index)
@@ -416,8 +421,10 @@ class TaskQueueReader(RobustAMQPConnection):
             self.log.debug("Received {}message: {} (tag: {})".format("priority " if pri else "", body, tag))
 
             # Parse and check validity of received message
+            # Not converting to `Task` instance here, because we don't have
+            # any access to `AttrSpec`.
             try:
-                task = Task(**json.loads(body))
+                task = Task(attr_spec=self.attr_spec, **json.loads(body))
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error(f"Erroneous message received from main task queue. Error: {str(e)}, Message: '{body}'")

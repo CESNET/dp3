@@ -126,7 +126,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.db = EntityDatabase(config.get("database"), attr_spec)
     g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
     te = TaskExecutor(g.db, attr_spec)
-    g.td = TaskDistributor(config, process_index, num_processes, te)
+    g.td = TaskDistributor(config, process_index, num_processes, te, attr_spec)
 
     ##############################################
     # Load all plug-in modules

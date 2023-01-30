@@ -9,7 +9,7 @@ import time
 import requests
 from flask import Flask, request, Response, jsonify
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 from dp3.common.attrspec import AttrType
 from dp3.common.config import read_config_dir, load_attr_spec
 from dp3.common.task import Task
@@ -22,26 +22,36 @@ app = Flask(__name__)
 # Get application name and directory containing config files.
 # Can be specified as command-line parameters (when run as stand-alone testing server)
 # or as environment variables.
-if __name__ == '__main__' and len(sys.argv) > 1:
+if __name__ == "__main__" and len(sys.argv) > 1:
     import argparse
 
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('app_name', help='Identification of DP3 application')
-    argparser.add_argument('conf_dir', help='Configuration directory')
-    argparser.add_argument('dp_log_file', nargs="?", help='File to store all incoming datapoints (as CSV)')
+    argparser.add_argument("app_name", help="Identification of DP3 application")
+    argparser.add_argument("conf_dir", help="Configuration directory")
+    argparser.add_argument(
+        "dp_log_file", nargs="?", help="File to store all incoming datapoints (as CSV)"
+    )
     args = argparser.parse_args()
     app_name = args.app_name
     conf_dir = args.conf_dir
     dp_log_file = args.dp_log_file
-elif 'DP3_CONFIG_DIR' in os.environ and 'DP3_APP_NAME' in os.environ:
-    conf_dir = os.environ['DP3_CONFIG_DIR']
-    app_name = os.environ['DP3_APP_NAME']
-    dp_log_file = os.environ['DP3_DP_LOG_FILE']
+elif "DP3_CONFIG_DIR" in os.environ and "DP3_APP_NAME" in os.environ:
+    conf_dir = os.environ["DP3_CONFIG_DIR"]
+    app_name = os.environ["DP3_APP_NAME"]
+    dp_log_file = os.environ["DP3_DP_LOG_FILE"]
 else:
-    print("Error: DP3_APP_NAME and DP3_CONFIG_DIR environment variables must be set.", file=sys.stderr)
-    print("  DP3_APP_NAME - application name used to distinguish this app from other dp3-based apps", file=sys.stderr)
+    print(
+        "Error: DP3_APP_NAME and DP3_CONFIG_DIR environment variables must be set.", file=sys.stderr
+    )
+    print(
+        "  DP3_APP_NAME - application name used to distinguish this app from other dp3-based apps",
+        file=sys.stderr,
+    )
     print("  DP3_CONFIG_DIR - directory containing configuration files", file=sys.stderr)
-    print("  DP3_DP_LOG_FILE - (optional) file to store all incoming datapoints (as CSV)", file=sys.stderr)
+    print(
+        "  DP3_DP_LOG_FILE - (optional) file to store all incoming datapoints (as CSV)",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 # Dictionary containing platform configuration
@@ -79,8 +89,11 @@ except Exception as e:
 
 # Initialize task queue connection
 try:
-    task_writer = TaskQueueWriter(app_name, config.get("processing_core.worker_processes"),
-                                  config.get("processing_core.msg_broker"))
+    task_writer = TaskQueueWriter(
+        app_name,
+        config.get("processing_core.worker_processes"),
+        config.get("processing_core.msg_broker"),
+    )
 except Exception as e:
     log.exception(f"Error when connecting to task queue: {e}")
     sys.exit(1)
@@ -94,6 +107,7 @@ except Exception as e:
 
 log.info("Initialization completed")
 
+
 def error_response(msg, msg_log_suffix=""):
     """Helper to log and return error response"""
     msg_log = msg
@@ -106,6 +120,7 @@ def error_response(msg, msg_log_suffix=""):
 
 ################################################################################
 # Endpoints to write data (push data-points / tasks)
+
 
 def push_task(task):
     """Push given task (instance of task.Task) to platform's task queue (RabbitMQ)"""
@@ -144,14 +159,22 @@ def push_multiple_datapoints():
         # Convert to DataPoint class instances
         try:
             dp_obj = {}
-            if "type" in record: dp_obj["etype"] = record["type"]
-            if "id" in record:   dp_obj["eid"]   = record["id"]
-            if "attr" in record: dp_obj["attr"]  = record["attr"]
-            if "v" in record:    dp_obj["v"]     = record["v"]
-            if "src" in record:  dp_obj["src"]   = record["src"]
-            if "t1" in record:   dp_obj["t1"]    = record["t1"]
-            if "t2" in record:   dp_obj["t2"]    = record["t2"]
-            if "c" in record:    dp_obj["c"]     = record["c"]
+            if "type" in record:
+                dp_obj["etype"] = record["type"]
+            if "id" in record:
+                dp_obj["eid"] = record["id"]
+            if "attr" in record:
+                dp_obj["attr"] = record["attr"]
+            if "v" in record:
+                dp_obj["v"] = record["v"]
+            if "src" in record:
+                dp_obj["src"] = record["src"]
+            if "t1" in record:
+                dp_obj["t1"] = record["t1"]
+            if "t2" in record:
+                dp_obj["t2"] = record["t2"]
+            if "c" in record:
+                dp_obj["c"] = record["c"]
 
             dp_model = attr_spec[dp_obj["etype"]]["attribs"][dp_obj["attr"]]._dp_model
             dps.append(dp_model.parse_obj(dp_obj))
@@ -173,12 +196,9 @@ def push_multiple_datapoints():
     for k in tasks_dps:
         etype, ekey = k
         try:
-            task_list.append(Task(
-                attr_spec=attr_spec,
-                etype=etype,
-                ekey=ekey,
-                data_points=tasks_dps[k]
-            ))
+            task_list.append(
+                Task(attr_spec=attr_spec, etype=etype, ekey=ekey, data_points=tasks_dps[k])
+            )
         except Exception as e:
             return error_response(f"Failed to create a task: {type(e)}: {str(e)}")
 
@@ -282,10 +302,14 @@ def get_attr_history(entity_type, entity_id, attr_id):
 
     try:
         if attr_type == AttrType.OBSERVATIONS:
-            result = db.get_observation_history(entity_type, attr_id, entity_id, t1_parsed, t2_parsed, sort=1)
+            result = db.get_observation_history(
+                entity_type, attr_id, entity_id, t1_parsed, t2_parsed, sort=1
+            )
             return jsonify(result)
         elif attr_type == AttrType.TIMESERIES:
-            result = db.get_timeseries_history(entity_type, attr_id, entity_id, t1_parsed, t2_parsed, sort=1)
+            result = db.get_timeseries_history(
+                entity_type, attr_id, entity_id, t1_parsed, t2_parsed, sort=1
+            )
             return jsonify(result)
         else:
             return error_response("Attribute type is not observations or timeseries")
@@ -314,17 +338,25 @@ def workers_alive():
     global config
 
     connection_config = config.get("processing_core.msg_broker")
-    resp = requests.get(f"http://{connection_config['host']}:15672/api/overview",
-                        auth=(connection_config['username'], connection_config['password']))
+    resp = requests.get(
+        f"http://{connection_config['host']}:15672/api/overview",
+        auth=(connection_config["username"], connection_config["password"]),
+    )
     content = json.loads(resp.content)
     start_stat = content["message_stats"]["deliver_get"]
     time.sleep(2)
-    resp = requests.get(f"http://{connection_config['host']}:15672/api/overview",
-                        auth=(connection_config['username'], connection_config['password']))
+    resp = requests.get(
+        f"http://{connection_config['host']}:15672/api/overview",
+        auth=(connection_config["username"], connection_config["password"]),
+    )
     content = json.loads(resp.content)
     end_stat = content["message_stats"]["deliver_get"]
-    return json.dumps({"workers_alive": not (end_stat == start_stat),
-                       "deliver_get_difference": end_stat - start_stat})
+    return json.dumps(
+        {
+            "workers_alive": not (end_stat == start_stat),
+            "deliver_get_difference": end_stat - start_stat,
+        }
+    )
 
 
 if __name__ == "__main__":

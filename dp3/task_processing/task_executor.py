@@ -3,7 +3,8 @@ import logging
 from collections import deque
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Callable, Union, Iterable
+from typing import Any, Callable, Union
+from collections.abc import Iterable
 
 from event_count_logger import EventCountLogger, DummyEventGroup
 
@@ -29,8 +30,11 @@ class TaskExecutor:
     :param attr_spec: Configuration of entity types and attributes (dict entity_name->entity_spec)
     """
 
-    def __init__(self, db: EntityDatabase,
-                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]) -> None:
+    def __init__(
+        self,
+        db: EntityDatabase,
+        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+    ) -> None:
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
@@ -55,14 +59,18 @@ class TaskExecutor:
         self.db = db
 
         # EventCountLogger - count number of events across multiple processes using shared counters in Redis
-        ecl = EventCountLogger(g.config.get("event_logging.groups"), g.config.get("event_logging.redis"))
+        ecl = EventCountLogger(
+            g.config.get("event_logging.groups"), g.config.get("event_logging.redis")
+        )
         self.elog = ecl.get_group("te") or DummyEventGroup()
         # Print warning if some event group is not configured
         not_configured_groups = []
         if isinstance(self.elog, DummyEventGroup):
             not_configured_groups.append("te")
         if not_configured_groups:
-            self.log.warning(f"EventCountLogger: No configuration for event group(s) '{','.join(not_configured_groups)}' found, such events will not be logged (check event_logging.yml)")
+            self.log.warning(
+                f"EventCountLogger: No configuration for event group(s) '{','.join(not_configured_groups)}' found, such events will not be logged (check event_logging.yml)"
+            )
 
     def _init_may_change_cache(self) -> dict[str, dict[Any, Any]]:
         """
@@ -74,7 +82,9 @@ class TaskExecutor:
             may_change_cache[etype] = {}
         return may_change_cache
 
-    def register_handler(self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]) -> None:
+    def register_handler(
+        self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]
+    ) -> None:
         """
         Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
         once! Type check is already done in TaskDistributor.
@@ -110,19 +120,21 @@ class TaskExecutor:
         # Check existence of etype
         if task.etype not in self.attr_spec:
             self.log.error(f"Task {task.etype}/{task.ekey}: Unknown entity type!")
-            self.elog.log('task_processing_error')
+            self.elog.log("task_processing_error")
             return False
 
         # *** Now we have the record, process the requested updates ***
         created = False
         try:
             self.db.insert_datapoints(task.etype, task.ekey, task.data_points)
-            self.log.debug(f"Task {task.etype}/{task.ekey}: All changes written to DB, processing finished.")
+            self.log.debug(
+                f"Task {task.etype}/{task.ekey}: All changes written to DB, processing finished."
+            )
             created = True
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.ekey}: DB error: {e}")
 
         # Log the processed task
-        self.elog.log('task_processed')
+        self.elog.log("task_processed")
 
         return created

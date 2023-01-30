@@ -9,6 +9,7 @@ from pydantic.error_wrappers import ValidationError
 from dp3.common.datapoint import DataPointBase
 from dp3.common.entityspec import EntitySpec
 
+
 class Task(BaseModel):
     """Task
 
@@ -57,10 +58,12 @@ class Task(BaseModel):
     @validator("data_points", each_item=True)
     def validate_data_points(cls, v, values):
         if "etype" in values and "ekey" in values:
-            assert v.etype == values["etype"], \
-                f"Task's etype '{values['etype']}' doesn't match datapoint's etype '{v.etype}'"
-            assert v.eid == values["ekey"], \
-                f"Task's ekey '{values['ekey']}' doesn't match datapoint's eid '{v.eid}'"
+            assert (
+                v.etype == values["etype"]
+            ), f"Task's etype '{values['etype']}' doesn't match datapoint's etype '{v.etype}'"
+            assert (
+                v.eid == values["ekey"]
+            ), f"Task's ekey '{values['ekey']}' doesn't match datapoint's eid '{v.eid}'"
         return v
 
     @root_validator

@@ -10,9 +10,14 @@ from dp3.database.database import DatabaseError, EntityDatabase
 
 
 class HistoryManager:
-    def __init__(self, db: EntityDatabase,
-                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
-                 worker_index: int, num_workers: int, config: HierarchicalDict) -> None:
+    def __init__(
+        self,
+        db: EntityDatabase,
+        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+        worker_index: int,
+        num_workers: int,
+        config: HierarchicalDict,
+    ) -> None:
         self.log = logging.getLogger("HistoryManager")
 
         self.db = db
@@ -22,7 +27,9 @@ class HistoryManager:
         self.config = config
 
         if worker_index != 0:
-            self.log.debug("History management will not be active in this worker instance to avoid race conditions.")
+            self.log.debug(
+                "History management will not be active in this worker instance to avoid race conditions."
+            )
             return
 
         # Schedule datapoints cleaning

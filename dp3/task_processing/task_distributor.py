@@ -17,13 +17,21 @@ from .. import g
 
 
 class TaskDistributor:
-    def __init__(self, config: HierarchicalDict, process_index: int, num_processes: int,
-                 task_executor: TaskExecutor,
-                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]) -> None:
-        assert (isinstance(process_index, int) and isinstance(num_processes, int)), "num_processes and process_index " \
-                                                                                    "must be int"
-        assert (num_processes >= 1), "number of processed muse be positive number"
-        assert (0 <= process_index < num_processes), "process index must be smaller than number of processes"
+    def __init__(
+        self,
+        config: HierarchicalDict,
+        process_index: int,
+        num_processes: int,
+        task_executor: TaskExecutor,
+        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+    ) -> None:
+        assert isinstance(process_index, int) and isinstance(num_processes, int), (
+            "num_processes and process_index " "must be int"
+        )
+        assert num_processes >= 1, "number of processed muse be positive number"
+        assert (
+            0 <= process_index < num_processes
+        ), "process index must be smaller than number of processes"
 
         self.log = logging.getLogger("TaskDistributor")
 
@@ -31,24 +39,34 @@ class TaskDistributor:
         self.num_processes = num_processes
         self.attr_spec = attr_spec
 
-        self.rabbit_params = config.get('processing_core.msg_broker', {})
+        self.rabbit_params = config.get("processing_core.msg_broker", {})
 
-        self.entity_types = list(config.get('db_entities').keys()) # List of configured entity types
+        self.entity_types = list(
+            config.get("db_entities").keys()
+        )  # List of configured entity types
 
         self.running = False
 
         # List of worker threads for processing the update requests
         self._worker_threads = []
-        self.num_threads = config.get('processing_core.worker_threads', 8)
+        self.num_threads = config.get("processing_core.worker_threads", 8)
 
         # Internal queues for each worker
         self._queues = [queue.Queue(10) for _ in range(self.num_threads)]
 
         # Connections to main task queue
         # Reader - reads tasks from a pair of queues (one pair per process) and distributes them to worker threads
-        self._task_queue_reader = TaskQueueReader(self._distribute_task, g.app_name, self.attr_spec, self.process_index, self.rabbit_params)
+        self._task_queue_reader = TaskQueueReader(
+            self._distribute_task,
+            g.app_name,
+            self.attr_spec,
+            self.process_index,
+            self.rabbit_params,
+        )
         # Writer - allows modules to write new tasks
-        self._task_queue_writer = TaskQueueWriter(g.app_name, self.num_processes, self.rabbit_params)
+        self._task_queue_writer = TaskQueueWriter(
+            g.app_name, self.num_processes, self.rabbit_params
+        )
         self.task_executor = task_executor
         # Object to store thread-local data (e.g. worker-thread index) (each thread sees different object contents)
         self._current_thread_data = threading.local()
@@ -58,7 +76,9 @@ class TaskDistributor:
         # Register watchdog to scheduler
         g.scheduler.register(self._watchdog, second="*/30")
 
-    def register_handler(self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]) -> None:
+    def register_handler(
+        self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]
+    ) -> None:
         """
         Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
         once!
@@ -69,7 +89,7 @@ class TaskDistributor:
         :return: None
         """
         if etype not in self.entity_types:
-            raise ValueError("Unknown entity type '{}'".format(etype))
+            raise ValueError(f"Unknown entity type '{etype}'")
         # Check types (because common error is to pass string instead of 1-tuple)
         if not isinstance(triggers, Iterable) or isinstance(triggers, str):
             raise TypeError('Argument "triggers" must be iterable and must not be str.')
@@ -85,11 +105,14 @@ class TaskDistributor:
         self._task_queue_writer.connect()
         self._task_queue_writer.check()  # check presence of needed exchanges
 
-        self.log.info("Starting {} worker threads".format(self.num_threads))
+        self.log.info(f"Starting {self.num_threads} worker threads")
         self.running = True
         self._worker_threads = [
-            threading.Thread(target=self._worker_func, args=(i,), name="Worker-{}-{}".format(self.process_index, i)) for
-            i in range(self.num_threads)]
+            threading.Thread(
+                target=self._worker_func, args=(i,), name=f"Worker-{self.process_index}-{i}"
+            )
+            for i in range(self.num_threads)
+        ]
         for worker in self._worker_threads:
             worker.start()
 
@@ -155,7 +178,7 @@ class TaskDistributor:
             try:
                 task_tuple = my_queue.get(block=True, timeout=1)
             except queue.Empty:
-                continue # check self.running again
+                continue  # check self.running again
 
             msg_id, task = task_tuple
 
@@ -167,12 +190,20 @@ class TaskDistributor:
             try:
                 created = self.task_executor.process_task(task)
             except Exception:
-                self.log.error("Error has occurred during processing task: {}".format(task))
+                self.log.error(f"Error has occurred during processing task: {task}")
                 raise
             duration = (datetime.now() - start_time).total_seconds()
-            #self.log.debug("Task {} finished in {:.3f} seconds.".format(msg_id, duration))
+            # self.log.debug("Task {} finished in {:.3f} seconds.".format(msg_id, duration))
             if duration > 1.0:
-                self.log.debug("Task {} took {} seconds: {}/{} {}{}".format(msg_id, duration, task.etype, task.eid, " (new record created)" if created else ""))
+                self.log.debug(
+                    "Task {} took {} seconds: {}/{} {}{}".format(
+                        msg_id,
+                        duration,
+                        task.etype,
+                        task.eid,
+                        " (new record created)" if created else "",
+                    )
+                )
 
     def _watchdog(self):
         """
@@ -184,14 +215,18 @@ class TaskDistributor:
         for i, worker in enumerate(self._worker_threads):
             if not worker.is_alive():
                 if self._watchdog_restarts < 20:
-                    self.log.error("Thread {} is dead, restarting.".format(worker.name))
+                    self.log.error(f"Thread {worker.name} is dead, restarting.")
                     worker.join()
-                    new_thread = threading.Thread(target=self._worker_func, args=(i,), name="Worker-{}-{}".format(self.process_index, i))
+                    new_thread = threading.Thread(
+                        target=self._worker_func, args=(i,), name=f"Worker-{self.process_index}-{i}"
+                    )
                     self._worker_threads[i] = new_thread
                     new_thread.start()
                     self._watchdog_restarts += 1
                 else:
-                    self.log.critical("Thread {} is dead, more than 20 restarts attempted, giving up...".format(worker.name))
+                    self.log.critical(
+                        f"Thread {worker.name} is dead, more than 20 restarts attempted, giving up..."
+                    )
                     g.daemon_stop_lock.release()  # Exit program
                     break
 
@@ -213,5 +248,5 @@ class TaskDistributor:
 
             if ttl == 0:
                 # Print info and reset counter to 5 seconds
-                self.log.info("{} worker threads alive".format(len(alive_workers)))
+                self.log.info(f"{len(alive_workers)} worker threads alive")
                 ttl = 5

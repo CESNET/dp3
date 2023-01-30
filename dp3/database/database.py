@@ -28,8 +28,11 @@ class EntityDatabase:
     attr_spec - configuration of data model (entities and attributes, result of config.load_attr_spec function)
     """
 
-    def __init__(self, db_conf: HierarchicalDict,
-                 attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpecGeneric]]]]) -> None:
+    def __init__(
+        self,
+        db_conf: HierarchicalDict,
+        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpecGeneric]]]],
+    ) -> None:
         self.log = logging.getLogger("EntityDatabase")
         self.log.setLevel("DEBUG")
 
@@ -43,7 +46,9 @@ class EntityDatabase:
         try:
             self._db = pymongo.MongoClient(f"mongodb://{username}:{password}@{address}:{port}/")
         except pymongo.errors.ConnectionFailure as e:
-            raise DatabaseError(f"Cannot connect to database with specified connection arguments.") from e
+            raise DatabaseError(
+                f"Cannot connect to database with specified connection arguments."
+            ) from e
 
         self._db_schema_config = attr_spec
 
@@ -107,27 +112,15 @@ class EntityDatabase:
             attr_spec = self._db_schema_config[etype]["attribs"][dp.attr]
             # Rewrite value of plain attribute
             if attr_spec.t == AttrType.PLAIN:
-                master_changes["$set"][dp.attr] = {
-                    "v": dp.v,
-                    "ts_last_update": datetime.now()
-                }
+                master_changes["$set"][dp.attr] = {"v": dp.v, "ts_last_update": datetime.now()}
 
             # Push new data of observation
             if attr_spec.t == AttrType.OBSERVATIONS:
-                master_changes["$push"][dp.attr] = {
-                    "t1": dp.t1,
-                    "t2": dp.t2,
-                    "v": dp.v,
-                    "c": dp.c
-                }
+                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": dp.v, "c": dp.c}
 
             # Push new data of timeseries
             if attr_spec.t == AttrType.TIMESERIES:
-                master_changes["$push"][dp.attr] = {
-                    "t1": dp.t1,
-                    "t2": dp.t2,
-                    "v": dp.v.dict()
-                }
+                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": dp.v.dict()}
 
         master_col = self._master_col_name(etype)
         try:
@@ -143,13 +136,7 @@ class EntityDatabase:
         """
         master_col = self._master_col_name(etype)
         try:
-            self._db[master_col].update_many({}, {
-                "$pull": {
-                    attr_name: {
-                        "t2": {"$lt": t_old}
-                    }
-                }
-            })
+            self._db[master_col].update_many({}, {"$pull": {attr_name: {"t2": {"$lt": t_old}}}})
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 
@@ -182,9 +169,15 @@ class EntityDatabase:
         """
         pass
 
-    def get_observation_history(self, etype: str, attr_name: str, ekey: str,
-                                t1: datetime = datetime.fromtimestamp(0),
-                                t2: datetime = datetime.now(), sort: int = None) -> list[dict]:
+    def get_observation_history(
+        self,
+        etype: str,
+        attr_name: str,
+        ekey: str,
+        t1: datetime = datetime.fromtimestamp(0),
+        t2: datetime = datetime.now(),
+        sort: int = None,
+    ) -> list[dict]:
         """Get full (or filtered) history of observation attribute.
 
         This method is useful for displaying `ekey`'s history on web.
@@ -213,9 +206,15 @@ class EntityDatabase:
 
         return attr_history_filtered
 
-    def get_timeseries_history(self, etype: str, attr_name: str, ekey: str,
-                               t1: datetime = datetime.fromtimestamp(0),
-                               t2: datetime = datetime.now(), sort: int = None) -> list[dict]:
+    def get_timeseries_history(
+        self,
+        etype: str,
+        attr_name: str,
+        ekey: str,
+        t1: datetime = datetime.fromtimestamp(0),
+        t2: datetime = datetime.now(),
+        sort: int = None,
+    ) -> list[dict]:
         """Get full (or filtered) history of timeseries attribute.
         Outputs them in format:
             [
@@ -247,11 +246,15 @@ class EntityDatabase:
         attr_history_split = self._split_timeseries_dps(etype, attr_name, attr_history)
 
         # Filter out rows outside [t1, t2] interval
-        attr_history_filtered = [row for row in attr_history_split if row["t1"] <= t2 and row["t2"] >= t1]
+        attr_history_filtered = [
+            row for row in attr_history_split if row["t1"] <= t2 and row["t2"] >= t1
+        ]
 
         return attr_history_filtered
 
-    def _split_timeseries_dps(self, etype: str, attr_name: str, attr_history: list[dict]) -> list[dict]:
+    def _split_timeseries_dps(
+        self, etype: str, attr_name: str, attr_history: list[dict]
+    ) -> list[dict]:
         """Helper to split "datapoints" (rows) of timeseries to "datapoints" containing just one value per series."""
         attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
         timeseries_type = attrib_conf.timeseries_type
@@ -276,14 +279,10 @@ class EntityDatabase:
                 values_len = len(row["v"][user_series[0]])
 
                 for i in range(values_len):
-                    row_t1 = row["t1"] + i*time_step
+                    row_t1 = row["t1"] + i * time_step
                     row_t2 = row_t1 + time_step
 
-                    row_new = {
-                        "t1": row_t1,
-                        "t2": row_t2,
-                        "v": {}
-                    }
+                    row_new = {"t1": row_t1, "t2": row_t2, "v": {}}
 
                     for s in user_series:
                         row_new["v"][s] = row["v"][s][i]
@@ -298,11 +297,7 @@ class EntityDatabase:
                     row_t1 = row["v"].get(time_series[0])[i] if len(time_series) >= 1 else None
                     row_t2 = row["v"].get(time_series[1])[i] if len(time_series) >= 2 else row_t1
 
-                    row_new = {
-                        "t1": row_t1,
-                        "t2": row_t2,
-                        "v": {}
-                    }
+                    row_new = {"t1": row_t1, "t2": row_t2, "v": {}}
 
                     for s in user_series:
                         row_new["v"][s] = row["v"][s][i]

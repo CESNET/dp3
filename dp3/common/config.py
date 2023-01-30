@@ -32,8 +32,8 @@ def hierarchical_get(self, key, default=NoDefault):
     """
     d = self
     try:
-        while '.' in key:
-            first_key, key = key.split('.', 1)
+        while "." in key:
+            first_key, key = key.split(".", 1)
             d = d[first_key]
         return d[key]
     except (KeyError, TypeError):
@@ -77,7 +77,7 @@ class HierarchicalDict(dict):
     update = hierarchical_update
 
     def __repr__(self):
-        return 'HierarchicalDict({})'.format(dict.__repr__(self))
+        return f"HierarchicalDict({dict.__repr__(self)})"
 
     def copy(self):
         return HierarchicalDict(dict.copy(self))
@@ -130,7 +130,9 @@ def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
 
 
 # TODO: This should be moved elsewhere, this file should be generic, independent of entitiy/attribute config format
-def load_attr_spec(config_in: HierarchicalDict) -> dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]:
+def load_attr_spec(
+    config_in: HierarchicalDict,
+) -> dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]:
     """
     Load and validate entity/attribute specification
     Provided configuration must be a dict of following structure:
@@ -156,15 +158,21 @@ def load_attr_spec(config_in: HierarchicalDict) -> dict[str, dict[str, Union[Ent
     err_msg_type = "Invalid configuration: type of '{}' is invalid (should be '{}', is '{}')"
     err_msg_missing_field = "Invalid configuration: mandatory field '{}' is missing"
 
-    assert isinstance(config_in, dict), err_msg_type.format('config', 'dict')
+    assert isinstance(config_in, dict), err_msg_type.format("config", "dict")
 
     for entity_type, spec in config_in.items():
         # Validate config structure
-        assert isinstance(spec, dict), err_msg_type.format(f'config[\"{entity_type}\"]', 'dict', type(spec))
-        assert "entity" in spec, err_msg_missing_field.format('entity')
-        assert "attribs" in spec, err_msg_missing_field.format('attribs')
-        assert isinstance(spec["entity"], dict), err_msg_type.format('entity', 'dict', type(spec["entity"]))
-        assert isinstance(spec["attribs"], dict), err_msg_type.format('attribs', 'dict', type(spec["attribs"]))
+        assert isinstance(spec, dict), err_msg_type.format(
+            f'config["{entity_type}"]', "dict", type(spec)
+        )
+        assert "entity" in spec, err_msg_missing_field.format("entity")
+        assert "attribs" in spec, err_msg_missing_field.format("attribs")
+        assert isinstance(spec["entity"], dict), err_msg_type.format(
+            "entity", "dict", type(spec["entity"])
+        )
+        assert isinstance(spec["attribs"], dict), err_msg_type.format(
+            "attribs", "dict", type(spec["attribs"])
+        )
 
         config_out[entity_type] = {"entity": {}, "attribs": {}}
 
@@ -185,5 +193,3 @@ def load_attr_spec(config_in: HierarchicalDict) -> dict[str, dict[str, Union[Ent
         config_out[entity_type]["attribs"].update(BASE_ATTRIBS)
 
     return config_out
-
-

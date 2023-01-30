@@ -12,6 +12,7 @@ from datetime import timedelta
 from dp3.common.base_module import BaseModule
 from dp3 import g
 
+
 class UpdatePlanner(BaseModule):
     def __init__(self):
         self.log = logging.getLogger(
@@ -21,7 +22,7 @@ class UpdatePlanner(BaseModule):
             "DEBUG"
         )  # logging level depends on user (DEBUG is useful while the module is tested or implemented)
 
-        # register handler for every etype 
+        # register handler for every etype
         for etype in g.attr_spec:
             g.td.register_handler(
                 self.processing_function,  # function to call (callback)
@@ -29,12 +30,12 @@ class UpdatePlanner(BaseModule):
                 (
                     "!NEW",
                 ),  # tuple/list/set of attributes to watch (their update triggers call of the registered method)
-                ("_nru1d","_nru1w"),  # tuple/list/set of attributes the method may change
+                ("_nru1d", "_nru1w"),  # tuple/list/set of attributes the method may change
             )
             self.log.debug(f"Registred handler for {etype}.")
 
     def processing_function(self, etype, ekey, record, updates):
-        """ 
+        """
         :param etype: entity type (e.g. 'ip')
         :param ekey: entity identificator (e.g. "1.2.3.4")
         :param record: instance of Record as database record cache

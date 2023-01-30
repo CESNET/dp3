@@ -34,11 +34,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
         "Development Status :: 3 - Alpha",
     ],
-    python_requires='~=3.9',
-    scripts=[
-        "bin/worker",
-        "bin/updater",
-        "bin/update_all",
-        "api/receiver.py"
-    ]
+    python_requires="~=3.9",
+    scripts=["bin/worker", "bin/updater", "bin/update_all", "api/receiver.py"],
 )

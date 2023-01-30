@@ -8,10 +8,7 @@ class PushTask(common.APITest):
     }
 
     def test_unknown_entity_type(self):
-        response = self.push_task({
-            "etype": "xyz",
-            "ekey": "test_entity_id"
-        })
+        response = self.push_task({"etype": "xyz", "ekey": "test_entity_id"})
         self.assertEqual(400, response.status_code)
 
     def test_invalid_attr_updates(self):
@@ -35,7 +32,9 @@ class PushTask(common.APITest):
             "missing 'attr' field": [{"v": 1, "t1": "2020-01-01T00:00:00"}],
             "invalid timestamp": [{"attr": "test_attr_int", "v": 1, "t1": "xyz"}],
             "invalid value": [{"attr": "test_attr_int", "v": "xyz", "t1": "2020-01-01T00:00:00"}],
-            "invalid confidence": [{"attr": "test_attr_int", "v": 1, "t1": "2020-01-01T00:00:00", "c": "xyz"}],
+            "invalid confidence": [
+                {"attr": "test_attr_int", "v": 1, "t1": "2020-01-01T00:00:00", "c": "xyz"}
+            ],
         }
         for description, invalid_value in invalid_data_points.items():
             with self.subTest(msg=f"invalid data_points ({description})"):

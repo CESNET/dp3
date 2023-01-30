@@ -6,7 +6,7 @@ import unittest
 
 import requests
 
-base_url = os.getenv("BASE_URL", default='http://127.0.0.1:5000/')
+base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000/")
 api_up = None
 MAX_RETRY_ATTEMPTS = 5
 
@@ -15,18 +15,18 @@ values = {
         "binary": ["true"],
         "int": ["123"],
         "int64": ["123"],
-        "string": ["\"xyz\""],
+        "string": ['"xyz"'],
         "float": ["1.0", "1"],
-        "ipv4": ["\"127.0.0.1\""],
-        "ipv6": ["\"2001:0db8:85a3:0000:0000:8a2e:0370:7334\"", "\"::1\""],
+        "ipv4": ['"127.0.0.1"'],
+        "ipv6": ['"2001:0db8:85a3:0000:0000:8a2e:0370:7334"', '"::1"'],
         "mac": ["de:ad:be:ef:ba:be", "11:22:33:44:55:66"],
-        "time": ["\"2020-01-01T00:00:00\""],
-        "json": ["{\"test\": \"test\"}"],
+        "time": ['"2020-01-01T00:00:00"'],
+        "json": ['{"test": "test"}'],
         "category": ["cat1"],
         "array": ["[1,2,3]"],
         "set": ["[1,2,3]"],
-        "dict": ["{\"key1\":1,\"key2\":\"xyz\"}"],
-        "probability": [json.dumps({"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05})]
+        "dict": ['{"key1":1,"key2":"xyz"}'],
+        "probability": [json.dumps({"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05})],
     },
     "invalid": {
         "binary": ["xyz"],
@@ -34,19 +34,21 @@ values = {
         "int64": ["xyz"],
         "string": [],  # all JSON strings can be converted to strings
         "float": ["xyz"],
-        "ipv4": ["\"xyz\""],
-        "ipv6": ["\"xyz\""],
-        "mac": ["\"xyz\""],
-        "time": ["\"xyz\""],
+        "ipv4": ['"xyz"'],
+        "ipv6": ['"xyz"'],
+        "mac": ['"xyz"'],
+        "time": ['"xyz"'],
         "json": ["xyz"],
-        "category": ["\"xyz\""],
-        "array": ["xyz", "[\"xyz\"]"],
-        "set": ["xyz", "[\"xyz\"]"],
-        "dict": ["xyz", "{\"xyz\":\"xyz\"}", "{\"key1\":\"xyz\",\"key2\":\"xyz\"}"],
-        "probability": [json.dumps({"A": "A", "B": "B", "C": "C", "D": "D"}),  # not a probability distribution
-                        '"xyz"',  # invalid format (not a dict)
-                        "{'A':1.0}"]  # invalid JSON
-    }
+        "category": ['"xyz"'],
+        "array": ["xyz", '["xyz"]'],
+        "set": ["xyz", '["xyz"]'],
+        "dict": ["xyz", '{"xyz":"xyz"}', '{"key1":"xyz","key2":"xyz"}'],
+        "probability": [
+            json.dumps({"A": "A", "B": "B", "C": "C", "D": "D"}),  # not a probability distribution
+            '"xyz"',  # invalid format (not a dict)
+            "{'A':1.0}",
+        ],  # invalid JSON
+    },
 }
 
 
@@ -75,10 +77,12 @@ class APITest(unittest.TestCase):
 
     @staticmethod
     def push_single(endpoint_path: str, **datapoint_values):
-        args_str = '&'.join([f"{key}={value}" for key, value in datapoint_values.items()])
+        args_str = "&".join([f"{key}={value}" for key, value in datapoint_values.items()])
         if args_str != "":
             args_str = f"?{args_str}"
-        return retry_request_on_error(lambda: requests.post(f"{base_url}/{endpoint_path}{args_str}", timeout=5))
+        return retry_request_on_error(
+            lambda: requests.post(f"{base_url}/{endpoint_path}{args_str}", timeout=5)
+        )
 
     @staticmethod
     def request(path, json_data):
@@ -94,7 +98,9 @@ class APITest(unittest.TestCase):
 
     @staticmethod
     def get_request(path, **kwargs):
-        args_str = '&'.join([f"{key}={value}" for key, value in kwargs.items()])
+        args_str = "&".join([f"{key}={value}" for key, value in kwargs.items()])
         if args_str != "":
             args_str = f"?{args_str}"
-        return retry_request_on_error(lambda: requests.get(f"{base_url}/{path}{args_str}", timeout=5))
+        return retry_request_on_error(
+            lambda: requests.get(f"{base_url}/{path}{args_str}", timeout=5)
+        )

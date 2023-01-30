@@ -11,7 +11,9 @@ class GetHistory(common.APITest):
         self.assertEqual(400, response.status_code)
 
     def test_invalid_timestamp(self):
-        response = self.get_request("test_entity_type/test_entity_id/test_attr_history/history", t1="xyz")
+        response = self.get_request(
+            "test_entity_type/test_entity_id/test_attr_history/history", t1="xyz"
+        )
         self.assertEqual(400, response.status_code)
 
     def test_unknown_entity_id(self):
@@ -27,10 +29,15 @@ class GetHistory(common.APITest):
         }
         for msg, intervals in time_intervals.items():
             with self.subTest(msg=msg):
-                response = self.get_request("test_entity_type/test_entity_id/test_attr_history/history", **intervals)
+                response = self.get_request(
+                    "test_entity_type/test_entity_id/test_attr_history/history", **intervals
+                )
                 self.assertEqual(200, response.status_code)
 
     def test_invalid_time_interval(self):
-        response = self.get_request("test_entity_type/test_entity_id/test_attr_history/history",
-                                    t1="2020-01-01T00:00:01", t2="2020-01-01T00:00:00")
+        response = self.get_request(
+            "test_entity_type/test_entity_id/test_attr_history/history",
+            t1="2020-01-01T00:00:01",
+            t2="2020-01-01T00:00:00",
+        )
         self.assertEqual(400, response.status_code, "Should not be valid, T1 > T2")

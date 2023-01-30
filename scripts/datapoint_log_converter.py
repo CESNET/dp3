@@ -12,7 +12,15 @@ import pandas as pd
 from dateutil.parser import parse as parsetime
 from dp3.common.config import load_attr_spec, read_config_dir
 from dp3.common.datapoint import DataPoint
-from dp3.common.datatype import valid_mac, valid_ipv4, valid_ipv6, re_set, re_array, re_link, re_dict
+from dp3.common.datatype import (
+    valid_mac,
+    valid_ipv4,
+    valid_ipv6,
+    re_set,
+    re_array,
+    re_link,
+    re_dict,
+)
 from pydantic.error_wrappers import ValidationError
 
 logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(message)s")
@@ -20,7 +28,7 @@ logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(messa
 # Dictionary containing conversion functions for primitive data types
 CONVERTERS = {
     "tag": lambda v: json.loads(f'{{"v": {v}}}')["v"],
-    "binary": lambda v: True if v.lower() == 'true' else False,
+    "binary": lambda v: True if v.lower() == "true" else False,
     "string": str,
     "category": str,
     "int": int,
@@ -47,7 +55,10 @@ def get_converter(attr_data_type: str) -> Callable[[str], Any]:
         # note: example dict spec format: dict<port:int,protocol:string,tag?:string>
         #       regex matches everything between <,> as group 1
         # dtype_mapping: dict_key -> data_type
-        dtype_mapping = {key.rstrip("?"): dtype for key, dtype in (item.split(":") for item in m.group(1).split(','))}
+        dtype_mapping = {
+            key.rstrip("?"): dtype
+            for key, dtype in (item.split(":") for item in m.group(1).split(","))
+        }
         return json.loads
     # link<X>
     if re.match(re_link, attr_data_type):
@@ -69,7 +80,7 @@ def _parse_set_str(string: str, item_type: str) -> set:
     a = json.loads(string)
     if not isinstance(a, list):
         raise ValueError
-    return set(conv(item) for item in a)
+    return {conv(item) for item in a}
 
 
 def _parse_dict_str(string: str, field_types: dict) -> dict:
@@ -82,7 +93,8 @@ def _parse_dict_str(string: str, field_types: dict) -> dict:
 def _pass_valid(validator_function, value):
     if validator_function(value):
         return value
-    raise ValueError(f'The value {value} has invalid format.')
+    raise ValueError(f"The value {value} has invalid format.")
+
 
 class LegacyDataPointLoader:
     """Loader of datapoint files as written by DP3 API receiver."""
@@ -129,7 +141,9 @@ class LegacyDataPointLoader:
         # Reformat datapoints file so "val" containing commas can be read properly.
         #   Replace first 7 commas (i.e. all except those inside "v") with semicolon
         #   Store as temporary file
-        tmp_name = f"tmp-{'.'.join(os.path.basename(os.path.normpath(filename)).split(sep='.')[:-1])}"
+        tmp_name = (
+            f"tmp-{'.'.join(os.path.basename(os.path.normpath(filename)).split(sep='.')[:-1])}"
+        )
         with open_function(filename, "rb") as infile:
             with open(tmp_name, "wb") as outfile:
                 for line in infile:
@@ -142,7 +156,7 @@ class LegacyDataPointLoader:
             names=self.COL_NAMES,
             index_col=False,
             converters={"c": float, "v": str},
-            escapechar='\\',
+            escapechar="\\",
             # parse_dates=["t1", "t2"],
             # infer_datetime_format=True,
         )
@@ -162,9 +176,13 @@ class LegacyDataPointLoader:
             return row
 
         attrs = {entity_attr[1] for entity_attr in self.dt_conv}
-        conv_vals = data.loc[data["attr"].isin(attrs), ("type", "attr", "v")].apply(convert_row, axis=1, raw=True)
+        conv_vals = data.loc[data["attr"].isin(attrs), ("type", "attr", "v")].apply(
+            convert_row, axis=1, raw=True
+        )
         if len(conv_vals) != len(data):
-            self.log.warning("Dropped %s rows due to missing attributes in config", len(data) - len(conv_vals))
+            self.log.warning(
+                "Dropped %s rows due to missing attributes in config", len(data) - len(conv_vals)
+            )
             self.log.info("Missing attrs: %s", [x for x in data["attr"].unique() if x not in attrs])
         data["v"] = conv_vals["v"]
         return data[data["attr"].apply(lambda x: x in attrs)]
@@ -175,6 +193,7 @@ def get_valid_path(parser, arg):
         parser.error("The file %s does not exist!" % arg)
     else:
         return os.path.abspath(arg)
+
 
 def get_out_path(in_file_path, output_dir):
     """
@@ -212,17 +231,31 @@ def validate_row(row):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Converts legacy CSV DataPoint log format to JSON")
-    parser.add_argument("-c", "--attr_conf_dir", dest="attr_conf_dir",
-                        required=True,
-                        help="Path to DP3 entity config",
-                        type=lambda x: get_valid_path(parser, x))
-    parser.add_argument("-o", "--output_dir", dest="output_dir",
-                        default=os.path.curdir,
-                        help="Converted files will be saved to this path",
-                        type=lambda x: get_valid_path(parser, x))
-    parser.add_argument("files", help="Legacy CSV file paths", type=lambda x: get_valid_path(parser, x), nargs="+")
-    parser.add_argument("--compress", action="store_true", default=False,
-                        help="Compress output file using gzip (.gz)")
+    parser.add_argument(
+        "-c",
+        "--attr_conf_dir",
+        dest="attr_conf_dir",
+        required=True,
+        help="Path to DP3 entity config",
+        type=lambda x: get_valid_path(parser, x),
+    )
+    parser.add_argument(
+        "-o",
+        "--output_dir",
+        dest="output_dir",
+        default=os.path.curdir,
+        help="Converted files will be saved to this path",
+        type=lambda x: get_valid_path(parser, x),
+    )
+    parser.add_argument(
+        "files", help="Legacy CSV file paths", type=lambda x: get_valid_path(parser, x), nargs="+"
+    )
+    parser.add_argument(
+        "--compress",
+        action="store_true",
+        default=False,
+        help="Compress output file using gzip (.gz)",
+    )
     args = parser.parse_args()
 
     loader = LegacyDataPointLoader(args.attr_conf_dir)

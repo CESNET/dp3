@@ -15,6 +15,7 @@ class DataPointBase(BaseModel):
 
     Internal usage: inside Task, created by TaskExecutor
     """
+
     etype: str
     eid: str
     attr: str
@@ -29,6 +30,7 @@ class DataPointPlainBase(DataPointBase):
     In case of plain data-point, it's not really a data-point, but we use
     the same naming for simplicity.
     """
+
     pass
 
 
@@ -37,6 +39,7 @@ class DataPointObservationsBase(DataPointBase):
 
     Contains single raw data value received on API for observations attribute.
     """
+
     t1: datetime
     t2: Optional[datetime] = None
     c: confloat(ge=0.0, le=1.0) = 1.0
@@ -54,6 +57,7 @@ class DataPointTimeseriesBase(DataPointBase):
 
     Contains single raw data value received on API for observations attribute.
     """
+
     t1: datetime
     t2: Optional[datetime] = None
 
@@ -71,10 +75,11 @@ class DataPointTimeseriesBase(DataPointBase):
 @validator("v")
 def dp_ts_v_validator(cls, v, values):
     # Check if all value arrays are the same length
-    values_len = [ len(v_i) for _, v_i in v.dict().items() ]
+    values_len = [len(v_i) for _, v_i in v.dict().items()]
     assert len(set(values_len)) == 1, f"Series values have different lengths: {values_len}"
 
     return v
+
 
 def dp_ts_root_validator_regular_wrapper(time_step):
     def dp_ts_root_validator_regular(cls, values):
@@ -83,17 +88,19 @@ def dp_ts_root_validator_regular_wrapper(time_step):
             # Get length of first value series included in datapoint
             first_series = list(values["v"].dict().keys())[0]
             series_len = len(values["v"].dict()[first_series])
-            correct_t2 = values["t1"] + series_len*time_step
+            correct_t2 = values["t1"] + series_len * time_step
 
             if "t2" in values and values["t2"]:
-                assert values["t2"] == correct_t2, \
-                    "Difference of t1 and t2 is invalid. Must be values_len*time_step."
+                assert (
+                    values["t2"] == correct_t2
+                ), "Difference of t1 and t2 is invalid. Must be values_len*time_step."
             else:
                 values["t2"] = correct_t2
 
         return values
 
     return root_validator(dp_ts_root_validator_regular)
+
 
 @root_validator
 def dp_ts_root_validator_irregular(cls, values):
@@ -102,11 +109,14 @@ def dp_ts_root_validator_irregular(cls, values):
         last_time = values["v"].time[-1]
 
         if "t2" in values and values["t2"]:
-            assert values["t2"] >= last_time, f"'t2' is below last item in 'time' series ({last_time})"
+            assert (
+                values["t2"] >= last_time
+            ), f"'t2' is below last item in 'time' series ({last_time})"
         else:
             values["t2"] = last_time
 
     return values
+
 
 @root_validator
 def dp_ts_root_validator_irregular_intervals(cls, values):
@@ -115,7 +125,9 @@ def dp_ts_root_validator_irregular_intervals(cls, values):
         last_time = values["v"].time_last[-1]
 
         if "t2" in values and values["t2"]:
-            assert values["t2"] >= last_time, f"'t2' is below last item in 'time_last' series ({last_time})"
+            assert (
+                values["t2"] >= last_time
+            ), f"'t2' is below last item in 'time_last' series ({last_time})"
         else:
             values["t2"] = last_time
 

@@ -7,7 +7,7 @@ import argparse
 import logging
 import json
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
 from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3.common.config import read_config_dir
 
@@ -15,20 +15,26 @@ LOGFORMAT = "%(asctime)-15s,%(name)s [%(levelname)s] %(message)s"
 LOGDATEFORMAT = "%Y-%m-%dT%H:%M:%S"
 logging.basicConfig(level=logging.INFO, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
 
-logger = logging.getLogger('PutTask')
+logger = logging.getLogger("PutTask")
 
 # parse arguments
 parser = argparse.ArgumentParser(
-    prog="put_task",
-    description="Put a single task (aka update_request) to the main Task Queue."
+    prog="put_task", description="Put a single task (aka update_request) to the main Task Queue."
 )
-parser.add_argument('app_name', metavar='APP_NAME',
-                    help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
-                         "RabbitMQ queue names, for example).")
-parser.add_argument('config_dir', metavar='CONFIG_DIRECTORY',
-                    help="Path to a directory containing configuration files (e.g. /etc/my_app/config)")
-parser.add_argument('task_file', metavar='TASK_FILE',
-                    help="Path to file where the body of the task is saved")
+parser.add_argument(
+    "app_name",
+    metavar="APP_NAME",
+    help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
+    "RabbitMQ queue names, for example).",
+)
+parser.add_argument(
+    "config_dir",
+    metavar="CONFIG_DIRECTORY",
+    help="Path to a directory containing configuration files (e.g. /etc/my_app/config)",
+)
+parser.add_argument(
+    "task_file", metavar="TASK_FILE", help="Path to file where the body of the task is saved"
+)
 parser.add_argument("-v", dest="verbose", action="store_true", help="Verbose mode")
 args = parser.parse_args()
 
@@ -39,8 +45,8 @@ if args.verbose:
 logger.debug(f"Loading config dir {args.config_dir}")
 config = read_config_dir(args.config_dir)
 
-rabbit_params = config.get('processing_core.rabbitmq', {})
-num_processes = config.get('processing_core.worker_processes')
+rabbit_params = config.get("processing_core.rabbitmq", {})
+num_processes = config.get("processing_core.worker_processes")
 
 try:
     with open(args.task_file) as task_file:
@@ -64,9 +70,11 @@ except Exception as e:
     sys.exit(2)
 
 # Put task
-logger.debug(f"Sending task for {task_body['etype']}/{task_body['ekey']}: \n"
-             f"attr_updates: {task_body['attr_updates']}\n"
-             f"data_points: {task_body['data_points']}")
+logger.debug(
+    f"Sending task for {task_body['etype']}/{task_body['ekey']}: \n"
+    f"attr_updates: {task_body['attr_updates']}\n"
+    f"data_points: {task_body['data_points']}"
+)
 tqw.put_task(**task_body)
 
 # Close connection

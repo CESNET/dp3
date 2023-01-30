@@ -12,19 +12,21 @@ ipv4_re = re.compile(r"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$"
 def ipstr2int(s):
     res = ipv4_re.match(s)
     if res is None:
-        raise ValueError('Invalid IPv4 format: {!r}'.format(s))
+        raise ValueError(f"Invalid IPv4 format: {s!r}")
     a1, a2, a3, a4 = res.groups()
     # Check if octets are between 0 and 255 is omitted for better performance
     return int(a1) << 24 | int(a2) << 16 | int(a3) << 8 | int(a4)
 
 
 def int2ipstr(i):
-    return '.'.join((str(i >> 24), str((i >> 16) & 0xff), str((i >> 8) & 0xff), str(i & 0xff)))
+    return ".".join((str(i >> 24), str((i >> 16) & 0xFF), str((i >> 8) & 0xFF), str(i & 0xFF)))
 
 
 # *** Time conversion ***
 # Regex for RFC 3339 time format
-timestamp_re = re.compile(r"^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
+timestamp_re = re.compile(
+    r"^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$"
+)
 
 
 def parse_rfc_time(time_str):
@@ -39,14 +41,14 @@ def parse_rfc_time(time_str):
         us_str = (res.group(7) or "0")[:6].ljust(6, "0")
         us = int(us_str)
         zonestr = res.group(8)
-        zoneoffset = 0 if zonestr in (None, 'z', 'Z') else int(zonestr[:3])*60 + int(zonestr[4:6])
+        zoneoffset = 0 if zonestr in (None, "z", "Z") else int(zonestr[:3]) * 60 + int(zonestr[4:6])
         zonediff = datetime.timedelta(minutes=zoneoffset)
         return datetime.datetime(year, month, day, hour, minute, second, us) - zonediff
     else:
         raise ValueError("Wrong timestamp format")
 
 
-def parse_time_duration(duration_string: Union[str,int,datetime.timedelta]) -> datetime.timedelta:
+def parse_time_duration(duration_string: Union[str, int, datetime.timedelta]) -> datetime.timedelta:
     """
     Parse duration in format <num><s/m/h/d> (or just "0").
 
@@ -93,10 +95,11 @@ def conv_to_json(obj):
     if isinstance(obj, datetime.datetime):
         if obj.tzinfo:
             raise NotImplementedError(
-                "Can't serialize timezone-aware datetime object (DP3 policy is to use naive datetimes in UTC everywhere)")
+                "Can't serialize timezone-aware datetime object (DP3 policy is to use naive datetimes in UTC everywhere)"
+            )
         return {"$datetime": obj.strftime("%Y-%m-%dT%H:%M:%S.%f")}
     if isinstance(obj, datetime.timedelta):
-        return {"$timedelta": "{},{},{}".format(obj.days, obj.seconds, obj.microseconds)}
+        return {"$timedelta": f"{obj.days},{obj.seconds},{obj.microseconds}"}
     raise TypeError("%r is not JSON serializable" % obj)
 
 
@@ -123,4 +126,4 @@ def get_func_name(func_or_method):
         fname = func_or_method.__func__.__qualname__
     except AttributeError:
         fname = func_or_method.__name__
-    return func_or_method.__module__ + '.' + fname
+    return func_or_method.__module__ + "." + fname

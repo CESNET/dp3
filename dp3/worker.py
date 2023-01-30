@@ -14,12 +14,14 @@ from importlib import import_module
 
 if __name__ == "__main__":
     import sys
+
     print("Don't run this file directly. Use 'bin/worker' instead.", file=sys.stderr)
     sys.exit(1)
 
 from .common.config import read_config_dir, load_attr_spec
 from .common import scheduler
-#from .common.base_module import BaseModule
+
+# from .common.base_module import BaseModule
 from .database.database import EntityDatabase
 from .task_processing.task_executor import TaskExecutor
 from .task_processing.task_distributor import TaskDistributor
@@ -88,7 +90,9 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     LOGFORMAT = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
     LOGDATEFORMAT = "%Y-%m-%dT%H:%M:%S"
 
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO, format=LOGFORMAT, datefmt=LOGDATEFORMAT
+    )
     log = logging.getLogger()
 
     # Disable INFO and DEBUG messages from some libraries
@@ -107,16 +111,19 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     print(attr_spec)
 
-    num_processes = config.get('processing_core.worker_processes')
-    assert (isinstance(num_processes, int) and num_processes > 0),\
-        "Number of processes ('num_processes' in config) must be a positive integer"
-    assert (isinstance(process_index, int) and process_index >= 0), "Process index can't be negative"
-    assert (process_index < num_processes), "Process index must be less than total number of processes"
+    num_processes = config.get("processing_core.worker_processes")
+    assert (
+        isinstance(num_processes, int) and num_processes > 0
+    ), "Number of processes ('num_processes' in config) must be a positive integer"
+    assert isinstance(process_index, int) and process_index >= 0, "Process index can't be negative"
+    assert (
+        process_index < num_processes
+    ), "Process index must be less than total number of processes"
 
     ##############################################
     # Create instances of core components
     # Save them to "g" ("global") module so they can be easily accessed from everywhere (in the same process)
-    log.info("***** {} worker {} of {} start *****".format(app_name, process_index, num_processes))
+    log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
     g.app_name = app_name
     g.config = config
@@ -124,22 +131,24 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.running = False
     g.scheduler = scheduler.Scheduler()
     g.db = EntityDatabase(config.get("database"), attr_spec)
-    g.hm = HistoryManager(g.db, attr_spec, process_index, num_processes, config.get("history_manager"))
+    g.hm = HistoryManager(
+        g.db, attr_spec, process_index, num_processes, config.get("history_manager")
+    )
     te = TaskExecutor(g.db, attr_spec)
     g.td = TaskDistributor(config, process_index, num_processes, te, attr_spec)
 
     ##############################################
     # Load all plug-in modules
 
-    working_directory = os.path.dirname(__file__) 
-    core_modules_dir = os.path.abspath(os.path.join(working_directory, 'core_modules'))
-    custom_modules_dir = config.get('processing_core.modules_dir')
+    working_directory = os.path.dirname(__file__)
+    core_modules_dir = os.path.abspath(os.path.join(working_directory, "core_modules"))
+    custom_modules_dir = config.get("processing_core.modules_dir")
     custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
 
-    #core_module_list = load_modules(core_modules_dir, {}, log)
-    #custom_module_list = load_modules(custom_modules_dir, config.get('processing_core.enabled_modules'), log)
+    # core_module_list = load_modules(core_modules_dir, {}, log)
+    # custom_module_list = load_modules(custom_modules_dir, config.get('processing_core.enabled_modules'), log)
 
-    module_list = []#core_module_list + custom_module_list
+    module_list = []  # core_module_list + custom_module_list
 
     # Lock used to control when the program stops.
     g.daemon_stop_lock = threading.Lock()
@@ -147,8 +156,11 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     # Signal handler releasing the lock on SIGINT or SIGTERM
     def sigint_handler(signum, frame):
-        log.debug("Signal {} received, stopping worker".format(
-            {signal.SIGINT: "SIGINT", signal.SIGTERM: "SIGTERM"}.get(signum, signum)))
+        log.debug(
+            "Signal {} received, stopping worker".format(
+                {signal.SIGINT: "SIGINT", signal.SIGTERM: "SIGTERM"}.get(signum, signum)
+            )
+        )
         g.daemon_stop_lock.release()
 
     signal.signal(signal.SIGINT, sigint_handler)
@@ -182,7 +194,6 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
             pass
     else:
         g.daemon_stop_lock.acquire()
-
 
     ################################################
     # Finalization & cleanup

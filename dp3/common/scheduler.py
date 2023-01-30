@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 
-class Scheduler():
+class Scheduler:
     """
     Allows modules to register functions (callables) to be run
     at specified times or intervals (like cron does).
@@ -34,10 +34,21 @@ class Scheduler():
         self.log.debug("Scheduler stop")
         self.sched.shutdown()
 
-    def register(self, func: Callable, year: None = None, month: None = None, day: None = None, week: None = None,
-                 day_of_week: None = None, hour: None = None, minute: Optional[str] = None,
-                 second: Optional[str] = None, timezone: str = "UTC",
-                 args: None = None, kwargs: None = None) -> int:
+    def register(
+        self,
+        func: Callable,
+        year: None = None,
+        month: None = None,
+        day: None = None,
+        week: None = None,
+        day_of_week: None = None,
+        hour: None = None,
+        minute: Optional[str] = None,
+        second: Optional[str] = None,
+        timezone: str = "UTC",
+        args: None = None,
+        kwargs: None = None,
+    ) -> int:
         """
         Register a function to be run at specified times.
 
@@ -52,10 +63,13 @@ class Scheduler():
         Return job ID (integer).
         """
         self.last_job_id += 1
-        trigger = CronTrigger(year, month, day, week, day_of_week, hour, minute,
-                              second, timezone=timezone)
-        self.sched.add_job(func, trigger, args, kwargs, coalesce=True, max_instances=1, id=str(self.last_job_id))
-        self.log.debug("Registered function {0} to be called at {1}".format(func.__qualname__, trigger))
+        trigger = CronTrigger(
+            year, month, day, week, day_of_week, hour, minute, second, timezone=timezone
+        )
+        self.sched.add_job(
+            func, trigger, args, kwargs, coalesce=True, max_instances=1, id=str(self.last_job_id)
+        )
+        self.log.debug(f"Registered function {func.__qualname__} to be called at {trigger}")
         return self.last_job_id
 
     def pause_job(self, id):

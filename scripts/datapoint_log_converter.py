@@ -10,15 +10,17 @@ from typing import Callable, Any
 
 import pandas as pd
 from dateutil.parser import parse as parsetime
+from pydantic.error_wrappers import ValidationError
 
 from dp3.common.config import load_attr_spec, read_config_dir
+from dp3.common.datapoint import DataPoint
 from dp3.common.datatype import valid_mac, valid_ipv4, valid_ipv6, re_set, re_array, re_link, re_dict
 
 logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(message)s")
 
 # Dictionary containing conversion functions for primitive data types
 CONVERTERS = {
-    "tag": lambda v: v,
+    "tag": lambda v: json.loads(f'{{"v": {v}}}')["v"],
     "binary": lambda v: True if v.lower() == 'true' else False,
     "string": str,
     "category": str,
@@ -44,11 +46,11 @@ def get_converter(attr_data_type: str) -> Callable[[str], Any]:
     # array<X>
     m = re.match(re_array, attr_data_type)
     if m:
-        return lambda x: _parse_array_str(x, m.group(1))
+        return json.loads
     # set<X>
     m = re.match(re_set, attr_data_type)
     if m:
-        return lambda x: _parse_set_str(x, m.group(1))
+        return json.loads
     # dict<X,Y,Z>
     m = re.match(re_dict, attr_data_type)
     if m:
@@ -56,7 +58,7 @@ def get_converter(attr_data_type: str) -> Callable[[str], Any]:
         #       regex matches everything between <,> as group 1
         # dtype_mapping: dict_key -> data_type
         dtype_mapping = {key.rstrip("?"): dtype for key, dtype in (item.split(":") for item in m.group(1).split(','))}
-        return lambda x: _parse_dict_str(x, dtype_mapping)
+        return json.loads
     # link<X>
     m = re.match(re_link, attr_data_type)
     if m:
@@ -93,12 +95,11 @@ def _pass_valid(validator_function, value):
         return value
     raise ValueError(f'The value {value} has invalid format.')
 
-
 class LegacyDataPointLoader:
     """Loader of datapoint files as written by DP3 API receiver."""
 
     # Names of columns in datapoint files
-    COL_NAMES = ["type", "id", "attr", "t1", "t2", "c", "src", "val"]
+    COL_NAMES = ["type", "id", "attr", "t1", "t2", "c", "src", "v"]
     log = logging.getLogger("LegacyDataPointLoader")
 
     def __init__(self, attr_config_dirname: str):
@@ -137,7 +138,7 @@ class LegacyDataPointLoader:
             open_function = open  # type: ignore
 
         # Reformat datapoints file so "val" containing commas can be read properly.
-        #   Replace first 7 commas (i.e. all except those inside "val") with semicolon
+        #   Replace first 7 commas (i.e. all except those inside "v") with semicolon
         #   Store as temporary file
         tmp_name = f"tmp-{'.'.join(os.path.basename(os.path.normpath(filename)).split(sep='.')[:-1])}"
         with open_function(filename, "rb") as infile:
@@ -151,10 +152,10 @@ class LegacyDataPointLoader:
             header=None,
             names=self.COL_NAMES,
             index_col=False,
-            converters={"c": float, "val": str},
+            converters={"c": float, "v": str},
             escapechar='\\',
-            parse_dates=["t1", "t2"],
-            infer_datetime_format=True,
+            # parse_dates=["t1", "t2"],
+            # infer_datetime_format=True,
         )
         # Cleanup
         if os.path.exists(tmp_name):
@@ -172,11 +173,11 @@ class LegacyDataPointLoader:
             return row
 
         attrs = {entity_attr[1] for entity_attr in self.dt_conv}
-        conv_vals = data.loc[data["attr"].isin(attrs), ("type", "attr", "val")].apply(convert_row, axis=1, raw=True)
+        conv_vals = data.loc[data["attr"].isin(attrs), ("type", "attr", "v")].apply(convert_row, axis=1, raw=True)
         if len(conv_vals) != len(data):
             self.log.warning("Dropped %s rows due to missing attributes in config", len(data) - len(conv_vals))
             self.log.info("Missing attrs: %s", [x for x in data["attr"].unique() if x not in attrs])
-        data["val"] = conv_vals["val"]
+        data["v"] = conv_vals["v"]
         return data[data["attr"].apply(lambda x: x in attrs)]
 
 
@@ -216,6 +217,21 @@ if __name__ == "__main__":
     loader = LegacyDataPointLoader(args.attr_conf_dir)
     for filename in args.files:
         dp_log = loader.read_dp_file(filename)
+
+        for _, row in dp_log.iterrows():
+            dp_obj = {
+                "attr_spec": loader.ATTR_SPEC,
+                "etype": row["type"],
+                "eid": row["id"],
+                **{key: value for key, value in row.items() if key in {"attr", "v", "src", "t1", "t2", "c"}}
+            }
+            try:
+                DataPoint.parse_obj(dp_obj)
+            except ValidationError as err:
+                print(loader.ATTR_SPEC[row["type"]]["attribs"][row["attr"]])
+                print(dp_obj["attr"], type(dp_obj["v"]), repr(dp_obj["v"]), dp_obj["t1"], dp_obj["t2"])
+                raise err
+
         converted_filename = get_out_path(filename, args.output_dir)
         converted_filename = converted_filename + ".gz" if args.compress else converted_filename
         dp_log.to_json(converted_filename, orient="records", indent=1)

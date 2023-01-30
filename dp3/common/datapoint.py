@@ -120,11 +120,11 @@ class DataPoint(BaseModel):
                         "Difference of t1 and t2 is invalid. Must be values_len*time_step."
 
                 elif attrib_conf.timeseries_type == "irregular":
-                    last_time = values["v"]["time"][-1]
+                    last_time = datetime.fromisoformat(values["v"]["time"][-1])
                     assert v >= last_time, f"'t2' is below last item in 'time' series ({last_time})"
 
                 elif attrib_conf.timeseries_type == "irregular_intervals":
-                    last_time = values["v"]["time_last"][-1]
+                    last_time = datetime.fromisoformat(values["v"]["time_last"][-1])
                     assert v >= last_time, f"'t2' is below last item in 'time_last' series ({last_time})"
 
         return v

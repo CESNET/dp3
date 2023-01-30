@@ -167,7 +167,7 @@ class DataTypeContainer:
             value_validator = validators[data_type]
 
         elif data_type == "category":
-            value_validator = lambda v, attr_spec: v in attr_spec.categories
+            value_validator = lambda v, attr_spec: validators["string"](v, attr_spec) if attr_spec.categories is None else v in attr_spec.categories
 
         elif re.match(re_array, data_type):
             element_type = data_type.split("<")[1].split(">")[0]

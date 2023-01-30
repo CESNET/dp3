@@ -11,17 +11,34 @@ from typing import Callable, Any
 import pandas as pd
 from dateutil.parser import parse as parsetime
 from dp3.common.config import load_attr_spec, read_config_dir
-from dp3.common.datapoint import DataPoint
-from dp3.common.datatype import (
-    valid_mac,
-    valid_ipv4,
-    valid_ipv6,
-    re_set,
-    re_array,
-    re_link,
-    re_dict,
-)
 from pydantic.error_wrappers import ValidationError
+
+re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
+re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
+re_array = re.compile(r"^array<(\w+)>$")
+re_set = re.compile(r"^set<(\w+)>$")
+re_link = re.compile(r"^link<(\w+)>$")
+re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
+
+# Validate ipv4 string
+def valid_ipv4(address, attr_spec):
+    try:
+        ipaddress.IPv4Address(address)
+        return True
+    except ValueError:
+        return False
+
+# Validate ipv6 string
+def valid_ipv6(address, attr_spec):
+    try:
+        ipaddress.IPv6Address(address)
+        return True
+    except ValueError:
+        return False
+
+# Validate MAC string
+def valid_mac(address, attr_spec):
+    return re_mac.match(address)
 
 logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(message)s")
 
@@ -121,7 +138,7 @@ class LegacyDataPointLoader:
                 if data_type is None:
                     converter = json.loads
                 else:
-                    converter = get_converter(data_type.data_type)
+                    converter = get_converter(data_type.str_type)
                 self.dt_conv[(etype, aname)] = converter
 
         self.ATTR_SPEC = attr_spec
@@ -211,7 +228,6 @@ def validate_row(row):
     # COL_NAMES = ["type", "id", "attr", "t1", "t2", "c", "src", "v"]
 
     dp_obj = {
-        "attr_spec": loader.ATTR_SPEC,
         "etype": row[0],
         "eid": row[1],
         "attr": row[2],
@@ -221,11 +237,15 @@ def validate_row(row):
         "src": row[6],
         "v": row[7],
     }
+
+    etype = dp_obj["etype"]
+    attr = dp_obj["attr"]
+
     try:
-        DataPoint.parse_obj(dp_obj)
+        attr_spec[etype]["attribs"][attr]._dp_model.parse_obj(dp_obj)
     except ValidationError as err:
-        print(loader.ATTR_SPEC[row[0]]["attribs"][row[2]])
-        print(dp_obj[2], type(dp_obj[7]), repr(dp_obj[7]), dp_obj[3], dp_obj[4])
+        print(attr_spec[etype]["attribs"][attr])
+        print(attr, type(dp_obj["v"]), repr(dp_obj["v"]), dp_obj["t1"], dp_obj["t2"])
         raise err
 
 
@@ -259,6 +279,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     loader = LegacyDataPointLoader(args.attr_conf_dir)
+    attr_spec = loader.ATTR_SPEC
+
     for filename in args.files:
         dp_log = loader.read_dp_file(filename)
 

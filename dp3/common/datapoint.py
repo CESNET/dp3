@@ -33,20 +33,20 @@ class DataPoint(BaseModel):
 
     @validator("etype")
     def validate_etype(cls, v, values):
-        if values["attr_spec"]:
+        if "attr_spec" in values:
             assert v in values["attr_spec"], f"Invalid etype '{self.etype}'"
         return v
 
     @validator("attr")
     def validate_attr(cls, v, values):
-        if values["attr_spec"] and "etype" in values:
+        if "attr_spec" in values and "etype" in values:
             assert v in values["attr_spec"][values["etype"]]["attribs"], \
                 f"Invalid attribute '{self.attr}'"
         return v
 
     @validator("v")
     def validate_value(cls, v, values):
-        if values["attr_spec"] and "etype" in values and "attr" in values:
+        if "attr_spec" in values and "etype" in values and "attr" in values:
             attrib_conf = values["attr_spec"][values["etype"]]["attribs"][values["attr"]]
 
             # Check value using data type's value_validator()
@@ -80,7 +80,7 @@ class DataPoint(BaseModel):
 
     @validator("t1", pre=True, always=True)
     def set_t1_plain(cls, v, values):
-        if values["attr_spec"] and "etype" in values and "attr" in values:
+        if "attr_spec" in values and "etype" in values and "attr" in values:
             attrib_conf = values["attr_spec"][values["etype"]]["attribs"][values["attr"]]
             if attrib_conf.t == AttrType.PLAIN:
                 return datetime.now()
@@ -88,13 +88,13 @@ class DataPoint(BaseModel):
 
     @validator("t1", always=True)
     def validate_t1(cls, v, values):
-        if values["attr_spec"] and "etype" in values and "attr" in values:
+        if "attr_spec" in values and "etype" in values and "attr" in values:
             assert type(v) is datetime, "Field 't1' is missing"
         return v
 
     @validator("t2", pre=True, always=True)
     def set_t2_plain(cls, v, values):
-        if values["attr_spec"] and "etype" in values and "attr" in values:
+        if "attr_spec" in values and "etype" in values and "attr" in values:
             attrib_conf = values["attr_spec"][values["etype"]]["attribs"][values["attr"]]
             if attrib_conf.t == AttrType.PLAIN:
                 return values["t1"]
@@ -102,7 +102,7 @@ class DataPoint(BaseModel):
 
     @validator("t2", always=True)
     def validate_t2(cls, v, values):
-        if values["attr_spec"] and "etype" in values and "attr" in values:
+        if "attr_spec" in values and "etype" in values and "attr" in values:
             assert type(v) is datetime, "Field 't2' is missing"
             assert values["t1"] <= v, "'t2' is before 't1'"
 
@@ -120,11 +120,11 @@ class DataPoint(BaseModel):
                         "Difference of t1 and t2 is invalid. Must be values_len*time_step."
 
                 elif attrib_conf.timeseries_type == "irregular":
-                    last_time = datetime.fromisoformat(values["v"]["time"][-1])
+                    last_time = values["v"]["time"][-1]
                     assert v >= last_time, f"'t2' is below last item in 'time' series ({last_time})"
 
                 elif attrib_conf.timeseries_type == "irregular_intervals":
-                    last_time = datetime.fromisoformat(values["v"]["time_last"][-1])
+                    last_time = values["v"]["time_last"][-1]
                     assert v >= last_time, f"'t2' is below last item in 'time_last' series ({last_time})"
 
         return v

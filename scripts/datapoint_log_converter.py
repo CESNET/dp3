@@ -10,11 +10,10 @@ from typing import Callable, Any
 
 import pandas as pd
 from dateutil.parser import parse as parsetime
-from pydantic.error_wrappers import ValidationError
-
 from dp3.common.config import load_attr_spec, read_config_dir
 from dp3.common.datapoint import DataPoint
 from dp3.common.datatype import valid_mac, valid_ipv4, valid_ipv6, re_set, re_array, re_link, re_dict
+from pydantic.error_wrappers import ValidationError
 
 logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(message)s")
 
@@ -37,31 +36,21 @@ CONVERTERS = {
 
 def get_converter(attr_data_type: str) -> Callable[[str], Any]:
     """Return a function converting a string to given data type."""
-    # empty type (typically timeseries)
-    if not attr_data_type:
-        return lambda v: None
     # basic type
     if attr_data_type in CONVERTERS:
         return CONVERTERS[attr_data_type]
-    # array<X>
-    m = re.match(re_array, attr_data_type)
-    if m:
-        return json.loads
-    # set<X>
-    m = re.match(re_set, attr_data_type)
-    if m:
+    # array<X>, set<X>
+    if re.match(re_array, attr_data_type) or re.match(re_set, attr_data_type):
         return json.loads
     # dict<X,Y,Z>
-    m = re.match(re_dict, attr_data_type)
-    if m:
+    if m := re.match(re_dict, attr_data_type):
         # note: example dict spec format: dict<port:int,protocol:string,tag?:string>
         #       regex matches everything between <,> as group 1
         # dtype_mapping: dict_key -> data_type
         dtype_mapping = {key.rstrip("?"): dtype for key, dtype in (item.split(":") for item in m.group(1).split(','))}
         return json.loads
     # link<X>
-    m = re.match(re_link, attr_data_type)
-    if m:
+    if re.match(re_link, attr_data_type):
         return lambda x: str(x)
     raise ValueError(f"No conversion function for attribute type '{attr_data_type}'")
 
@@ -199,6 +188,28 @@ def get_out_path(in_file_path, output_dir):
     return os.path.join(output_dir, out_filename)
 
 
+def validate_row(row):
+    # COL_NAMES = ["type", "id", "attr", "t1", "t2", "c", "src", "v"]
+
+    dp_obj = {
+        "attr_spec": loader.ATTR_SPEC,
+        "etype": row[0],
+        "eid": row[1],
+        "attr": row[2],
+        "t1": row[3],
+        "t2": row[4],
+        "c": row[5],
+        "src": row[6],
+        "v": row[7],
+    }
+    try:
+        DataPoint.parse_obj(dp_obj)
+    except ValidationError as err:
+        print(loader.ATTR_SPEC[row[0]]["attribs"][row[2]])
+        print(dp_obj[2], type(dp_obj[7]), repr(dp_obj[7]), dp_obj[3], dp_obj[4])
+        raise err
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Converts legacy CSV DataPoint log format to JSON")
     parser.add_argument("-c", "--attr_conf_dir", dest="attr_conf_dir",
@@ -218,19 +229,7 @@ if __name__ == "__main__":
     for filename in args.files:
         dp_log = loader.read_dp_file(filename)
 
-        for _, row in dp_log.iterrows():
-            dp_obj = {
-                "attr_spec": loader.ATTR_SPEC,
-                "etype": row["type"],
-                "eid": row["id"],
-                **{key: value for key, value in row.items() if key in {"attr", "v", "src", "t1", "t2", "c"}}
-            }
-            try:
-                DataPoint.parse_obj(dp_obj)
-            except ValidationError as err:
-                print(loader.ATTR_SPEC[row["type"]]["attribs"][row["attr"]])
-                print(dp_obj["attr"], type(dp_obj["v"]), repr(dp_obj["v"]), dp_obj["t1"], dp_obj["t2"])
-                raise err
+        dp_log.apply(validate_row, axis=1, raw=True)
 
         converted_filename = get_out_path(filename, args.output_dir)
         converted_filename = converted_filename + ".gz" if args.compress else converted_filename

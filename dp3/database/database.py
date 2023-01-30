@@ -7,7 +7,7 @@ import pymongo
 
 from dp3.common.attrspec import AttrSpecGeneric, AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict
-from dp3.common.datapoint import DataPoint
+from dp3.common.datapoint import DataPointBase
 from dp3.common.entityspec import EntitySpec
 
 
@@ -79,7 +79,7 @@ class EntityDatabase:
         """Returns name of raw data collection for `entity`."""
         return f"{entity}#raw"
 
-    def insert_datapoints(self, etype: str, ekey: str, dps: list[DataPoint]) -> None:
+    def insert_datapoints(self, etype: str, ekey: str, dps: list[DataPointBase]) -> None:
         """Inserts datapoint to raw data collection and updates master record.
 
         Raises DatabaseError when insert or update fails.
@@ -109,7 +109,7 @@ class EntityDatabase:
             if attr_spec.t == AttrType.PLAIN:
                 master_changes["$set"][dp.attr] = {
                     "v": dp.v,
-                    "ts_last_update": dp.t1
+                    "ts_last_update": datetime.now()
                 }
 
             # Push new data of observation
@@ -126,7 +126,7 @@ class EntityDatabase:
                 master_changes["$push"][dp.attr] = {
                     "t1": dp.t1,
                     "t2": dp.t2,
-                    "v": dp.v
+                    "v": dp.v.dict()
                 }
 
         master_col = self._master_col_name(etype)

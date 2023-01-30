@@ -2,11 +2,13 @@ from datetime import timedelta
 from enum import Flag, auto
 from typing import Any, Optional, Literal
 
-from pydantic import BaseModel, validator, PositiveInt, constr
+from pydantic import BaseModel, constr, create_model, PositiveInt, PrivateAttr, validator
 from pydantic.color import Color
 
 from dp3.common.utils import parse_time_duration
 from dp3.common.datatype import DataTypeContainer
+from dp3.common.datapoint import DataPointPlainBase, DataPointObservationsBase, DataPointTimeseriesBase, \
+    dp_ts_v_validator, dp_ts_root_validator_regular_wrapper, dp_ts_root_validator_irregular, dp_ts_root_validator_irregular_intervals
 
 
 # Regex of attribute and series id's
@@ -95,8 +97,8 @@ class TimeseriesSeries(BaseModel):
 
     @validator("data_type")
     def check_series_data_type(cls, v):
-        assert v.data_type in ["int", "int64", "float", "time"], \
-            f"Data type of series must be one of int, int64, float, time; not {v.data_type}"
+        assert v.str_type in ["int", "int64", "float", "time"], \
+            f"Data type of series must be one of int, int64, float, time; not {v.str_type}"
         return v
 
 
@@ -120,6 +122,17 @@ class AttrSpecPlain(AttrSpecGeneric):
     categories: list[str] = None
     editable: bool = False
 
+    _dp_model = PrivateAttr()
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        self._dp_model = create_model(
+            f"DataPointPlain_{self.id}",
+            __base__=DataPointPlainBase,
+            v=(self.data_type.data_type, ...)
+        )
+
 
 class AttrSpecObservations(AttrSpecGeneric):
     """Observations attribute specification"""
@@ -133,6 +146,17 @@ class AttrSpecObservations(AttrSpecGeneric):
     history_force_graph: bool = False
     editable: bool = False
 
+    _dp_model = PrivateAttr()
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        self._dp_model = create_model(
+            f"DataPointObservations_{self.id}",
+            __base__=DataPointObservationsBase,
+            v=(self.data_type.data_type, ...)
+        )
+
 
 class AttrSpecTimeseries(AttrSpecGeneric):
     """Timeseries attribute specification"""
@@ -141,6 +165,37 @@ class AttrSpecTimeseries(AttrSpecGeneric):
     timeseries_type: Literal["regular", "irregular", "irregular_intervals"]
     series: dict[constr(regex=ID_REGEX), TimeseriesSeries] = {}
     timeseries_params: TimeseriesTSParams
+
+    _dp_model = PrivateAttr()
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        # Typing of `v` field
+        dp_value_typing = {}
+        for s in self.series:
+            data_type = self.series[s].data_type.data_type
+            dp_value_typing[s] = ((list[data_type]), ...)
+
+        # Validators
+        dp_validators = {
+            "v_validator": dp_ts_v_validator,
+        }
+
+        # Add root validator
+        if self.timeseries_type == "regular":
+            dp_validators["root_validator"] = dp_ts_root_validator_regular_wrapper(self.timeseries_params.time_step)
+        elif self.timeseries_type == "irregular":
+            dp_validators["root_validator"] = dp_ts_root_validator_irregular
+        elif self.timeseries_type == "irregular_intervals":
+            dp_validators["root_validator"] = dp_ts_root_validator_irregular_intervals
+
+        self._dp_model = create_model(
+            f"DataPointTimeseries_{self.id}",
+            __base__=DataPointTimeseriesBase,
+            __validators__=dp_validators,
+            v=(create_model(f"DataPointTimeseriesValue_{self.id}", **dp_value_typing), ...)
+        )
 
     @validator("series")
     def add_default_series(cls, v, values):

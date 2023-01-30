@@ -12,7 +12,6 @@ from flask import Flask, request, Response, jsonify
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
 from dp3.common.attrspec import AttrType
 from dp3.common.config import read_config_dir, load_attr_spec
-from dp3.common.datapoint import DataPoint
 from dp3.common.task import Task
 from dp3.common.utils import parse_rfc_time
 from dp3.database.database import EntityDatabase
@@ -144,7 +143,7 @@ def push_multiple_datapoints():
 
         # Convert to DataPoint class instances
         try:
-            dp_obj = {"attr_spec": attr_spec}
+            dp_obj = {}
             if "type" in record: dp_obj["etype"] = record["type"]
             if "id" in record:   dp_obj["eid"]   = record["id"]
             if "attr" in record: dp_obj["attr"]  = record["attr"]
@@ -154,7 +153,8 @@ def push_multiple_datapoints():
             if "t2" in record:   dp_obj["t2"]    = record["t2"]
             if "c" in record:    dp_obj["c"]     = record["c"]
 
-            dps.append(DataPoint.parse_obj(dp_obj))
+            dp_model = attr_spec[dp_obj["etype"]]["attribs"][dp_obj["attr"]]._dp_model
+            dps.append(dp_model.parse_obj(dp_obj))
         except Exception as e:
             return error_response(str(e))
 
@@ -185,6 +185,7 @@ def push_multiple_datapoints():
     # Push valid tasks to platform task queue
     for task in task_list:
         try:
+            print(task)
             push_task(task)
         except Exception as e:
             return error_response(f"Failed to push task: {type(e)}: {str(e)}")

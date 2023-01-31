@@ -24,4 +24,4 @@ jobs:
       - uses: actions/checkout@v2
       - uses: psf/black@stable
         with:
-          options: "--check --verbose --diff --color"
+          options: "--check --verbose --diff --color --line-length=100 --target-version=py39"

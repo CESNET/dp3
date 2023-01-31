@@ -25,7 +25,7 @@ def int2ipstr(i):
 # *** Time conversion ***
 # Regex for RFC 3339 time format
 timestamp_re = re.compile(
-    r"^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt ]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$"
+    r"^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?([Zz]|(?:[+-]\d{2}:\d{2}))?$"
 )
 
 
@@ -95,7 +95,8 @@ def conv_to_json(obj):
     if isinstance(obj, datetime.datetime):
         if obj.tzinfo:
             raise NotImplementedError(
-                "Can't serialize timezone-aware datetime object (DP3 policy is to use naive datetimes in UTC everywhere)"
+                "Can't serialize timezone-aware datetime object "
+                "(DP3 policy is to use naive datetimes in UTC everywhere)"
             )
         return {"$datetime": obj.strftime("%Y-%m-%dT%H:%M:%S.%f")}
     if isinstance(obj, datetime.timedelta):
@@ -104,7 +105,8 @@ def conv_to_json(obj):
 
 
 def conv_from_json(dct):
-    """Convert special JSON keys created by conv_to_json back to Python objects (use as "object_hook" param of json.loads)
+    """Convert special JSON keys created by conv_to_json back to Python objects
+    (use as "object_hook" param of json.loads)
 
     Supported types/objects:
     - datetime

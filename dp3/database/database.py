@@ -21,11 +21,12 @@ class MissingTableError(DatabaseError):
 
 class EntityDatabase:
     """
-    MongoDB database wrapper responsible for whole communication with database server. Initializes database schema
-    based on database configuration.
+    MongoDB database wrapper responsible for whole communication with database server.
+    Initializes database schema based on database configuration.
 
     db_conf - configuration of database connection (content of database.yml)
-    attr_spec - configuration of data model (entities and attributes, result of config.load_attr_spec function)
+    attr_spec - configuration of data model
+        (entities and attributes, result of config.load_attr_spec function)
     """
 
     def __init__(
@@ -47,7 +48,7 @@ class EntityDatabase:
             self._db = pymongo.MongoClient(f"mongodb://{username}:{password}@{address}:{port}/")
         except pymongo.errors.ConnectionFailure as e:
             raise DatabaseError(
-                f"Cannot connect to database with specified connection arguments."
+                "Cannot connect to database with specified connection arguments."
             ) from e
 
         self._db_schema_config = attr_spec
@@ -170,8 +171,8 @@ class EntityDatabase:
         etype: str,
         attr_name: str,
         ekey: str,
-        t1: datetime = datetime.fromtimestamp(0),
-        t2: datetime = datetime.now(),
+        t1: datetime = None,
+        t2: datetime = None,
         sort: int = None,
     ) -> list[dict]:
         """Get full (or filtered) history of observation attribute.
@@ -184,9 +185,13 @@ class EntityDatabase:
         :param ekey: id of entity, to which data-points correspond
         :param t1: left value of time interval (inclusive)
         :param t2: right value of time interval (inclusive)
-        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2, None: don't sort
+        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2,
+            None: don't sort
         :return: list of dicts (reduced datapoints)
         """
+        t1 = datetime.fromtimestamp(0) if t1 is None else t1
+        t2 = datetime.now() if t2 is None else t2
+
         # Get attribute history
         mr = self._get_master_record(etype, ekey)
         attr_history = mr.get(attr_name, [])
@@ -207,8 +212,8 @@ class EntityDatabase:
         etype: str,
         attr_name: str,
         ekey: str,
-        t1: datetime = datetime.fromtimestamp(0),
-        t2: datetime = datetime.now(),
+        t1: datetime = None,
+        t2: datetime = None,
         sort: int = None,
     ) -> list[dict]:
         """Get full (or filtered) history of timeseries attribute.
@@ -232,9 +237,13 @@ class EntityDatabase:
         :param ekey: id of entity, to which data-points correspond
         :param t1: left value of time interval (inclusive)
         :param t2: right value of time interval (inclusive)
-        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2, None: don't sort
+        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2,
+            None: don't sort
         :return: list of dicts (reduced datapoints) - each represents just one point at time
         """
+        t1 = datetime.fromtimestamp(0) if t1 is None else t1
+        t2 = datetime.now() if t2 is None else t2
+
         attr_history = self.get_observation_history(etype, attr_name, ekey, t1, t2, sort)
         if not attr_history:
             return []
@@ -251,7 +260,8 @@ class EntityDatabase:
     def _split_timeseries_dps(
         self, etype: str, attr_name: str, attr_history: list[dict]
     ) -> list[dict]:
-        """Helper to split "datapoints" (rows) of timeseries to "datapoints" containing just one value per series."""
+        """Helper to split "datapoints" (rows) of timeseries to "datapoints"
+        containing just one value per series."""
         attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
         timeseries_type = attrib_conf.timeseries_type
 

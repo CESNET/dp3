@@ -3,7 +3,7 @@
 # Updater periodically issues tasks to trigger regular updates of all entities in database
 # Regular updates are configured separately for every entity type.
 #
-# If no ttl token is configured for etype, 
+# If no ttl token is configured for etype,
 # the etype will not be processed by cleaner and no record will be deleted.
 #
 # Interval has to be in format INT(m|h|d|w|y)

@@ -15,7 +15,7 @@ configuration and if needed, it automatically adds the tables and columns needed
 It also checks if data types of columns in the database and data types in configuration are the same.
 If not, it gives you an option to change the data type of the database column to the data type from configuration.
 
-Script also checks if there any columns in database that shouldn't be here. 
+Script also checks if there any columns in database that shouldn't be here.
 If it finds a column or table like this it gives you the option to drop this table or column.
 """
 

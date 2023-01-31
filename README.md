@@ -13,7 +13,7 @@ but the platform itself is general and should be usable for any kind of data.
 DP³ doesn't do much by itself, it must be supplemented by application-specific modules providing
 and processing data.
 
-TODO - architecture, main parts of repository (Python package, other files) 
+TODO - architecture, main parts of repository (Python package, other files)
 
 ## Repository structure
 
@@ -31,7 +31,7 @@ TODO - architecture, main parts of repository (Python package, other files)
 
 **development**: `$ pipenv install`
 
-**production**: `$ pipenv install --ignore-pipfile` 
+**production**: `$ pipenv install --ignore-pipfile`
 
 Generated virtualenv is located at `~/.local/share/virtualenvs`, but should be activated automatically. Deactivate virtualenv with `$ exit`
 

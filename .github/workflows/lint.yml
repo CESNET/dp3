@@ -1,7 +1,7 @@
 name: Linters
 on:
   push:
-    branches: [ "new_dp3" ]
+    branches: [ "new_dp3", "advanced_linters" ]
   pull_request:
     branches: [ "new_dp3" ]
 

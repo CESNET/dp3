@@ -1,11 +1,9 @@
 import logging
 from datetime import datetime
-from typing import Union
 
 from dp3 import g
-from dp3.common.attrspec import AttrSpec, AttrType
-from dp3.common.config import HierarchicalDict
-from dp3.common.entityspec import EntitySpec
+from dp3.common.attrspec import AttrType
+from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.database.database import DatabaseError, EntityDatabase
 
 
@@ -13,7 +11,7 @@ class HistoryManager:
     def __init__(
         self,
         db: EntityDatabase,
-        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+        model_spec: ModelSpec,
         worker_index: int,
         num_workers: int,
         config: HierarchicalDict,
@@ -21,7 +19,7 @@ class HistoryManager:
         self.log = logging.getLogger("HistoryManager")
 
         self.db = db
-        self.attr_spec = attr_spec
+        self.model_spec = model_spec
         self.worker_index = worker_index
         self.num_workers = num_workers
         self.config = config
@@ -40,10 +38,8 @@ class HistoryManager:
         """Deletes old data points from master collection."""
         self.log.debug("Deleting old records ...")
 
-        for etype in self.attr_spec:
-            for attr_name in self.attr_spec[etype]["attribs"]:
-                attr_conf = self.attr_spec[etype]["attribs"][attr_name]
-
+        for etype in self.model_spec:
+            for attr_name, attr_conf in self.model_spec.attribs(etype).items():
                 max_age = None
 
                 if attr_conf.t == AttrType.OBSERVATIONS:

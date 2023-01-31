@@ -1,11 +1,10 @@
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 from pydantic import BaseModel, root_validator, validator
 from pydantic.error_wrappers import ValidationError
 
 from dp3.common.datapoint import DataPointBase
-from dp3.common.entityspec import EntitySpec
 
 
 class Task(BaseModel):
@@ -15,7 +14,7 @@ class Task(BaseModel):
     """
 
     # Attribute spec just for internal validation. Discarded after that.
-    attr_spec: Optional[dict[str, dict[str, Union[EntitySpec, dict[str, Any]]]]] = None
+    model_spec: Any
 
     etype: str
     ekey: str
@@ -25,13 +24,13 @@ class Task(BaseModel):
 
     @validator("etype")
     def validate_etype(cls, v, values):
-        if "attr_spec" in values:
-            assert v in values["attr_spec"], f"Invalid etype '{v}'"
+        if "model_spec" in values:
+            assert v in values["model_spec"], f"Invalid etype '{v}'"
         return v
 
     @validator("data_points", pre=True, each_item=True)
     def instanciate_dps(cls, v, values):
-        if "attr_spec" in values and values["attr_spec"]:
+        if "model_spec" in values and values["model_spec"]:
             # Convert `DataPointBase` instances back to dicts
             if isinstance(v, DataPointBase):
                 v = v.dict()
@@ -41,7 +40,7 @@ class Task(BaseModel):
 
             # Fetch datapoint model
             try:
-                dp_model = values["attr_spec"][etype]["attribs"][attr]._dp_model
+                dp_model = values["model_spec"].attr(etype, attr)._dp_model
             except (KeyError, TypeError) as e:
                 raise ValueError(f"Attribute '{attr}' not found in entity '{etype}'") from e
 
@@ -68,5 +67,5 @@ class Task(BaseModel):
     def discard_attr_spec(cls, values):
         # This is run at the end of validation.
         # Discard attribute specification.
-        del values["attr_spec"]
+        del values["model_spec"]
         return values

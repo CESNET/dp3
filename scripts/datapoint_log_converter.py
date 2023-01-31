@@ -13,7 +13,7 @@ import pandas as pd
 from dateutil.parser import parse as parsetime
 from pydantic.error_wrappers import ValidationError
 
-from dp3.common.config import load_attr_spec, read_config_dir
+from dp3.common.config import ModelSpec, read_config_dir
 
 re_timestamp = re.compile(
     r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}(?:\.\d+)?([Zz]|(?:[+-]\d{2}:\d{2}))?$"
@@ -25,7 +25,7 @@ re_link = re.compile(r"^link<(\w+)>$")
 re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
 
 
-def valid_ipv4(address, attr_spec):
+def valid_ipv4(address):
     try:
         ipaddress.IPv4Address(address)
         return True
@@ -33,7 +33,7 @@ def valid_ipv4(address, attr_spec):
         return False
 
 
-def valid_ipv6(address, attr_spec):
+def valid_ipv6(address):
     try:
         ipaddress.IPv6Address(address)
         return True
@@ -42,7 +42,7 @@ def valid_ipv6(address, attr_spec):
 
 
 # Validate MAC string
-def valid_mac(address, attr_spec):
+def valid_mac(address):
     return re_mac.match(address)
 
 
@@ -127,12 +127,12 @@ class LegacyDataPointLoader:
         attr_config_dirname: Directory with attribute configuration (same as for DP3)
         """
         # Load attribute config
-        attr_spec = load_attr_spec(read_config_dir(attr_config_dirname))
+        model_spec = ModelSpec(read_config_dir(attr_config_dirname))
 
         # Prepare a table for data type conversion
-        # (to get data type from attr_spec: attr_spec[etype]["attribs"][attrname].data_type)
+        # (to get data type from model_spec: model_spec[etype]["attribs"][attrname].data_type)
         self.dt_conv = {}  # map (etype,attr_name) -> conversion_function
-        for etype, spec in attr_spec.items():
+        for etype, spec in model_spec.items():
             for aname, aspec in spec["attribs"].items():
                 data_type = getattr(aspec, "data_type", None)
                 if data_type is None:
@@ -141,7 +141,7 @@ class LegacyDataPointLoader:
                     converter = get_converter(data_type.str_type)
                 self.dt_conv[(etype, aname)] = converter
 
-        self.ATTR_SPEC = attr_spec
+        self.model_spec = model_spec
 
     def read_dp_file(self, filename: str) -> pd.DataFrame:
         """
@@ -180,7 +180,7 @@ class LegacyDataPointLoader:
         if os.path.exists(tmp_name):
             os.remove(tmp_name)
 
-        # Convert values to correct types according to attr_spec
+        # Convert values to correct types according to model_spec
         def convert_row(row):
             try:
                 row[2] = self.dt_conv[(row[0], row[1])](row[2])
@@ -241,9 +241,9 @@ def validate_row(row):
     attr = dp_obj["attr"]
 
     try:
-        attr_spec[etype]["attribs"][attr]._dp_model.parse_obj(dp_obj)
+        model_spec.attr(etype, attr)._dp_model.parse_obj(dp_obj)
     except ValidationError as err:
-        print(attr_spec[etype]["attribs"][attr])
+        print(model_spec.attr(etype, attr))
         print(attr, type(dp_obj["v"]), repr(dp_obj["v"]), dp_obj["t1"], dp_obj["t2"])
         raise err
 
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     loader = LegacyDataPointLoader(args.attr_conf_dir)
-    attr_spec = loader.ATTR_SPEC
+    model_spec = loader.model_spec
 
     for filename in args.files:
         dp_log = loader.read_dp_file(filename)

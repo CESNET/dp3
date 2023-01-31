@@ -4,11 +4,9 @@ import threading
 import time
 from collections.abc import Iterable
 from datetime import datetime
-from typing import Callable, Union
+from typing import Callable
 
-from dp3.common.attrspec import AttrSpec
-from dp3.common.config import HierarchicalDict
-from dp3.common.entityspec import EntitySpec
+from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.task import Task
 from dp3.task_processing.task_executor import TaskExecutor
 
@@ -23,7 +21,7 @@ class TaskDistributor:
         process_index: int,
         num_processes: int,
         task_executor: TaskExecutor,
-        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+        model_spec: ModelSpec,
     ) -> None:
         assert isinstance(process_index, int) and isinstance(num_processes, int), (
             "num_processes and process_index " "must be int"
@@ -37,7 +35,7 @@ class TaskDistributor:
 
         self.process_index = process_index
         self.num_processes = num_processes
-        self.attr_spec = attr_spec
+        self.model_spec = model_spec
 
         self.rabbit_params = config.get("processing_core.msg_broker", {})
 
@@ -60,7 +58,7 @@ class TaskDistributor:
         self._task_queue_reader = TaskQueueReader(
             self._distribute_task,
             g.app_name,
-            self.attr_spec,
+            self.model_spec,
             self.process_index,
             self.rabbit_params,
         )

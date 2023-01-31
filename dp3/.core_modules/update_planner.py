@@ -21,7 +21,7 @@ class UpdatePlanner(BaseModule):
         self.log.setLevel("DEBUG")
 
         # register handler for every etype
-        for etype in g.attr_spec:
+        for etype in g.model_spec:
             g.td.register_handler(
                 self.processing_function,  # function to call (callback)
                 etype,  # entity type, which actions will be watched (e.g. "ip")

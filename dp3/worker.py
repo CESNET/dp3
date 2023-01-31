@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
 from . import g
 from .common import scheduler
-from .common.config import load_attr_spec, read_config_dir
+from .common.config import ModelSpec, read_config_dir
 
 # from .common.base_module import BaseModule
 from .database.database import EntityDatabase
@@ -106,9 +106,9 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     # Whole configuration should be loaded
     config = read_config_dir(g.config_base_path, recursive=True)
-    attr_spec = load_attr_spec(config.get("db_entities"))
+    model_spec = ModelSpec(config.get("db_entities"))
 
-    print(attr_spec)
+    print(model_spec)
 
     num_processes = config.get("processing_core.worker_processes")
     assert (
@@ -127,15 +127,15 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     g.app_name = app_name
     g.config = config
-    g.attr_spec = attr_spec
+    g.model_spec = model_spec
     g.running = False
     g.scheduler = scheduler.Scheduler()
-    g.db = EntityDatabase(config.get("database"), attr_spec)
+    g.db = EntityDatabase(config.get("database"), model_spec)
     g.hm = HistoryManager(
-        g.db, attr_spec, process_index, num_processes, config.get("history_manager")
+        g.db, model_spec, process_index, num_processes, config.get("history_manager")
     )
-    te = TaskExecutor(g.db, attr_spec)
-    g.td = TaskDistributor(config, process_index, num_processes, te, attr_spec)
+    te = TaskExecutor(g.db, model_spec)
+    g.td = TaskDistributor(config, process_index, num_processes, te, model_spec)
 
     ##############################################
     # Load all plug-in modules

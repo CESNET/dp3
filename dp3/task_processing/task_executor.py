@@ -1,15 +1,14 @@
 import logging
 from collections.abc import Iterable
-from typing import Any, Callable, Union
+from typing import Any, Callable
 
 from event_count_logger import DummyEventGroup, EventCountLogger
 
-from dp3.common.attrspec import AttrSpec
-from dp3.common.entityspec import EntitySpec
 from dp3.common.task import Task
 from dp3.database.database import DatabaseError, EntityDatabase
 
 from .. import g
+from ..common.config import ModelSpec
 
 
 class TaskExecutor:
@@ -24,20 +23,20 @@ class TaskExecutor:
     If there are multiple matching events, only the first one is used.
 
     :param db: Instance of EntityDatabase
-    :param attr_spec: Configuration of entity types and attributes (dict entity_name->entity_spec)
+    :param model_spec: Configuration of entity types and attributes (dict entity_name->entity_spec)
     """
 
     def __init__(
         self,
         db: EntityDatabase,
-        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+        model_spec: ModelSpec,
     ) -> None:
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
 
         # Get list of configured entity types
-        self.entity_types = list(attr_spec.keys())
+        self.entity_types = list(model_spec.entities.keys())
         self.log.debug(f"Configured entity types: {self.entity_types}")
 
         # Mapping of names of attributes to a list of functions that should be
@@ -52,7 +51,7 @@ class TaskExecutor:
         # cache for may_change set calculation - is cleared when register_handler() is called
         self._may_change_cache = self._init_may_change_cache()
 
-        self.attr_spec = attr_spec
+        self.model_spec = model_spec
         self.db = db
 
         # EventCountLogger
@@ -119,7 +118,7 @@ class TaskExecutor:
         self.log.debug(f"Received new task {task.etype}/{task.ekey}, starting processing!")
 
         # Check existence of etype
-        if task.etype not in self.attr_spec:
+        if task.etype not in self.entity_types:
             self.log.error(f"Task {task.etype}/{task.ekey}: Unknown entity type!")
             self.elog.log("task_processing_error")
             return False

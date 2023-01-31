@@ -6,7 +6,7 @@ import logging
 import sys
 import time
 
-from dp3.common.config import load_attr_spec, read_config_dir
+from dp3.common.config import ModelSpec, read_config_dir
 from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -73,7 +73,7 @@ log.setLevel(logging.WARNING if args.quiet else logging.INFO)
 log.info(f"Loading config dir {args.config_dir}")
 config = read_config_dir(args.config_dir, recursive=True)
 db_config = config.get("database")
-attr_spec = load_attr_spec(config.get("db_entities"))
+attr_spec = ModelSpec(config.get("db_entities"))
 # TODO check existence of args.etype in attr_spec
 
 rabbit_params = config.get("processing_core.rabbitmq", {})

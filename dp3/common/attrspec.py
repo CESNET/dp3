@@ -1,6 +1,6 @@
 from datetime import timedelta
 from enum import Flag, auto
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -215,7 +215,10 @@ class AttrSpecTimeseries(AttrSpecGeneric):
         return v
 
 
-def AttrSpec(id: str, spec: dict[str, Any]):
+AttrSpecType = Union[AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries]
+
+
+def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:
     """Factory for `AttrSpec` classes"""
 
     attr_type = AttrType.from_str(spec.get("type"))

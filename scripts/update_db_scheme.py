@@ -40,7 +40,7 @@ from sqlalchemy.dialects.postgresql import (
     VARCHAR,
 )
 
-from dp3.common.config import load_attr_spec, read_config_dir
+from dp3.common.config import ModelSpec, read_config_dir
 
 # map supported data types to Postgres SQL data types (from database.py)
 ATTR_TYPE_MAPPING = {
@@ -399,7 +399,7 @@ def validity_of_config(args):
     # checking if the configuration is valid
     try:
         config = read_config_dir(args.config_dir, True)
-        attr_spec = load_attr_spec(config.get("db_entities"))
+        model_spec = ModelSpec(config.get("db_entities"))
     except Exception as e:
         print(f"CONFIGURATION ERROR: {e}")
         sys.exit(1)
@@ -410,7 +410,7 @@ def validity_of_config(args):
         # Print parsed config as JSON (print unserializable objects using str())
         print(json.dumps(config, indent=4, default=str))
 
-    return attr_spec
+    return model_spec
 
 
 def get_db_connection(config_dir):
@@ -486,7 +486,7 @@ def main():
     if args.worker_check_url is not None:
         check_workers(args.worker_check_url)
 
-    attr_spec = validity_of_config(args)  # checks if configuration is valid
+    model_spec = validity_of_config(args)  # checks if configuration is valid
     # connecting database
     db_engine = get_db_connection(args.config_dir)
     try:
@@ -503,10 +503,10 @@ def main():
     db_table = db_inspector.get_table_names(schema="public")
     # checking if any changes in database schema have to be made
     add_table_or_column(
-        attr_spec, db_inspector, db_engine, meta, db_table
+        model_spec, db_inspector, db_engine, meta, db_table
     )  # observations and plain
-    check_timeseries_tables(attr_spec, meta, db_engine, db_inspector, db_table)  # check timeseries
-    delete_table_or_column(attr_spec, db_inspector, db_engine, meta, connection)
+    check_timeseries_tables(model_spec, meta, db_engine, db_inspector, db_table)  # check timeseries
+    delete_table_or_column(model_spec, db_inspector, db_engine, meta, connection)
 
     # closing database connection
     connection.close()

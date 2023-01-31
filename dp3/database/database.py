@@ -1,14 +1,12 @@
 import logging
 import urllib
 from datetime import datetime
-from typing import Union
 
 import pymongo
 
-from dp3.common.attrspec import AttrSpecGeneric, AttrType, timeseries_types
-from dp3.common.config import HierarchicalDict
+from dp3.common.attrspec import AttrType, timeseries_types
+from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase
-from dp3.common.entityspec import EntitySpec
 
 
 class DatabaseError(Exception):
@@ -25,14 +23,13 @@ class EntityDatabase:
     Initializes database schema based on database configuration.
 
     db_conf - configuration of database connection (content of database.yml)
-    attr_spec - configuration of data model
-        (entities and attributes, result of config.load_attr_spec function)
+    model_spec - ModelSpec object, configuration of data model (entities and attributes)
     """
 
     def __init__(
         self,
         db_conf: HierarchicalDict,
-        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpecGeneric]]]],
+        model_spec: ModelSpec,
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
         self.log.setLevel("DEBUG")
@@ -51,7 +48,7 @@ class EntityDatabase:
                 "Cannot connect to database with specified connection arguments."
             ) from e
 
-        self._db_schema_config = attr_spec
+        self._db_schema_config = model_spec
 
         # Init and switch to correct database
         self._init_database_schema(db_name)
@@ -94,7 +91,7 @@ class EntityDatabase:
 
         etype = dps[0].etype
 
-        if etype not in self._db_schema_config:
+        if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
         # Insert raw datapoints
@@ -109,7 +106,7 @@ class EntityDatabase:
         # Update master document
         master_changes = {"$push": {}, "$set": {}}
         for dp in dps:
-            attr_spec = self._db_schema_config[etype]["attribs"][dp.attr]
+            attr_spec = self._db_schema_config.attr(etype, dp.attr)
             # Rewrite value of plain attribute
             if attr_spec.t == AttrType.PLAIN:
                 master_changes["$set"][dp.attr] = {"v": dp.v, "ts_last_update": datetime.now()}
@@ -145,7 +142,7 @@ class EntityDatabase:
 
         If doesn't exist, returns {}.
         """
-        if etype not in self._db_schema_config:
+        if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
         master_col = self._master_col_name(etype)
@@ -262,7 +259,7 @@ class EntityDatabase:
     ) -> list[dict]:
         """Helper to split "datapoints" (rows) of timeseries to "datapoints"
         containing just one value per series."""
-        attrib_conf = self._db_schema_config[etype]["attribs"][attr_name]
+        attrib_conf = self._db_schema_config.attr(etype, attr_name)
         timeseries_type = attrib_conf.timeseries_type
 
         result = []

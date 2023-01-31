@@ -38,12 +38,11 @@ import json
 import logging
 import threading
 import time
-from typing import Callable, Union
+from typing import Callable
 
 import amqpstorm
 
-from dp3.common.attrspec import AttrSpec
-from dp3.common.entityspec import EntitySpec
+from dp3.common.config import ModelSpec
 from dp3.common.task import Task
 
 # Exchange and queue names
@@ -259,7 +258,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         self.log.debug(f"Received new task: {task}")
 
         # Prepare routing key
-        body = task.json(exclude={"attr_spec"})
+        body = task.json(exclude={"model_spec"})
         key = task.etype + ":" + str(task.ekey)
         routing_key = HASH(key) % self.workers  # index of the worker to send the task to
 
@@ -309,7 +308,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self,
         callback: Callable,
         app_name: str,
-        attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
+        model_spec: ModelSpec,
         worker_index: int = 0,
         rabbit_config: dict = None,
         queue: str = None,
@@ -333,7 +332,7 @@ class TaskQueueReader(RobustAMQPConnection):
         :param queue: Name of RabbitMQ queue to read from (default: "<app-name>-worker-<index>")
         :param priority_queue: Name of RabbitMQ queue to read from (priority messages)
             (default: "<app-name>-worker-<index>-pri")
-        :param attr_spec: Attribute specification. Used for `Task` validation.
+        :param model_spec: Attribute specification. Used for `Task` validation.
         """
         rabbit_config = {} if rabbit_config is None else rabbit_config
         assert callable(callback), "callback must be callable object"
@@ -350,7 +349,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self.log = logging.getLogger("TaskQueueReader")
 
         self.callback = callback
-        self.attr_spec = attr_spec
+        self.model_spec = model_spec
 
         if queue is None:
             queue = DEFAULT_QUEUE.format(app_name, worker_index)
@@ -490,9 +489,9 @@ class TaskQueueReader(RobustAMQPConnection):
 
             # Parse and check validity of received message
             # Not converting to `Task` instance here, because we don't have
-            # any access to `AttrSpec`.
+            # any access to `ModelSpec`.
             try:
-                task = Task(attr_spec=self.attr_spec, **json.loads(body))
+                task = Task(model_spec=self.model_spec, **json.loads(body))
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error(

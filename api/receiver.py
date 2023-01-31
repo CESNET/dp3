@@ -11,7 +11,7 @@ import requests
 from flask import Flask, jsonify, request
 
 from dp3.common.attrspec import AttrType
-from dp3.common.config import load_attr_spec, read_config_dir
+from dp3.common.config import ModelSpec, read_config_dir
 from dp3.common.task import Task
 from dp3.common.utils import parse_rfc_time
 from dp3.database.database import EntityDatabase
@@ -58,7 +58,7 @@ else:
 config = None
 
 # Dictionary containing entity / attribute specification
-attr_spec = {}
+model_spec: ModelSpec = None
 
 # TaskQueueWriter instance used for sending tasks to the processing core
 task_writer = None
@@ -81,7 +81,7 @@ log.setLevel(logging.DEBUG if verbose else logging.INFO)
 # Load configuration and entity/attribute specification
 try:
     config = read_config_dir(conf_dir, recursive=True)
-    attr_spec = load_attr_spec(config.get("db_entities"))
+    model_spec = ModelSpec(config.get("db_entities"))
     log.debug(f"Loaded configuration: {config}")
 except Exception as e:
     log.exception(f"Error when reading configuration: {e}")
@@ -100,7 +100,7 @@ except Exception as e:
 
 # Initialize database connection
 try:
-    db = EntityDatabase(config.get("database"), attr_spec)
+    db = EntityDatabase(config.get("database"), model_spec)
 except Exception as e:
     log.exception(f"Error when connecting to database: {e}")
     sys.exit(1)
@@ -174,7 +174,7 @@ def push_multiple_datapoints():
         try:
             dp_obj = get_datapoint_object_from_record(record)
 
-            dp_model = attr_spec[dp_obj["etype"]]["attribs"][dp_obj["attr"]]._dp_model
+            dp_model = model_spec.attr(dp_obj["etype"], dp_obj["attr"])._dp_model
             dps.append(dp_model.parse_obj(dp_obj))
         except Exception as e:
             return error_response(str(e))
@@ -192,7 +192,7 @@ def push_multiple_datapoints():
         etype, ekey = k
         try:
             task_list.append(
-                Task(attr_spec=attr_spec, etype=etype, ekey=ekey, data_points=tasks_dps[k])
+                Task(model_spec=model_spec, etype=etype, ekey=ekey, data_points=tasks_dps[k])
             )
         except Exception as e:
             return error_response(f"Failed to create a task: {type(e)}: {str(e)}")
@@ -228,7 +228,7 @@ def push_multiple_datapoints():
 #     log.debug(f"Received new GET request from {request.remote_addr}")
 
 #     try:
-#         _ = attr_spec[entity_type]["attribs"][attr_id]
+#         _ = model_spec[entity_type]["attribs"][attr_id]
 #     except KeyError:
 #         response = f"Error: no specification found for {entity_type}/{attr_id}"
 #         log.info(response)
@@ -236,11 +236,11 @@ def push_multiple_datapoints():
 
 #     try:
 #         timestamp = request.values.get("t", None)
-#         observations = attr_spec[entity_type]['attribs'][attr_id].t == AttrType.OBSERVATIONS
+#         observations = model_spec[entity_type]['attribs'][attr_id].t == AttrType.OBSERVATIONS
 
 #         if timestamp is not None and observations:
 #             content = get_historic_value(
-#                 db, attr_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp)
+#                 db, model_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp)
 #             )
 #         else:
 #             content = db.get_attrib(entity_type, entity_id, attr_id)
@@ -270,11 +270,11 @@ def get_attr_history(entity_type, entity_id, attr_id):
         /ip/1.2.3.4/test_attr/history
     """
     try:
-        _ = attr_spec[entity_type]["attribs"][attr_id]
+        attr_spec = model_spec.attr(entity_type, attr_id)
     except KeyError:
         return error_response(f"Error: no attribute specification found for '{attr_id}'")
 
-    attr_type = attr_spec[entity_type]["attribs"][attr_id].t
+    attr_type = attr_spec.t
 
     t1 = request.args.get("t1", None)
     t2 = request.args.get("t2", None)

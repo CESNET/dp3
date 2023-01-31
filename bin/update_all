@@ -3,11 +3,9 @@
 
 import argparse
 import logging
-import os
 import sys
 import time
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
 from dp3.common.config import load_attr_spec, read_config_dir
 from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
@@ -15,13 +13,14 @@ from dp3.task_processing.task_queue import TaskQueueWriter
 # parse arguments
 parser = argparse.ArgumentParser(
     prog="update_all",
-    description='Issue a task containing a given "event" for each entity in the database (matching given criteria).',
+    description='Issue a task containing a given "event" for each entity in the database '
+    "(matching given criteria).",
 )
 parser.add_argument(
     "app_name",
     metavar="APP_NAME",
-    help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
-    "RabbitMQ queue names, for example).",
+    help="Name of the application to distinct it from other DP3-based apps "
+    "(it's used as a prefix of RabbitMQ queue names, for example).",
 )
 parser.add_argument(
     "config_dir",
@@ -34,10 +33,6 @@ parser.add_argument(
     metavar="EVENT_NAME",
     help="Event name (leading '!' is not necessary, e.g. 'update_attr_x')",
 )
-# parser.add_argument('-c', '--condition', metavar='WHERE_CLAUSE',
-#                     help="Condition to select only some of the entities. In the form of an SQL 'WHERE' clause "
-#                          "(available columns: 'eid', 'ts_added', 'ts_last_update' and all attribute names; "
-#                          "expected time format: YYYY-MM-DDTHH:MM:SS)")
 parser.add_argument(
     "-r",
     "--rate",

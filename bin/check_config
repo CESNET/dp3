@@ -5,18 +5,16 @@ Load and check configuration from given directory, print any errors, and exit.
 
 import argparse
 import json
-import os
 import sys
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
 from dp3.common.config import load_attr_spec, read_config_dir
 
 # Parse arguments
 parser = argparse.ArgumentParser(
     prog="check_config",
-    description="Load configuration from given directory and check its validity. When configuration is OK, program "
-    "exits immediately with status code 0, otherwise it prints error messages on stderr and exits with non-zero "
-    "status.",
+    description="Load configuration from given directory and check its validity. "
+    "When configuration is OK, program exits immediately with status code 0, "
+    "otherwise it prints error messages on stderr and exits with non-zero status.",
 )
 parser.add_argument(
     "config_dir",

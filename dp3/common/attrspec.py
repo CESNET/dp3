@@ -1,22 +1,28 @@
 from datetime import timedelta
 from enum import Flag, auto
-from typing import Any, Optional, Literal
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, constr, create_model, PositiveInt, PrivateAttr, validator
+from pydantic import (
+    BaseModel,
+    PositiveInt,
+    PrivateAttr,
+    constr,
+    create_model,
+    validator,
+)
 from pydantic.color import Color
 
-from dp3.common.utils import parse_time_duration
-from dp3.common.datatype import DataTypeContainer
 from dp3.common.datapoint import (
-    DataPointPlainBase,
     DataPointObservationsBase,
+    DataPointPlainBase,
     DataPointTimeseriesBase,
-    dp_ts_v_validator,
-    dp_ts_root_validator_regular_wrapper,
     dp_ts_root_validator_irregular,
     dp_ts_root_validator_irregular_intervals,
+    dp_ts_root_validator_regular_wrapper,
+    dp_ts_v_validator,
 )
-
+from dp3.common.datatype import DataTypeContainer
+from dp3.common.utils import parse_time_duration
 
 # Regex of attribute and series id's
 ID_REGEX = r"^[a-zA-Z_][a-zA-Z0-9_-]*$"

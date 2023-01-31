@@ -1,6 +1,6 @@
+import logging
 from datetime import datetime
 from typing import Union
-import logging
 
 from dp3 import g
 from dp3.common.attrspec import AttrSpec, AttrType

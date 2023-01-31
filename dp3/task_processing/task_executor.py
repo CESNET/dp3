@@ -1,17 +1,18 @@
 import inspect
 import logging
 from collections import deque
+from collections.abc import Iterable
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Callable, Union
-from collections.abc import Iterable
 
-from event_count_logger import EventCountLogger, DummyEventGroup
+from event_count_logger import DummyEventGroup, EventCountLogger
 
 from dp3.common.attrspec import AttrSpec
 from dp3.common.entityspec import EntitySpec
 from dp3.common.task import Task
 from dp3.database.database import DatabaseError, EntityDatabase
+
 from .. import g
 from ..common.utils import get_func_name, parse_rfc_time
 

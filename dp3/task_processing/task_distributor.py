@@ -12,8 +12,9 @@ from dp3.common.config import HierarchicalDict
 from dp3.common.entityspec import EntitySpec
 from dp3.common.task import Task
 from dp3.task_processing.task_executor import TaskExecutor
-from .task_queue import TaskQueueReader, TaskQueueWriter
+
 from .. import g
+from .task_queue import TaskQueueReader, TaskQueueWriter
 
 
 class TaskDistributor:

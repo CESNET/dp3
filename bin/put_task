@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Script to put a single task (aka update_request) to the main Task Queue."""
 
-import sys
-import os
 import argparse
-import logging
 import json
+import logging
+import os
+import sys
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
-from dp3.task_processing.task_queue import TaskQueueWriter
 from dp3.common.config import read_config_dir
+from dp3.task_processing.task_queue import TaskQueueWriter
 
 LOGFORMAT = "%(asctime)-15s,%(name)s [%(levelname)s] %(message)s"
 LOGDATEFORMAT = "%Y-%m-%dT%H:%M:%S"

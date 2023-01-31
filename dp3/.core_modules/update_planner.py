@@ -9,8 +9,8 @@ Note:
 import logging
 from datetime import timedelta
 
-from dp3.common.base_module import BaseModule
 from dp3 import g
+from dp3.common.base_module import BaseModule
 
 
 class UpdatePlanner(BaseModule):

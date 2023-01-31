@@ -19,28 +19,29 @@ Script also checks if there any columns in database that shouldn't be here.
 If it finds a column or table like this it gives you the option to drop this table or column.
 """
 
-import inspect
-import yaml
-import sys
-import os
 import argparse
-import requests
+import inspect
 import json
+import os
+import sys
+
+import requests
+import yaml
 from migrate import ChangesetColumn
+from sqlalchemy import Column, MetaData, Table, create_engine, func, inspect
 from sqlalchemy.dialects.postgresql import (
-    VARCHAR,
-    TIMESTAMP,
+    ARRAY,
+    BIGINT,
     BOOLEAN,
     INTEGER,
-    BIGINT,
-    ARRAY,
-    REAL,
     JSON,
+    REAL,
+    TIMESTAMP,
+    VARCHAR,
 )
-from sqlalchemy import create_engine, inspect, Table, Column, MetaData, func
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
-from dp3.common.config import read_config_dir, load_attr_spec
+from dp3.common.config import load_attr_spec, read_config_dir
 
 # map supported data types to Postgres SQL data types (from database.py)
 ATTR_TYPE_MAPPING = {

@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta
-from enum import Flag, auto
-from typing import Any, Callable, Optional
 import functools
 import ipaddress
 import re
+from datetime import datetime, timedelta
+from enum import Flag, auto
+from typing import Any, Callable, Optional
 
-from pydantic import BaseModel, constr, Json, validator
+from pydantic import BaseModel, Json, constr, validator
 
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(\w+)>$")

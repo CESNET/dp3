@@ -3,13 +3,13 @@
 Load and check configuration from given directory, print any errors, and exit.
 """
 
-import sys
-import os
 import argparse
 import json
+import os
+import sys
 
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
-from dp3.common.config import read_config_dir, load_attr_spec
+from dp3.common.config import load_attr_spec, read_config_dir
 
 # Parse arguments
 parser = argparse.ArgumentParser(

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-from datetime import datetime
 import json
 import logging
 import os
 import sys
 import time
+from datetime import datetime
 
 import requests
-from flask import Flask, request, Response, jsonify
+from flask import Flask, Response, jsonify, request
 
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 from dp3.common.attrspec import AttrType
-from dp3.common.config import read_config_dir, load_attr_spec
+from dp3.common.config import load_attr_spec, read_config_dir
 from dp3.common.task import Task
 from dp3.common.utils import parse_rfc_time
 from dp3.database.database import EntityDatabase

@@ -6,14 +6,17 @@ import json
 import logging
 import os
 import re
-from typing import Callable, Any
+from typing import Any, Callable
 
 import pandas as pd
 from dateutil.parser import parse as parsetime
-from dp3.common.config import load_attr_spec, read_config_dir
 from pydantic.error_wrappers import ValidationError
 
-re_timestamp = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$")
+from dp3.common.config import load_attr_spec, read_config_dir
+
+re_timestamp = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$"
+)
 re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
 re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
@@ -28,6 +31,7 @@ def valid_ipv4(address, attr_spec):
     except ValueError:
         return False
 
+
 # Validate ipv6 string
 def valid_ipv6(address, attr_spec):
     try:
@@ -36,9 +40,11 @@ def valid_ipv6(address, attr_spec):
     except ValueError:
         return False
 
+
 # Validate MAC string
 def valid_mac(address, attr_spec):
     return re_mac.match(address)
+
 
 logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(message)s")
 

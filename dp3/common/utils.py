@@ -1,8 +1,8 @@
 """
 auxiliary/utility functions and classes
 """
-import re
 import datetime
+import re
 from typing import Union
 
 # *** IP conversion functions ***

@@ -5,10 +5,9 @@ Don't run directly. Import and run the main() function.
 """
 import inspect
 import logging
-from importlib import import_module
-import sys
 import os
 import signal
+import sys
 import threading
 from importlib import import_module
 
@@ -18,16 +17,15 @@ if __name__ == "__main__":
     print("Don't run this file directly. Use 'bin/worker' instead.", file=sys.stderr)
     sys.exit(1)
 
-from .common.config import read_config_dir, load_attr_spec
+from . import g
 from .common import scheduler
+from .common.config import load_attr_spec, read_config_dir
 
 # from .common.base_module import BaseModule
 from .database.database import EntityDatabase
-from .task_processing.task_executor import TaskExecutor
-from .task_processing.task_distributor import TaskDistributor
 from .history_management.history_manager import HistoryManager
-from . import g
-
+from .task_processing.task_distributor import TaskDistributor
+from .task_processing.task_executor import TaskExecutor
 
 # def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
 #     """Load plug-in modules

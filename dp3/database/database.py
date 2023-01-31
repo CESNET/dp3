@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta
-from typing import Union
 import logging
 import urllib
+from datetime import datetime, timedelta
+from typing import Union
 
 import pymongo
 

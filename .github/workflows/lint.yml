@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: TrueBrain/actions-flake8@v2
         with:
-          ignore: E4,W
+          ignore: E203,W503
           max_line_length: 100
           plugins: flake8-bugbear flake8-simplify
           extra_arguments: "--max-complexity=15 --ignore=E203,W503"

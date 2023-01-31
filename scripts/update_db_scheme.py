@@ -116,7 +116,7 @@ def create_column_list(columns_in_attr, attributes):
 
 def create_new_entity_table(config_item, db_engine, column_list, meta):
     # creating new table for entity
-    table = Table(
+    Table(
         config_item,
         meta,
         Column("eid", VARCHAR, primary_key=True),
@@ -129,7 +129,7 @@ def create_new_entity_table(config_item, db_engine, column_list, meta):
 
 
 def create_history_table(table_name, meta, db_engine, data_type):
-    table = Table(
+    Table(
         table_name,
         meta,
         Column("id", INTEGER, primary_key=True),
@@ -331,7 +331,7 @@ def create_timeseries_table(ts_table_name, meta, db_engine, ts_attr):
         data_type = ATTR_TYPE_MAPPING[ts_attr.series[name].get("data_type")]
         columns.append(Column("v_" + name, ARRAY(data_type)))
 
-    table = Table(
+    Table(
         ts_table_name,
         meta,
         Column("id", INTEGER, primary_key=True),

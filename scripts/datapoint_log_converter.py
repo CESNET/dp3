@@ -2,6 +2,7 @@
 """Converts legacy CSV DataPoint log format to JSON"""
 import argparse
 import gzip
+import ipaddress
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ from pydantic.error_wrappers import ValidationError
 from dp3.common.config import load_attr_spec, read_config_dir
 
 re_timestamp = re.compile(
-    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?([Zz]|(?:[+-][0-9]{2}:[0-9]{2}))?$"
+    r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}:\d{2}(?:\.\d+)?([Zz]|(?:[+-]\d{2}:\d{2}))?$"
 )
 re_mac = re.compile(r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")
 re_array = re.compile(r"^array<(\w+)>$")
@@ -23,7 +24,7 @@ re_set = re.compile(r"^set<(\w+)>$")
 re_link = re.compile(r"^link<(\w+)>$")
 re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
 
-# Validate ipv4 string
+
 def valid_ipv4(address, attr_spec):
     try:
         ipaddress.IPv4Address(address)
@@ -32,7 +33,6 @@ def valid_ipv4(address, attr_spec):
         return False
 
 
-# Validate ipv6 string
 def valid_ipv6(address, attr_spec):
     try:
         ipaddress.IPv6Address(address)
@@ -51,7 +51,7 @@ logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(messa
 # Dictionary containing conversion functions for primitive data types
 CONVERTERS = {
     "tag": lambda v: json.loads(f'{{"v": {v}}}')["v"],
-    "binary": lambda v: True if v.lower() == "true" else False,
+    "binary": lambda v: v.lower() == "true",
     "string": str,
     "category": str,
     "int": int,
@@ -70,18 +70,12 @@ def get_converter(attr_data_type: str) -> Callable[[str], Any]:
     # basic type
     if attr_data_type in CONVERTERS:
         return CONVERTERS[attr_data_type]
-    # array<X>, set<X>
-    if re.match(re_array, attr_data_type) or re.match(re_set, attr_data_type):
-        return json.loads
-    # dict<X,Y,Z>
-    if m := re.match(re_dict, attr_data_type):
-        # note: example dict spec format: dict<port:int,protocol:string,tag?:string>
-        #       regex matches everything between <,> as group 1
-        # dtype_mapping: dict_key -> data_type
-        dtype_mapping = {
-            key.rstrip("?"): dtype
-            for key, dtype in (item.split(":") for item in m.group(1).split(","))
-        }
+    # array<X>, set<X>, dict<X,Y,Z>
+    if (
+        re.match(re_array, attr_data_type)
+        or re.match(re_set, attr_data_type)
+        or re.match(re_dict, attr_data_type)
+    ):
         return json.loads
     # link<X>
     if re.match(re_link, attr_data_type):
@@ -153,8 +147,8 @@ class LegacyDataPointLoader:
         """
         Read a file with ADiCT/DP3 datapoints into pandas DataFrame.
 
-        Values of attributes in datapoints are validated and converted according to the attribute configuration passed
-        to LegacyDataPointLoader constructor.
+        Values of attributes in datapoints are validated and converted according
+        to the attribute configuration passed to LegacyDataPointLoader constructor.
         """
         if filename.endswith(".gz"):
             open_function = gzip.open
@@ -167,10 +161,9 @@ class LegacyDataPointLoader:
         tmp_name = (
             f"tmp-{'.'.join(os.path.basename(os.path.normpath(filename)).split(sep='.')[:-1])}"
         )
-        with open_function(filename, "rb") as infile:
-            with open(tmp_name, "wb") as outfile:
-                for line in infile:
-                    outfile.write(line.replace(b",", b";", 7))
+        with open_function(filename, "rb") as infile, open(tmp_name, "wb") as outfile:
+            for line in infile:
+                outfile.write(line.replace(b",", b";", 7))
         # Load the converted file
         data = pd.read_csv(
             tmp_name,

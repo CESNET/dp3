@@ -10,12 +10,12 @@ from dp3.common.task import Task
 from dp3.database.database import DatabaseError, EntityDatabase
 
 from .. import g
-from ..common.utils import get_func_name, parse_rfc_time
 
 
 class TaskExecutor:
     """
-    TaskExecutor manages updates of entity records, which are being read from task queue (via parent TaskDistributor)
+    TaskExecutor manages updates of entity records,
+    which are being read from task queue (via parent TaskDistributor)
 
     A hooked function receives a list of updates that triggered its call,
     i.e. a list of 2-tuples (attr_name, new_value) or (event_name, param)
@@ -55,7 +55,8 @@ class TaskExecutor:
         self.attr_spec = attr_spec
         self.db = db
 
-        # EventCountLogger - count number of events across multiple processes using shared counters in Redis
+        # EventCountLogger
+        # - count number of events across multiple processes using shared counters in Redis
         ecl = EventCountLogger(
             g.config.get("event_logging.groups"), g.config.get("event_logging.redis")
         )
@@ -66,7 +67,9 @@ class TaskExecutor:
             not_configured_groups.append("te")
         if not_configured_groups:
             self.log.warning(
-                f"EventCountLogger: No configuration for event group(s) '{','.join(not_configured_groups)}' found, such events will not be logged (check event_logging.yml)"
+                "EventCountLogger: No configuration for event group(s) "
+                f"'{','.join(not_configured_groups)}' found, "
+                "such events will not be logged (check event_logging.yml)"
             )
 
     def _init_may_change_cache(self) -> dict[str, dict[Any, Any]]:
@@ -83,11 +86,12 @@ class TaskExecutor:
         self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]
     ) -> None:
         """
-        Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
-        once! Type check is already done in TaskDistributor.
+        Hook a function (or bound method) to specified attribute changes/events.
+        Each function must be registered only once! Type check is already done in TaskDistributor.
         :param func: function or bound method (callback)
         :param etype: entity type (only changes of attributes of this etype trigger the func)
-        :param triggers: set/list/tuple of attributes whose update trigger the call of the method (update of any one of the attributes will do)
+        :param triggers: set/list/tuple of attributes whose update trigger the call of the method
+         (update of any one of the attributes will do)
         :param changes: set/list/tuple of attributes the method call may update (may be None)
         :return: None
         """

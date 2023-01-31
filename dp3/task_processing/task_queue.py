@@ -32,19 +32,19 @@ parallel:
 """
 
 import collections
+import contextlib
 import hashlib
 import json
 import logging
 import threading
 import time
-from typing import Any, Callable, Union
+from typing import Callable, Union
 
 import amqpstorm
 
 from dp3.common.attrspec import AttrSpec
 from dp3.common.entityspec import EntitySpec
 from dp3.common.task import Task
-from dp3.common.utils import conv_from_json, conv_to_json
 
 # Exchange and queue names
 # They must be pre-declared ('direct' exchange type) and binded.
@@ -55,9 +55,12 @@ DEFAULT_PRIORITY_EXCHANGE = "{}-priority-task-exchange"
 DEFAULT_QUEUE = "{}-worker-{}"
 DEFAULT_PRIORITY_QUEUE = "{}-worker-{}-pri"
 
-# Hash function used to distribute tasks to worker processes. Takes string, returns int.
-# (last 4 bytes of MD5)
-HASH = lambda x: int(hashlib.md5(x.encode("utf8")).hexdigest()[-4:], 16)
+
+def HASH(x: str) -> int:
+    """Hash function used to distribute tasks to worker processes.
+    Returns last 4 bytes of MD5."""
+    return int(hashlib.md5(x.encode("utf8")).hexdigest()[-4:], 16)
+
 
 # When reading, pre-fetch only a limited amount of messages
 # (because pre-fetched messages are not counted to queue length limit)
@@ -72,7 +75,11 @@ class QueueNotDeclared(RuntimeError):
         self.queue_name = queue_name
 
     def __str__(self):
-        return f"Queue '{self.queue_name}' is not declared in RabbitMQ! Run 'scripts/rmq_reconfigure.sh' to set up needed exchanges and queues on RabbitMQ server."
+        return (
+            f"Queue '{self.queue_name}' is not declared in RabbitMQ! "
+            "Run 'scripts/rmq_reconfigure.sh' to set up "
+            "needed exchanges and queues on RabbitMQ server."
+        )
 
 
 class ExchangeNotDeclared(RuntimeError):
@@ -80,7 +87,11 @@ class ExchangeNotDeclared(RuntimeError):
         self.exchange_name = exchange_name
 
     def __str__(self):
-        return f"Exchange '{self.exchange_name}' is not declared in RabbitMQ! Run 'scripts/rmq_reconfigure.sh' to set up needed exchanges and queues on RabbitMQ server."
+        return (
+            f"Exchange '{self.exchange_name}' is not declared in RabbitMQ! "
+            f"Run 'scripts/rmq_reconfigure.sh' to set up "
+            f"needed exchanges and queues on RabbitMQ server."
+        )
 
 
 class RobustAMQPConnection:
@@ -89,11 +100,13 @@ class RobustAMQPConnection:
     TaskQueueWriter and TaskQueueReader are derived from this.
     """
 
-    def __init__(self, rabbit_config={}) -> None:
+    def __init__(self, rabbit_config: dict = None) -> None:
         """
-        :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
+        :param rabbit_config: RabbitMQ connection parameters,
+            dict with following keys (all optional):
             host, port, virtual_host, username, password
         """
+        rabbit_config = {} if rabbit_config is None else rabbit_config
         self.log = logging.getLogger("RobustAMQPConnection")
         self.conn_params = {
             "hostname": rabbit_config.get("host", "localhost"),
@@ -121,9 +134,8 @@ class RobustAMQPConnection:
             try:
                 self.connection = amqpstorm.Connection(**self.conn_params)
                 self.log.debug(
-                    "AMQP connection created, server: '{hostname}:{port}/{virtual_host}'".format_map(
-                        self.conn_params
-                    )
+                    "AMQP connection created, server: "
+                    "'{hostname}:{port}/{virtual_host}'".format_map(self.conn_params)
                 )
                 if attempts > 1:
                     # This was a repeated attempt, print success message with ERROR level
@@ -170,21 +182,24 @@ class TaskQueueWriter(RobustAMQPConnection):
         self,
         app_name: str,
         workers: int = 1,
-        rabbit_config={},
-        exchange: None = None,
-        priority_exchange: None = None,
-        config_path: None = None,
+        rabbit_config: dict = None,
+        exchange: str = None,
+        priority_exchange: str = None,
     ) -> None:
         """
         Create an object for writing tasks into the main Task Queue.
 
         :param app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
         :param workers: Number of worker processes in the system
-        :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
+        :param rabbit_config: RabbitMQ connection parameters,
+            dict with following keys (all optional):
             host, port, virtual_host, username, password
-        :param exchange: Name of the exchange to write tasks to (default: "<app-name>-main-task-exchange")
-        :param priority_exchange: Name of the exchange to write priority tasks to (default: "<app-name>-priority-task-exchange")
+        :param exchange: Name of the exchange to write tasks to
+            (default: "<app-name>-main-task-exchange")
+        :param priority_exchange: Name of the exchange to write priority tasks to
+            (default: "<app-name>-priority-task-exchange")
         """
+        rabbit_config = {} if rabbit_config is None else rabbit_config
         assert isinstance(workers, int) and workers >= 1, "count of workers must be positive number"
         assert isinstance(exchange, str) or exchange is None, "exchange argument has to be string!"
         assert (
@@ -200,8 +215,6 @@ class TaskQueueWriter(RobustAMQPConnection):
         if priority_exchange is None:
             priority_exchange = DEFAULT_PRIORITY_EXCHANGE.format(app_name)
 
-        # TODO remove? also func param
-        # self.config_core = read_config(os.path.join(config_path, "processing_core.yml")) if config_path is not None else None
         self.workers = workers
         self.exchange = exchange
         self.exchange_pri = priority_exchange
@@ -236,7 +249,8 @@ class TaskQueueWriter(RobustAMQPConnection):
         """
         Put task (update_request) to the queue of corresponding worker
         :param task: prepared task
-        :param priority: if true, the task is placed into priority queue (should only be used internally by workers)
+        :param priority: if true, the task is placed into priority queue
+            (should only be used internally by workers)
         :return: None
         """
         if not self.channel:
@@ -252,9 +266,9 @@ class TaskQueueWriter(RobustAMQPConnection):
         exchange = self.exchange_pri if priority else self.exchange
 
         # Send the message
-        # ('mandatory' flag means that we want to guarantee it's delivered to someone. If it can't be delivered (no
-        #  consumer or full queue), wait a while and try again. Always print just one error message for each
-        #  unsuccessful message to be send.)
+        # ('mandatory' flag means that we want to guarantee it's delivered to someone.
+        # If it can't be delivered (no consumer or full queue), wait a while and try again.
+        # Always print just one error message for each unsuccessful message to be send.)
         self.log.debug(f"Sending a task with routing_key={routing_key} to exchange '{exchange}'")
         err_printed = 0
         while True:
@@ -272,14 +286,16 @@ class TaskQueueWriter(RobustAMQPConnection):
                 else:  # message NACK'd
                     if err_printed != 1:
                         self.log.debug(
-                            f"Message rejected (queue of worker {routing_key} is probably full), will retry every 100ms"
+                            f"Message rejected (queue of worker {routing_key} is probably full), "
+                            "will retry every 100ms"
                         )
                         err_printed = 1
                     time.sleep(0.1)
             except amqpstorm.AMQPChannelError as e:
                 if err_printed != 2:
                     self.log.warning(
-                        f"Can't deliver a message to worker {routing_key} (will retry every 5 seconds): {e}"
+                        f"Can't deliver a message to worker {routing_key} "
+                        f"(will retry every 5 seconds): {e}"
                     )
                     err_printed = 2
                 time.sleep(5)
@@ -295,28 +311,31 @@ class TaskQueueReader(RobustAMQPConnection):
         app_name: str,
         attr_spec: dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]],
         worker_index: int = 0,
-        rabbit_config: dict[Any, Any] = {},
-        queue: None = None,
-        priority_queue: None = None,
+        rabbit_config: dict = None,
+        queue: str = None,
+        priority_queue: str = None,
     ) -> None:
         """
         Create an object for reading tasks from the main Task Queue.
 
-        It consumes messages from two RabbitMQ queues (normal and priority one for given worker) and passes them to
-        the given callback function. Tasks from the priority queue are passed before the normal ones.
+        It consumes messages from two RabbitMQ queues (normal and priority one for given worker)
+        and passes them to the given callback function.
+        Tasks from the priority queue are passed before the normal ones.
 
         Each received message must be acknowledged by calling .ack(msg_tag).
 
-        :param callback: Function called when a message is received, prototype:
-                    func(tag, etype, ekey, attr_updates, events, data_points, create, delete, src, tags, ttl_token)
+        :param callback: Function called when a message is received, prototype: func(tag, Task)
         :param app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
-        :param worker_index: index of this worker (filled into DEFAULT_QUEUE string using .format() method)
-        :param rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
-            host, port, virtual_host, username, password
+        :param worker_index: index of this worker
+            (filled into DEFAULT_QUEUE string using .format() method)
+        :param rabbit_config: RabbitMQ connection parameters, dict with following keys
+            (all optional): host, port, virtual_host, username, password
         :param queue: Name of RabbitMQ queue to read from (default: "<app-name>-worker-<index>")
-        :param priority_queue: Name of RabbitMQ queue to read from (priority messages) (default: "<app-name>-worker-<index>-pri")
+        :param priority_queue: Name of RabbitMQ queue to read from (priority messages)
+            (default: "<app-name>-worker-<index>-pri")
         :param attr_spec: Attribute specification. Used for `Task` validation.
         """
+        rabbit_config = {} if rabbit_config is None else rabbit_config
         assert callable(callback), "callback must be callable object"
         assert (
             isinstance(worker_index, int) and worker_index >= 0
@@ -345,7 +364,8 @@ class TaskQueueReader(RobustAMQPConnection):
         self._consuming_thread = None
         self._processing_thread = None
 
-        # Receive messages into 2 temporary queues (max length should be equal to prefetch_count set in RabbitMQReader)
+        # Receive messages into 2 temporary queues
+        # (max length should be equal to prefetch_count set in RabbitMQReader)
         self.cache = collections.deque()
         self.cache_pri = collections.deque()
         self.cache_full = threading.Event()  # signalize there's something in the cache
@@ -436,7 +456,8 @@ class TaskQueueReader(RobustAMQPConnection):
                 self.log.error(f"RabbitMQ connection error (will try to reconnect): {e}")
                 self.connect()
 
-    # These two callbacks are called when a new message is received - they only put the message into a local queue
+    # These two callbacks are called when a new message is received
+    # - they only put the message into a local queue
     def _on_message(self, message):
         self.cache.append(message)
         self.cache_full.set()
@@ -475,7 +496,8 @@ class TaskQueueReader(RobustAMQPConnection):
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error(
-                    f"Erroneous message received from main task queue. Error: {str(e)}, Message: '{body}'"
+                    "Erroneous message received from main task queue. "
+                    f"Error: {str(e)}, Message: '{body}'"
                 )
                 self.ack(tag)
                 continue
@@ -486,10 +508,9 @@ class TaskQueueReader(RobustAMQPConnection):
     def _stop_consuming_thread(self) -> None:
         if self._consuming_thread:
             if self._consuming_thread.is_alive:
-                try:
+                # if not connected, no problem
+                with contextlib.suppress(amqpstorm.AMQPError):
                     self.channel.stop_consuming()
-                except amqpstorm.AMQPError as e:
-                    pass  # not connected or error - no problem here
             self._consuming_thread.join()
         self._consuming_thread = None
 

@@ -55,7 +55,8 @@ class TaskDistributor:
         self._queues = [queue.Queue(10) for _ in range(self.num_threads)]
 
         # Connections to main task queue
-        # Reader - reads tasks from a pair of queues (one pair per process) and distributes them to worker threads
+        # Reader - reads tasks from a pair of queues (one pair per process)
+        # and distributes them to worker threads
         self._task_queue_reader = TaskQueueReader(
             self._distribute_task,
             g.app_name,
@@ -68,7 +69,8 @@ class TaskDistributor:
             g.app_name, self.num_processes, self.rabbit_params
         )
         self.task_executor = task_executor
-        # Object to store thread-local data (e.g. worker-thread index) (each thread sees different object contents)
+        # Object to store thread-local data (e.g. worker-thread index)
+        # (each thread sees different object contents)
         self._current_thread_data = threading.local()
 
         # Number of restarts of threads by watchdog
@@ -80,11 +82,12 @@ class TaskDistributor:
         self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]
     ) -> None:
         """
-        Hook a function (or bound method) to specified attribute changes/events. Each function must be registered only
-        once!
+        Hook a function (or bound method) to specified attribute changes/events.
+        Each function must be registered only once!
         :param func: function or bound method (callback)
         :param etype: entity type (only changes of attributes of this etype trigger the func)
-        :param triggers: set/list/tuple of attributes whose update trigger the call of the method (update of any one of the attributes will do)
+        :param triggers: set/list/tuple of attributes whose update trigger the call of the method
+         (update of any one of the attributes will do)
         :param changes: set/list/tuple of attributes the method call may update (may be None)
         :return: None
         """
@@ -171,8 +174,9 @@ class TaskDistributor:
         my_queue = self._queues[thread_index]
 
         # Read and process tasks in a loop.
-        # Exit immediately after self.running is set to False, it's not a problem if there are any more tasks waiting
-        # in the queue - they won't be acknowledged so they will be re-delivered after restart.
+        # Exit immediately after self.running is set to False,
+        # it's not a problem if there are any more tasks waiting in the queue
+        # - they won't be acknowledged so they will be re-delivered after restart.
         while self.running:
             # Get message from thread's local queue
             try:
@@ -196,7 +200,7 @@ class TaskDistributor:
             # self.log.debug("Task {} finished in {:.3f} seconds.".format(msg_id, duration))
             if duration > 1.0:
                 self.log.debug(
-                    "Task {} took {} seconds: {}/{} {}{}".format(
+                    "Task {} took {} seconds: {}/{} {}".format(
                         msg_id,
                         duration,
                         task.etype,
@@ -225,7 +229,8 @@ class TaskDistributor:
                     self._watchdog_restarts += 1
                 else:
                     self.log.critical(
-                        f"Thread {worker.name} is dead, more than 20 restarts attempted, giving up..."
+                        f"Thread {worker.name} is dead,"
+                        " more than 20 restarts attempted, giving up..."
                     )
                     g.daemon_stop_lock.release()  # Exit program
                     break

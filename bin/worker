@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 import argparse
-import os
-import sys
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
 from dp3 import worker
 
 assert __name__ == "__main__", "This is an executable script, it shouldn't be imported"
@@ -11,13 +8,14 @@ assert __name__ == "__main__", "This is an executable script, it shouldn't be im
 # Parse arguments
 parser = argparse.ArgumentParser(
     prog="worker",
-    description="Main worker process of the DP3 platform. There are usually multiple workers running in parallel.",
+    description="Main worker process of the DP3 platform. "
+    "There are usually multiple workers running in parallel.",
 )
 parser.add_argument(
     "app_name",
     metavar="APP_NAME",
-    help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
-    "RabbitMQ queue names, for example).",
+    help="Name of the application to distinct it from other DP3-based apps "
+    "(it's used as a prefix of RabbitMQ queue names, for example).",
 )
 parser.add_argument(
     "config_dir",

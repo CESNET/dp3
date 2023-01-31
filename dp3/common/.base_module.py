@@ -1,6 +1,7 @@
 class BaseModule:
     """
-    Abstract class for platform modules. Every module must inherit this abstract class for automatic loading of module!
+    Abstract class for platform modules.
+    Every module must inherit this abstract class for automatic loading of module!
     """
 
     def start(self) -> None:

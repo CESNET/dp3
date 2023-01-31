@@ -4,20 +4,22 @@ Updater - periodically issues tasks to trigger regular updates of all entities i
 
 Each entity should have '_lru' (Last Regular Update) field containing date and time of the lru .
 
-The module fetches a list of entities whose _lru field value is older than gcd (Greatest Common Denominator)
-computed from all configured intervals.
+The module fetches a list of entities whose _lru field value is older than gcd
+(Greatest Common Denominator) computed from all configured intervals.
 
 Intervals are configured for every entity type separately.
 
-It is also possible to issue additional events for each entity (e.g. when re-processing of some data is needed after
-a configuration change). In order to do this, create a file '<CONFIG_FILE_DIR>/updater_events' whose contents are:
-<entity_type> <event_name> <max_time>
+It is also possible to issue additional events for each entity (e.g. when re-processing of some
+data is needed after a configuration change). In order to do this, create a file
+'<CONFIG_FILE_DIR>/updater_events' whose contents are: <entity_type> <event_name> <max_time>
 The event_name is the name of the event (should begin with '!') to issue
-for each entity along with '!every1d'. Events are issued only if current time is less than max_time (RFC 3339 format).
-Since we usually want to issue the event once for each entity, max_time should be set to exactly 24 hours in the future.
+for each entity along with '!every1d'. Events are issued only if current time is less than max_time
+(RFC 3339 format). Since we usually want to issue the event once for each entity, max_time should
+be set to exactly 24 hours in the future.
 The file can contain multiple such entries, one per line.
 When max_time elapses, the entry in the file has no meaning, so it can be removed.
-The file is checked every time a new batch of events is to be issued, so it's not needed to restart updater.
+The file is checked every time a new batch of events is to be issued,
+so it's not needed to restart updater.
 """
 
 import argparse
@@ -26,16 +28,14 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime, timedelta, timezone
-from importlib.machinery import all_suffixes
+from datetime import datetime, timedelta
 
 import numpy
 from apscheduler.schedulers.background import BlockingScheduler
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
-from dp3.common.config import MissingConfigError, load_attr_spec, read_config_dir
+from dp3.common.config import load_attr_spec, read_config_dir
 from dp3.common.utils import parse_rfc_time
-from dp3.database.database import EntityDatabase, MissingTableError
+from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 CONFIG_FILE_NAME = "updater_events"  # name of the file with additional events to issue
@@ -56,11 +56,11 @@ def parse_timedelta(value: str):
     """
 
     if len(value) == 0:
-        raise Exception(f"Interval has to be in format INT(m|h|d|w|y)")
+        raise Exception("Interval has to be in format INT(m|h|d|w|y)")
     try:
         x = int(value[:-1])
     except ValueError:
-        raise Exception(f"Interval has to be in format INT(m|h|d|w|y)")
+        raise Exception("Interval has to be in format INT(m|h|d|w|y)")
     y = value[-1]
     if y == "m":
         pass
@@ -73,7 +73,7 @@ def parse_timedelta(value: str):
     elif y == "y":
         x = x * 525600  # 60*24*365
     else:
-        raise Exception(f"Interval has to be in format INT(m|h|d|w|y)")
+        raise Exception("Interval has to be in format INT(m|h|d|w|y)")
     return x
 
 
@@ -94,28 +94,30 @@ def issue_events(db, tqw, log, etypes, args, updater_config):
     additional_events_file = os.path.join(args.config_dir, CONFIG_FILE_NAME)
     additional_events = {etype: [] for etype in etypes}
     try:
-        for line in open(additional_events_file):
-            if not line.strip() or line.startswith("#"):
-                continue  # skip empty lines and comments
-            etype, event, max_time = line.split(maxsplit=2)
-            if etype not in etypes:
-                raise ValueError(f"Unsupported entity type '{etype}'")
-            try:
-                max_time = parse_rfc_time(max_time)
-            except ValueError:
-                raise ValueError("Wrong timestamp format (RFC 3339 required)")
-            if start_time > max_time:
-                continue  # expired entry, ignore
-            additional_events[etype].append(event)
-            log.debug(
-                f"Additional event '{event}' will be issued for all entities of type '{etype}'"
-            )
+        with open(additional_events_file) as additional_file:
+            for line in additional_file:
+                if not line.strip() or line.startswith("#"):
+                    continue  # skip empty lines and comments
+                etype, event, max_time = line.split(maxsplit=2)
+                if etype not in etypes:
+                    raise ValueError(f"Unsupported entity type '{etype}'")
+                try:
+                    max_time = parse_rfc_time(max_time)
+                except ValueError:
+                    raise ValueError("Wrong timestamp format (RFC 3339 required)")
+                if start_time > max_time:
+                    continue  # expired entry, ignore
+                additional_events[etype].append(event)
+                log.debug(
+                    f"Additional event '{event}' will be issued for all entities of type '{etype}'"
+                )
     except FileNotFoundError:
         pass  # File doesn't exist - that's OK, do nothing
     except Exception as e:
         # Other error - print message and continue
         log.error(
-            f"Error in the file with additional events ('{additional_events_file}', line '{line}''): {e}"
+            f"Error in the file with additional events "
+            f"('{additional_events_file}', line '{line}''): {e}"
         )
 
     for etype in etypes:
@@ -158,8 +160,9 @@ def issue_events(db, tqw, log, etypes, args, updater_config):
 
             # check if the record still has some valid TTL token.
             # If not (all token has expired), the record is no longer valid and record is deleted.
-            # if ttl token wasn't configured don't delete any record (only check for invalid tokens from previous configuration)
-            delete_entry = True if ttl_tokens else False
+            # if ttl token wasn't configured don't delete any record
+            # (only check for invalid tokens from previous configuration)
+            delete_entry = bool(ttl_tokens)
             for token, ts_created in old_ttl_tokens.items():
                 created = parse_rfc_time(ts_created)
                 try:
@@ -242,13 +245,14 @@ if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser(
         prog="updater",
-        description="Periodically issues update events for entities with NRU (next regular update) fields.",
+        description="Periodically issues update events for entities "
+        "with NRU (next regular update) fields.",
     )
     parser.add_argument(
         "app_name",
         metavar="APP_NAME",
-        help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
-        "RabbitMQ queue names, for example).",
+        help="Name of the application to distinct it from other DP3-based apps "
+        "(it's used as a prefix of RabbitMQ queue names, for example).",
     )
     parser.add_argument(
         "config_dir",
@@ -261,7 +265,8 @@ if __name__ == "__main__":
         metavar="N",
         dest="limit",
         type=int,
-        help="Maximum number of entities for which the events would be issued per second. (default: 100000)",
+        help="Maximum number of entities for which the events would be issued per second. "
+        "(default: 100000)",
         default=100000,
     )
     parser.add_argument(

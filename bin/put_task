@@ -4,10 +4,8 @@
 import argparse
 import json
 import logging
-import os
 import sys
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
 from dp3.common.config import read_config_dir
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -24,8 +22,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "app_name",
     metavar="APP_NAME",
-    help="Name of the application to distinct it from other DP3-based apps (it's used as a prefix of "
-    "RabbitMQ queue names, for example).",
+    help="Name of the application to distinct it from other DP3-based apps "
+    "(it's used as a prefix of RabbitMQ queue names, for example).",
 )
 parser.add_argument(
     "config_dir",

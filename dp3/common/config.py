@@ -102,11 +102,12 @@ def read_config(filepath: str) -> HierarchicalDict:
 
 def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
     """
-    Same as read_config but it loads whole configuration directory of YAML files, so only files ending with ".yml" are
-    loaded. Each loaded configuration is located under key named after configuration filename.
+    Same as read_config but it loads whole configuration directory of YAML files,
+    so only files ending with ".yml" are loaded.
+    Each loaded configuration is located under key named after configuration filename.
 
-    If recursive is set, then the configuration directory will be read recursively (including configuration files
-    inside directories)
+    If recursive is set, then the configuration directory will be read recursively
+    (including configuration files inside directories)
     """
     all_files_paths = os.listdir(dir_path)
     config = HierarchicalDict()
@@ -129,7 +130,8 @@ def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
     return config
 
 
-# TODO: This should be moved elsewhere, this file should be generic, independent of entitiy/attribute config format
+# TODO: This should be moved elsewhere, this file should be generic,
+#  independent of entitiy/attribute config format
 def load_attr_spec(
     config_in: HierarchicalDict,
 ) -> dict[str, dict[str, Union[EntitySpec, dict[str, AttrSpec]]]]:

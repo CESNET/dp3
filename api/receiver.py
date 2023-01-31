@@ -4,12 +4,12 @@ import logging
 import os
 import sys
 import time
+from collections import defaultdict
 from datetime import datetime
 
 import requests
-from flask import Flask, Response, jsonify, request
+from flask import Flask, jsonify, request
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 from dp3.common.attrspec import AttrType
 from dp3.common.config import load_attr_spec, read_config_dir
 from dp3.common.task import Task
@@ -127,6 +127,23 @@ def push_task(task):
     task_writer.put_task(task, False)
 
 
+def get_multiple_datapoints_json(request):
+    try:
+        return request.get_json(force=True)  # force = ignore mimetype
+    except Exception:
+        return None
+
+
+def get_datapoint_object_from_record(record: dict) -> dict:
+    """Returns identical record dict, but 'type' and 'id' keys are prefixed with 'e'."""
+    dp_obj = {key: value for key, value in record.items() if key in {"attr", "v", "src", "t1", "c"}}
+    if "type" in record:
+        dp_obj["etype"] = record["type"]
+    if "id" in record:
+        dp_obj["eid"] = record["id"]
+    return dp_obj
+
+
 @app.route("/datapoints", methods=["POST"])
 def push_multiple_datapoints():
     """
@@ -138,12 +155,9 @@ def push_multiple_datapoints():
     """
     log.debug(f"Received new datapoint(s) from {request.remote_addr}")
 
-    # Request must be valid JSON (dict) and contain a list of records
-    try:
-        payload = request.get_json(force=True)  # force = ignore mimetype
-    except Exception:
-        payload = None
+    payload = get_multiple_datapoints_json(request)
 
+    # Request must be valid JSON (dict) and contain a list of records
     if payload is None:
         return error_response("Not a valid JSON (or empty payload)")
     elif type(payload) is not list:
@@ -158,23 +172,7 @@ def push_multiple_datapoints():
 
         # Convert to DataPoint class instances
         try:
-            dp_obj = {}
-            if "type" in record:
-                dp_obj["etype"] = record["type"]
-            if "id" in record:
-                dp_obj["eid"] = record["id"]
-            if "attr" in record:
-                dp_obj["attr"] = record["attr"]
-            if "v" in record:
-                dp_obj["v"] = record["v"]
-            if "src" in record:
-                dp_obj["src"] = record["src"]
-            if "t1" in record:
-                dp_obj["t1"] = record["t1"]
-            if "t2" in record:
-                dp_obj["t2"] = record["t2"]
-            if "c" in record:
-                dp_obj["c"] = record["c"]
+            dp_obj = get_datapoint_object_from_record(record)
 
             dp_model = attr_spec[dp_obj["etype"]]["attribs"][dp_obj["attr"]]._dp_model
             dps.append(dp_model.parse_obj(dp_obj))
@@ -182,13 +180,10 @@ def push_multiple_datapoints():
             return error_response(str(e))
 
     # Group datapoints by (etype, eid)
-    tasks_dps = {}
+    tasks_dps = defaultdict(list)
     for dp in dps:
         key = (dp.etype, dp.eid)
-        if key not in tasks_dps:
-            tasks_dps[key] = [dp]
-        else:
-            tasks_dps[key].append(dp)
+        tasks_dps[key].append(dp)
 
     task_list = []
 
@@ -221,7 +216,8 @@ def push_multiple_datapoints():
 #     """
 #     REST endpoint to read current value for an attribute of given entity
 
-#     It is also possible to read historic values by providing a specific timestamp as a query parameter (only for observations)
+#     It is also possible to read historic values by providing
+#     a specific timestamp as a query parameter (only for observations)
 
 #     Entity type, entity id and attribute id must be provided
 
@@ -243,12 +239,14 @@ def push_multiple_datapoints():
 #         observations = attr_spec[entity_type]['attribs'][attr_id].t == AttrType.OBSERVATIONS
 
 #         if timestamp is not None and observations:
-#             content = get_historic_value(db, attr_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp))
+#             content = get_historic_value(
+#                 db, attr_spec, entity_type, entity_id, attr_id, parse_rfc_time(timestamp)
+#             )
 #         else:
 #             content = db.get_attrib(entity_type, entity_id, attr_id)
 
 #         if content is None:
-#             response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404  # Not found
+#             response = f"No records found for {entity_type}/{entity_id}/{attr_id}", 404
 #         else:
 #             response = jsonify(content), 200  # OK
 #     except Exception as e:
@@ -353,7 +351,7 @@ def workers_alive():
     end_stat = content["message_stats"]["deliver_get"]
     return json.dumps(
         {
-            "workers_alive": not (end_stat == start_stat),
+            "workers_alive": end_stat != start_stat,
             "deliver_get_difference": end_stat - start_stat,
         }
     )

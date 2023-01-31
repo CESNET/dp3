@@ -28,7 +28,7 @@ class HistoryManager:
 
         if worker_index != 0:
             self.log.debug(
-                "History management will not be active in this worker instance to avoid race conditions."
+                "History management will be disabled in this worker to avoid race conditions."
             )
             return
 

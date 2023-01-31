@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from typing import Any, Optional, Union
 
@@ -27,7 +26,7 @@ class Task(BaseModel):
     @validator("etype")
     def validate_etype(cls, v, values):
         if "attr_spec" in values:
-            assert v in values["attr_spec"], f"Invalid etype '{self.etype}'"
+            assert v in values["attr_spec"], f"Invalid etype '{v}'"
         return v
 
     @validator("data_points", pre=True, each_item=True)

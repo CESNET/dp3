@@ -3,17 +3,13 @@
 
 Don't run directly. Import and run the main() function.
 """
-import inspect
 import logging
 import os
 import signal
 import sys
 import threading
-from importlib import import_module
 
 if __name__ == "__main__":
-    import sys
-
     print("Don't run this file directly. Use 'bin/worker' instead.", file=sys.stderr)
     sys.exit(1)
 
@@ -30,14 +26,15 @@ from .task_processing.task_executor import TaskExecutor
 # def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
 #     """Load plug-in modules
 
-#     Import Python modules with names in 'enabled_modules' from 'modules_dir' directory and return all found classes
-#     derived from BaseModule class.
+#     Import Python modules with names in 'enabled_modules' from 'modules_dir' directory
+#     and return all found classes derived from BaseModule class.
 #     """
 #     # Get list of all modules available in given folder
 #     # [:-3] is for removing '.py' suffix from module filenames
 #     available_modules = []
 #     for item in os.scandir(modules_dir):
-#         # A module can be a Python file or a Python package (i.e. a directory with "__init__.py" file)
+#         # A module can be a Python file or a Python package
+#         # (i.e. a directory with "__init__.py" file)
 #         if item.is_file() and item.name.endswith(".py"):
 #             available_modules.append(item.name[:-3]) # name without .py
 #         if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
@@ -48,7 +45,10 @@ from .task_processing.task_executor import TaskExecutor
 #     # check if all desired modules are in modules folder
 #     missing_modules = (set(enabled_modules) - set(available_modules))
 #     if missing_modules:
-#         log.fatal(f"Some of desired modules are not available (not in modules folder), specifically: {missing_modules}")
+#         log.fatal(
+#             "Some of desired modules are not available (not in modules folder), "
+#             f"specifically: {missing_modules}"
+#         )
 #         sys.exit(2)
 #     # do imports of desired modules from 'modules' folder
 #     # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
@@ -56,13 +56,14 @@ from .task_processing.task_executor import TaskExecutor
 #     sys.path.insert(0, modules_dir)
 #     imported_modules = [import_module(module_name) for module_name in enabled_modules]
 #     del sys.path[0]
-#     # final list will contain main classes from all desired modules, which has BaseModule as parent
+#     # final list will contain main classes from all desired modules,
+#     # which has BaseModule as parent
 #     modules_main_objects = []
 #     for module in imported_modules:
 #         for _, obj in inspect.getmembers(module):
 #             if inspect.isclass(obj) and BaseModule in obj.__bases__:
-#                 # append instance of module class (obj is class --> obj() is instance) --> call init, which
-#                 # registers handler
+#                 # append instance of module class (obj is class --> obj() is instance)
+#                 # --> call init, which registers handler
 #                 modules_main_objects.append(obj())
 #                 log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
 
@@ -120,7 +121,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     ##############################################
     # Create instances of core components
-    # Save them to "g" ("global") module so they can be easily accessed from everywhere (in the same process)
+    # Save them to "g" ("global") module so they can be easily accessed from everywhere
+    # (in the same process)
     log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
     g.app_name = app_name
@@ -139,12 +141,14 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Load all plug-in modules
 
     working_directory = os.path.dirname(__file__)
-    core_modules_dir = os.path.abspath(os.path.join(working_directory, "core_modules"))
+    os.path.abspath(os.path.join(working_directory, "core_modules"))
     custom_modules_dir = config.get("processing_core.modules_dir")
     custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
 
     # core_module_list = load_modules(core_modules_dir, {}, log)
-    # custom_module_list = load_modules(custom_modules_dir, config.get('processing_core.enabled_modules'), log)
+    # custom_module_list = load_modules(
+    #     custom_modules_dir, config.get('processing_core.enabled_modules'), log
+    # )
 
     module_list = []  # core_module_list + custom_module_list
 
@@ -185,7 +189,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.
-    # (try to acquire the lock again, effectively waiting until it's released by signal handler or another thread)
+    # (try to acquire the lock again,
+    # effectively waiting until it's released by signal handler or another thread)
     if os.name == "nt":
         # This is needed on Windows in order to catch Ctrl-C, which doesn't break the waiting.
         while not g.daemon_stop_lock.acquire(timeout=1):
@@ -195,7 +200,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     ################################################
     # Finalization & cleanup
-    # Set signal handlers back to their defaults, so the second Ctrl-C closes the program immediately
+    # Set signal handlers back to their defaults,
+    # so the second Ctrl-C closes the program immediately
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     signal.signal(signal.SIGABRT, signal.SIG_DFL)

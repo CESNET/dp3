@@ -6,29 +6,29 @@ Load and check dp3 configuration files from given directory and update database 
 The Script requires an argument with the path to the configuration.
 
 IMPORTANT: ALL WORKERS MUST BE STOPPED BEFORE RUNNING THIS SCRIPT.
-To check if any workers are running, use the '-u' argument and pass the URL where the script can check if any worker
-is active.
+To check if any workers are running, use the '-u' argument and pass the URL
+where the script can check if any worker is active.
 
-The script connects to the database, checks the existing tables and columns, compares them with the current
-configuration and if needed, it automatically adds the tables and columns needed to match the configuration.
+The script connects to the database, checks the existing tables and columns,
+compares them with the current configuration and if needed,
+it automatically adds the tables and columns needed to match the configuration.
 
-It also checks if data types of columns in the database and data types in configuration are the same.
-If not, it gives you an option to change the data type of the database column to the data type from configuration.
+It also checks if data types of columns in the database and data types in configuration
+are the same. If not, it gives you an option to change the data type of the database
+column to the data type from configuration.
 
 Script also checks if there any columns in database that shouldn't be here.
 If it finds a column or table like this it gives you the option to drop this table or column.
 """
 
 import argparse
-import inspect
 import json
 import os
 import sys
 
 import requests
 import yaml
-from migrate import ChangesetColumn
-from sqlalchemy import Column, MetaData, Table, create_engine, func, inspect
+from sqlalchemy import Column, MetaData, Table, create_engine, inspect
 from sqlalchemy.dialects.postgresql import (
     ARRAY,
     BIGINT,
@@ -40,7 +40,6 @@ from sqlalchemy.dialects.postgresql import (
     VARCHAR,
 )
 
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), ".."))
 from dp3.common.config import load_attr_spec, read_config_dir
 
 # map supported data types to Postgres SQL data types (from database.py)
@@ -117,7 +116,7 @@ def create_column_list(columns_in_attr, attributes):
 
 def create_new_entity_table(config_item, db_engine, column_list, meta):
     # creating new table for entity
-    table = Table(
+    Table(
         config_item,
         meta,
         Column("eid", VARCHAR, primary_key=True),
@@ -130,7 +129,7 @@ def create_new_entity_table(config_item, db_engine, column_list, meta):
 
 
 def create_history_table(table_name, meta, db_engine, data_type):
-    table = Table(
+    Table(
         table_name,
         meta,
         Column("id", INTEGER, primary_key=True),
@@ -169,12 +168,9 @@ def get_data_type(item, attributes):
 
 
 def get_data_type_new_table(item, attributes):
-    name = item
     if item.endswith(":c"):
-        name = item.split(":")[0]
         data_type = REAL
     elif item.endswith(":exp"):
-        name = item.split(":")[0]
         data_type = TIMESTAMP
     elif attributes.get(item).data_type.startswith(("set", "array")):
         data_type = ARRAY(ATTR_TYPE_MAPPING[attributes.get(item).data_type.split("<")[1][:-1]])
@@ -187,10 +183,12 @@ def get_data_type_new_table(item, attributes):
 
 
 def change_col_data_type(config_item, col_name, config_col_type, meta):
-    # when data type of column in database is not the same as in configuration, type of column in db can be changed
+    # when data type of column in database is not the same as in configuration,
+    # type of column in db can be changed
     while True:
         answer = input(
-            f'Do you want to change type of column "{col_name}" in table "{config_item}" in database according to configuration (data from this column will be lost) (yes/no)? '
+            f'Do you want to change type of column "{col_name}" in table "{config_item}" '
+            "in database according to configuration (data from this column will be lost) (yes/no)?"
         )
         answer = answer.lower()
         if answer == "yes":
@@ -274,7 +272,8 @@ def delete_table(table_name, meta, db_engine):
     # drops table
     while True:
         delete = input(
-            f'Do you really want to delete table "{table_name}" (data from this table will be lost) (yes/no)? '
+            f'Do you really want to delete table "{table_name}" '
+            "(data from this table will be lost) (yes/no)? "
         )
         delete = delete.lower()
         if delete == "yes":
@@ -292,7 +291,8 @@ def delete_column(table_name, col, meta):
     # drops column from table
     while True:
         delete = input(
-            f'Do you really want to delete column "{col}" from table "{table_name}" (data from this column will be lost) (yes/no)? '
+            f'Do you really want to delete column "{col}" from table "{table_name}" '
+            "(data from this column will be lost) (yes/no)? "
         )
         delete = delete.lower()
         if delete == "yes":
@@ -331,7 +331,7 @@ def create_timeseries_table(ts_table_name, meta, db_engine, ts_attr):
         data_type = ATTR_TYPE_MAPPING[ts_attr.series[name].get("data_type")]
         columns.append(Column("v_" + name, ARRAY(data_type)))
 
-    table = Table(
+    Table(
         ts_table_name,
         meta,
         Column("id", INTEGER, primary_key=True),
@@ -442,7 +442,7 @@ def check_workers(worker_check_url):
     # Check if any workers are alive
     print("Checking workers...")
     url = os.path.join(worker_check_url, "workers_alive")
-    for x in range(5):  # try five times to be accurate and to be sure, that no worker is alive
+    for _ in range(5):  # try five times to be accurate and to be sure, that no worker is alive
         res = requests.get(url)
         workers = json.loads(res.content).get("workers_alive")
         if workers:
@@ -456,7 +456,8 @@ def parse_arguments():
     # Parse arguments
     parser = argparse.ArgumentParser(
         prog="update_db_scheme",
-        description="Load and check dp3 configuration files from given directory and update database scheme as needed.",
+        description="Load and check dp3 configuration files from given directory "
+        "and update database scheme as needed.",
     )
     parser.add_argument(
         "config_dir",
@@ -467,7 +468,8 @@ def parse_arguments():
         "-u",
         "--worker_check_url",
         metavar="WORKER_CHECK_URL",
-        help='Base URL of an API where we can check if any workers are active (via "workers_alive" endpoint)',
+        help="Base URL of an API where we can check if any workers are active "
+        '(via "workers_alive" endpoint)',
     )
     parser.add_argument(
         "-v",

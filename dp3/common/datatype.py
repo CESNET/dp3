@@ -1,11 +1,9 @@
-import functools
 import ipaddress
 import re
-from datetime import datetime, timedelta
-from enum import Flag, auto
-from typing import Any, Callable, Optional
+from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Json, constr, validator
+from pydantic import Json, constr
 
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(\w+)>$")
@@ -97,7 +95,8 @@ class DataTypeContainer:
 
         elif re.match(re_link, str_type):
             # TODO
-            # Should the entity type be validated here? I.e. does the specification for given entity type have to exist?
+            # Should the entity type be validated here?
+            # I.e. does the specification for given entity type have to exist?
             data_type = Any
 
         elif re.match(re_dict, str_type):

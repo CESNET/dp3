@@ -31,8 +31,6 @@ class DataPointPlainBase(DataPointBase):
     the same naming for simplicity.
     """
 
-    pass
-
 
 class DataPointObservationsBase(DataPointBase):
     """Observations attribute data-point
@@ -99,7 +97,7 @@ def dp_ts_root_validator_regular_wrapper(time_step):
 
         return values
 
-    return root_validator(dp_ts_root_validator_regular)
+    return root_validator(dp_ts_root_validator_regular, allow_reuse=True)
 
 
 @root_validator

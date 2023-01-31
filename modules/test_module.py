@@ -16,17 +16,17 @@ class TestModule(BaseModule):
         g.td.register_handler(
             self.processing_func_test_attrib,  # function (or bound method) to call
             "ip",  # entity type
-            (
-                "test_timestamp",
-            ),  # tuple/list/set of attributes to watch (their update triggers call of the registered method)
+            # tuple/list/set of attributes to watch
+            # (their update triggers call of the registered method)
+            ("test_timestamp",),
             ("test_attrib",),  # tuple/list/set of attributes the method may change
         )
         g.td.register_handler(
             self.processing_func_timestamp,  # function (or bound method) to call
             "ip",  # entity type
-            (
-                "test_list",
-            ),  # tuple/list/set of attributes to watch (their update triggers call of the registered method)
+            # tuple/list/set of attributes to watch
+            # (their update triggers call of the registered method)
+            ("test_list",),
             ("test_timestamp",),  # tuple/list/set of attributes the method may change
         )
 
@@ -37,7 +37,8 @@ class TestModule(BaseModule):
         :param ekey: entity identificator
         :param record: instance of Record as database record cache
         :param updates: list of all attributes whose update triggered this call and
-          their new values (or events and their parameters) as a list of 3-tuples: [(attr, val, old_val), (!event, param), ...]
+          their new values (or events and their parameters) as a list of 3-tuples:
+          [(attr, val, old_val), (!event, param), ...]
         :return: new request updates
         """
         print("Hello from TestModule - processing_func_timestamp")
@@ -51,7 +52,8 @@ class TestModule(BaseModule):
         :param ekey: entity identificator
         :param record: instance of Record as database record cache
         :param updates: list of all attributes whose update triggered this call and
-          their new values (or events and their parameters) as a list of 3-tuples: [(attr, val, old_val), (!event, param), ...]
+          their new values (or events and their parameters) as a list of 3-tuples:
+          [(attr, val, old_val), (!event, param), ...]
         :return: new request updates
         """
         print("Hello from TestModule - processing_func_attrib")

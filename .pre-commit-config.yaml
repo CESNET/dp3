@@ -26,7 +26,12 @@ repos:
     hooks:
       - id: isort
         exclude: ^(install/|docker/)
-        args: ["--profile", "black", "--filter-files"]
+        args: [ "--profile", "black", "--filter-files" ]
+
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.0.0
+    hooks:
+      - id: autoflake
 
   - repo: https://github.com/psf/black
     rev: 22.6.0
@@ -36,3 +41,13 @@ repos:
         args:
           - --line-length=100
           - --target-version=py39
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 5.0.2
+    hooks:
+      - id: flake8
+        exclude: ^(install/|docker/)
+        args:
+          - --max-line-length=100
+          - --ignore=E203,W503
+          - --max-complexity=15

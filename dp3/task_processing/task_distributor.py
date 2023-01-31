@@ -3,7 +3,6 @@ import queue
 import threading
 import time
 from collections.abc import Iterable
-from copy import deepcopy
 from datetime import datetime
 from typing import Callable, Union
 

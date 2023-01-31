@@ -3,13 +3,11 @@
 
 Don't run directly. Import and run the main() function.
 """
-import inspect
 import logging
 import os
 import signal
 import sys
 import threading
-from importlib import import_module
 
 if __name__ == "__main__":
     import sys
@@ -139,7 +137,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Load all plug-in modules
 
     working_directory = os.path.dirname(__file__)
-    core_modules_dir = os.path.abspath(os.path.join(working_directory, "core_modules"))
+    os.path.abspath(os.path.join(working_directory, "core_modules"))
     custom_modules_dir = config.get("processing_core.modules_dir")
     custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
 

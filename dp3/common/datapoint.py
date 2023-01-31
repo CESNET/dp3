@@ -31,8 +31,6 @@ class DataPointPlainBase(DataPointBase):
     the same naming for simplicity.
     """
 
-    pass
-
 
 class DataPointObservationsBase(DataPointBase):
     """Observations attribute data-point

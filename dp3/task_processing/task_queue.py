@@ -37,7 +37,7 @@ import json
 import logging
 import threading
 import time
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Union
 
 import amqpstorm
 

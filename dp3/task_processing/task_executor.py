@@ -1,9 +1,5 @@
-import inspect
 import logging
-from collections import deque
 from collections.abc import Iterable
-from copy import deepcopy
-from datetime import datetime
 from typing import Any, Callable, Union
 
 from event_count_logger import DummyEventGroup, EventCountLogger

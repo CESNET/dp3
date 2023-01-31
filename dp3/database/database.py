@@ -1,6 +1,6 @@
 import logging
 import urllib
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Union
 
 import pymongo
@@ -67,7 +67,6 @@ class EntityDatabase:
         This all is done automatically in MongoDB, so this function doesn't do
         anything.
         """
-        pass
 
     @staticmethod
     def _master_col_name(entity: str) -> str:
@@ -153,21 +152,18 @@ class EntityDatabase:
 
     def take_snapshot(self):
         """Takes snapshot of current master document."""
-        pass
 
     def get_latest_snapshot(self):
         """Get latest snapshot of given `ekey`.
 
         This method is useful for displaying data on web.
         """
-        pass
 
     def get_snapshots(self):
         """Get all (or filtered) snapshots of given `ekey`.
 
         This method is useful for displaying `ekey`'s history on web.
         """
-        pass
 
     def get_observation_history(
         self,

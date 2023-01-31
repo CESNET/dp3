@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import time
+from collections import defaultdict
 from datetime import datetime
 
 import requests
@@ -126,6 +127,23 @@ def push_task(task):
     task_writer.put_task(task, False)
 
 
+def get_multiple_datapoints_json(request):
+    try:
+        return request.get_json(force=True)  # force = ignore mimetype
+    except Exception:
+        return None
+
+
+def get_datapoint_object_from_record(record: dict) -> dict:
+    """Returns identical record dict, but 'type' and 'id' keys are prefixed with 'e'."""
+    dp_obj = {key: value for key, value in record if key in {"attr", "v", "src", "t1", "c"}}
+    if "type" in record:
+        dp_obj["etype"] = record["type"]
+    if "id" in record:
+        dp_obj["eid"] = record["id"]
+    return dp_obj
+
+
 @app.route("/datapoints", methods=["POST"])
 def push_multiple_datapoints():
     """
@@ -137,12 +155,9 @@ def push_multiple_datapoints():
     """
     log.debug(f"Received new datapoint(s) from {request.remote_addr}")
 
-    # Request must be valid JSON (dict) and contain a list of records
-    try:
-        payload = request.get_json(force=True)  # force = ignore mimetype
-    except Exception:
-        payload = None
+    payload = get_multiple_datapoints_json(request)
 
+    # Request must be valid JSON (dict) and contain a list of records
     if payload is None:
         return error_response("Not a valid JSON (or empty payload)")
     elif type(payload) is not list:
@@ -157,11 +172,7 @@ def push_multiple_datapoints():
 
         # Convert to DataPoint class instances
         try:
-            dp_obj = {key: value for key, value in record if key in {"attr", "v", "src", "t1", "c"}}
-            if "type" in record:
-                dp_obj["etype"] = record["type"]
-            if "id" in record:
-                dp_obj["eid"] = record["id"]
+            dp_obj = get_datapoint_object_from_record(record)
 
             dp_model = attr_spec[dp_obj["etype"]]["attribs"][dp_obj["attr"]]._dp_model
             dps.append(dp_model.parse_obj(dp_obj))
@@ -169,13 +180,10 @@ def push_multiple_datapoints():
             return error_response(str(e))
 
     # Group datapoints by (etype, eid)
-    tasks_dps = {}
+    tasks_dps = defaultdict(list)
     for dp in dps:
         key = (dp.etype, dp.eid)
-        if key not in tasks_dps:
-            tasks_dps[key] = [dp]
-        else:
-            tasks_dps[key].append(dp)
+        tasks_dps[key].append(dp)
 
     task_list = []
 

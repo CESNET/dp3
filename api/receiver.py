@@ -136,8 +136,7 @@ def get_multiple_datapoints_json(request):
 
 def get_datapoint_object_from_record(record: dict) -> dict:
     """Returns identical record dict, but 'type' and 'id' keys are prefixed with 'e'."""
-    dp_obj = {key: value for key, value in record.items()
-              if key in {"attr", "v", "src", "t1", "c"}}
+    dp_obj = {key: value for key, value in record.items() if key in {"attr", "v", "src", "t1", "c"}}
     if "type" in record:
         dp_obj["etype"] = record["type"]
     if "id" in record:

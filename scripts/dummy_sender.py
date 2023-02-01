@@ -20,16 +20,16 @@ def get_valid_path(parser, arg):
 
 def get_datapoint_from_row(row):
     dp = {key: value for key, value in row.items()}
-    dp["t1"] = dp["t1"].strftime("%Y-%m-%dT%H:%M:%S")
-    dp["t2"] = dp["t2"].strftime("%Y-%m-%dT%H:%M:%S")
+    dp["t1"] = dp["t1"].strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+    dp["t2"] = dp["t2"].strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
     return dp
 
 
 def get_shifted_datapoint_from_row(row):
     dp = {key: value for key, value in row.items()}
     duration = dp["t2"] - dp["t1"]
-    dp["t1"] = (datetime.utcnow()).strftime("%Y-%m-%dT%H:%M:%S")
-    dp["t2"] = (datetime.utcnow() + duration).strftime("%Y-%m-%dT%H:%M:%S")
+    dp["t1"] = (datetime.utcnow()).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+    dp["t2"] = (datetime.utcnow() + duration).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
     return dp
 
 

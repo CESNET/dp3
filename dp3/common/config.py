@@ -2,8 +2,10 @@
 NERDd - config file reader
 """
 import os
+from typing import TypedDict
 
 import yaml
+from pydantic import BaseModel, root_validator
 
 from dp3.common.attrspec import AttrSpec, AttrSpecType
 from dp3.common.base_attrs import BASE_ATTRIBS
@@ -129,14 +131,24 @@ def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
     return config
 
 
-class ModelSpec:
+class EntitySpecDict(TypedDict):
+    entity: EntitySpec
+    attribs: dict[str, AttrSpecType]
+
+
+class ModelSpec(BaseModel):
     """
     Class representing the platform's current entity and attribute specification.
     """
 
+    config: dict[str, EntitySpecDict]
+
+    entities: dict[str, EntitySpec]
+    attributes: dict[tuple[str, str], AttrSpecType]
+    entity_attributes: dict[str, dict[str, AttrSpecType]]
+
     def __init__(self, config: HierarchicalDict):
         """
-        Load and validate entity/attribute specification
         Provided configuration must be a dict of following structure:
         {
             <entity type>: {
@@ -155,12 +167,16 @@ class ModelSpec:
 
         Throws an exception if the specification is invalid
         """
+        super().__init__(config=config)
+
+    @root_validator(pre=True)
+    def parse_config(cls, values):
         err_msg_type = "Invalid configuration: type of '{}' is invalid (should be '{}', is '{}')"
         err_msg_missing_field = "Invalid configuration: mandatory field '{}' is missing"
-        self._legacy = {}
-        self.entities: dict[str, EntitySpec] = {}
-        self.attributes: dict[tuple[str, str], AttrSpecType] = {}
-        self.entity_attributes: dict[str, dict[str, AttrSpecType]] = {}
+        config, values["config"] = values["config"], {}
+        values["entities"] = {}
+        values["attributes"] = {}
+        values["entity_attributes"] = {}
 
         assert isinstance(config, dict), err_msg_type.format("config", "dict")
 
@@ -178,30 +194,30 @@ class ModelSpec:
                 "attribs", "dict", type(spec["attribs"])
             )
 
-            self._legacy[entity_type] = {"entity": {}, "attribs": {}}
+            values["config"][entity_type] = {"entity": {}, "attribs": {}}
 
             # Init entity specification
             try:
                 entity_spec = EntitySpec(entity_type, spec["entity"])
-                self._legacy[entity_type]["entity"] = entity_spec
-                self.entities[entity_type] = entity_type
-                self.entity_attributes[entity_type] = {}
             except Exception as e:
                 raise AssertionError(f"Invalid specification of entity {entity_type}: {e}")
+            values["config"][entity_type]["entity"] = entity_spec
+            values["entities"][entity_type] = entity_spec
+            values["entity_attributes"][entity_type] = {}
 
             # Init attribute specification
             for attr in spec["attribs"]:
                 try:
                     attr_spec = AttrSpec(attr, spec["attribs"][attr])
-
-                    self._legacy[entity_type]["attribs"][attr] = attr_spec
-                    self.attributes[entity_type, attr] = attr_spec
-                    self.entity_attributes[entity_type][attr] = attr_spec
                 except Exception as e:
                     raise AssertionError(f"Invalid specification of attribute '{attr}': {e}")
+                values["config"][entity_type]["attribs"][attr] = attr_spec
+                values["attributes"][entity_type, attr] = attr_spec
+                values["entity_attributes"][entity_type][attr] = attr_spec
 
             # Add base attributes - attributes that every entity_type should have
-            self._legacy[entity_type]["attribs"].update(BASE_ATTRIBS)
+            values["config"][entity_type]["attribs"].update(BASE_ATTRIBS)
+        return values
 
     def attr(self, entity_type: str, attr: str) -> AttrSpecType:
         return self.attributes[entity_type, attr]
@@ -213,16 +229,16 @@ class ModelSpec:
         return self.entities[entity_type]
 
     def items(self):
-        return self._legacy.items()
+        return self.config.items()
 
     def keys(self):
-        return self._legacy.keys()
+        return self.config.keys()
 
     def __contains__(self, item):
-        return item in self._legacy
+        return item in self.config
 
     def __getitem__(self, item):
-        return self._legacy[item]
+        return self.config[item]
 
     def __setitem__(self, key, value):
-        self._legacy[key] = value
+        self.config[key] = value

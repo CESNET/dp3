@@ -4,6 +4,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, root_validator, validator
 from pydantic.error_wrappers import ValidationError
 
+from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 
 
@@ -13,8 +14,8 @@ class Task(BaseModel):
     Contains single task to be pushed to TaskQueue and processed.
     """
 
-    # Attribute spec just for internal validation. Discarded after that.
-    model_spec: Any
+    # Model specification just for internal validation. Discarded after that.
+    model_spec: ModelSpec
 
     etype: str
     ekey: str

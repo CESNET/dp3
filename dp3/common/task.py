@@ -41,7 +41,7 @@ class Task(BaseModel):
 
             # Fetch datapoint model
             try:
-                dp_model = values["model_spec"].attr(etype, attr)._dp_model
+                dp_model = values["model_spec"].attr(etype, attr).dp_model
             except (KeyError, TypeError) as e:
                 raise ValueError(f"Attribute '{attr}' not found in entity '{etype}'") from e
 

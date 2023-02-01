@@ -13,6 +13,7 @@ from pydantic import (
 from pydantic.color import Color
 
 from dp3.common.datapoint import (
+    DataPointBase,
     DataPointObservationsBase,
     DataPointPlainBase,
     DataPointTimeseriesBase,
@@ -118,6 +119,12 @@ class AttrSpecGeneric(BaseModel):
     description: str = ""
     color: Color = None
 
+    _dp_model = PrivateAttr()
+
+    @property
+    def dp_model(self) -> DataPointBase:
+        return self._dp_model
+
 
 class AttrSpecPlain(AttrSpecGeneric):
     """Plain attribute specification"""
@@ -126,8 +133,6 @@ class AttrSpecPlain(AttrSpecGeneric):
     data_type: DataTypeContainer
     categories: list[str] = None
     editable: bool = False
-
-    _dp_model = PrivateAttr()
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -151,8 +156,6 @@ class AttrSpecObservations(AttrSpecGeneric):
     history_force_graph: bool = False
     editable: bool = False
 
-    _dp_model = PrivateAttr()
-
     def __init__(self, **data):
         super().__init__(**data)
 
@@ -170,8 +173,6 @@ class AttrSpecTimeseries(AttrSpecGeneric):
     timeseries_type: Literal["regular", "irregular", "irregular_intervals"]
     series: dict[constr(regex=ID_REGEX), TimeseriesSeries] = {}
     timeseries_params: TimeseriesTSParams
-
-    _dp_model = PrivateAttr()
 
     def __init__(self, **data):
         super().__init__(**data)

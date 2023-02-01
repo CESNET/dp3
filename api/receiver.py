@@ -176,7 +176,7 @@ def push_multiple_datapoints():
         try:
             dp_obj = get_datapoint_object_from_record(record)
 
-            dp_model = model_spec.attr(dp_obj["etype"], dp_obj["attr"])._dp_model
+            dp_model = model_spec.attr(dp_obj["etype"], dp_obj["attr"]).dp_model
             dps.append(dp_model.parse_obj(dp_obj))
         except Exception as e:
             return error_response(str(e))

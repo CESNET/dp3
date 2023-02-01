@@ -241,7 +241,7 @@ def validate_row(row):
     attr = dp_obj["attr"]
 
     try:
-        model_spec.attr(etype, attr)._dp_model.parse_obj(dp_obj)
+        model_spec.attr(etype, attr).dp_model.parse_obj(dp_obj)
     except ValidationError as err:
         print(model_spec.attr(etype, attr))
         print(attr, type(dp_obj["v"]), repr(dp_obj["v"]), dp_obj["t1"], dp_obj["t2"])

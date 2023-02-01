@@ -61,9 +61,16 @@ class DataPointTimeseriesBase(DataPointBase):
 
     @validator("t2")
     def validate_t2(cls, v, values):
+        print("Validating t2", v)
         if "t1" in values:
+            print(values["t1"], v)
             assert values["t1"] <= v, "'t2' is before 't1'"
         return v
+
+
+def is_list_ordered(l: list):
+    """Checks if list is ordered (not decreasing anywhere)"""
+    return all(l[i] <= l[i + 1] for i in range(len(l) - 1))
 
 
 # Timeseries validators
@@ -104,14 +111,25 @@ def dp_ts_root_validator_regular_wrapper(time_step):
 def dp_ts_root_validator_irregular(cls, values):
     """Validates or sets t2 of irregular timeseries datapoint"""
     if "v" in values:
+        first_time = values["v"].time[0]
         last_time = values["v"].time[-1]
 
+        # Check t1 <= first_time
+        if "t1" in values:
+            assert (
+                values["t1"] <= first_time
+            ), f"'t1' is above first item in 'time' series ({first_time})"
+
+        # Check last_time <= t2
         if "t2" in values and values["t2"]:
             assert (
                 values["t2"] >= last_time
             ), f"'t2' is below last item in 'time' series ({last_time})"
         else:
             values["t2"] = last_time
+
+        # time must be ordered
+        assert is_list_ordered(values["v"].time), "'time' series is not ordered"
 
     return values
 
@@ -120,13 +138,32 @@ def dp_ts_root_validator_irregular(cls, values):
 def dp_ts_root_validator_irregular_intervals(cls, values):
     """Validates or sets t2 of irregular intervals timeseries datapoint"""
     if "v" in values:
+        first_time = values["v"].time_first[0]
         last_time = values["v"].time_last[-1]
 
+        # Check t1 <= first_time
+        if "t1" in values:
+            assert (
+                values["t1"] <= first_time
+            ), f"'t1' is above first item in 'time_first' series ({first_time})"
+
+        # Check last_time <= t2
         if "t2" in values and values["t2"]:
             assert (
                 values["t2"] >= last_time
             ), f"'t2' is below last item in 'time_last' series ({last_time})"
         else:
             values["t2"] = last_time
+
+        # time_first must be ordered
+        assert is_list_ordered(values["v"].time_first), "'time_first' series is not ordered"
+
+        # time_last must be ordered
+        assert is_list_ordered(values["v"].time_last), "'time_last' series is not ordered"
+
+        # Check time_first[i] <= time_last[i]
+        assert all(
+            t[0] <= t[1] for t in zip(values["v"].time_first, values["v"].time_last)
+        ), "'time_first[i] <= time_last[i]' isn't true for all 'i'"
 
     return values

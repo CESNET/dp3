@@ -143,9 +143,9 @@ class ModelSpec(BaseModel):
 
     config: dict[str, EntitySpecDict]
 
-    entities: dict[str, EntitySpec]
-    attributes: dict[tuple[str, str], AttrSpecType]
-    entity_attributes: dict[str, dict[str, AttrSpecType]]
+    entities: dict[str, EntitySpec]  # entity id -> EntitySpec
+    attributes: dict[tuple[str, str], AttrSpecType]  # (entity id, attribute id) -> AttrSpec
+    entity_attributes: dict[str, dict[str, AttrSpecType]]  # entity id -> attribute id -> AttrSpec
 
     def __init__(self, config: HierarchicalDict):
         """

@@ -103,9 +103,9 @@ class DataTypeContainer:
             key_str = str_type.split("<")[1].split(">")[0]
             key_spec = dict(item.split(":") for item in key_str.split(","))
 
-            for k in key_spec:
-                if key_spec[k] not in primitive_data_types:
-                    raise TypeError(f"Data type {element_type} is not supported as an dict field")
+            for k, v in key_spec.items():
+                if v not in primitive_data_types:
+                    raise TypeError(f"Data type {v} of key {k} is not supported as a dict field")
 
             data_type = dict[Any, Any]  # TODO
 

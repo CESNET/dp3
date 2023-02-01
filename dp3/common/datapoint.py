@@ -68,9 +68,9 @@ class DataPointTimeseriesBase(DataPointBase):
         return v
 
 
-def is_list_ordered(l: list):
+def is_list_ordered(to_check: list):
     """Checks if list is ordered (not decreasing anywhere)"""
-    return all(l[i] <= l[i + 1] for i in range(len(l) - 1))
+    return all(to_check[i] <= to_check[i + 1] for i in range(len(to_check) - 1))
 
 
 # Timeseries validators

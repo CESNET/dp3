@@ -6,7 +6,7 @@ Based on APScheduler package
 """
 
 import logging
-from typing import Callable, Optional
+from typing import Callable, Union
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -37,17 +37,17 @@ class Scheduler:
     def register(
         self,
         func: Callable,
-        year: None = None,
-        month: None = None,
-        day: None = None,
-        week: None = None,
-        day_of_week: None = None,
-        hour: None = None,
-        minute: Optional[str] = None,
-        second: Optional[str] = None,
+        year: Union[int, str] = None,
+        month: Union[int, str] = None,
+        day: Union[int, str] = None,
+        week: Union[int, str] = None,
+        day_of_week: Union[int, str] = None,
+        hour: Union[int, str] = None,
+        minute: Union[int, str] = None,
+        second: Union[int, str] = None,
         timezone: str = "UTC",
-        args: None = None,
-        kwargs: None = None,
+        *args,
+        **kwargs,
     ) -> int:
         """
         Register a function to be run at specified times.

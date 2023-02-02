@@ -2,10 +2,9 @@
 NERDd - config file reader
 """
 import os
-from typing import TypedDict
 
 import yaml
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, validator
 
 from dp3.common.attrspec import AttrSpec, AttrSpecType
 from dp3.common.base_attrs import BASE_ATTRIBS
@@ -131,9 +130,27 @@ def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
     return config
 
 
-class EntitySpecDict(TypedDict):
+class EntitySpecDict(BaseModel):
     entity: EntitySpec
     attribs: dict[str, AttrSpecType]
+
+    def __getitem__(self, item):
+        return self.__getattribute__(item)
+
+    @validator("entity", pre=True)
+    def _parse_entity_spec(cls, v, values):
+        return EntitySpec(v["id"], v)
+
+    @validator("attribs", pre=True)
+    def _parse_attr_spec(cls, v, values):
+        assert isinstance(v, dict), "'attribs' must be a dictionary"
+        return {attr_id: AttrSpec(attr_id, spec) for attr_id, spec in v.items()}
+
+    @validator("attribs")
+    def _add_base_attributes(cls, v, values):
+        """Add base attributes - attributes that every entity_type should have"""
+        v.update(BASE_ATTRIBS)
+        return v
 
 
 class ModelSpec(BaseModel):
@@ -167,57 +184,28 @@ class ModelSpec(BaseModel):
 
         Throws an exception if the specification is invalid
         """
-        super().__init__(config=config)
+        super().__init__(config=config, entities={}, attributes={}, entity_attributes={})
 
-    @root_validator(pre=True)
-    def parse_config(cls, values):
-        err_msg_type = "Invalid configuration: type of '{}' is invalid (should be '{}', is '{}')"
-        err_msg_missing_field = "Invalid configuration: mandatory field '{}' is missing"
-        config, values["config"] = values["config"], {}
-        values["entities"] = {}
-        values["attributes"] = {}
-        values["entity_attributes"] = {}
+    @validator("entities")
+    def _fill_entities(cls, v, values):
+        return {
+            entity_id: entity_dict["entity"] for entity_id, entity_dict in values["config"].items()
+        }
 
-        assert isinstance(config, dict), err_msg_type.format("config", "dict")
+    @validator("attributes")
+    def _fill_attributes(cls, v, values):
+        return {
+            (entity_id, attr_id): attr_spec
+            for entity_id, entity_dict in values["config"].items()
+            for attr_id, attr_spec in entity_dict["attribs"].items()
+        }
 
-        for entity_type, spec in config.items():
-            # Validate config structure
-            assert isinstance(spec, dict), err_msg_type.format(
-                f'config["{entity_type}"]', "dict", type(spec)
-            )
-            assert "entity" in spec, err_msg_missing_field.format("entity")
-            assert "attribs" in spec, err_msg_missing_field.format("attribs")
-            assert isinstance(spec["entity"], dict), err_msg_type.format(
-                "entity", "dict", type(spec["entity"])
-            )
-            assert isinstance(spec["attribs"], dict), err_msg_type.format(
-                "attribs", "dict", type(spec["attribs"])
-            )
-
-            values["config"][entity_type] = {"entity": {}, "attribs": {}}
-
-            # Init entity specification
-            try:
-                entity_spec = EntitySpec(entity_type, spec["entity"])
-            except Exception as e:
-                raise AssertionError(f"Invalid specification of entity {entity_type}: {e}")
-            values["config"][entity_type]["entity"] = entity_spec
-            values["entities"][entity_type] = entity_spec
-            values["entity_attributes"][entity_type] = {}
-
-            # Init attribute specification
-            for attr in spec["attribs"]:
-                try:
-                    attr_spec = AttrSpec(attr, spec["attribs"][attr])
-                except Exception as e:
-                    raise AssertionError(f"Invalid specification of attribute '{attr}': {e}")
-                values["config"][entity_type]["attribs"][attr] = attr_spec
-                values["attributes"][entity_type, attr] = attr_spec
-                values["entity_attributes"][entity_type][attr] = attr_spec
-
-            # Add base attributes - attributes that every entity_type should have
-            values["config"][entity_type]["attribs"].update(BASE_ATTRIBS)
-        return values
+    @validator("entity_attributes")
+    def _fill_entity_attributes(cls, v, values):
+        return {
+            entity_id: {attr_id: attr_spec for attr_id, attr_spec in entity_dict["attribs"].items()}
+            for entity_id, entity_dict in values["config"].items()
+        }
 
     def attr(self, entity_type: str, attr: str) -> AttrSpecType:
         return self.attributes[entity_type, attr]

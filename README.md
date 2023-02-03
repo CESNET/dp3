@@ -23,24 +23,36 @@ TODO - architecture, main parts of repository (Python package, other files)
 * `install` - installation scripts and files
 
 
-## Installing dependencies
+## Installing for development
 
-`$ pip3 install pipenv`
+### Dependencies
 
-### Install all dependencies:
+Following steps create a virtual environment with all dependencies installed.
 
-**development**: `$ pipenv install`
+```shell
+python3.9 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pre-commit install
+```
 
-**production**: `$ pipenv install --ignore-pipfile`
+The `venv` is activated using `source venv/bin/activate`, and can be deactivated using `deactivate`.
 
-Generated virtualenv is located at `~/.local/share/virtualenvs`, but should be activated automatically. Deactivate virtualenv with `$ exit`
+### Using pre-commit
 
-### Install DP³ platform
+With the dependencies, the [pre-commit](https://pre-commit.com/) package is installed.
+You can verify the installation using `pre-commit --version`.
+Pre-commit is used to automatically unify code formatting and perform code linting.
+The hooks configured in `.pre-commit-config.yaml` should now run automatically on every commit.
 
-`$ pipenv install -e .`
+In case you want to make sure, you can run `pre-commit run --all-files` to see it in action.
+
+## Installing DP³ platform
+
+`$ pip install -e .`
 
 ## Running tests
 
-Activate virtualenv (if not already - `$ pipenv shell`) and run:
+Activate virtualenv (if not already - `$ source venv/bin/activate`) and run:
 
 `$ cd tests && python3 -m unittest`

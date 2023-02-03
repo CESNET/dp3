@@ -20,6 +20,7 @@ from .common.config import ModelSpec, read_config_dir
 # from .common.base_module import BaseModule
 from .database.database import EntityDatabase
 from .history_management.history_manager import HistoryManager
+from .snapshots.snapshooter import SnapShooter
 from .task_processing.task_distributor import TaskDistributor
 from .task_processing.task_executor import TaskExecutor
 
@@ -134,6 +135,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.hm = HistoryManager(
         g.db, model_spec, process_index, num_processes, config.get("history_manager")
     )
+    g.ss = SnapShooter(g.db, model_spec, process_index, config.get("snapshots"))
     te = TaskExecutor(g.db, model_spec)
     g.td = TaskDistributor(config, process_index, num_processes, te, model_spec)
 

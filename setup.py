@@ -19,7 +19,6 @@ setuptools.setup(
         "flask",
         "amqpstorm~=2.7.2",
         "apscheduler~=3.6.3",
-        "certifi~=2020.4.5.1",
         "chardet~=3.0.4",
         "idna~=2.9",
         "pamqp~=2.3.0",

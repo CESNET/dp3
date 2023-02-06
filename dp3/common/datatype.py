@@ -60,6 +60,17 @@ class DataTypeContainer:
         self.str_type = str_type
         self.data_type = data_type
 
+        if (
+            "dict" in str_type
+            or "set" in str_type
+            or "array" in str_type
+            or "special" in str_type
+            or "json" in str_type
+        ):
+            self.hashable = False
+        else:
+            self.hashable = True
+
     @classmethod
     def __get_validators__(cls):
         # For Pydantic

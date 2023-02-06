@@ -148,8 +148,16 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].find_one({"_id": ekey}) or {}
 
-    def take_snapshot(self):
-        """Takes snapshot of current master document."""
+    def get_master_records(self, etype: str) -> pymongo.cursor.Cursor:
+        """Get cursor to current master records of etype."""
+        if etype not in self._db_schema_config.entities:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
+        master_col = self._master_col_name(etype)
+        return self._db[master_col].find({})
+
+    def save_snapshot(self, etype: str, eid: str):
+        """Saves snapshot to specified entity of current master document."""
 
     def get_latest_snapshot(self):
         """Get latest snapshot of given `ekey`.

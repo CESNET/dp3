@@ -17,10 +17,18 @@ Module managing creation of snapshots, enabling data correlation and saving snap
     - Save the complete results into database as snapshots
 """
 import logging
+from collections import defaultdict
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel
 
 from dp3 import g
+from dp3.common.attrspec import (
+    AttrSpecObservations,
+    AttrType,
+    ObservationsHistoryParams,
+)
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.database.database import EntityDatabase
 
@@ -56,3 +64,97 @@ class SnapShooter:
 
     def make_snapshots(self):
         """Create snapshots for all entities currently active in database."""
+        for etype in self.model_spec.entities.keys():
+            for master_record in self.db.get_master_records(etype):
+                self.make_snapshot(etype, master_record)
+
+    def make_snapshot(self, etype, master_record):
+        # - all registered timeseries processing modules must be called
+        #   - this should result in `observations` or `plain` datapoints, which will be saved to db
+        #     and forwarded in processing
+        for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
+            # TODO implement timeseries analysis callbacks
+            if attr_spec.t == AttrType.TIMESERIES and attr in master_record:
+                del master_record[attr]
+
+        # compute current values for all observations
+        for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
+            if attr_spec.t != AttrType.OBSERVATIONS:
+                continue
+
+            if attr in master_record:
+                if attr_spec.multi_value:
+                    val, conf = self.get_current_multivalue(attr_spec, master_record[attr])
+                else:
+                    val, conf = self.get_current_value(attr_spec, master_record[attr])
+
+                if conf:  # conf != 0.0 or len(conf) > 0
+                    master_record[attr] = val
+                    master_record[f"{attr}_c"] = conf
+                else:
+                    del master_record[attr]
+
+        # TODO extend by related entities
+        # TODO Callbacks for data correlation and fusion should happen here
+
+        # - Save the complete results into database as snapshots
+        self.db.save_snapshot(etype, master_record)
+
+    def get_current_value(self, attr_spec: AttrSpecObservations, attr_history) -> tuple[Any, float]:
+        """Get current value of an attribute from its history. Assumes multi_value = False."""
+        time = datetime.now()
+        return max(
+            (
+                (point["v"], self.extrapolate_confidence(point, time, attr_spec.history_params))
+                for point in attr_history
+            ),
+            key=lambda val_conf: val_conf[1],
+            default=(None, 0.0),
+        )
+
+    def get_current_multivalue(
+        self, attr_spec: AttrSpecObservations, attr_history
+    ) -> tuple[list, list[float]]:
+        """Get current value of a multi_value attribute from its history."""
+        time = datetime.now()
+        if attr_spec.data_type.hashable:
+            values_with_confidence = defaultdict(float)
+            for point in attr_history:
+                value = point["v"]
+                confidence = self.extrapolate_confidence(point, time, attr_spec.history_params)
+                if values_with_confidence[value] < confidence:
+                    values_with_confidence[value] = confidence
+            return list(values_with_confidence.keys()), list(values_with_confidence.values())
+        else:
+            values = []
+            confidence_list = []
+            for point in attr_history:
+                value = point["v"]
+                confidence = self.extrapolate_confidence(point, time, attr_spec.history_params)
+                if value in values:
+                    i = values.index(value)
+                    if confidence_list[i] < confidence:
+                        confidence_list[i] = confidence
+                elif confidence > 0.0:
+                    values.append(value)
+                    confidence_list.append(confidence)
+            return values, confidence_list
+
+    @staticmethod
+    def extrapolate_confidence(
+        datapoint: dict, time: datetime, history_params: ObservationsHistoryParams
+    ) -> float:
+        """Get the confidence value at given time."""
+        t1 = datapoint["t1"]
+        t2 = datapoint["t2"]
+        base_confidence = datapoint["c"]
+
+        if time < t1:
+            if time <= t1 - history_params.pre_validity:
+                return 0.0
+            return base_confidence * (1 - (t1 - time) / history_params.pre_validity)
+        if time <= t2:
+            return base_confidence  # completely inside the (strict) interval
+        if time >= t2 + history_params.post_validity:
+            return 0.0
+        return base_confidence * (1 - (time - t2) / history_params.post_validity)

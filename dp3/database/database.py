@@ -156,8 +156,21 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({})
 
-    def save_snapshot(self, etype: str, eid: str):
+    def save_snapshot(self, etype: str, snapshot: dict):
         """Saves snapshot to specified entity of current master document."""
+        if etype not in self._db_schema_config.entities:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
+        snapshot["eid"] = snapshot["_id"]
+        snapshot["_time_created"] = datetime.now()
+        del snapshot["_id"]
+
+        snapshot_col = self._snapshots_col_name(etype)
+        try:
+            self._db[snapshot_col].insert_one(snapshot)
+            self.log.debug(f"Inserted snapshot:\n{snapshot}")
+        except Exception as e:
+            raise DatabaseError(f"Insert of snaphsot failed: {e}\n{snapshot}") from e
 
     def get_latest_snapshot(self):
         """Get latest snapshot of given `ekey`.

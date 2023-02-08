@@ -2,9 +2,7 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Iterable
 from datetime import datetime
-from typing import Callable
 
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.task import Task
@@ -75,28 +73,6 @@ class TaskDistributor:
         self._watchdog_restarts = 0
         # Register watchdog to scheduler
         g.scheduler.register(self._watchdog, second="*/30")
-
-    def register_handler(
-        self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]
-    ) -> None:
-        """
-        Hook a function (or bound method) to specified attribute changes/events.
-        Each function must be registered only once!
-        :param func: function or bound method (callback)
-        :param etype: entity type (only changes of attributes of this etype trigger the func)
-        :param triggers: set/list/tuple of attributes whose update trigger the call of the method
-         (update of any one of the attributes will do)
-        :param changes: set/list/tuple of attributes the method call may update (may be None)
-        :return: None
-        """
-        if etype not in self.entity_types:
-            raise ValueError(f"Unknown entity type '{etype}'")
-        # Check types (because common error is to pass string instead of 1-tuple)
-        if not isinstance(triggers, Iterable) or isinstance(triggers, str):
-            raise TypeError('Argument "triggers" must be iterable and must not be str.')
-        if changes is not None and (not isinstance(changes, Iterable) or isinstance(changes, str)):
-            raise TypeError('Argument "changes" must be iterable and must not be str.')
-        self.task_executor.register_handler(func, etype, triggers, changes)
 
     def start(self) -> None:
         """Run the worker threads and start consuming from TaskQueue."""
@@ -190,10 +166,11 @@ class TaskDistributor:
             # Process the task
             start_time = datetime.now()
             try:
-                created = self.task_executor.process_task(task)
+                created, new_tasks = self.task_executor.process_task(task)
             except Exception:
                 self.log.error(f"Error has occurred during processing task: {task}")
                 raise
+
             duration = (datetime.now() - start_time).total_seconds()
             # self.log.debug("Task {} finished in {:.3f} seconds.".format(msg_id, duration))
             if duration > 1.0:
@@ -206,6 +183,13 @@ class TaskDistributor:
                         " (new record created)" if created else "",
                     )
                 )
+
+            # Push tasks
+            try:
+                for task in new_tasks:
+                    self._task_queue_writer.put_task(task)
+            except Exception as e:
+                self.log.error(f"Failed to push tasks created from hooks: {e}")
 
     def _watchdog(self):
         """

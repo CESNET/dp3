@@ -148,6 +148,10 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].find_one({"_id": ekey}) or {}
 
+    def ekey_exists(self, etype: str, ekey: str) -> bool:
+        """Checks whether master record for etype/ekey exists"""
+        return bool(self._get_master_record(etype, ekey))
+
     def get_master_records(self, etype: str) -> pymongo.cursor.Cursor:
         """Get cursor to current master records of etype."""
         if etype not in self._db_schema_config.entities:

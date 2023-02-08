@@ -11,7 +11,6 @@ class BaseModule:
         Called after initialization, may be used to create and run a separate
         thread if needed by the module. Do nothing unless overridden.
         """
-        pass
 
     def stop(self) -> None:
         """
@@ -20,4 +19,3 @@ class BaseModule:
         Called before program exit, may be used to finalize and stop the
         separate thread if it is used. Do nothing unless overridden.
         """
-        pass

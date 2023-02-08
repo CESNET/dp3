@@ -3,11 +3,13 @@
 
 Don't run directly. Import and run the main() function.
 """
+import inspect
 import logging
 import os
 import signal
 import sys
 import threading
+from importlib import import_module
 
 if __name__ == "__main__":
     print("Don't run this file directly. Use 'bin/worker' instead.", file=sys.stderr)
@@ -17,58 +19,62 @@ from . import g
 from .common import scheduler
 from .common.config import ModelSpec, read_config_dir
 
-# from .common.base_module import BaseModule
+from .common.base_module import BaseModule
 from .database.database import EntityDatabase
 from .history_management.history_manager import HistoryManager
 from .snapshots.snapshooter import SnapShooter
 from .task_processing.task_distributor import TaskDistributor
 from .task_processing.task_executor import TaskExecutor
 
-# def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
-#     """Load plug-in modules
 
-#     Import Python modules with names in 'enabled_modules' from 'modules_dir' directory
-#     and return all found classes derived from BaseModule class.
-#     """
-#     # Get list of all modules available in given folder
-#     # [:-3] is for removing '.py' suffix from module filenames
-#     available_modules = []
-#     for item in os.scandir(modules_dir):
-#         # A module can be a Python file or a Python package
-#         # (i.e. a directory with "__init__.py" file)
-#         if item.is_file() and item.name.endswith(".py"):
-#             available_modules.append(item.name[:-3]) # name without .py
-#         if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
-#             available_modules.append(item.name)
-#     log.debug(f"Available modules: {', '.join(available_modules)}")
-#     log.debug(f"Enabled modules: {', '.join(enabled_modules)}")
+def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
+    """Load plug-in modules
 
-#     # check if all desired modules are in modules folder
-#     missing_modules = (set(enabled_modules) - set(available_modules))
-#     if missing_modules:
-#         log.fatal(
-#             "Some of desired modules are not available (not in modules folder), "
-#             f"specifically: {missing_modules}"
-#         )
-#         sys.exit(2)
-#     # do imports of desired modules from 'modules' folder
-#     # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
-#     log.debug("Importing modules ...")
-#     sys.path.insert(0, modules_dir)
-#     imported_modules = [import_module(module_name) for module_name in enabled_modules]
-#     del sys.path[0]
-#     # final list will contain main classes from all desired modules,
-#     # which has BaseModule as parent
-#     modules_main_objects = []
-#     for module in imported_modules:
-#         for _, obj in inspect.getmembers(module):
-#             if inspect.isclass(obj) and BaseModule in obj.__bases__:
-#                 # append instance of module class (obj is class --> obj() is instance)
-#                 # --> call init, which registers handler
-#                 modules_main_objects.append(obj())
-#                 log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
+    Import Python modules with names in 'enabled_modules' from 'modules_dir' directory
+    and return all found classes derived from BaseModule class.
+    """
+    # Get list of all modules available in given folder
+    # [:-3] is for removing '.py' suffix from module filenames
+    available_modules = []
+    for item in os.scandir(modules_dir):
+        # A module can be a Python file or a Python package
+        # (i.e. a directory with "__init__.py" file)
+        if item.is_file() and item.name.endswith(".py"):
+            available_modules.append(item.name[:-3])  # name without .py
+        if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
+            available_modules.append(item.name)
 
-#     return modules_main_objects
+    log.debug(f"Available modules: {', '.join(available_modules)}")
+    log.debug(f"Enabled modules: {', '.join(enabled_modules)}")
+
+    # Check if all desired modules are in modules folder
+    missing_modules = set(enabled_modules) - set(available_modules)
+    if missing_modules:
+        log.fatal(
+            "Some of desired modules are not available (not in modules folder), "
+            f"specifically: {missing_modules}"
+        )
+        sys.exit(2)
+
+    # Do imports of desired modules from 'modules' folder
+    # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
+    log.debug("Importing modules ...")
+    sys.path.insert(0, modules_dir)
+    imported_modules = [import_module(module_name) for module_name in enabled_modules]
+    del sys.path[0]
+
+    # Final list will contain main classes from all desired modules,
+    # which has BaseModule as parent
+    modules_main_objects = []
+    for module in imported_modules:
+        for _, obj in inspect.getmembers(module):
+            if inspect.isclass(obj) and BaseModule in obj.__bases__:
+                # Append instance of module class (obj is class --> obj() is instance)
+                # --> call init, which registers handler
+                modules_main_objects.append(obj())
+                log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
+
+    return modules_main_objects
 
 
 def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> None:
@@ -136,23 +142,19 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         g.db, model_spec, process_index, num_processes, config.get("history_manager")
     )
     g.ss = SnapShooter(g.db, model_spec, process_index, config.get("snapshots"))
-    te = TaskExecutor(g.db, model_spec)
-    g.td = TaskDistributor(config, process_index, num_processes, te, model_spec)
+    g.te = TaskExecutor(g.db, model_spec)
+    g.td = TaskDistributor(config, process_index, num_processes, g.te, model_spec)
 
     ##############################################
     # Load all plug-in modules
 
-    working_directory = os.path.dirname(__file__)
-    os.path.abspath(os.path.join(working_directory, "core_modules"))
+    os.path.dirname(__file__)
     custom_modules_dir = config.get("processing_core.modules_dir")
     custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
 
-    # core_module_list = load_modules(core_modules_dir, {}, log)
-    # custom_module_list = load_modules(
-    #     custom_modules_dir, config.get('processing_core.enabled_modules'), log
-    # )
-
-    module_list = []  # core_module_list + custom_module_list
+    module_list = load_modules(
+        custom_modules_dir, config.get("processing_core.enabled_modules"), log
+    )
 
     # Lock used to control when the program stops.
     g.daemon_stop_lock = threading.Lock()

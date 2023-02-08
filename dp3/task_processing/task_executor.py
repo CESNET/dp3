@@ -1,11 +1,15 @@
 import logging
-from collections.abc import Iterable
-from typing import Any, Callable
+from typing import Callable
 
 from event_count_logger import DummyEventGroup, EventCountLogger
 
 from dp3.common.task import Task
 from dp3.database.database import DatabaseError, EntityDatabase
+from dp3.task_processing.task_hooks import (
+    TaskGenericHooksContainer,
+    TaskEntityHooksContainer,
+    TaskAttrHooksContainer,
+)
 
 from .. import g
 from ..common.config import ModelSpec
@@ -16,14 +20,8 @@ class TaskExecutor:
     TaskExecutor manages updates of entity records,
     which are being read from task queue (via parent TaskDistributor)
 
-    A hooked function receives a list of updates that triggered its call,
-    i.e. a list of 2-tuples (attr_name, new_value) or (event_name, param)
-    (if more than one update triggers the same function, it's called only once).
-
-    If there are multiple matching events, only the first one is used.
-
     :param db: Instance of EntityDatabase
-    :param model_spec: Configuration of entity types and attributes (dict entity_name->entity_spec)
+    :param model_spec: Configuration of entity types and attributes
     """
 
     def __init__(
@@ -38,18 +36,6 @@ class TaskExecutor:
         # Get list of configured entity types
         self.entity_types = list(model_spec.entities.keys())
         self.log.debug(f"Configured entity types: {self.entity_types}")
-
-        # Mapping of names of attributes to a list of functions that should be
-        # called when the attribute is updated
-        # (One such mapping for each entity type)
-        self._attr2func = {etype: {} for etype in self.entity_types}
-        # Set of attributes that may be updated by a function
-        self._func2attr = {etype: {} for etype in self.entity_types}
-        # Mapping of functions to set of attributes the function watches, i.e.
-        # is called when the attribute is changed
-        self._func_triggers = {etype: {} for etype in self.entity_types}
-        # cache for may_change set calculation - is cleared when register_handler() is called
-        self._may_change_cache = self._init_may_change_cache()
 
         self.model_spec = model_spec
         self.db = db
@@ -71,42 +57,40 @@ class TaskExecutor:
                 "such events will not be logged (check event_logging.yml)"
             )
 
-    def _init_may_change_cache(self) -> dict[str, dict[Any, Any]]:
-        """
-        Initializes _may_change_cache with all supported Entity types
-        :return: None
-        """
-        may_change_cache = {}
-        for etype in self.entity_types:
-            may_change_cache[etype] = {}
-        return may_change_cache
+        # Hooks
+        self._task_generic_hooks = TaskGenericHooksContainer(self.log)
+        self._task_entity_hooks = {}
+        self._task_attr_hooks = {}
 
-    def register_handler(
-        self, func: Callable, etype: str, triggers: Iterable[str], changes: Iterable[str]
-    ) -> None:
+        for entity in model_spec.entities:
+            self._task_entity_hooks[entity] = TaskEntityHooksContainer(entity, self.log)
+
+        for (entity, attr) in model_spec.attributes:
+            attr_type = model_spec.attributes[entity, attr].t
+            self._task_attr_hooks[entity, attr] = TaskAttrHooksContainer(
+                entity, attr, attr_type, self.log
+            )
+
+    def register_task_hook(self, hook_type: str, hook: Callable):
+        """Registers one of available task hooks
+
+        See: `TaskGenericHooksContainer` in `task_hooks.py`
         """
-        Hook a function (or bound method) to specified attribute changes/events.
-        Each function must be registered only once! Type check is already done in TaskDistributor.
-        :param func: function or bound method (callback)
-        :param etype: entity type (only changes of attributes of this etype trigger the func)
-        :param triggers: set/list/tuple of attributes whose update trigger the call of the method
-         (update of any one of the attributes will do)
-        :param changes: set/list/tuple of attributes the method call may update (may be None)
-        :return: None
+        self._task_generic_hooks.register(hook_type, hook)
+
+    def register_entity_hook(self, hook_type: str, hook: Callable, entity: str):
+        """Registers one of available task entity hooks
+
+        See: `TaskEntityHooksContainer` in `task_hooks.py`
         """
-        # need to clear calculations in set, because may be wrong now
-        self._may_change_cache = self._init_may_change_cache()
-        # _func2attr[etype]: function -> list of attrs it may change
-        # _func_triggers[etype]: function -> list of attrs that trigger it
-        # _attr2func[etype]: attribute -> list of functions its change triggers
-        # There are separate mappings for each entity type.
-        self._func2attr[etype][func] = tuple(changes) if changes is not None else ()
-        self._func_triggers[etype][func] = set(triggers)
-        for attr in triggers:
-            if attr in self._attr2func[etype]:
-                self._attr2func[etype][attr].append(func)
-            else:
-                self._attr2func[etype][attr] = [func]
+        self._task_entity_hooks[entity].register(hook_type, hook)
+
+    def register_attr_hook(self, hook_type: str, hook: Callable, entity: str, attr: str):
+        """Registers one of available task attribute hooks
+
+        See: `TaskAttrHooksContainer` in `task_hooks.py`
+        """
+        self._task_attr_hooks[entity, attr].register(hook_type, hook)
 
     def process_task(self, task: Task):
         """
@@ -117,24 +101,50 @@ class TaskExecutor:
         """
         self.log.debug(f"Received new task {task.etype}/{task.ekey}, starting processing!")
 
+        new_tasks = []
+
+        # Run on_task_start hook
+        self._task_generic_hooks.run_on_start(task)
+
         # Check existence of etype
         if task.etype not in self.entity_types:
             self.log.error(f"Task {task.etype}/{task.ekey}: Unknown entity type!")
             self.elog.log("task_processing_error")
-            return False
+            return False, new_tasks
 
-        # *** Now we have the record, process the requested updates ***
-        created = False
+        # Check existence of ekey
         try:
-            self.db.insert_datapoints(task.etype, task.ekey, task.data_points)
-            self.log.debug(
-                f"Task {task.etype}/{task.ekey}: All changes written to DB, processing finished."
-            )
-            created = True
+            ekey_exists = self.db.ekey_exists(task.etype, task.ekey)
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.ekey}: DB error: {e}")
+            return False, new_tasks
+
+        if not ekey_exists:
+            # Run allow_entity_creation hook
+            if not self._task_entity_hooks[task.etype].run_allow_creation(task.ekey, task):
+                self.log.debug(
+                    f"Task {task.etype}/{task.ekey}: hooks decided not to create new ekey record"
+                )
+                return False, new_tasks
+
+            # Run on_entity_creation hook
+            new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.ekey, task)
+
+        # Insert into database
+        try:
+            self.db.insert_datapoints(task.etype, task.ekey, task.data_points)
+            self.log.debug(f"Task {task.etype}/{task.ekey}: All changes written to DB")
+        except DatabaseError as e:
+            self.log.error(f"Task {task.etype}/{task.ekey}: DB error: {e}")
+            return False, new_tasks
+
+        # Run attribute hooks
+        for dp in task.data_points:
+            new_tasks += self._task_attr_hooks[dp.etype, dp.attr].run_on_new(dp.eid, dp)
 
         # Log the processed task
         self.elog.log("task_processed")
 
-        return created
+        self.log.debug(f"Secondary modules created {len(new_tasks)} new tasks.")
+
+        return True, new_tasks

@@ -137,7 +137,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 
-    def _get_master_record(self, etype: str, ekey: str) -> dict:
+    def get_master_record(self, etype: str, ekey: str) -> dict:
         """Get current master record for etype/ekey.
 
         If doesn't exist, returns {}.
@@ -150,7 +150,7 @@ class EntityDatabase:
 
     def ekey_exists(self, etype: str, ekey: str) -> bool:
         """Checks whether master record for etype/ekey exists"""
-        return bool(self._get_master_record(etype, ekey))
+        return bool(self.get_master_record(etype, ekey))
 
     def get_master_records(self, etype: str) -> pymongo.cursor.Cursor:
         """Get cursor to current master records of etype."""
@@ -165,9 +165,7 @@ class EntityDatabase:
         if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
-        snapshot["eid"] = snapshot["_id"]
         snapshot["_time_created"] = datetime.now()
-        del snapshot["_id"]
 
         snapshot_col = self._snapshots_col_name(etype)
         try:
@@ -215,7 +213,7 @@ class EntityDatabase:
         t2 = datetime.now() if t2 is None else t2
 
         # Get attribute history
-        mr = self._get_master_record(etype, ekey)
+        mr = self.get_master_record(etype, ekey)
         attr_history = mr.get(attr_name, [])
 
         # Filter

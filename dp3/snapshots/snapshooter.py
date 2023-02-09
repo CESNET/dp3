@@ -78,27 +78,40 @@ class SnapShooter:
                 del master_record[attr]
 
         # compute current values for all observations
-        for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
-            if attr_spec.t != AttrType.OBSERVATIONS:
-                continue
+        current_values = self.get_current_values(etype, master_record)
 
-            if attr in master_record:
-                if attr_spec.multi_value:
-                    val, conf = self.get_current_multivalue(attr_spec, master_record[attr])
-                else:
-                    val, conf = self.get_current_value(attr_spec, master_record[attr])
-
-                if conf:  # conf != 0.0 or len(conf) > 0
-                    master_record[attr] = val
-                    master_record[f"{attr}_c"] = conf
-                else:
-                    del master_record[attr]
-
-        # TODO extend by related entities
         # TODO Callbacks for data correlation and fusion should happen here
 
         # - Save the complete results into database as snapshots
-        self.db.save_snapshot(etype, master_record)
+        self.db.save_snapshot(etype, current_values)
+
+    def get_current_values(self, etype, master_record):
+        current_values = {"eid": master_record["_id"]}
+        for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
+            if attr_spec.t != AttrType.OBSERVATIONS or attr not in master_record:
+                continue
+
+            if attr_spec.multi_value:
+                val, conf = self.get_current_multivalue(attr_spec, master_record[attr])
+
+                if attr_spec.is_relation:
+                    val = [
+                        self.get_current_values_relation(attr_spec.relation_to, eid) for eid in val
+                    ]
+            else:
+                val, conf = self.get_current_value(attr_spec, master_record[attr])
+
+                if attr_spec.is_relation:
+                    val = self.get_current_values_relation(attr_spec.relation_to, val)
+
+            if conf:  # conf != 0.0 or len(conf) > 0
+                current_values[attr] = val
+                current_values[f"{attr}_c"] = conf
+        return current_values
+
+    def get_current_values_relation(self, linked_etype, linked_eid):
+        linked_record = self.db.get_master_record(linked_etype, linked_eid)
+        return self.get_current_values(linked_etype, linked_record)
 
     def get_current_value(self, attr_spec: AttrSpecObservations, attr_history) -> tuple[Any, float]:
         """Get current value of an attribute from its history. Assumes multi_value = False."""

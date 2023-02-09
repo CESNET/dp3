@@ -60,18 +60,17 @@ class DataTypeContainer:
         self.str_type = str_type
         self.data_type = data_type
 
-        if (
+        self.hashable = not (
             "dict" in str_type
             or "set" in str_type
             or "array" in str_type
             or "special" in str_type
             or "json" in str_type
-        ):
-            self.hashable = False
-        else:
-            self.hashable = True
+        )
 
-        self.is_link = "link" in str_type
+        if m := re.match(re_link, self.str_type):
+            self._link_to = m.group(1)
+        self.is_link = bool(m)
 
     @classmethod
     def __get_validators__(cls):
@@ -126,9 +125,10 @@ class DataTypeContainer:
 
     def get_linked_entity(self) -> id:
         """Returns linked entity id. Raises ValueError if DataType is not a link."""
-        if m := re.match(re_link, self.str_type):
-            return m.group(1)
-        raise ValueError(f"DataType '{self.str_type}' is not a link.")
+        try:
+            return self._link_to
+        except AttributeError:
+            raise ValueError(f"DataType '{self.str_type}' is not a link.")
 
     def __repr__(self):
         return f"'{self.str_type}'"

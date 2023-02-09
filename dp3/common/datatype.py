@@ -46,7 +46,7 @@ class DataTypeContainer:
     - json
 
     or composite data type:
-    - link<str_type>
+    - link<entity_type>
     - array<str_type>
     - set<str_type>
     - dict<keys>
@@ -70,6 +70,8 @@ class DataTypeContainer:
             self.hashable = False
         else:
             self.hashable = True
+
+        self.is_link = "link" in str_type
 
     @classmethod
     def __get_validators__(cls):
@@ -105,10 +107,7 @@ class DataTypeContainer:
             data_type = set[primitive_data_types[element_type]]
 
         elif re.match(re_link, str_type):
-            # TODO
-            # Should the entity type be validated here?
-            # I.e. does the specification for given entity type have to exist?
-            data_type = Any
+            data_type = str
 
         elif re.match(re_dict, str_type):
             key_str = str_type.split("<")[1].split(">")[0]
@@ -124,6 +123,12 @@ class DataTypeContainer:
             raise TypeError(f"Data type '{str_type}' is not supported")
 
         return cls(str_type, data_type)
+
+    def get_linked_entity(self) -> id:
+        """Returns linked entity id. Raises ValueError if DataType is not a link."""
+        if m := re.match(re_link, self.str_type):
+            return m.group(1)
+        raise ValueError(f"DataType '{self.str_type}' is not a link.")
 
     def __repr__(self):
         return f"'{self.str_type}'"

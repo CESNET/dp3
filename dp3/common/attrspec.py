@@ -126,13 +126,28 @@ class AttrSpecGeneric(BaseModel):
         return self._dp_model
 
 
-class AttrSpecPlain(AttrSpecGeneric):
-    """Plain attribute specification"""
+class AttrSpecClassic(AttrSpecGeneric):
+    """Parent of non-timeseries `AttrSpec` classes."""
 
-    t = AttrType.PLAIN
     data_type: DataTypeContainer
     categories: list[str] = None
     editable: bool = False
+
+    @property
+    def is_relation(self) -> bool:
+        """Returns whether specified attribute is a link."""
+        return self.data_type.is_link
+
+    @property
+    def relation_to(self) -> str:
+        """Returns linked entity id. Raises ValueError if attribute is not a link."""
+        return self.data_type.get_linked_entity()
+
+
+class AttrSpecPlain(AttrSpecClassic):
+    """Plain attribute specification"""
+
+    t = AttrType.PLAIN
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -144,17 +159,14 @@ class AttrSpecPlain(AttrSpecGeneric):
         )
 
 
-class AttrSpecObservations(AttrSpecGeneric):
+class AttrSpecObservations(AttrSpecClassic):
     """Observations attribute specification"""
 
     t = AttrType.OBSERVATIONS
-    data_type: DataTypeContainer
-    categories: list[str] = None
     confidence: bool = False
     multi_value: bool = False
     history_params: ObservationsHistoryParams
     history_force_graph: bool = False
-    editable: bool = False
 
     def __init__(self, **data):
         super().__init__(**data)

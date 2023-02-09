@@ -4,9 +4,9 @@ NERDd - config file reader
 import os
 
 import yaml
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, root_validator, validator
 
-from dp3.common.attrspec import AttrSpec, AttrSpecType
+from dp3.common.attrspec import AttrSpec, AttrSpecClassic, AttrSpecType
 from dp3.common.base_attrs import BASE_ATTRIBS
 from dp3.common.entityspec import EntitySpec
 
@@ -164,6 +164,8 @@ class ModelSpec(BaseModel):
     attributes: dict[tuple[str, str], AttrSpecType]  # (entity id, attribute id) -> AttrSpec
     entity_attributes: dict[str, dict[str, AttrSpecType]]  # entity id -> attribute id -> AttrSpec
 
+    relations: dict[tuple[str, str], AttrSpecType]  # (entity id, attribute id) -> AttrSpec
+
     def __init__(self, config: HierarchicalDict):
         """
         Provided configuration must be a dict of following structure:
@@ -184,16 +186,22 @@ class ModelSpec(BaseModel):
 
         Throws an exception if the specification is invalid
         """
-        super().__init__(config=config, entities={}, attributes={}, entity_attributes={})
+        super().__init__(
+            config=config, entities={}, attributes={}, entity_attributes={}, relations={}
+        )
 
     @validator("entities")
     def _fill_entities(cls, v, values):
+        if "config" not in values:
+            return v
         return {
             entity_id: entity_dict["entity"] for entity_id, entity_dict in values["config"].items()
         }
 
     @validator("attributes")
     def _fill_attributes(cls, v, values):
+        if "config" not in values:
+            return v
         return {
             (entity_id, attr_id): attr_spec
             for entity_id, entity_dict in values["config"].items()
@@ -202,10 +210,33 @@ class ModelSpec(BaseModel):
 
     @validator("entity_attributes")
     def _fill_entity_attributes(cls, v, values):
+        if "config" not in values:
+            return v
         return {
             entity_id: {attr_id: attr_spec for attr_id, attr_spec in entity_dict["attribs"].items()}
             for entity_id, entity_dict in values["config"].items()
         }
+
+    @validator("relations")
+    def _fill_relations(cls, v, values):
+        if "attributes" not in values:
+            return v
+        return {
+            entity_id_attr_id: attr_spec
+            for entity_id_attr_id, attr_spec in values["attributes"].items()
+            if isinstance(attr_spec, AttrSpecClassic) and attr_spec.is_relation
+        }
+
+    @root_validator
+    def _validate_relations(cls, values):
+        """Validate that relation type attributes link to existing entities."""
+        for entity_attr, attr_spec in values["relations"].items():
+            if attr_spec.relation_to not in values["entities"]:
+                entity, attr = entity_attr
+                raise ValueError(
+                    f"'{attr_spec.relation_to}', linked by '{attr}' is not a valid entity."
+                )
+        return values
 
     def attr(self, entity_type: str, attr: str) -> AttrSpecType:
         return self.attributes[entity_type, attr]

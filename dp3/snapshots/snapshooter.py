@@ -19,9 +19,10 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import logging
 from collections import defaultdict
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel
+from snapshot_hooks import SnapshotTimeseriesHookContainer
 
 from dp3 import g
 from dp3.common.attrspec import (
@@ -58,9 +59,15 @@ class SnapShooter:
             )
             return
 
-        # Schedule datapoints cleaning
+        # Schedule snapshot period
         snapshot_period = self.config.creation_rate
         g.scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
+
+        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, model_spec)
+
+    def register_timeseries_hook(self, entity_type: str, attr_type: str, hook: Callable):
+        """Registers timeseries hook to specified attribute."""
+        self._timeseries_hooks.register(entity_type, attr_type, hook)
 
     def make_snapshots(self):
         """Create snapshots for all entities currently active in database."""
@@ -73,9 +80,8 @@ class SnapShooter:
         #   - this should result in `observations` or `plain` datapoints, which will be saved to db
         #     and forwarded in processing
         for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
-            # TODO implement timeseries analysis callbacks
             if attr_spec.t == AttrType.TIMESERIES and attr in master_record:
-                del master_record[attr]
+                self._timeseries_hooks.run(etype, attr, master_record[attr])
 
         # compute current values for all observations
         current_values = self.get_current_values(etype, master_record)

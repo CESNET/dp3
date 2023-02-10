@@ -65,7 +65,7 @@ class TaskExecutor:
         for entity in model_spec.entities:
             self._task_entity_hooks[entity] = TaskEntityHooksContainer(entity, self.log)
 
-        for (entity, attr) in model_spec.attributes:
+        for entity, attr in model_spec.attributes:
             attr_type = model_spec.attributes[entity, attr].t
             self._task_attr_hooks[entity, attr] = TaskAttrHooksContainer(
                 entity, attr, attr_type, self.log

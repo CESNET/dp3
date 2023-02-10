@@ -6,9 +6,9 @@ from event_count_logger import DummyEventGroup, EventCountLogger
 from dp3.common.task import Task
 from dp3.database.database import DatabaseError, EntityDatabase
 from dp3.task_processing.task_hooks import (
-    TaskGenericHooksContainer,
-    TaskEntityHooksContainer,
     TaskAttrHooksContainer,
+    TaskEntityHooksContainer,
+    TaskGenericHooksContainer,
 )
 
 from .. import g

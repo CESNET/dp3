@@ -11,15 +11,16 @@ import sys
 import threading
 from importlib import import_module
 
+from dp3.task_processing.task_queue import TaskQueueWriter
+
 if __name__ == "__main__":
     print("Don't run this file directly. Use 'bin/worker' instead.", file=sys.stderr)
     sys.exit(1)
 
 from . import g
 from .common import scheduler
-from .common.config import ModelSpec, read_config_dir
-
 from .common.base_module import BaseModule
+from .common.config import ModelSpec, read_config_dir
 from .database.database import EntityDatabase
 from .history_management.history_manager import HistoryManager
 from .snapshots.snapshooter import SnapShooter
@@ -141,7 +142,13 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     g.hm = HistoryManager(
         g.db, model_spec, process_index, num_processes, config.get("history_manager")
     )
-    g.ss = SnapShooter(g.db, model_spec, process_index, config.get("snapshots"))
+    g.ss = SnapShooter(
+        g.db,
+        TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
+        model_spec,
+        process_index,
+        config.get("snapshots"),
+    )
     g.te = TaskExecutor(g.db, model_spec)
     g.td = TaskDistributor(config, process_index, num_processes, g.te, model_spec)
 

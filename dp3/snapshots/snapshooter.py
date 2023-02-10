@@ -22,7 +22,6 @@ from datetime import datetime
 from typing import Any, Callable
 
 from pydantic import BaseModel
-from snapshot_hooks import SnapshotTimeseriesHookContainer
 
 from dp3 import g
 from dp3.common.attrspec import (
@@ -31,7 +30,10 @@ from dp3.common.attrspec import (
     ObservationsHistoryParams,
 )
 from dp3.common.config import HierarchicalDict, ModelSpec
+from dp3.common.task import Task
 from dp3.database.database import EntityDatabase
+from dp3.snapshots.snapshot_hooks import SnapshotTimeseriesHookContainer
+from dp3.task_processing.task_queue import TaskQueueWriter
 
 
 class SnapShooterConfig(BaseModel):
@@ -42,6 +44,7 @@ class SnapShooter:
     def __init__(
         self,
         db: EntityDatabase,
+        task_queue_writer: TaskQueueWriter,
         model_spec: ModelSpec,
         worker_index: int,
         config: HierarchicalDict,
@@ -49,6 +52,7 @@ class SnapShooter:
         self.log = logging.getLogger("SnapshotManager")
 
         self.db = db
+        self.task_queue_writer = task_queue_writer
         self.model_spec = model_spec
         self.worker_index = worker_index
         self.config = SnapShooterConfig.parse_obj(config)
@@ -79,9 +83,15 @@ class SnapShooter:
         # - all registered timeseries processing modules must be called
         #   - this should result in `observations` or `plain` datapoints, which will be saved to db
         #     and forwarded in processing
+        tasks = []
         for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
             if attr_spec.t == AttrType.TIMESERIES and attr in master_record:
-                self._timeseries_hooks.run(etype, attr, master_record[attr])
+                new_tasks = self._timeseries_hooks.run(etype, attr, master_record[attr])
+                tasks.extend(new_tasks)
+
+        self.extend_master_record(etype, master_record, tasks)
+        for task in tasks:
+            self.task_queue_writer.put_task(task)
 
         # compute current values for all observations
         current_values = self.get_current_values(etype, master_record)
@@ -90,6 +100,19 @@ class SnapShooter:
 
         # - Save the complete results into database as snapshots
         self.db.save_snapshot(etype, current_values)
+
+    @staticmethod
+    def extend_master_record(etype, master_record, new_tasks: list[Task]):
+        """Update existing master record with datapoints from new tasks"""
+        for task in new_tasks:
+            for datapoint in task.data_points:
+                if datapoint.etype != etype:
+                    continue
+                dp_dict = datapoint.dict(include={"v", "t1", "t2", "c"})
+                if datapoint.attr in master_record:
+                    master_record[datapoint.attr].append()
+                else:
+                    master_record[datapoint.attr] = [dp_dict]
 
     def get_current_values(self, etype, master_record):
         current_values = {"eid": master_record["_id"]}

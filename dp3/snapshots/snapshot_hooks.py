@@ -25,9 +25,11 @@ class SnapshotTimeseriesHookContainer:
         self.log.debug(f"Added hook:  '{hook.__qualname__}'")
 
     def run(self, entity_id: str, attr_id: str, attr_history: dict):
+        tasks = []
         for hook in self._hooks[entity_id, attr_id]:
             try:
-                # TODO forwarding hook outputs to task_executor
-                hook(attr_history)
+                new_tasks = hook(entity_id, attr_id, attr_history)
+                tasks.extend(new_tasks)
             except Exception as e:
                 self.log.error(f"Error during running hook {hook}: {e}")
+        return tasks

@@ -306,7 +306,7 @@ if __name__ == "__main__":
     updater_config = config.get("updater")
     db_config = config.get("database")
     attr_spec = load_attr_spec(config.get("db_entities"))
-    rabbit_params = config.get("processing_core.rabbitmq", {})
+    rabbit_params = config.get("processing_core.msg_broker", {})
     num_processes = config.get("processing_core.worker_processes")
     etypes = [etype for etype in attr_spec]
     try:

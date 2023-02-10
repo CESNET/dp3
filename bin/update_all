@@ -76,7 +76,7 @@ db_config = config.get("database")
 attr_spec = ModelSpec(config.get("db_entities"))
 # TODO check existence of args.etype in attr_spec
 
-rabbit_params = config.get("processing_core.rabbitmq", {})
+rabbit_params = config.get("processing_core.msg_broker", {})
 num_processes = config.get("processing_core.worker_processes")
 
 # Connect to DB and get list of entities to update

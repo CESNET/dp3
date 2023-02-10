@@ -43,7 +43,7 @@ if args.verbose:
 logger.debug(f"Loading config dir {args.config_dir}")
 config = read_config_dir(args.config_dir)
 
-rabbit_params = config.get("processing_core.rabbitmq", {})
+rabbit_params = config.get("processing_core.msg_broker", {})
 num_processes = config.get("processing_core.worker_processes")
 
 try:

@@ -32,7 +32,10 @@ from dp3.common.attrspec import (
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.task import Task
 from dp3.database.database import EntityDatabase
-from dp3.snapshots.snapshot_hooks import SnapshotTimeseriesHookContainer
+from dp3.snapshots.snapshot_hooks import (
+    SnapshotCorrelationHookContainer,
+    SnapshotTimeseriesHookContainer,
+)
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 
@@ -68,10 +71,20 @@ class SnapShooter:
         g.scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
 
         self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, model_spec)
+        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, model_spec)
 
-    def register_timeseries_hook(self, entity_type: str, attr_type: str, hook: Callable):
+    def register_timeseries_hook(self, hook: Callable, entity_type: str, attr_type: str):
         """Registers timeseries hook to specified attribute."""
-        self._timeseries_hooks.register(entity_type, attr_type, hook)
+        self._timeseries_hooks.register(hook, entity_type, attr_type)
+
+    def register_correlation_hook(
+        self,
+        hook: Callable,
+        entity_type: str,
+        depends_on: list[list[str]],
+        may_change: list[list[str]],
+    ):
+        self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
 
     def make_snapshots(self):
         """Create snapshots for all entities currently active in database."""

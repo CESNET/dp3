@@ -61,12 +61,12 @@ class SnapshotCorrelationHookContainer:
     """Container for data fusion and correlation hooks."""
 
     def __init__(self, log: logging.Logger, model_spec: ModelSpec):
-        self.log = log.getChild("correlationHooks")
+        self.log = log.getChild("CorrelationHooks")
         self.model_spec = model_spec
 
         self._hooks = defaultdict(list)
 
-        self._dependency_graph = DependencyGraph()
+        self._dependency_graph = DependencyGraph(self.log)
 
     def register(
         self,
@@ -93,14 +93,17 @@ class SnapshotCorrelationHookContainer:
 
         if entity_type not in self.model_spec.entities:
             raise ValueError(f"Entity '{entity_type}' does not exist.")
+
         self._validate_attr_paths(entity_type, depends_on)
         self._validate_attr_paths(entity_type, may_change)
 
+        depends_on = self._embed_base_entity(entity_type, depends_on)
+        may_change = self._embed_base_entity(entity_type, may_change)
+
         hook_id = (
             f"{hook.__qualname__}("
-            f"{entity_type}, "
-            f"[{','.join('->'.join(path) for path in depends_on)}], "
-            f"[{','.join('->'.join(path) for path in may_change)}])"
+            f"{entity_type}, [{','.join(depends_on)}], [{','.join(may_change)}]"
+            f")"
         )
         self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 
@@ -117,12 +120,16 @@ class SnapshotCorrelationHookContainer:
             for step in path:
                 if step not in position:
                     raise ValueError(
-                        f"Invalid path '{' -> '.join([base_enity] + path)}', failed on '{step}'"
+                        f"Invalid path '{'->'.join([base_enity] + path)}', failed on '{step}'"
                     )
                 position = position[step]
                 if position.is_relation:
                     position = entity_attributes[position.relation_to]
             assert isinstance(position, (AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries))
+
+    @staticmethod
+    def _embed_base_entity(base_entity: str, paths: list[list[str]]):
+        return ["->".join([base_entity] + path) for path in paths]
 
 
 @dataclass
@@ -136,24 +143,25 @@ class GraphVertex:
 class DependencyGraph:
     """Class representing a graph of dependencies between correlation hooks."""
 
-    def __init__(self):
+    def __init__(self, log):
+        self.log = log.getChild("DependencyGraph")
+
         # dictionary of adjacency lists for each edge
         self._vertices = defaultdict(GraphVertex)
 
-    def add_hook_dependency(
-        self, hook_id: str, depends_on: list[list[str]], may_change: list[list[str]]
-    ):
+    def add_hook_dependency(self, hook_id: str, depends_on: list[str], may_change: list[str]):
         """Add hook to dependency graph and recalculate if any cycles are created."""
         if hook_id in self._vertices:
             raise ValueError(f"Hook id '{hook_id}' already present in the vertices.")
         for path in depends_on:
-            self.add_edge(tuple(path), hook_id)
+            self.add_edge(path, hook_id)
         for path in may_change:
-            self.add_edge(hook_id, tuple(path))
+            self.add_edge(hook_id, path)
         try:
             self.topological_sort()
         except ValueError as err:
             raise ValueError(f"Hook {hook_id} introduces a circular dependency.") from err
+        self.check_multiple_writes()
 
     def add_edge(self, id_from: Hashable, id_to: Hashable):
         """Add oriented edge between specified vertices."""
@@ -200,3 +208,13 @@ class DependencyGraph:
             raise ValueError("Dependency graph contains a cycle.")
         else:
             return topological_order
+
+    def check_multiple_writes(self):
+        self.calculate_in_degrees()
+        multiple_writes = [
+            vertex_id for vertex_id, vertex in self._vertices.items() if vertex.in_degree > 1
+        ]
+        if multiple_writes:
+            self.log.warn(
+                "Detected possible over-write of hook results in attributes: %s", multiple_writes
+            )

@@ -1,5 +1,6 @@
 import logging
 from collections import defaultdict
+from collections.abc import Hashable
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -95,10 +96,16 @@ class SnapshotCorrelationHookContainer:
         self._validate_attr_paths(entity_type, depends_on)
         self._validate_attr_paths(entity_type, may_change)
 
-        self._dependency_graph.add_hook_dependency()
+        hook_id = (
+            f"{hook.__qualname__}("
+            f"{entity_type}, "
+            f"[{','.join('->'.join(path) for path in depends_on)}], "
+            f"[{','.join('->'.join(path) for path in may_change)}])"
+        )
+        self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 
         self._hooks[entity_type].append(hook)
-        self.log.debug(f"Added hook: '{hook.__qualname__}'")
+        self.log.debug(f"Added hook: '{hook_id}'")
 
     def run(self, entity_type: str, master_record: dict):
         """Runs registered hooks."""
@@ -142,15 +149,17 @@ class DependencyGraph:
         for path in depends_on:
             self.add_edge(tuple(path), hook_id)
         for path in may_change:
-            self.add_edge(hook_id, path)
+            self.add_edge(hook_id, tuple(path))
         try:
             self.topological_sort()
         except ValueError as err:
-            raise ValueError(f"Hook {hook_id} introduces a circular dependency") from err
+            raise ValueError(f"Hook {hook_id} introduces a circular dependency.") from err
 
-    def add_edge(self, u, v):
-        hash(v)
-        self._vertices[u].adj.append(v)
+    def add_edge(self, id_from: Hashable, id_to: Hashable):
+        """Add oriented edge between specified vertices."""
+        self._vertices[id_from].adj.append(id_to)
+        # Ensure vertex with 'id_to' exists to avoid iteration errors later.
+        _ = self._vertices[id_to]
 
     def calculate_in_degrees(self):
         """Calculate number of incoming edges for each vertex. Time complexity O(V + E)."""

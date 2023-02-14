@@ -41,8 +41,16 @@ class EntityDatabase:
         port = str(connection_conf.get("port", 27017))
         db_name = connection_conf.get("db_name", "dp3")
 
+        self.log.info("Connecting to database...")
+        self._db = pymongo.MongoClient(
+            f"mongodb://{username}:{password}@{address}:{port}/",
+            connectTimeoutMS=3000,
+            serverSelectionTimeoutMS=5000,
+        )
+
+        # Check if connected
         try:
-            self._db = pymongo.MongoClient(f"mongodb://{username}:{password}@{address}:{port}/")
+            self._db.admin.command("ping")
         except pymongo.errors.ConnectionFailure as e:
             raise DatabaseError(
                 "Cannot connect to database with specified connection arguments."

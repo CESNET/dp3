@@ -32,7 +32,6 @@ class EntityDatabase:
         model_spec: ModelSpec,
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
-        self.log.setLevel("DEBUG")
 
         connection_conf = db_conf.get("connection", {})
         username = urllib.parse.quote_plus(connection_conf.get("username", "dp3"))

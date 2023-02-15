@@ -116,7 +116,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     config = read_config_dir(g.config_base_path, recursive=True)
     model_spec = ModelSpec(config.get("db_entities"))
 
-    print(model_spec)
+    # Print whole attribute specification
+    log.debug(model_spec)
 
     num_processes = config.get("processing_core.worker_processes")
     assert (

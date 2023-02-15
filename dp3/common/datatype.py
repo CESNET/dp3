@@ -103,7 +103,7 @@ class DataTypeContainer:
             element_type = str_type.split("<")[1].split(">")[0]
             if element_type not in primitive_data_types:
                 raise TypeError(f"Data type {element_type} is not supported as an set element")
-            data_type = set[primitive_data_types[element_type]]
+            data_type = list[primitive_data_types[element_type]]  # set is not supported by MongoDB
 
         elif re.match(re_link, str_type):
             data_type = str

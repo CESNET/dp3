@@ -61,9 +61,7 @@ class DataPointTimeseriesBase(DataPointBase):
 
     @validator("t2")
     def validate_t2(cls, v, values):
-        print("Validating t2", v)
         if "t1" in values:
-            print(values["t1"], v)
             assert values["t1"] <= v, "'t2' is before 't1'"
         return v
 

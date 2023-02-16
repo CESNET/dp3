@@ -1,0 +1,57 @@
+entity:
+  id: B
+  name: test entity B
+  key_data_type: string
+  auto_create_record: true
+attribs:
+  data1:
+    name: data1
+    description: entity data
+    type: plain
+    data_type: string
+
+  data2:
+    name: data1
+    description: entity data
+    type: plain
+    data_type: string
+
+  as:
+    name: As
+    description: Link to other A entities
+    type: observations
+    data_type: link<A>
+    history_params:
+      pre_validity: 12h
+      post_validity: 12h
+      max_age: 14d
+
+  bs:
+    name: Bs
+    description: Link to other B entities
+    type: observations
+    data_type: link<B>
+    history_params:
+      pre_validity: 12h
+      post_validity: 12h
+      max_age: 14d
+
+  cs:
+    name: Cs
+    description: Link to other C entities
+    type: observations
+    data_type: link<C>
+    history_params:
+      pre_validity: 12h
+      post_validity: 12h
+      max_age: 14d
+
+  ds:
+    name: Ds
+    description: Link to other D entities
+    type: observations
+    data_type: link<D>
+    history_params:
+      pre_validity: 12h
+      post_validity: 12h
+      max_age: 14d

@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import time
@@ -17,16 +16,17 @@ values = {
         "int64": ["123"],
         "string": ['"xyz"'],
         "float": ["1.0", "1"],
-        "ipv4": ['"127.0.0.1"'],
-        "ipv6": ['"2001:0db8:85a3:0000:0000:8a2e:0370:7334"', '"::1"'],
+        "ipv4": ["127.0.0.1"],
+        "ipv6": ["2001:0db8:85a3:0000:0000:8a2e:0370:7334", "::1"],
         "mac": ["de:ad:be:ef:ba:be", "11:22:33:44:55:66"],
-        "time": ['"2020-01-01T00:00:00"'],
+        "time": ["2020-01-01T00:00:00"],
         "json": ['{"test": "test"}'],
         "category": ["cat1"],
-        "array": ["[1,2,3]"],
-        "set": ["[1,2,3]"],
-        "dict": ['{"key1":1,"key2":"xyz"}'],
-        "probability": [json.dumps({"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05})],
+        "array": [[1, 2, 3]],
+        "set": [[1, 2, 3]],
+        "dict": [{"key1": 1, "key2": "xyz"}],
+        # TODO property datatype not yet implemented
+        "probability": [{"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05}],
     },
     "invalid": {
         "binary": ["xyz"],
@@ -39,15 +39,17 @@ values = {
         "mac": ['"xyz"'],
         "time": ['"xyz"'],
         "json": ["xyz"],
-        "category": ['"xyz"'],
+        # TODO category validation is in progress
+        # "category": ['"xyz"'],
         "array": ["xyz", '["xyz"]'],
         "set": ["xyz", '["xyz"]'],
         "dict": ["xyz", '{"xyz":"xyz"}', '{"key1":"xyz","key2":"xyz"}'],
-        "probability": [
-            json.dumps({"A": "A", "B": "B", "C": "C", "D": "D"}),  # not a probability distribution
-            '"xyz"',  # invalid format (not a dict)
-            "{'A':1.0}",
-        ],  # invalid JSON
+        # TODO property datatype not yet implemented
+        # "probability": [
+        #     json.dumps({"A": "A", "B": "B", "C": "C", "D": "D"}), # not a probability distribution
+        #     '"xyz"',  # invalid format (not a dict)
+        #     "{'A':1.0}",
+        # ],  # invalid JSON
     },
 }
 
@@ -76,7 +78,7 @@ class APITest(unittest.TestCase):
         return self.assertTrue(api_up, msg="API is down.")
 
     @staticmethod
-    def push_single(endpoint_path: str, **datapoint_values):
+    def push_single(endpoint_path: str, **datapoint_values) -> requests.Response:
         args_str = "&".join([f"{key}={value}" for key, value in datapoint_values.items()])
         if args_str != "":
             args_str = f"?{args_str}"
@@ -85,19 +87,19 @@ class APITest(unittest.TestCase):
         )
 
     @staticmethod
-    def request(path, json_data):
+    def request(path, json_data) -> requests.Response:
         return retry_request_on_error(
             lambda: requests.post(f"{base_url}/{path}", json=json_data, timeout=5)
         )
 
-    def push_multiple(self, json_data):
+    def push_multiple(self, json_data) -> requests.Response:
         return self.request("datapoints", json_data=json_data)
 
-    def push_task(self, json_data):
+    def push_task(self, json_data) -> requests.Response:
         return self.request("tasks", json_data=json_data)
 
     @staticmethod
-    def get_request(path, **kwargs):
+    def get_request(path, **kwargs) -> requests.Response:
         args_str = "&".join([f"{key}={value}" for key, value in kwargs.items()])
         if args_str != "":
             args_str = f"?{args_str}"

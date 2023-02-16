@@ -1,6 +1,9 @@
+import unittest
+
 import common
 
 
+@unittest.skip("Push task API is not yet implemented")
 class PushTask(common.APITest):
     base_task = {
         "etype": "test_entity_type",

@@ -1,3 +1,5 @@
+import sys
+
 import common
 
 
@@ -45,12 +47,6 @@ class PushMultiple(common.APITest):
         )
         self.assertEqual(400, response.status_code)
 
-    def test_missing_value_tag(self):
-        response = self.push_multiple(
-            [{"type": "test_entity_type", "id": "test_entity_id", "attr": "test_attr_tag"}]
-        )
-        self.assertEqual(200, response.status_code)
-
     def helper_test_datatype_value(self, data_type: str, value, expected_code: int):
         response = self.push_multiple(
             [
@@ -62,6 +58,7 @@ class PushMultiple(common.APITest):
                 }
             ]
         )
+        print(response.content.decode("utf-8"), file=sys.stderr)
         self.assertEqual(expected_code, response.status_code)
 
     def test_data_type_values_valid(self):

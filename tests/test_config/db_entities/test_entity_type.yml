@@ -74,5 +74,5 @@ attribs:
   test_attr_probability:
     name: test_attr_probability
     type: plain
-    data_type: string
+    data_type: json
     probability: true

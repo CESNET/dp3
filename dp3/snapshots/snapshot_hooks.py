@@ -25,18 +25,20 @@ class SnapshotTimeseriesHookContainer:
         self._hooks = defaultdict(list)
 
     def register(
-        self, hook: Callable[[str, str, dict], list[Task]], entity_type: str, attr_type: str
+        self, hook: Callable[[str, str, list[dict]], list[Task]], entity_type: str, attr_type: str
     ):
         """
-        Registers passed hook to be called during snapshot creation.
+        Registers passed timeseries hook to be called during snapshot creation.
 
         Binds hook to specified entity_type and attr_type (though same hook can be bound
         multiple times).
-        `hook` callable should expect entity_type, attr_type and attribute history as arguments
-        and return a list of `Task` objects.
-
         If entity_type and attr_type do not specify a valid timeseries attribute,
         a ValueError is raised.
+
+        :param hook: `hook` callable should expect entity_type, attr_type and attribute
+         history as arguments and return a list of `Task` objects.
+        :param entity_type: specifies entity type
+        :param attr_type: specifies attribute type
         """
         if (entity_type, attr_type) not in self.model_spec.attributes:
             raise ValueError(f"Attribute '{attr_type}' of entity '{entity_type}' does not exist.")
@@ -46,7 +48,7 @@ class SnapshotTimeseriesHookContainer:
         self._hooks[entity_type, attr_type].append(hook)
         self.log.debug(f"Added hook: '{hook.__qualname__}'")
 
-    def run(self, entity_type: str, attr_type: str, attr_history: dict) -> list[Task]:
+    def run(self, entity_type: str, attr_type: str, attr_history: list[dict]) -> list[Task]:
         """Runs registered hooks."""
         tasks = []
         for hook in self._hooks[entity_type, attr_type]:
@@ -65,7 +67,7 @@ class SnapshotCorrelationHookContainer:
         self.log = log.getChild("CorrelationHooks")
         self.model_spec = model_spec
 
-        self._hooks = defaultdict(list)
+        self._hooks: defaultdict[str, list[tuple[str, Callable]]] = defaultdict(list)
 
         self._dependency_graph = DependencyGraph(self.log)
 
@@ -83,7 +85,8 @@ class SnapshotCorrelationHookContainer:
 
         If entity_type and attribute specifications are validated
         and ValueError is raised on failure.
-        :param hook: `hook` callable should expect ... TODO
+        :param hook: `hook` callable should expect entity type as str
+         and its current values, including linked entities, as dict
         :param entity_type: specifies entity type
         :param depends_on: each item should specify an attribute that is depended on
          in the form of a path from the specified entity_type to individual attributes
@@ -111,11 +114,10 @@ class SnapshotCorrelationHookContainer:
         )
         self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 
-        self._hooks[entity_type].append(hook)
-        self.log.debug(f"Added hook: '{hook_id}'")
+        self._hooks[entity_type].append((hook_id, hook))
+        self._restore_hook_order(self._hooks[entity_type])
 
-    def run(self, entity_type: str, master_record: dict):
-        """Runs registered hooks."""
+        self.log.debug(f"Added hook: '{hook_id}'")
 
     def _validate_attr_paths(self, base_entity: str, paths: list[list[str]]):
         entity_attributes = self.model_spec.entity_attributes
@@ -204,6 +206,15 @@ class SnapshotCorrelationHookContainer:
     @staticmethod
     def _embed_base_entity(base_entity: str, paths: list[list[str]]):
         return ["->".join([base_entity] + path) for path in paths]
+
+    def run(self, entity_type: str, current_values: dict):
+        """Runs registered hooks."""
+        for _, hook in self._hooks[entity_type]:
+            hook(entity_type, current_values)
+
+    def _restore_hook_order(self, hooks: list[tuple[str, Callable]]):
+        topological_order = self._dependency_graph.topological_sort()
+        hooks.sort(key=lambda x: topological_order.index(x[0]))
 
 
 @dataclass

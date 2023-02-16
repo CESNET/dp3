@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Hashable
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Callable
 
 from dp3.common.attrspec import (
@@ -97,6 +98,9 @@ class SnapshotCorrelationHookContainer:
         self._validate_attr_paths(entity_type, depends_on)
         self._validate_attr_paths(entity_type, may_change)
 
+        depends_on = self._expand_path_backlinks(entity_type, depends_on)
+        may_change = self._expand_path_backlinks(entity_type, may_change)
+
         depends_on = self._embed_base_entity(entity_type, depends_on)
         may_change = self._embed_base_entity(entity_type, may_change)
 
@@ -113,19 +117,89 @@ class SnapshotCorrelationHookContainer:
     def run(self, entity_type: str, master_record: dict):
         """Runs registered hooks."""
 
-    def _validate_attr_paths(self, base_enity: str, paths: list[list[str]]):
+    def _validate_attr_paths(self, base_entity: str, paths: list[list[str]]):
         entity_attributes = self.model_spec.entity_attributes
         for path in paths:
-            position = entity_attributes[base_enity]
+            position = entity_attributes[base_entity]
             for step in path:
                 if step not in position:
                     raise ValueError(
-                        f"Invalid path '{'->'.join([base_enity] + path)}', failed on '{step}'"
+                        f"Invalid path '{'->'.join([base_entity] + path)}', failed on '{step}'"
                     )
                 position = position[step]
                 if position.is_relation:
                     position = entity_attributes[position.relation_to]
             assert isinstance(position, (AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries))
+
+    def _expand_path_backlinks(self, base_entity: str, paths: list[list[str]]):
+        """
+        Returns a list of all possible subpaths considering the path backlinks.
+
+        With user defined entities, attributes and dependency paths, presence of backlinks (cycles)
+        in specified dependency paths must be expected. To fully track dependencies,
+        we assume any entity repeated in the path can be referenced multiple times,
+        effectively making a cycle in the path, which can be ignored.
+        """
+        expanded_paths = []
+        for path in paths:
+            resolved_path = self._resolve_entities_in_path(base_entity, path)
+            expanded = [resolved_path] + self._catch_them_all(resolved_path)
+            expanded_paths.extend(
+                self._extract_path_from_resolved(resolved) for resolved in expanded
+            )
+        unique_paths = {tuple(path) for path in expanded_paths}
+        expanded_paths = sorted(list(list(path) for path in unique_paths), key=lambda x: len(x))
+        return expanded_paths
+
+    def _resolve_entities_in_path(self, base_entity: str, path: list[str]) -> list[tuple[str, str]]:
+        entity_attributes = self.model_spec.entity_attributes
+        position = entity_attributes[base_entity]
+        resolved_path = []
+        for step in path:
+            resolved_path.append((base_entity, step))
+            position = position[step]
+            if position.is_relation:
+                base_entity = position.relation_to
+                position = entity_attributes[position.relation_to]
+        return resolved_path
+
+    @staticmethod
+    def _extract_path_from_resolved(path: list[tuple[str, str]]) -> list[str]:
+        return [attr for entity, attr in path]
+
+    def _catch_them_all(self, path: list[tuple[str, str]]) -> list[list[tuple[str, str]]]:
+        root_cycles = self._get_root_cycles(path)
+        out = []
+        for beg, end in root_cycles:
+            pre = path[:beg]
+            post = path[end:]
+
+            inner_cycles = self._catch_them_all(path[beg:end])
+            out.extend(pre + inner + post for inner in inner_cycles)
+            out.append(pre + post)
+        return out
+
+    def _get_root_cycles(self, path: list[tuple[str, str]]) -> list[tuple[int, int]]:
+        attributes = self.model_spec.attributes
+        entity_indexes: defaultdict[str, list[int]] = defaultdict(list)
+        for i, step in enumerate(path):
+            entity, attr = step
+            if attributes[entity, attr].is_relation:
+                entity_indexes[entity].append(i)
+
+        if not any(len(indexes) > 1 for indexes in entity_indexes.values()):
+            return []
+
+        possible_backlinks = [
+            combination
+            for indexes in entity_indexes.values()
+            for combination in combinations(indexes, 2)
+        ]
+        return [
+            (curr_beg, curr_end)
+            for curr_beg, curr_end in possible_backlinks
+            if not any(beg < curr_beg and curr_end < end for beg, end in possible_backlinks)
+        ]
 
     @staticmethod
     def _embed_base_entity(base_entity: str, paths: list[list[str]]):

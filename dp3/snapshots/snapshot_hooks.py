@@ -73,7 +73,7 @@ class SnapshotCorrelationHookContainer:
 
     def register(
         self,
-        hook: Callable,
+        hook: Callable[[str, dict], None],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
@@ -304,6 +304,6 @@ class DependencyGraph:
             if vertex.in_degree > 1 and vertex.type == "attr"
         ]
         if multiple_writes:
-            self.log.warn(
+            self.log.warning(
                 "Detected possible over-write of hook results in attributes: %s", multiple_writes
             )

@@ -212,6 +212,7 @@ class GraphVertex:
 
     adj: list = field(default_factory=list)
     in_degree: int = 0
+    type: str = "attr"
 
 
 class DependencyGraph:
@@ -231,6 +232,7 @@ class DependencyGraph:
             self.add_edge(path, hook_id)
         for path in may_change:
             self.add_edge(hook_id, path)
+        self._vertices[hook_id].type = "hook"
         try:
             self.topological_sort()
         except ValueError as err:
@@ -286,7 +288,9 @@ class DependencyGraph:
     def check_multiple_writes(self):
         self.calculate_in_degrees()
         multiple_writes = [
-            vertex_id for vertex_id, vertex in self._vertices.items() if vertex.in_degree > 1
+            vertex_id
+            for vertex_id, vertex in self._vertices.items()
+            if vertex.in_degree > 1 and vertex.type == "attr"
         ]
         if multiple_writes:
             self.log.warn(

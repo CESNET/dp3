@@ -178,7 +178,7 @@ class SnapShooter:
 
             if conf:  # conf != 0.0 or len(conf) > 0
                 current_values[attr] = val
-                current_values[f"{attr}_c"] = conf
+                current_values[f"{attr}#c"] = conf
         return current_values
 
     def get_current_values_relation(self, linked_etype, linked_eid):

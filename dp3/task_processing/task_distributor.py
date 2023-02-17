@@ -179,7 +179,7 @@ class TaskDistributor:
                         msg_id,
                         duration,
                         task.etype,
-                        task.eid,
+                        task.ekey,
                         " (new record created)" if created else "",
                     )
                 )

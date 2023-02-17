@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -26,7 +27,7 @@ values = {
         "set": [[1, 2, 3]],
         "dict": [{"key1": 1, "key2": "xyz"}],
         # TODO property datatype not yet implemented
-        "probability": [{"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05}],
+        "probability": [json.dumps({"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05})],
     },
     "invalid": {
         "binary": ["xyz"],

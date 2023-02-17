@@ -1,7 +1,7 @@
 import ipaddress
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Union
 
 from pydantic import Json, constr
 
@@ -24,7 +24,7 @@ primitive_data_types = {
     "mac": constr(regex=r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$"),
     "time": datetime,
     "special": Any,
-    "json": Json[Any],
+    "json": Union[Json[Any], dict, list],
 }
 
 

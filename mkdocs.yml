@@ -1,4 +1,4 @@
-site_name: My Docs
+site_name: DP3
 theme:
   name: material
 
@@ -6,13 +6,27 @@ nav:
   - Start Page: index.md
   - Code Reference: reference/
 
+markdown_extensions:
+  # Adds option to create permalinks to headings
+  - toc:
+      permalink: True
+
 plugins:
+  # Default search bar
   - search
+  # Automatically link across pages
   - autorefs
+  # Generating code reference
   - gen-files:
       scripts:
         - docs/gen_ref_pages.py
+  # Specify navigation in Markown instead of YAML
   - literate-nav:
       nav_file: SUMMARY.md
+  # Clickable sections that lead to index pages
   - section-index
-  - mkdocstrings
+  # Docstring parsing to fill code reference
+  - mkdocstrings:
+
+watch:
+  - dp3

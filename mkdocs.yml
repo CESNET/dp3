@@ -1,15 +1,29 @@
 site_name: DP3
 theme:
   name: material
+  features:
+    # Copy code blocks
+    - content.code.copy
 
 nav:
-  - Start Page: index.md
+  - Overview: index.md
+  - Install: installation.md
+  - Developing: developing.md
   - Code Reference: reference/
+  - Extending Documentation: mkdocs_info.md
 
 markdown_extensions:
   # Adds option to create permalinks to headings
   - toc:
       permalink: True
+  # Code blocks
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  # Markdown checkboxes
+  - pymdownx.tasklist:
 
 plugins:
   # Default search bar

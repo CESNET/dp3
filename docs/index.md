@@ -1,17 +1,26 @@
-# Welcome to MkDocs
+# Dynamic Profile Processing Platform (DP³)
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+DP³ is a platform helps to keep a database of information (attributes) about individual
+entities (designed for IP addresses and other network identifiers, but may be anything),
+when the data constantly changes in time.
 
-## Commands
+DP³ doesn't do much by itself, it must be supplemented by application-specific modules providing
+and processing data.
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+This is a basis of CESNET's "Asset Discovery Classification and Tagging" (ADiCT) project,
+focused on discovery and classification of network devices,
+but the platform itself is general and should be usable for any kind of data.
 
-## Project layout
+This documentation is a WIP, see following TODO list:
 
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+- [ ] Architecture overview
+- [ ] Data Model
+- [ ] Main parts of repository
+- [ ] Other aspects documented only on internal wiki
+
+## Repository structure
+
+* `dp3` - Python package containing code of the processing core
+* `api` - HTTP API (Flask) for data ingestion and extraction
+* `config` - default/example configuration
+* `install` - installation scripts and files

@@ -1,13 +1,6 @@
 """
 # Dynamic Profile Processing Platform (DP³)
 
-DP³ is a platform helps to keep a database of information (attributes) about individual
-entities (designed for IP addresses and other network identifiers, but may be anything),
-when the data constantly changes in time.
-
-DP³ doesn't do much by itself, it must be supplemented by application-specific modules providing
-and processing data.
-
 Platform directory structure:
 
 - [Worker][dp3.worker] - The main worker process.

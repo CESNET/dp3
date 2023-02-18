@@ -115,9 +115,7 @@ class TaskDistributor:
         self._task_queue_reader.start()
 
     def stop(self) -> None:
-        """
-        Stop the manager
-        """
+        """Stop the worker threads."""
         self.log.info("Waiting for worker threads to finish their current tasks ...")
         # Thread for printing debug messages about worker status
         threading.Thread(target=self._dbg_worker_status_print, daemon=True).start()
@@ -168,7 +166,7 @@ class TaskDistributor:
         # Read and process tasks in a loop.
         # Exit immediately after self.running is set to False,
         # it's not a problem if there are any more tasks waiting in the queue
-        # - they won't be acknowledged so they will be re-delivered after restart.
+        # - they won't be acknowledged, so they will be re-delivered after restart.
         while self.running:
             # Get message from thread's local queue
             try:
@@ -240,7 +238,7 @@ class TaskDistributor:
         Print status of workers and the request queue every 5 seconds.
 
         Should be run as a separate (daemon) thread.
-        Exits when all workers has finished.
+        Exits when all workers have finished.
         """
         ttl = 10  # Wait for 10 seconds until printing starts
         while True:

@@ -52,15 +52,16 @@ class Scheduler:
         """
         Register a function to be run at specified times.
 
-        func - function or method to be called
-        year,month,day,week,day_of_week,hour,minute,second -
-           cron-like specification of when the function should be called,
-           see docs of apscheduler.triggers.cron for details
-           https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html
-        timezone - Timezone for time specification (default is UTC).
-        args, kwargs - arguments passed to func
-
-        Return job ID (integer).
+        `
+        Args:
+            func: function or method to be called
+            year,month,day,week,day_of_week,hour,minute,second:
+                cron-like specification of when the function should be called,
+                see [docs](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html)
+                of apscheduler.triggers.cron for details
+            timezone: Timezone for time specification (default is UTC).
+        Returns:
+             job ID
         """
         self.last_job_id += 1
         trigger = CronTrigger(

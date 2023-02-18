@@ -12,6 +12,12 @@ class Task(BaseModel):
     """Task
 
     Contains single task to be pushed to TaskQueue and processed.
+    Attributes:
+        etype: Entity type
+        ekey: Entity id / key
+        data_points: List of DataPoints to process
+        tags: List of tags
+        ttl_token: ...
     """
 
     # Model specification just for internal validation. Discarded after that.

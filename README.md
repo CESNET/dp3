@@ -22,6 +22,7 @@ TODO - architecture, main parts of repository (Python package, other files)
 * `config` - default/example configuration
 * `install` - installation scripts and files
 
+See the [documentation](https://cesnet.github.io/dp3/) for more details.
 
 ## Installing for development
 

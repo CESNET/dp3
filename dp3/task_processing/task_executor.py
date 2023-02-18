@@ -18,10 +18,12 @@ from ..common.config import ModelSpec
 class TaskExecutor:
     """
     TaskExecutor manages updates of entity records,
-    which are being read from task queue (via parent TaskDistributor)
+    which are being read from task queue (via parent
+    [`TaskDistributor`][dp3.task_processing.task_distributor.TaskDistributor])
 
-    :param db: Instance of EntityDatabase
-    :param model_spec: Configuration of entity types and attributes
+    Args:
+        db: Instance of EntityDatabase
+        model_spec: Configuration of entity types and attributes
     """
 
     def __init__(
@@ -74,30 +76,36 @@ class TaskExecutor:
     def register_task_hook(self, hook_type: str, hook: Callable):
         """Registers one of available task hooks
 
-        See: `TaskGenericHooksContainer` in `task_hooks.py`
+        See: [`TaskGenericHooksContainer`][dp3.task_processing.task_hooks.TaskGenericHooksContainer]
+        in `task_hooks.py`
         """
         self._task_generic_hooks.register(hook_type, hook)
 
     def register_entity_hook(self, hook_type: str, hook: Callable, entity: str):
         """Registers one of available task entity hooks
 
-        See: `TaskEntityHooksContainer` in `task_hooks.py`
+        See: [`TaskEntityHooksContainer`][dp3.task_processing.task_hooks.TaskEntityHooksContainer]
+        in `task_hooks.py`
         """
         self._task_entity_hooks[entity].register(hook_type, hook)
 
     def register_attr_hook(self, hook_type: str, hook: Callable, entity: str, attr: str):
         """Registers one of available task attribute hooks
 
-        See: `TaskAttrHooksContainer` in `task_hooks.py`
+        See: [`TaskAttrHooksContainer`][dp3.task_processing.task_hooks.TaskAttrHooksContainer]
+        in `task_hooks.py`
         """
         self._task_attr_hooks[entity, attr].register(hook_type, hook)
 
-    def process_task(self, task: Task):
+    def process_task(self, task: Task) -> tuple[bool, list[Task]]:
         """
         Main processing function - update attributes or trigger an event.
 
-        :param: task
-        :return: True if a new record was created, False otherwise.
+        Args:
+            task: Task object to process.
+        Returns:
+            True if a new record was created, False otherwise,
+            and a list of new tasks created by hooks
         """
         self.log.debug(f"Received new task {task.etype}/{task.ekey}, starting processing!")
 

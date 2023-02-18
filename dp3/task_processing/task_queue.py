@@ -18,8 +18,8 @@ so each source must know how many worker processes are there.
 Exchange and queues must be declared externally!
 
 Related configuration keys and their defaults:
-(should be part of global NERD config files)
-
+(should be part of global DP3 config files)
+```
 rabbitmq:
   host: localhost
   port: 5672
@@ -27,8 +27,8 @@ rabbitmq:
   username: guest
   password: guest
 
-parallel:
-  processes: 1
+worker_processes: 1
+```
 """
 
 import collections
@@ -38,7 +38,7 @@ import json
 import logging
 import threading
 import time
-from typing import Callable
+from typing import Any, Callable
 
 import amqpstorm
 
@@ -55,10 +55,14 @@ DEFAULT_QUEUE = "{}-worker-{}"
 DEFAULT_PRIORITY_QUEUE = "{}-worker-{}-pri"
 
 
-def HASH(x: str) -> int:
+def HASH(key: str) -> int:
     """Hash function used to distribute tasks to worker processes.
-    Returns last 4 bytes of MD5."""
-    return int(hashlib.md5(x.encode("utf8")).hexdigest()[-4:], 16)
+    Args:
+        key: to be hashed
+    Returns:
+        last 4 bytes of MD5
+    """
+    return int(hashlib.md5(key.encode("utf8")).hexdigest()[-4:], 16)
 
 
 # When reading, pre-fetch only a limited amount of messages
@@ -97,14 +101,13 @@ class RobustAMQPConnection:
     """
     Common TaskQueue wrapper, handles connection to RabbitMQ server with automatic reconnection.
     TaskQueueWriter and TaskQueueReader are derived from this.
+
+    Args:
+        rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
+            host, port, virtual_host, username, password
     """
 
     def __init__(self, rabbit_config: dict = None) -> None:
-        """
-        :param rabbit_config: RabbitMQ connection parameters,
-            dict with following keys (all optional):
-            host, port, virtual_host, username, password
-        """
         rabbit_config = {} if rabbit_config is None else rabbit_config
         self.log = logging.getLogger("RobustAMQPConnection")
         self.conn_params = {
@@ -177,6 +180,20 @@ class RobustAMQPConnection:
 
 
 class TaskQueueWriter(RobustAMQPConnection):
+    """
+    Writes tasks into main Task Queue
+
+    Args:
+        app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
+        workers: Number of worker processes in the system
+        rabbit_config: RabbitMQ connection parameters, dict with following keys (all optional):
+            host, port, virtual_host, username, password
+        exchange: Name of the exchange to write tasks to
+            (default: `"<app-name>-main-task-exchange"`)
+        priority_exchange: Name of the exchange to write priority tasks to
+            (default: `"<app-name>-priority-task-exchange"`)
+    """
+
     def __init__(
         self,
         app_name: str,
@@ -185,19 +202,6 @@ class TaskQueueWriter(RobustAMQPConnection):
         exchange: str = None,
         priority_exchange: str = None,
     ) -> None:
-        """
-        Create an object for writing tasks into the main Task Queue.
-
-        :param app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
-        :param workers: Number of worker processes in the system
-        :param rabbit_config: RabbitMQ connection parameters,
-            dict with following keys (all optional):
-            host, port, virtual_host, username, password
-        :param exchange: Name of the exchange to write tasks to
-            (default: "<app-name>-main-task-exchange")
-        :param priority_exchange: Name of the exchange to write priority tasks to
-            (default: "<app-name>-priority-task-exchange")
-        """
         rabbit_config = {} if rabbit_config is None else rabbit_config
         assert isinstance(workers, int) and workers >= 1, "count of workers must be positive number"
         assert isinstance(exchange, str) or exchange is None, "exchange argument has to be string!"
@@ -244,13 +248,14 @@ class TaskQueueWriter(RobustAMQPConnection):
             raise ExchangeNotDeclared(self.exchange_pri)
         return True
 
-    def put_task(self, task: Task, priority=False):
+    def put_task(self, task: Task, priority: bool = False):
         """
         Put task (update_request) to the queue of corresponding worker
-        :param task: prepared task
-        :param priority: if true, the task is placed into priority queue
-            (should only be used internally by workers)
-        :return: None
+
+        Args:
+            task: prepared task
+            priority: if true, the task is placed into priority queue
+                (should only be used internally by workers)
         """
         if not self.channel:
             self.connect()
@@ -304,6 +309,28 @@ class TaskQueueWriter(RobustAMQPConnection):
 
 
 class TaskQueueReader(RobustAMQPConnection):
+    """
+    TaskQueueReader consumes messages from two RabbitMQ queues
+    (normal and priority one for given worker)
+    and passes them to the given callback function.
+
+    Tasks from the priority queue are passed before the normal ones.
+
+    Each received message must be acknowledged by calling `.ack(msg_tag)`.
+
+    Args:
+        callback: Function called when a message is received, prototype: func(tag, Task)
+        app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
+        worker_index: index of this worker
+            (filled into DEFAULT_QUEUE string using .format() method)
+        rabbit_config: RabbitMQ connection parameters, dict with following keys
+            (all optional): host, port, virtual_host, username, password
+        queue: Name of RabbitMQ queue to read from (default: `"<app-name>-worker-<index>"`)
+        priority_queue: Name of RabbitMQ queue to read from (priority messages)
+            (default: `"<app-name>-worker-<index>-pri"`)
+        model_spec: Attribute specification. Used for `Task` validation.
+    """
+
     def __init__(
         self,
         callback: Callable,
@@ -314,26 +341,6 @@ class TaskQueueReader(RobustAMQPConnection):
         queue: str = None,
         priority_queue: str = None,
     ) -> None:
-        """
-        Create an object for reading tasks from the main Task Queue.
-
-        It consumes messages from two RabbitMQ queues (normal and priority one for given worker)
-        and passes them to the given callback function.
-        Tasks from the priority queue are passed before the normal ones.
-
-        Each received message must be acknowledged by calling .ack(msg_tag).
-
-        :param callback: Function called when a message is received, prototype: func(tag, Task)
-        :param app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
-        :param worker_index: index of this worker
-            (filled into DEFAULT_QUEUE string using .format() method)
-        :param rabbit_config: RabbitMQ connection parameters, dict with following keys
-            (all optional): host, port, virtual_host, username, password
-        :param queue: Name of RabbitMQ queue to read from (default: "<app-name>-worker-<index>")
-        :param priority_queue: Name of RabbitMQ queue to read from (priority messages)
-            (default: "<app-name>-worker-<index>-pri")
-        :param model_spec: Attribute specification. Used for `Task` validation.
-        """
         rabbit_config = {} if rabbit_config is None else rabbit_config
         assert callable(callback), "callback must be callable object"
         assert (
@@ -432,10 +439,10 @@ class TaskQueueReader(RobustAMQPConnection):
             raise QueueNotDeclared(self.priority_queue_name)
         return True
 
-    def ack(self, msg_tag):
+    def ack(self, msg_tag: Any):
         """Acknowledge processing of the message/task
-
-        :param msg_tag: Message tag received as the first param of the callback function.
+        Args:
+            msg_tag: Message tag received as the first param of the callback function.
         """
         self.channel.basic.ack(delivery_tag=msg_tag)
 

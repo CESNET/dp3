@@ -81,16 +81,15 @@ def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogge
 def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> None:
     """
     Run worker process.
-
-    :param app_name: Name of the application to distinct it from other
-        DP3-based apps. For example, it's used as a prefix for RabbitMQ queue
-        names.
-    :param config_dir: Path to directory containing configuration files.
-    :param process_index: Index of this worker process. For each application
-        there must be N processes running simultaneously, each started with a
-        unique index (from 0 to N-1). N is read from configuration
-        ('worker_processes' in 'processing_core.yml').
-    :param verbose: More verbose output (set log level to DEBUG).
+    Args:
+        app_name: Name of the application to distinct it from other DP3-based apps.
+            For example, it's used as a prefix for RabbitMQ queue names.
+        config_dir: Path to directory containing configuration files.
+        process_index: Index of this worker process. For each application
+            there must be N processes running simultaneously, each started with a
+            unique index (from 0 to N-1). N is read from configuration
+            ('worker_processes' in 'processing_core.yml').
+        verbose: More verbose output (set log level to DEBUG).
     """
     ##############################################
     # Initialize logging mechanism

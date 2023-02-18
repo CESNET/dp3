@@ -34,11 +34,11 @@ class SnapshotTimeseriesHookContainer:
         multiple times).
         If entity_type and attr_type do not specify a valid timeseries attribute,
         a ValueError is raised.
-
-        :param hook: `hook` callable should expect entity_type, attr_type and attribute
-         history as arguments and return a list of `Task` objects.
-        :param entity_type: specifies entity type
-        :param attr_type: specifies attribute type
+        Args:
+            hook: `hook` callable should expect entity_type, attr_type and attribute
+                history as arguments and return a list of `Task` objects.
+            entity_type: specifies entity type
+            attr_type: specifies attribute type
         """
         if (entity_type, attr_type) not in self.model_spec.attributes:
             raise ValueError(f"Attribute '{attr_type}' of entity '{entity_type}' does not exist.")
@@ -85,14 +85,15 @@ class SnapshotCorrelationHookContainer:
 
         If entity_type and attribute specifications are validated
         and ValueError is raised on failure.
-        :param hook: `hook` callable should expect entity type as str
-         and its current values, including linked entities, as dict
-        :param entity_type: specifies entity type
-        :param depends_on: each item should specify an attribute that is depended on
-         in the form of a path from the specified entity_type to individual attributes
-         (even on linked entities).
-        :param may_change: each item should specify an attribute that `hook` may change.
-         specification format is identical to `depends_on`.
+        Args:
+            hook: `hook` callable should expect entity type as str
+                and its current values, including linked entities, as dict
+            entity_type: specifies entity type
+            depends_on: each item should specify an attribute that is depended on
+                in the form of a path from the specified entity_type to individual attributes
+                (even on linked entities).
+            may_change: each item should specify an attribute that `hook` may change.
+                specification format is identical to `depends_on`.
         """
 
         if entity_type not in self.model_spec.entities:

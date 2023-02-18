@@ -44,6 +44,8 @@ class SnapShooterConfig(BaseModel):
 
 
 class SnapShooter:
+    """Class responsible for creating entity snapshots."""
+
     def __init__(
         self,
         db: EntityDatabase,
@@ -79,15 +81,18 @@ class SnapShooter:
         """
         Registers passed timeseries hook to be called during snapshot creation.
 
-        Binds hook to specified entity_type and attr_type (though same hook can be bound
+        Binds hook to specified `entity_type` and `attr_type` (though same hook can be bound
         multiple times).
-        If entity_type and attr_type do not specify a valid timeseries attribute,
-        a ValueError is raised.
 
-        :param hook: `hook` callable should expect entity_type, attr_type and attribute
-         history as arguments and return a list of `Task` objects.
-        :param entity_type: specifies entity type
-        :param attr_type: specifies attribute type
+        Args:
+            hook: `hook` callable should expect entity_type, attr_type and attribute
+                history as arguments and return a list of `Task` objects.
+            entity_type: specifies entity type
+            attr_type: specifies attribute type
+
+        Raises:
+            ValueError: If entity_type and attr_type do not specify a valid timeseries attribute,
+                a ValueError is raised.
         """
         self._timeseries_hooks.register(hook, entity_type, attr_type)
 
@@ -103,16 +108,20 @@ class SnapShooter:
 
         Binds hook to specified entity_type (though same hook can be bound multiple times).
 
-        If entity_type and attribute specifications are validated
-        and ValueError is raised on failure.
-        :param hook: `hook` callable should expect entity type as str
-         and its current values, including linked entities, as dict
-        :param entity_type: specifies entity type
-        :param depends_on: each item should specify an attribute that is depended on
-         in the form of a path from the specified entity_type to individual attributes
-         (even on linked entities).
-        :param may_change: each item should specify an attribute that `hook` may change.
-         specification format is identical to `depends_on`.
+        `entity_type` and attribute specifications are validated, `ValueError` is raised on failure.
+
+        Args:
+            hook: `hook` callable should expect entity type as str
+                and its current values, including linked entities, as dict
+            entity_type: specifies entity type
+            depends_on: each item should specify an attribute that is depended on
+                in the form of a path from the specified entity_type to individual attributes
+                (even on linked entities).
+            may_change: each item should specify an attribute that `hook` may change.
+                specification format is identical to `depends_on`.
+
+        Raises:
+            ValueError: On failure of specification validation.
         """
         self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
 
@@ -186,7 +195,7 @@ class SnapShooter:
         return self.get_current_values(linked_etype, linked_record)
 
     def get_current_value(self, attr_spec: AttrSpecObservations, attr_history) -> tuple[Any, float]:
-        """Get current value of an attribute from its history. Assumes multi_value = False."""
+        """Get current value of an attribute from its history. Assumes `multi_value = False`."""
         time = datetime.now()
         return max(
             (

@@ -207,14 +207,16 @@ class EntityDatabase:
         This method is useful for displaying `ekey`'s history on web.
         Also used to feed data into `get_timeseries_history()`.
 
-        :param etype: entity type
-        :param attr_name: name of attribute
-        :param ekey: id of entity, to which data-points correspond
-        :param t1: left value of time interval (inclusive)
-        :param t2: right value of time interval (inclusive)
-        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2,
-            None: don't sort
-        :return: list of dicts (reduced datapoints)
+        Args:
+            etype: entity type
+            attr_name: name of attribute
+            ekey: id of entity, to which data-points correspond
+            t1: left value of time interval (inclusive)
+            t2: right value of time interval (inclusive)
+            sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2,
+                None: don't sort
+        Returns:
+            list of dicts (reduced datapoints)
         """
         t1 = datetime.fromtimestamp(0) if t1 is None else t1
         t2 = datetime.now() if t2 is None else t2
@@ -245,6 +247,7 @@ class EntityDatabase:
     ) -> list[dict]:
         """Get full (or filtered) history of timeseries attribute.
         Outputs them in format:
+        ```
             [
                 {
                     "t1": ...,
@@ -256,17 +259,19 @@ class EntityDatabase:
                 },
                 ...
             ]
-
+        ```
         This method is useful for displaying `ekey`'s history on web.
 
-        :param etype: entity type
-        :param attr_name: name of attribute
-        :param ekey: id of entity, to which data-points correspond
-        :param t1: left value of time interval (inclusive)
-        :param t2: right value of time interval (inclusive)
-        :param sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2,
-            None: don't sort
-        :return: list of dicts (reduced datapoints) - each represents just one point at time
+        Args:
+            etype: entity type
+            attr_name: name of attribute
+            ekey: id of entity, to which data-points correspond
+            t1: left value of time interval (inclusive)
+            t2: right value of time interval (inclusive)
+            sort: sort by timestamps - `0`: ascending order by `t1`, `1`: descending order by `t2`,
+                `None`: don't sort
+        Returns:
+             list of dicts (reduced datapoints) - each represents just one point at time
         """
         t1 = datetime.fromtimestamp(0) if t1 is None else t1
         t2 = datetime.now() if t2 is None else t2

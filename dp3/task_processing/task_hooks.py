@@ -10,6 +10,7 @@ class TaskGenericHooksContainer:
     """Container for generic hooks
 
     Possible hooks:
+
     - `on_task_start`: receives Task, no return value requirements
     """
 
@@ -39,6 +40,7 @@ class TaskEntityHooksContainer:
     """Container for entity hooks
 
     Possible hooks:
+
     - `allow_entity_creation`: receives ekey and Task, may prevent entity record creation (by
           returning False)
     - `on_entity_creation`: receives ekey and Task, may return new Tasks (including new
@@ -96,8 +98,9 @@ class TaskAttrHooksContainer:
     """Container for attribute hooks
 
     Possible hooks:
+
     - `on_new_plain`, `on_new_observation`, `on_new_ts_chunk`:
-      receives ekey and Task, may return new Tasks (including new DataPoints)
+        receives ekey and Task, may return new Tasks (including new DataPoints)
     """
 
     def __init__(self, entity: str, attr: str, attr_type: AttrType, log: logging.Logger):

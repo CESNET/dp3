@@ -34,13 +34,15 @@ class UpdatePlanner(BaseModule):
 
     def processing_function(self, etype, ekey, record, updates):
         """
-        :param etype: entity type (e.g. 'ip')
-        :param ekey: entity identificator (e.g. "1.2.3.4")
-        :param record: instance of Record as database record cache
-        :param updates: list of all attributes whose update triggered this call and
-          their new values (or events and their parameters) as a list of 3-tuples:
-          [(attr, new_val, old_val), (!event, param), ...]
-        :return: new request updates
+        Args:
+            etype: entity type (e.g. 'ip')
+            ekey: entity identificator (e.g. "1.2.3.4")
+            record: instance of Record as database record cache
+            updates: list of all attributes whose update triggered this call and
+                their new values (or events and their parameters) as a list of 3-tuples:
+                [(attr, new_val, old_val), (!event, param), ...]
+        Returns:
+             new request updates
         """
 
         return [

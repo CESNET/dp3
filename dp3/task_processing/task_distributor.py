@@ -13,6 +13,24 @@ from .task_queue import TaskQueueReader, TaskQueueWriter
 
 
 class TaskDistributor:
+    """
+    TaskDistributor uses task queues to distribute tasks between all running processes.
+
+    Tasks are assigned to worker processes based on hash of entity key, so each
+    entity is always processed by the same worker. Therefore, all requests
+    modifying a particular entity are done sequentially and no locking is
+    necessary.
+
+    Tasks that are assigned to the current process are passed to `task_executor` for execution.
+
+    Args:
+        config: Platform config
+        process_index: Index of this worker process
+        num_processes: Total number of worker processes
+        task_executor: Instance of TaskExecutor
+        model_spec: Platform model specification
+    """
+
     def __init__(
         self,
         config: HierarchicalDict,

@@ -27,6 +27,10 @@ plugins:
   - section-index
   # Docstring parsing to fill code reference
   - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
 
 watch:
   - dp3

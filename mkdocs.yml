@@ -71,6 +71,14 @@ plugins:
             - https://mkdocstrings.github.io/griffe/objects.inv
           options:
             docstring_style: google
+            show_root_heading: true
+            show_root_full_path: true
+            members_order: source
+            docstring_section_style: table
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+
 
 watch:
   - dp3

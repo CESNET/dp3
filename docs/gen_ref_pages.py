@@ -26,18 +26,7 @@ for path in sorted(Path("dp3").rglob("*.py")):
 
     with mkdocs_gen_files.open(full_doc_path, "w") as fd:
         identifier = ".".join(parts)
-        print(
-            f"# ::: {identifier}\n"
-            "\toptions:\n"
-            "\t  show_root_heading: true\n"
-            "\t  show_root_full_path: true\n"
-            "\t  members_order: source\n"
-            "\t  docstring_section_style: table\n"
-            "\t  merge_init_into_class: true\n"
-            "\t  show_signature_annotations: true\n"
-            "\t  separate_signature: true\n",
-            file=fd,
-        )
+        print(f"# ::: {identifier}", file=fd)
 
     mkdocs_gen_files.set_edit_path(full_doc_path, path)
 

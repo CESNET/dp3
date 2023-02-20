@@ -29,10 +29,10 @@ extra_css:
 
 nav:
   - Overview: index.md
-  - Install: installation.md
+  - Install: install.md
   - Developing: developing.md
   - Code Reference: reference/
-  - Extending Documentation: mkdocs_info.md
+  - Extending Documentation: extending.md
 
 markdown_extensions:
   # Adds option to create permalinks to headings

@@ -1,4 +1,10 @@
 site_name: DP3
+site_url: https://cesnet.github.io/dp3/
+site_description: Dynamic Profile Processing Platform
+
+repo_name: CESNET/dp3
+repo_url: https://github.com/CESNET/dp3
+
 theme:
   name: material
   palette:

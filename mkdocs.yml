@@ -43,9 +43,12 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
   # Markdown checkboxes
   - pymdownx.tasklist:
+  # Admonitions
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
 
 plugins:
   # Default search bar

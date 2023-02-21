@@ -80,7 +80,7 @@ class SnapshotCorrelationHookContainer:
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
-    ):
+    ) -> str:
         """
         Registers passed hook to be called during snapshot creation.
 
@@ -97,6 +97,8 @@ class SnapshotCorrelationHookContainer:
                 (even on linked entities).
             may_change: each item should specify an attribute that `hook` may change.
                 specification format is identical to `depends_on`.
+        Returns:
+            Generated hook id.
         """
 
         if entity_type not in self.model_spec.entities:
@@ -122,6 +124,7 @@ class SnapshotCorrelationHookContainer:
         self._restore_hook_order(self._hooks[entity_type])
 
         self.log.debug(f"Added hook: '{hook_id}'")
+        return hook_id
 
     def _validate_attr_paths(self, base_entity: str, paths: list[list[str]]):
         entity_attributes = self.model_spec.entity_attributes
@@ -186,12 +189,11 @@ class SnapshotCorrelationHookContainer:
         return out
 
     def _get_root_cycles(self, path: list[tuple[str, str]]) -> list[tuple[int, int]]:
-        attributes = self.model_spec.attributes
+        self.model_spec.attributes
         entity_indexes: defaultdict[str, list[int]] = defaultdict(list)
         for i, step in enumerate(path):
             entity, attr = step
-            if attributes[entity, attr].is_relation:
-                entity_indexes[entity].append(i)
+            entity_indexes[entity].append(i)
 
         if not any(len(indexes) > 1 for indexes in entity_indexes.values()):
             return []

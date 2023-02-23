@@ -5,3 +5,5 @@ Pull the repository and install using:
 ```shell
 pip install -e .
 ```
+
+We recommend using virtual environment.

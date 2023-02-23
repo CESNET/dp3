@@ -36,6 +36,11 @@ extra_css:
 nav:
   - Overview: index.md
   - Install: install.md
+  - Architecture: architecture.md
+  - Data model: data_model.md
+  - API: api.md
+  - Configuration:
+    - DB entities: configuration/db_entities.md
   - Developing: developing.md
   - Code Reference: reference/
   - Extending Documentation: extending.md
@@ -87,7 +92,6 @@ plugins:
             merge_init_into_class: true
             show_signature_annotations: true
             separate_signature: true
-
 
 watch:
   - dp3

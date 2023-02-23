@@ -18,9 +18,6 @@ Platform directory structure:
 - [Database.EntityDatabase][dp3.database.database] - A wrapper responsible for communication
 with the database server.
 
-- [Globals (g)][dp3.g] - A module to store program-level globals, like loaded configuration or
-instances of main components.
-
 - [HistoryManagement.HistoryManager][dp3.history_management.history_manager] - Module responsible
 for managing history saved in database, currently to clean old data.
 

@@ -11,8 +11,7 @@ from dp3.task_processing.task_hooks import (
     TaskGenericHooksContainer,
 )
 
-from .. import g
-from ..common.config import ModelSpec
+from ..common.config import PlatformConfig
 
 
 class TaskExecutor:
@@ -23,29 +22,30 @@ class TaskExecutor:
 
     Args:
         db: Instance of EntityDatabase
-        model_spec: Configuration of entity types and attributes
+        platform_config: Current platform configuration.
     """
 
     def __init__(
         self,
         db: EntityDatabase,
-        model_spec: ModelSpec,
+        platform_config: PlatformConfig,
     ) -> None:
         # initialize task distribution
 
         self.log = logging.getLogger("TaskExecutor")
 
         # Get list of configured entity types
-        self.entity_types = list(model_spec.entities.keys())
+        self.entity_types = list(platform_config.model_spec.entities.keys())
         self.log.debug(f"Configured entity types: {self.entity_types}")
 
-        self.model_spec = model_spec
+        self.model_spec = platform_config.model_spec
         self.db = db
 
         # EventCountLogger
         # - count number of events across multiple processes using shared counters in Redis
         ecl = EventCountLogger(
-            g.config.get("event_logging.groups"), g.config.get("event_logging.redis")
+            platform_config.config.get("event_logging.groups"),
+            platform_config.config.get("event_logging.redis"),
         )
         self.elog = ecl.get_group("te") or DummyEventGroup()
         # Print warning if some event group is not configured
@@ -64,11 +64,11 @@ class TaskExecutor:
         self._task_entity_hooks = {}
         self._task_attr_hooks = {}
 
-        for entity in model_spec.entities:
+        for entity in self.model_spec.entities:
             self._task_entity_hooks[entity] = TaskEntityHooksContainer(entity, self.log)
 
-        for entity, attr in model_spec.attributes:
-            attr_type = model_spec.attributes[entity, attr].t
+        for entity, attr in self.model_spec.attributes:
+            attr_type = self.model_spec.attributes[entity, attr].t
             self._task_attr_hooks[entity, attr] = TaskAttrHooksContainer(
                 entity, attr, attr_type, self.log
             )

@@ -11,13 +11,14 @@ import sys
 import threading
 from importlib import import_module
 
+from dp3.common.callback_registrar import CallbackRegistrar
+from dp3.common.config import PlatformConfig
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 if __name__ == "__main__":
     print("Don't run this file directly. Use 'bin/worker' instead.", file=sys.stderr)
     sys.exit(1)
 
-from . import g
 from .common import scheduler
 from .common.base_module import BaseModule
 from .common.config import ModelSpec, read_config_dir
@@ -28,7 +29,13 @@ from .task_processing.task_distributor import TaskDistributor
 from .task_processing.task_executor import TaskExecutor
 
 
-def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogger) -> list:
+def load_modules(
+    modules_dir: str,
+    enabled_modules: dict,
+    log: logging.RootLogger,
+    registrar: CallbackRegistrar,
+    platform_config: PlatformConfig,
+) -> list:
     """Load plug-in modules
 
     Import Python modules with names in 'enabled_modules' from 'modules_dir' directory
@@ -72,7 +79,7 @@ def load_modules(modules_dir: str, enabled_modules: dict, log: logging.RootLogge
             if inspect.isclass(obj) and BaseModule in obj.__bases__:
                 # Append instance of module class (obj is class --> obj() is instance)
                 # --> call init, which registers handler
-                modules_main_objects.append(obj())
+                modules_main_objects.append(obj(platform_config, registrar))
                 log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
 
     return modules_main_objects
@@ -108,64 +115,47 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     ##############################################
     # Load configuration
-    g.config_base_path = os.path.abspath(config_dir)
-    log.debug(f"Loading config directory {g.config_base_path}")
+    config_base_path = os.path.abspath(config_dir)
+    log.debug(f"Loading config directory {config_base_path}")
 
     # Whole configuration should be loaded
-    config = read_config_dir(g.config_base_path, recursive=True)
+    config = read_config_dir(config_base_path, recursive=True)
     model_spec = ModelSpec(config.get("db_entities"))
 
     # Print whole attribute specification
     log.debug(model_spec)
 
     num_processes = config.get("processing_core.worker_processes")
-    assert (
-        isinstance(num_processes, int) and num_processes > 0
-    ), "Number of processes ('num_processes' in config) must be a positive integer"
-    assert isinstance(process_index, int) and process_index >= 0, "Process index can't be negative"
-    assert (
-        process_index < num_processes
-    ), "Process index must be less than total number of processes"
 
+    platform_config = PlatformConfig(
+        app_name=app_name,
+        config_base_path=config_base_path,
+        config=config,
+        model_spec=model_spec,
+        process_index=process_index,
+        num_processes=num_processes,
+    )
     ##############################################
     # Create instances of core components
-    # Save them to "g" ("global") module so they can be easily accessed from everywhere
-    # (in the same process)
     log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
-    g.app_name = app_name
-    g.config = config
-    g.model_spec = model_spec
-    g.running = False
-    g.scheduler = scheduler.Scheduler()
-    g.db = EntityDatabase(config.get("database"), model_spec)
-    g.hm = HistoryManager(
-        g.db, model_spec, process_index, num_processes, config.get("history_manager")
-    )
-    g.ss = SnapShooter(
-        g.db,
+    db = EntityDatabase(config.get("database"), model_spec)
+
+    global_scheduler = scheduler.Scheduler()
+    snap_shooter = SnapShooter(
+        db,
         TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
-        model_spec,
-        process_index,
-        config.get("snapshots"),
+        platform_config,
+        global_scheduler,
     )
-    g.te = TaskExecutor(g.db, model_spec)
-    g.td = TaskDistributor(config, process_index, num_processes, g.te, model_spec)
+    task_executor = TaskExecutor(db, platform_config)
+    registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter)
 
-    ##############################################
-    # Load all plug-in modules
-
-    os.path.dirname(__file__)
-    custom_modules_dir = config.get("processing_core.modules_dir")
-    custom_modules_dir = os.path.abspath(os.path.join(g.config_base_path, custom_modules_dir))
-
-    module_list = load_modules(
-        custom_modules_dir, config.get("processing_core.enabled_modules"), log
-    )
+    HistoryManager(db, platform_config, registrar)
 
     # Lock used to control when the program stops.
-    g.daemon_stop_lock = threading.Lock()
-    g.daemon_stop_lock.acquire()
+    daemon_stop_lock = threading.Lock()
+    daemon_stop_lock.acquire()
 
     # Signal handler releasing the lock on SIGINT or SIGTERM
     def sigint_handler(signum, frame):
@@ -174,18 +164,34 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
                 {signal.SIGINT: "SIGINT", signal.SIGTERM: "SIGTERM"}.get(signum, signum)
             )
         )
-        g.daemon_stop_lock.release()
+        daemon_stop_lock.release()
 
     signal.signal(signal.SIGINT, sigint_handler)
     signal.signal(signal.SIGTERM, sigint_handler)
     signal.signal(signal.SIGABRT, sigint_handler)
+
+    task_distributor = TaskDistributor(task_executor, platform_config, registrar, daemon_stop_lock)
+
+    ##############################################
+    # Load all plug-in modules
+
+    os.path.dirname(__file__)
+    custom_modules_dir = config.get("processing_core.modules_dir")
+    custom_modules_dir = os.path.abspath(os.path.join(config_base_path, custom_modules_dir))
+
+    module_list = load_modules(
+        custom_modules_dir,
+        config.get("processing_core.enabled_modules"),
+        log,
+        registrar,
+        platform_config,
+    )
 
     ################################################
     # Initialization completed, run ...
 
     # Run update manager thread
     log.info("***** Initialization completed, starting all modules *****")
-    g.running = True
 
     # Run modules that have their own threads (TODO: there are no such modules, should be kept?)
     # (if they don't, the start() should do nothing)
@@ -193,10 +199,10 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         module.start()
 
     # start TaskDistributor (which starts TaskExecutors in several worker threads)
-    g.td.start()
+    task_distributor.start()
 
     # Run scheduler
-    g.scheduler.start()
+    global_scheduler.start()
 
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.
@@ -204,10 +210,10 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # effectively waiting until it's released by signal handler or another thread)
     if os.name == "nt":
         # This is needed on Windows in order to catch Ctrl-C, which doesn't break the waiting.
-        while not g.daemon_stop_lock.acquire(timeout=1):
+        while not daemon_stop_lock.acquire(timeout=1):
             pass
     else:
-        g.daemon_stop_lock.acquire()
+        daemon_stop_lock.acquire()
 
     ################################################
     # Finalization & cleanup
@@ -218,9 +224,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     signal.signal(signal.SIGABRT, signal.SIG_DFL)
 
     log.info("Stopping running components ...")
-    g.running = False
-    g.scheduler.stop()
-    g.td.stop()
+    global_scheduler.stop()
+    task_distributor.stop()
     for module in module_list:
         module.stop()
 

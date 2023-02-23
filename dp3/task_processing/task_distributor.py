@@ -4,11 +4,11 @@ import threading
 import time
 from datetime import datetime
 
-from dp3.common.config import HierarchicalDict, ModelSpec
+from dp3.common.config import PlatformConfig
 from dp3.common.task import Task
 from dp3.task_processing.task_executor import TaskExecutor
 
-from .. import g
+from ..common.callback_registrar import CallbackRegistrar
 from .task_queue import TaskQueueReader, TaskQueueWriter
 
 
@@ -24,46 +24,41 @@ class TaskDistributor:
     Tasks that are assigned to the current process are passed to `task_executor` for execution.
 
     Args:
-        config: Platform config
-        process_index: Index of this worker process
-        num_processes: Total number of worker processes
+        platform_config: Platform config
         task_executor: Instance of TaskExecutor
-        model_spec: Platform model specification
+        registrar: Interface for callback registration
+        daemon_stop_lock: Lock used to control when the program stops. (see [dp3.worker][])
     """
 
     def __init__(
         self,
-        config: HierarchicalDict,
-        process_index: int,
-        num_processes: int,
         task_executor: TaskExecutor,
-        model_spec: ModelSpec,
+        platform_config: PlatformConfig,
+        registrar: CallbackRegistrar,
+        daemon_stop_lock: threading.Lock,
     ) -> None:
-        assert isinstance(process_index, int) and isinstance(num_processes, int), (
-            "num_processes and process_index " "must be int"
-        )
-        assert num_processes >= 1, "number of processed muse be positive number"
         assert (
-            0 <= process_index < num_processes
+            0 <= platform_config.process_index < platform_config.num_processes
         ), "process index must be smaller than number of processes"
 
         self.log = logging.getLogger("TaskDistributor")
 
-        self.process_index = process_index
-        self.num_processes = num_processes
-        self.model_spec = model_spec
+        self.process_index = platform_config.process_index
+        self.num_processes = platform_config.num_processes
+        self.model_spec = platform_config.model_spec
+        self.daemon_stop_lock = daemon_stop_lock
 
-        self.rabbit_params = config.get("processing_core.msg_broker", {})
+        self.rabbit_params = platform_config.config.get("processing_core.msg_broker", {})
 
         self.entity_types = list(
-            config.get("db_entities").keys()
+            platform_config.config.get("db_entities").keys()
         )  # List of configured entity types
 
         self.running = False
 
         # List of worker threads for processing the update requests
         self._worker_threads = []
-        self.num_threads = config.get("processing_core.worker_threads", 8)
+        self.num_threads = platform_config.config.get("processing_core.worker_threads", 8)
 
         # Internal queues for each worker
         self._queues = [queue.Queue(10) for _ in range(self.num_threads)]
@@ -73,14 +68,14 @@ class TaskDistributor:
         # and distributes them to worker threads
         self._task_queue_reader = TaskQueueReader(
             self._distribute_task,
-            g.app_name,
+            platform_config.app_name,
             self.model_spec,
             self.process_index,
             self.rabbit_params,
         )
         # Writer - allows modules to write new tasks
         self._task_queue_writer = TaskQueueWriter(
-            g.app_name, self.num_processes, self.rabbit_params
+            platform_config.app_name, self.num_processes, self.rabbit_params
         )
         self.task_executor = task_executor
         # Object to store thread-local data (e.g. worker-thread index)
@@ -90,7 +85,7 @@ class TaskDistributor:
         # Number of restarts of threads by watchdog
         self._watchdog_restarts = 0
         # Register watchdog to scheduler
-        g.scheduler.register(self._watchdog, second="*/30")
+        registrar.scheduler_register(self._watchdog, second="*/30")
 
     def start(self) -> None:
         """Run the worker threads and start consuming from TaskQueue."""
@@ -230,7 +225,7 @@ class TaskDistributor:
                         f"Thread {worker.name} is dead,"
                         " more than 20 restarts attempted, giving up..."
                     )
-                    g.daemon_stop_lock.release()  # Exit program
+                    self.daemon_stop_lock.release()  # Exit program
                     break
 
     def _dbg_worker_status_print(self):

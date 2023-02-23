@@ -4,7 +4,7 @@ Platform config file reader and config model.
 import os
 
 import yaml
-from pydantic import BaseModel, root_validator, validator
+from pydantic import BaseModel, NonNegativeInt, PositiveInt, root_validator, validator
 
 from dp3.common.attrspec import AttrSpec, AttrSpecClassic, AttrSpecType
 from dp3.common.base_attrs import BASE_ATTRIBS
@@ -280,3 +280,36 @@ class ModelSpec(BaseModel):
 
     def __setitem__(self, key, value):
         self.config[key] = value
+
+
+class PlatformConfig(BaseModel):
+    """
+    An aggregation of configuration available to modules.
+
+    Attributes:
+        app_name: Name of the application, used when naming various structures of the platform
+        config_base_path: Path to directory containing platform config
+        config: A dictionary that contains the platform config
+        model_spec: Specification of the platform's model (entities and attributes)
+
+        num_processes: Number of worker processes
+        process_index: Index of current process
+    """
+
+    app_name: str
+    config_base_path: str
+    config: dict
+    model_spec: ModelSpec
+
+    num_processes: PositiveInt
+    process_index: NonNegativeInt
+
+    @validator("process_index")
+    def valid_process_index(cls, v, values):
+        if "num_processes" not in values:
+            return v
+
+        assert (
+            v < values["num_processes"]
+        ), "Process index must be less than total number of processes"
+        return v

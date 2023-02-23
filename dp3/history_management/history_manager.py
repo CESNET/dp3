@@ -1,30 +1,25 @@
 import logging
 from datetime import datetime
 
-from dp3 import g
 from dp3.common.attrspec import AttrType
-from dp3.common.config import HierarchicalDict, ModelSpec
+from dp3.common.callback_registrar import CallbackRegistrar
+from dp3.common.config import PlatformConfig
 from dp3.database.database import DatabaseError, EntityDatabase
 
 
 class HistoryManager:
     def __init__(
-        self,
-        db: EntityDatabase,
-        model_spec: ModelSpec,
-        worker_index: int,
-        num_workers: int,
-        config: HierarchicalDict,
+        self, db: EntityDatabase, platform_config: PlatformConfig, registrar: CallbackRegistrar
     ) -> None:
         self.log = logging.getLogger("HistoryManager")
 
         self.db = db
-        self.model_spec = model_spec
-        self.worker_index = worker_index
-        self.num_workers = num_workers
-        self.config = config
+        self.model_spec = platform_config.model_spec
+        self.worker_index = platform_config.process_index
+        self.num_workers = platform_config.num_processes
+        self.config = platform_config.config.get("history_manager")
 
-        if worker_index != 0:
+        if platform_config.process_index != 0:
             self.log.debug(
                 "History management will be disabled in this worker to avoid race conditions."
             )
@@ -32,7 +27,7 @@ class HistoryManager:
 
         # Schedule datapoints cleaning
         datapoint_cleaning_period = self.config["datapoint_cleaning"]["tick_rate"]
-        g.scheduler.register(self.delete_old_dps, minute=f"*/{datapoint_cleaning_period}")
+        registrar.scheduler_register(self.delete_old_dps, minute=f"*/{datapoint_cleaning_period}")
 
     def delete_old_dps(self):
         """Deletes old data points from master collection."""

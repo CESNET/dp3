@@ -37,6 +37,8 @@ class Scheduler:
     def register(
         self,
         func: Callable,
+        func_args=None,
+        func_kwargs=None,
         year: Union[int, str] = None,
         month: Union[int, str] = None,
         day: Union[int, str] = None,
@@ -46,19 +48,26 @@ class Scheduler:
         minute: Union[int, str] = None,
         second: Union[int, str] = None,
         timezone: str = "UTC",
-        *args,
-        **kwargs,
     ) -> int:
         """
         Register a function to be run at specified times.
 
+        Pass cron-like specification of when the function should be called,
+        see [docs](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html)
+        of apscheduler.triggers.cron for details.
         `
         Args:
             func: function or method to be called
-            year,month,day,week,day_of_week,hour,minute,second:
-                cron-like specification of when the function should be called,
-                see [docs](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html)
-                of apscheduler.triggers.cron for details
+            func_args: list of positional arguments to call func with
+            func_kwargs: dict of keyword arguments to call func with
+            year: 4-digit year
+            month: month (1-12)
+            day: day of month (1-31)
+            week: ISO week (1-53)
+            day_of_week: number or name of weekday (0-6 or mon,tue,wed,thu,fri,sat,sun)
+            hour: hour (0-23)
+            minute: minute (0-59)
+            second: second (0-59)
             timezone: Timezone for time specification (default is UTC).
         Returns:
              job ID
@@ -68,7 +77,13 @@ class Scheduler:
             year, month, day, week, day_of_week, hour, minute, second, timezone=timezone
         )
         self.sched.add_job(
-            func, trigger, args, kwargs, coalesce=True, max_instances=1, id=str(self.last_job_id)
+            func,
+            trigger,
+            func_args,
+            func_kwargs,
+            coalesce=True,
+            max_instances=1,
+            id=str(self.last_job_id),
         )
         self.log.debug(f"Registered function {func.__qualname__} to be called at {trigger}")
         return self.last_job_id

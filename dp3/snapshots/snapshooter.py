@@ -23,13 +23,13 @@ from typing import Any, Callable
 
 from pydantic import BaseModel
 
-from dp3 import g
 from dp3.common.attrspec import (
     AttrSpecObservations,
     AttrType,
     ObservationsHistoryParams,
 )
-from dp3.common.config import HierarchicalDict, ModelSpec
+from dp3.common.config import PlatformConfig
+from dp3.common.scheduler import Scheduler
 from dp3.common.task import Task
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
@@ -50,19 +50,18 @@ class SnapShooter:
         self,
         db: EntityDatabase,
         task_queue_writer: TaskQueueWriter,
-        model_spec: ModelSpec,
-        worker_index: int,
-        config: HierarchicalDict,
+        platform_config: PlatformConfig,
+        scheduler: Scheduler,
     ) -> None:
         self.log = logging.getLogger("SnapshotManager")
 
         self.db = db
         self.task_queue_writer = task_queue_writer
-        self.model_spec = model_spec
-        self.worker_index = worker_index
-        self.config = SnapShooterConfig.parse_obj(config)
+        self.model_spec = platform_config.model_spec
+        self.worker_index = platform_config.process_index
+        self.config = SnapShooterConfig.parse_obj(platform_config.config)
 
-        if worker_index != 0:
+        if platform_config.process_index != 0:
             self.log.debug(
                 "Snapshot creation will be disabled in this worker to avoid race conditions."
             )
@@ -70,10 +69,10 @@ class SnapShooter:
 
         # Schedule snapshot period
         snapshot_period = self.config.creation_rate
-        g.scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
+        scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
 
-        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, model_spec)
-        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, model_spec)
+        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec)
+        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec)
 
     def register_timeseries_hook(
         self, hook: Callable[[str, str, list[dict]], list[Task]], entity_type: str, attr_type: str

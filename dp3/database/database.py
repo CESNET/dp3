@@ -3,6 +3,7 @@ import urllib
 from datetime import datetime
 
 import pymongo
+from pydantic import BaseModel
 
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
@@ -114,17 +115,20 @@ class EntityDatabase:
         master_changes = {"$push": {}, "$set": {}}
         for dp in dps:
             attr_spec = self._db_schema_config.attr(etype, dp.attr)
+
+            v = dp.v.dict() if isinstance(dp.v, BaseModel) else dp.v
+
             # Rewrite value of plain attribute
             if attr_spec.t == AttrType.PLAIN:
-                master_changes["$set"][dp.attr] = {"v": dp.v, "ts_last_update": datetime.now()}
+                master_changes["$set"][dp.attr] = {"v": v, "ts_last_update": datetime.now()}
 
             # Push new data of observation
             if attr_spec.t == AttrType.OBSERVATIONS:
-                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": dp.v, "c": dp.c}
+                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": v, "c": dp.c}
 
             # Push new data of timeseries
             if attr_spec.t == AttrType.TIMESERIES:
-                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": dp.v.dict()}
+                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": v}
 
         master_col = self._master_col_name(etype)
         try:

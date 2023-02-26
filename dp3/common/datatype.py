@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from typing import Any, Union
 
-from pydantic import Json, constr
+from pydantic import Json, constr, create_model
 
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(\w+)>$")
@@ -109,14 +109,28 @@ class DataTypeContainer:
             data_type = str
 
         elif re.match(re_dict, str_type):
+            dict_spec = {}
+
             key_str = str_type.split("<")[1].split(">")[0]
             key_spec = dict(item.split(":") for item in key_str.split(","))
 
+            # For each dict key
             for k, v in key_spec.items():
                 if v not in primitive_data_types:
                     raise TypeError(f"Data type {v} of key {k} is not supported as a dict field")
 
-            data_type = dict[Any, Any]  # TODO
+                # Optional subattribute
+                k_optional = k[-1] == "?"
+
+                if k_optional:
+                    # Remove question mark from key
+                    k = k[:-1]
+
+                # Set (type, default value) for the key
+                dict_spec[k] = (primitive_data_types[v], None if k_optional else ...)
+
+            # Create model for this dict
+            data_type = create_model(str_type, **dict_spec)
 
         else:
             raise TypeError(f"Data type '{str_type}' is not supported")

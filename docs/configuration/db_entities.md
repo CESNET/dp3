@@ -139,7 +139,8 @@ List of supported values for parameter `data_type`:
 - `binary`: `true`/`false`/not_set (Attribute value is `true` or `false`, or the attribute is not set at all.)
 - `category`: Categorical values. When only a fixed set of values should be allowed, these should be specified in the `categories` parameter. Otherwise the set of values is open, any string can be stored (but only a small number of unique values are expected).
 - `string`
-- `int`
+- `int`: 32-bit signed integer (range from -2147483648 to +2147483647)
+- `int64`: 64-bit signed integer (use when the range of normal `int` is not sufficent)
 - `float`
 - `time`: Timestamp in `YYYY-MM-DD[T]HH:MM[:SS[.ffffff]][Z or [±]HH[:]MM]` format or timestamp since 1.1.1970 in seconds or milliseconds.
 - `ip4`: IPv4 address (passed as dotted-decimal string)

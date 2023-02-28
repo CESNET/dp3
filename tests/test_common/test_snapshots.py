@@ -10,12 +10,16 @@ from dp3.snapshots.snapshooter import SnapShooter
 from dp3.snapshots.snapshot_hooks import SnapshotCorrelationHookContainer
 
 
-def dummy_hook_abc(_: str, values: dict):
-    values["data2"] = "abc"
+def copy_linked(_: str, record: dict, link: str, attr: str):
+    record[attr] = record[link][attr]
 
 
-def dummy_hook_def(_: str, values: dict):
-    values["data2"] = "def"
+def modify_value(_: str, record: dict, attr: str, value):
+    record[attr] = value
+
+
+dummy_hook_abc = update_wrapper(partial(modify_value, attr="data2", value="abc"), modify_value)
+dummy_hook_def = update_wrapper(partial(modify_value, attr="data1", value="def"), modify_value)
 
 
 class TestHookDependency(unittest.TestCase):
@@ -33,7 +37,7 @@ class TestHookDependency(unittest.TestCase):
             hook=dummy_hook_abc, entity_type="A", depends_on=[["data1"]], may_change=[["data2"]]
         )
         values = {}
-        self.container.run("A", values)
+        self.container.run("A", {("A", "a1"): values})
         self.assertEqual(values["data2"], "abc")
 
     def test_circular_dependency_error(self):
@@ -175,6 +179,39 @@ class TestSnapshotOperation(unittest.TestCase):
         self.snapshooter.make_snapshot("B", self.entities["B"]["b1"])
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
+
+    def test_loaded_entities_hooks_run(self):
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(modify_value, attr="data2", value="modifa"), modify_value),
+            "A",
+            depends_on=[],
+            may_change=[["data2"]],
+        )
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(copy_linked, link="bs", data="data1"), copy_linked),
+            "A",
+            depends_on=[["bs", "data1"]],
+            may_change=[["data1"]],
+        )
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(modify_value, attr="data1", value="modifb"), modify_value),
+            "B",
+            depends_on=[],
+            may_change=[["data1"]],
+        )
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(copy_linked, link="as", data="data2"), copy_linked),
+            "B",
+            depends_on=[["as", "data2"]],
+            may_change=[["data2"]],
+        )
+
+        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"])
+        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
+        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
+        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"])
+        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
+        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
 
 
 if __name__ == "__main__":

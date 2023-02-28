@@ -212,11 +212,22 @@ class SnapshotCorrelationHookContainer:
     def _embed_base_entity(base_entity: str, paths: list[list[str]]):
         return ["->".join([base_entity] + path) for path in paths]
 
-    def run(self, entity_type: str, current_values: dict):
+    def run(self, entity_type: str, entities: dict):
         """Runs registered hooks."""
-        for hook_id, hook in self._hooks[entity_type]:
-            self.log.debug("Running hook %s on entity %s", hook_id, current_values["eid"])
-            hook(entity_type, current_values)
+        entity_types = {etype for etype, _ in entities.keys()}
+        hook_subset = [
+            (hook_id, hook, etype) for etype in entity_types for hook_id, hook in self._hooks[etype]
+        ]
+        topological_order = self._dependency_graph.topological_order
+        hook_subset.sort(key=lambda x: topological_order.index(x[0]))
+        entities_by_etype = {
+            etype_eid[0]: {etype_eid[1]: entity} for etype_eid, entity in entities.items()
+        }
+
+        for hook_id, hook, etype in hook_subset:
+            for eid, entity_values in entities_by_etype[etype].items():
+                self.log.debug("Running hook %s on entity %s", hook_id, eid)
+                hook(entity_type, entity_values)
 
     def _restore_hook_order(self, hooks: list[tuple[str, Callable]]):
         topological_order = self._dependency_graph.topological_sort()
@@ -240,6 +251,7 @@ class DependencyGraph:
 
         # dictionary of adjacency lists for each edge
         self._vertices = defaultdict(GraphVertex)
+        self.topological_order = []
 
     def add_hook_dependency(self, hook_id: str, depends_on: list[str], may_change: list[str]):
         """Add hook to dependency graph and recalculate if any cycles are created."""
@@ -300,6 +312,7 @@ class DependencyGraph:
         if processed_vertices_cnt != len(self._vertices):
             raise ValueError("Dependency graph contains a cycle.")
         else:
+            self.topological_order = topological_order
             return topological_order
 
     def check_multiple_writes(self):

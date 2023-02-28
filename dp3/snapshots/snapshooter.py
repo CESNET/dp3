@@ -134,7 +134,7 @@ class SnapShooter:
         self.run_timeseries_processing(etype, master_record)
         current_values = self.get_current_values(etype, master_record)
         linked_entities = self.load_linked_entities(etype, current_values)
-        self._correlation_hooks.run(etype, current_values)
+        self._correlation_hooks.run(etype, linked_entities)
 
         # unlink entities again
         for rtype_rid, record in linked_entities.items():

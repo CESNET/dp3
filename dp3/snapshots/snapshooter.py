@@ -53,7 +53,7 @@ class SnapShooter:
         platform_config: PlatformConfig,
         scheduler: Scheduler,
     ) -> None:
-        self.log = logging.getLogger("SnapshotManager")
+        self.log = logging.getLogger("SnapShooter")
 
         self.db = db
         self.task_queue_writer = task_queue_writer

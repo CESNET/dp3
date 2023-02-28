@@ -22,7 +22,7 @@ class SnapshotTimeseriesHookContainer:
     """Container for timeseries analysis hooks"""
 
     def __init__(self, log: logging.Logger, model_spec: ModelSpec):
-        self.log = log.getChild("timeseriesHooks")
+        self.log = log.getChild("TimeseriesHooks")
         self.model_spec = model_spec
 
         self._hooks = defaultdict(list)
@@ -189,7 +189,6 @@ class SnapshotCorrelationHookContainer:
         return out
 
     def _get_root_cycles(self, path: list[tuple[str, str]]) -> list[tuple[int, int]]:
-        self.model_spec.attributes
         entity_indexes: defaultdict[str, list[int]] = defaultdict(list)
         for i, step in enumerate(path):
             entity, attr = step
@@ -215,7 +214,8 @@ class SnapshotCorrelationHookContainer:
 
     def run(self, entity_type: str, current_values: dict):
         """Runs registered hooks."""
-        for _, hook in self._hooks[entity_type]:
+        for hook_id, hook in self._hooks[entity_type]:
+            self.log.debug("Running hook %s on entity %s", hook_id, current_values["eid"])
             hook(entity_type, current_values)
 
     def _restore_hook_order(self, hooks: list[tuple[str, Callable]]):

@@ -131,26 +131,39 @@ class SnapShooter:
                 self.make_snapshot(etype, master_record)
 
     def make_snapshot(self, etype, master_record):
-        # - all registered timeseries processing modules must be called
-        #   - this should result in `observations` or `plain` datapoints, which will be saved to db
-        #     and forwarded in processing
-        tasks = []
-        for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
-            if attr_spec.t == AttrType.TIMESERIES and attr in master_record:
-                new_tasks = self._timeseries_hooks.run(etype, attr, master_record[attr])
-                tasks.extend(new_tasks)
-
-        self.extend_master_record(etype, master_record, tasks)
-        for task in tasks:
-            self.task_queue_writer.put_task(task)
-
-        # compute current values for all observations
+        self.run_timeseries_processing(etype, master_record)
         current_values = self.get_current_values(etype, master_record)
-
+        linked_entities = self.load_linked_entities(etype, current_values)
         self._correlation_hooks.run(etype, current_values)
 
-        # - Save the complete results into database as snapshots
+        # unlink entities again
+        for rtype_rid, record in linked_entities.items():
+            rtype, rid = rtype_rid
+            for attr, value in record.items():
+                if (rtype, attr) not in self.model_spec.relations:
+                    continue
+                if self.model_spec.relations[rtype, attr].multi_value:
+                    record[attr] = [val["eid"] for val in value]
+                else:
+                    record[attr] = value["eid"]
+
         self.db.save_snapshot(etype, current_values)
+
+    def run_timeseries_processing(self, entity_type, master_record):
+        """
+        - all registered timeseries processing modules must be called
+          - this should result in `observations` or `plain` datapoints, which will be saved to db
+            and forwarded in processing
+        """
+        tasks = []
+        for attr, attr_spec in self.model_spec.entity_attributes[entity_type].items():
+            if attr_spec.t == AttrType.TIMESERIES and attr in master_record:
+                new_tasks = self._timeseries_hooks.run(entity_type, attr, master_record[attr])
+                tasks.extend(new_tasks)
+
+        self.extend_master_record(entity_type, master_record, tasks)
+        for task in tasks:
+            self.task_queue_writer.put_task(task)
 
     @staticmethod
     def extend_master_record(etype, master_record, new_tasks: list[Task]):
@@ -165,7 +178,7 @@ class SnapShooter:
                 else:
                     master_record[datapoint.attr] = [dp_dict]
 
-    def get_current_values(self, etype, master_record):
+    def get_current_values(self, etype: str, master_record: dict) -> dict:
         current_values = {"eid": master_record["_id"]}
         for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
             if attr_spec.t != AttrType.OBSERVATIONS or attr not in master_record:
@@ -173,25 +186,57 @@ class SnapShooter:
 
             if attr_spec.multi_value:
                 val, conf = self.get_current_multivalue(attr_spec, master_record[attr])
-
-                if attr_spec.is_relation:
-                    val = [
-                        self.get_current_values_relation(attr_spec.relation_to, eid) for eid in val
-                    ]
             else:
                 val, conf = self.get_current_value(attr_spec, master_record[attr])
-
-                if attr_spec.is_relation:
-                    val = self.get_current_values_relation(attr_spec.relation_to, val)
 
             if conf:  # conf != 0.0 or len(conf) > 0
                 current_values[attr] = val
                 current_values[f"{attr}#c"] = conf
         return current_values
 
-    def get_current_values_relation(self, linked_etype, linked_eid):
-        linked_record = self.db.get_master_record(linked_etype, linked_eid)
-        return self.get_current_values(linked_etype, linked_record)
+    def load_linked_entities(self, entity_type: str, current_values: dict):
+        loaded_entities = {(entity_type, current_values["eid"]): current_values}
+        linked_entity_ids = self.get_linked_entity_ids(entity_type, current_values)
+
+        while linked_entity_ids:
+            entity_identifiers = linked_entity_ids.pop()
+            if entity_identifiers in loaded_entities:
+                continue
+            linked_etype, linked_eid = entity_identifiers
+            record = self.db.get_master_record(linked_etype, linked_eid)
+            self.run_timeseries_processing(linked_etype, record)
+            linked_values = self.get_current_values(linked_etype, record)
+
+            linked_entity_ids.update(self.get_linked_entity_ids(entity_type, linked_values))
+            linked_entity_ids -= set(loaded_entities.keys())
+            loaded_entities[linked_etype, linked_eid] = linked_values
+
+        self.link_loaded_entities(loaded_entities)
+        return loaded_entities
+
+    def get_linked_entity_ids(self, entity_type: str, current_values: dict) -> set[tuple[str, str]]:
+        related_entity_ids = set()
+        for attr, val in current_values.items():
+            if (entity_type, attr) not in self.model_spec.relations:
+                continue
+            attr_spec = self.model_spec.relations[entity_type, attr]
+            if attr_spec.multi_value:
+                related_entity_ids.update((attr_spec.relation_to, eid) for eid in val)
+            else:
+                related_entity_ids.add((attr_spec.relation_to, val))
+        return related_entity_ids
+
+    def link_loaded_entities(self, loaded_entities: dict):
+        for identifiers, entity in loaded_entities.items():
+            entity_type, entity_id = identifiers
+            for attr, val in entity.items():
+                if (entity_type, attr) not in self.model_spec.relations:
+                    continue
+                attr_spec = self.model_spec.relations[entity_type, attr]
+                if attr_spec.multi_value:
+                    entity[attr] = [loaded_entities[attr_spec.relation_to, eid] for eid in val]
+                else:
+                    entity[attr] = loaded_entities[attr_spec.relation_to, val]
 
     def get_current_value(self, attr_spec: AttrSpecObservations, attr_history) -> tuple[Any, float]:
         """Get current value of an attribute from its history. Assumes `multi_value = False`."""

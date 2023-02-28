@@ -181,7 +181,13 @@ class SnapShooter:
     def get_current_values(self, etype: str, master_record: dict) -> dict:
         current_values = {"eid": master_record["_id"]}
         for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
-            if attr_spec.t != AttrType.OBSERVATIONS or attr not in master_record:
+            if (
+                attr not in master_record
+                or attr_spec.t not in AttrType.PLAIN | AttrType.OBSERVATIONS
+            ):
+                continue
+            if attr_spec.t == AttrType.PLAIN:
+                current_values[attr] = master_record[attr]
                 continue
 
             if attr_spec.multi_value:

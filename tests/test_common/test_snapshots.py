@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import unittest
+from functools import partial, update_wrapper
 
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
 from dp3.snapshots.snapshooter import SnapShooter
@@ -92,12 +93,14 @@ class MockScheduler:
 class MockDB:
     def __init__(self, content: dict):
         self.db_content = content
+        self.saved_snapshots = []
 
     def get_master_record(self, etype: str, ekey: str) -> dict:
         return self.db_content[etype][ekey] or {}
 
     def save_snapshot(self, etype: str, snapshot: dict):
-        return json.dumps(snapshot)
+        json.dumps(snapshot)
+        self.saved_snapshots.append(snapshot)
 
 
 class TestSnapshotOperation(unittest.TestCase):
@@ -110,23 +113,28 @@ class TestSnapshotOperation(unittest.TestCase):
         self.t1 = now - datetime.timedelta(minutes=30)
         self.t2 = now + datetime.timedelta(minutes=30)
 
-        self.snapshooter = SnapShooter(
-            db=MockDB(
-                content={
-                    "B": {
-                        "b1": {
-                            "_id": "b1",
-                            "as": [{"v": "a1", "t1": self.t1, "t2": self.t2, "c": 1.0}],
-                        }
-                    },
-                    "A": {
-                        "a1": {
-                            "_id": "a1",
-                            "bs": [{"v": "b1", "t1": self.t1, "t2": self.t2, "c": 1.0}],
-                        }
-                    },
+        self.entities = {
+            "B": {
+                "b1": {
+                    "_id": "b1",
+                    "as": [{"v": "a1", "t1": self.t1, "t2": self.t2, "c": 1.0}],
+                    "data1": "initb",
+                    "data2": "initb",
                 }
-            ),
+            },
+            "A": {
+                "a1": {
+                    "_id": "a1",
+                    "bs": [{"v": "b1", "t1": self.t1, "t2": self.t2, "c": 1.0}],
+                    "data1": "inita",
+                    "data2": "inita",
+                }
+            },
+        }
+        self.db = MockDB(content=self.entities)
+
+        self.snapshooter = SnapShooter(
+            db=self.db,
             task_queue_writer=None,
             platform_config=PlatformConfig(
                 app_name="test",
@@ -138,11 +146,35 @@ class TestSnapshotOperation(unittest.TestCase):
             ),
             scheduler=MockScheduler(),
         )
+        root = logging.getLogger()
+        root.setLevel("DEBUG")
 
     def test_reference_cycle(self):
-        self.snapshooter.make_snapshot(
-            "A", {"_id": "a1", "bs": [{"v": "b1", "t1": self.t1, "t2": self.t2, "c": 1.0}]}
+        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"])
+
+    def test_linked_entities_loaded(self):
+        def copy_linked(_: str, record: dict, link: str, data: str):
+            record[data] = record[link][data]
+
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(copy_linked, link="bs", data="data1"), copy_linked),
+            "A",
+            depends_on=[["bs", "data1"]],
+            may_change=[["data1"]],
         )
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(copy_linked, link="as", data="data2"), copy_linked),
+            "B",
+            depends_on=[["as", "data2"]],
+            may_change=[["data2"]],
+        )
+
+        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"])
+        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
+        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
+        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"])
+        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
+        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
 
 
 if __name__ == "__main__":

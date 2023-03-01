@@ -126,14 +126,15 @@ class SnapShooter:
 
     def make_snapshots(self):
         """Create snapshots for all entities currently active in database."""
+        time = datetime.now()
         for etype in self.model_spec.entities.keys():
             for master_record in self.db.get_master_records(etype):
-                self.make_snapshot(etype, master_record)
+                self.make_snapshot(etype, master_record, time)
 
-    def make_snapshot(self, etype, master_record):
+    def make_snapshot(self, etype, master_record, time):
         self.run_timeseries_processing(etype, master_record)
-        current_values = self.get_current_values(etype, master_record)
-        linked_entities = self.load_linked_entities(etype, current_values)
+        current_values = self.get_values_at_time(etype, master_record, time)
+        linked_entities = self.load_linked_entities(etype, current_values, time)
         self._correlation_hooks.run(etype, linked_entities)
 
         # unlink entities again
@@ -178,7 +179,7 @@ class SnapShooter:
                 else:
                     master_record[datapoint.attr] = [dp_dict]
 
-    def get_current_values(self, etype: str, master_record: dict) -> dict:
+    def get_values_at_time(self, etype: str, master_record: dict, time: datetime) -> dict:
         current_values = {"eid": master_record["_id"]}
         for attr, attr_spec in self.model_spec.entity_attributes[etype].items():
             if (
@@ -191,16 +192,16 @@ class SnapShooter:
                 continue
 
             if attr_spec.multi_value:
-                val, conf = self.get_current_multivalue(attr_spec, master_record[attr])
+                val, conf = self.get_multi_value_at_time(attr_spec, master_record[attr], time)
             else:
-                val, conf = self.get_current_value(attr_spec, master_record[attr])
+                val, conf = self.get_value_at_time(attr_spec, master_record[attr], time)
 
             if conf:  # conf != 0.0 or len(conf) > 0
                 current_values[attr] = val
                 current_values[f"{attr}#c"] = conf
         return current_values
 
-    def load_linked_entities(self, entity_type: str, current_values: dict):
+    def load_linked_entities(self, entity_type: str, current_values: dict, time: datetime):
         loaded_entities = {(entity_type, current_values["eid"]): current_values}
         linked_entity_ids = self.get_linked_entity_ids(entity_type, current_values)
 
@@ -211,7 +212,7 @@ class SnapShooter:
             linked_etype, linked_eid = entity_identifiers
             record = self.db.get_master_record(linked_etype, linked_eid)
             self.run_timeseries_processing(linked_etype, record)
-            linked_values = self.get_current_values(linked_etype, record)
+            linked_values = self.get_values_at_time(linked_etype, record, time)
 
             linked_entity_ids.update(self.get_linked_entity_ids(entity_type, linked_values))
             linked_entity_ids -= set(loaded_entities.keys())
@@ -244,9 +245,10 @@ class SnapShooter:
                 else:
                     entity[attr] = loaded_entities[attr_spec.relation_to, val]
 
-    def get_current_value(self, attr_spec: AttrSpecObservations, attr_history) -> tuple[Any, float]:
+    def get_value_at_time(
+        self, attr_spec: AttrSpecObservations, attr_history, time: datetime
+    ) -> tuple[Any, float]:
         """Get current value of an attribute from its history. Assumes `multi_value = False`."""
-        time = datetime.now()
         return max(
             (
                 (point["v"], self.extrapolate_confidence(point, time, attr_spec.history_params))
@@ -256,11 +258,10 @@ class SnapShooter:
             default=(None, 0.0),
         )
 
-    def get_current_multivalue(
-        self, attr_spec: AttrSpecObservations, attr_history
+    def get_multi_value_at_time(
+        self, attr_spec: AttrSpecObservations, attr_history, time: datetime
     ) -> tuple[list, list[float]]:
         """Get current value of a multi_value attribute from its history."""
-        time = datetime.now()
         if attr_spec.data_type.hashable:
             values_with_confidence = defaultdict(float)
             for point in attr_history:

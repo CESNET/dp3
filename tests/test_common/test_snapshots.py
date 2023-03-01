@@ -113,9 +113,9 @@ class TestSnapshotOperation(unittest.TestCase):
         config = read_config_dir(config_base_path, recursive=True)
         self.model_spec = ModelSpec(config.get("db_entities"))
 
-        now = datetime.datetime.now()
-        self.t1 = now - datetime.timedelta(minutes=30)
-        self.t2 = now + datetime.timedelta(minutes=30)
+        self.now = datetime.datetime.now()
+        self.t1 = self.now - datetime.timedelta(minutes=30)
+        self.t2 = self.now + datetime.timedelta(minutes=30)
 
         self.entities = {
             "B": {
@@ -154,29 +154,26 @@ class TestSnapshotOperation(unittest.TestCase):
         root.setLevel("DEBUG")
 
     def test_reference_cycle(self):
-        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"])
+        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"], self.now)
 
     def test_linked_entities_loaded(self):
-        def copy_linked(_: str, record: dict, link: str, data: str):
-            record[data] = record[link][data]
-
         self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="bs", data="data1"), copy_linked),
+            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
             "A",
             depends_on=[["bs", "data1"]],
             may_change=[["data1"]],
         )
         self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="as", data="data2"), copy_linked),
+            update_wrapper(partial(copy_linked, link="as", attr="data2"), copy_linked),
             "B",
             depends_on=[["as", "data2"]],
             may_change=[["data2"]],
         )
 
-        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"])
+        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"], self.now)
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
-        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"])
+        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"], self.now)
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
 
@@ -188,7 +185,7 @@ class TestSnapshotOperation(unittest.TestCase):
             may_change=[["data2"]],
         )
         self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="bs", data="data1"), copy_linked),
+            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
             "A",
             depends_on=[["bs", "data1"]],
             may_change=[["data1"]],
@@ -200,16 +197,16 @@ class TestSnapshotOperation(unittest.TestCase):
             may_change=[["data1"]],
         )
         self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="as", data="data2"), copy_linked),
+            update_wrapper(partial(copy_linked, link="as", attr="data2"), copy_linked),
             "B",
             depends_on=[["as", "data2"]],
             may_change=[["data2"]],
         )
 
-        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"])
+        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"], self.now)
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
-        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"])
+        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"], self.now)
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
 
@@ -223,7 +220,7 @@ class TestSnapshotOperation(unittest.TestCase):
                 {"v": "d", "t1": self.t1, "t2": self.t2, "c": 0.0},
             ],
         }
-        self.snapshooter.make_snapshot("test_entity_type", test_entity)
+        self.snapshooter.make_snapshot("test_entity_type", test_entity, self.now)
         snapshot_result = self.db.saved_snapshots[-1]
         self.assertEqual(len(snapshot_result["test_attr_multi_value"]), 3)
         self.assertEqual(set(snapshot_result["test_attr_multi_value"]), {"a", "b", "c"})

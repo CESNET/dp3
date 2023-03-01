@@ -298,7 +298,7 @@ class PlatformConfig(BaseModel):
 
     app_name: str
     config_base_path: str
-    config: dict
+    config: HierarchicalDict
     model_spec: ModelSpec
 
     num_processes: PositiveInt

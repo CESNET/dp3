@@ -32,7 +32,7 @@ from .task_processing.task_executor import TaskExecutor
 def load_modules(
     modules_dir: str,
     enabled_modules: dict,
-    log: logging.RootLogger,
+    log: logging.Logger,
     registrar: CallbackRegistrar,
     platform_config: PlatformConfig,
 ) -> list:
@@ -68,19 +68,23 @@ def load_modules(
     # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
     log.debug("Importing modules ...")
     sys.path.insert(0, modules_dir)
-    imported_modules = [import_module(module_name) for module_name in enabled_modules]
+    imported_modules: list[tuple[str, str, type[BaseModule]]] = [
+        (module_name, name, obj)
+        for module_name in enabled_modules
+        for name, obj in inspect.getmembers(import_module(module_name))
+        if inspect.isclass(obj) and BaseModule in obj.__bases__
+    ]
     del sys.path[0]
 
     # Final list will contain main classes from all desired modules,
     # which has BaseModule as parent
     modules_main_objects = []
-    for module in imported_modules:
-        for _, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) and BaseModule in obj.__bases__:
-                # Append instance of module class (obj is class --> obj() is instance)
-                # --> call init, which registers handler
-                modules_main_objects.append(obj(platform_config, registrar))
-                log.info(f"Module loaded: {module.__name__}:{obj.__name__}")
+    for module_name, _, obj in imported_modules:
+        # Append instance of module class (obj is class --> obj() is instance)
+        # --> call init, which registers handler
+        module_config = platform_config.config.get(f"modules.{module_name}", {})
+        modules_main_objects.append(obj(platform_config, module_config, registrar))
+        log.info(f"Module loaded: {module_name}:{obj.__name__}")
 
     return modules_main_objects
 

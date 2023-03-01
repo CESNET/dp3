@@ -11,8 +11,16 @@ class BaseModule(ABC):
     """
 
     @abstractmethod
-    def __init__(self, platform_config: PlatformConfig, registrar: CallbackRegistrar):
-        """Initialize the module and register callbacks."""
+    def __init__(
+        self, platform_config: PlatformConfig, module_config: dict, registrar: CallbackRegistrar
+    ):
+        """Initialize the module and register callbacks.
+        Args:
+            platform_config: Platform configuration class
+            module_config: Configuration of the module,
+                equivalent of `platform_config.config.get("modules.<module_name>")`
+            registrar: A callback / hook registration interface
+        """
 
     def start(self) -> None:
         """

@@ -213,6 +213,21 @@ class TestSnapshotOperation(unittest.TestCase):
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
 
+    def test_multivalue_fitering(self):
+        test_entity = {
+            "_id": "t1",
+            "test_attr_multi_value": [
+                {"v": "a", "t1": self.t1, "t2": self.t2, "c": 1.0},
+                {"v": "b", "t1": self.t1, "t2": self.t2, "c": 0.8},
+                {"v": "c", "t1": self.t1, "t2": self.t2, "c": 0.4},
+                {"v": "d", "t1": self.t1, "t2": self.t2, "c": 0.0},
+            ],
+        }
+        self.snapshooter.make_snapshot("test_entity_type", test_entity)
+        snapshot_result = self.db.saved_snapshots[-1]
+        self.assertEqual(len(snapshot_result["test_attr_multi_value"]), 3)
+        self.assertEqual(set(snapshot_result["test_attr_multi_value"]), {"a", "b", "c"})
+
 
 if __name__ == "__main__":
     unittest.main()

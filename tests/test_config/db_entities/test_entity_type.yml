@@ -24,6 +24,13 @@ attribs:
     name: test_attr_string
     type: plain
     data_type: string
+  test_attr_multi_value:
+    name: test_attr_multi_value
+    type: observations
+    data_type: string
+    multi_value: true
+    history_params:
+      max_age: 7d
   test_attr_float:
     name: test_attr_float
     type: plain

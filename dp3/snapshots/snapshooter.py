@@ -266,7 +266,7 @@ class SnapShooter:
             for point in attr_history:
                 value = point["v"]
                 confidence = self.extrapolate_confidence(point, time, attr_spec.history_params)
-                if values_with_confidence[value] < confidence:
+                if confidence > 0.0 and values_with_confidence[value] < confidence:
                     values_with_confidence[value] = confidence
             return list(values_with_confidence.keys()), list(values_with_confidence.values())
         else:

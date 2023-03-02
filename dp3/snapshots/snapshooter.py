@@ -59,7 +59,7 @@ class SnapShooter:
         self.task_queue_writer = task_queue_writer
         self.model_spec = platform_config.model_spec
         self.worker_index = platform_config.process_index
-        self.config = SnapShooterConfig.parse_obj(platform_config.config)
+        self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
 
         if platform_config.process_index != 0:
             self.log.debug(

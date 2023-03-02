@@ -1,8 +1,6 @@
 entity:
   id: example_entity
   name: Exmaple entity type
-  key_data_type: string
-  auto_create_record: true
 attribs:
   int_attr:
     name: Test attribute (int)
@@ -12,8 +10,7 @@ attribs:
   string_attr:
     name: Test attribute (str) with history
     description: A string attribute for testing of DP3, this one stores history of previous values
-    type: plain
+    type: observations
     data_type: string
-    history: true
     history_params:
       max_age: 7d

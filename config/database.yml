@@ -1,7 +1,7 @@
-# Connection parameters to PostgreSQL database
+# Connection parameters to MongoDB database
 connection:
   username: "{{DP3_APP}}"
   password: "{{DP3_APP}}"
   address: "127.0.0.1"
-  port: 5432
+  port: 27017
   db_name: "{{DP3_APP}}"

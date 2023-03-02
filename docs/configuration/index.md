@@ -11,7 +11,6 @@ event_logging.yml
 history_manager.yml
 processing_core.yml
 snapshots.yml
-updater.yml
 ```
 
 Their meaning and usage is explained in following chapters.

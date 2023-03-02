@@ -49,7 +49,6 @@ nav:
     - Modules: configuration/modules.md
     - Processing core: configuration/processing_core.md
     - Snapshots: configuration/snapshots.md
-    - Updater: configuration/updater.md
   - Developing: developing.md
   - Code Reference: reference/
   - Extending Documentation: extending.md

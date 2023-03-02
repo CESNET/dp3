@@ -40,7 +40,16 @@ nav:
   - Data model: data_model.md
   - API: api.md
   - Configuration:
-    - DB entities: configuration/db_entities.md
+    - General: configuration/index.md
+    - Common: configuration/common.md
+    - Database: configuration/database.md
+    - Database entities: configuration/db_entities.md
+    - Event logging: configuration/event_logging.md
+    - History manager: configuration/history_manager.md
+    - Modules: configuration/modules.md
+    - Processing core: configuration/processing_core.md
+    - Snapshots: configuration/snapshots.md
+    - Updater: configuration/updater.md
   - Developing: developing.md
   - Code Reference: reference/
   - Extending Documentation: extending.md

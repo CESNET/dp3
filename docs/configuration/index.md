@@ -5,7 +5,6 @@ DP³ configuration folder consists of these files and folders:
 ```
 db_entities/
 modules/
-common.yml
 database.yml
 event_logging.yml
 history_manager.yml

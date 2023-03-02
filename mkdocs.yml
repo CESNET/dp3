@@ -41,7 +41,6 @@ nav:
   - API: api.md
   - Configuration:
     - General: configuration/index.md
-    - Common: configuration/common.md
     - Database: configuration/database.md
     - Database entities: configuration/db_entities.md
     - Event logging: configuration/event_logging.md

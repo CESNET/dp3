@@ -1,7 +1,7 @@
 from typing import Callable, Union
 
 from dp3.common.scheduler import Scheduler
-from dp3.common.task import Task
+from dp3.common.task import Push
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.task_processing.task_executor import TaskExecutor
 
@@ -95,7 +95,7 @@ class CallbackRegistrar:
         self._task_executor.register_attr_hook(hook_type, hook, entity, attr)
 
     def register_timeseries_hook(
-        self, hook: Callable[[str, str, list[dict]], list[Task]], entity_type: str, attr_type: str
+        self, hook: Callable[[str, str, list[dict]], list[Push]], entity_type: str, attr_type: str
     ):
         """
         Registers passed timeseries hook to be called during snapshot creation.

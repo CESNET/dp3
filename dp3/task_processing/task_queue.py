@@ -34,7 +34,6 @@ worker_processes: 1
 import collections
 import contextlib
 import hashlib
-import json
 import logging
 import threading
 import time
@@ -263,8 +262,8 @@ class TaskQueueWriter(RobustAMQPConnection):
         self.log.debug(f"Received new task: {task}")
 
         # Prepare routing key
-        body = task.json(exclude={"model_spec"})
-        key = task.etype + ":" + str(task.ekey)
+        body = task.as_message()
+        key = task.routing_key()
         routing_key = HASH(key) % self.workers  # index of the worker to send the task to
 
         exchange = self.exchange_pri if priority else self.exchange
@@ -320,6 +319,7 @@ class TaskQueueReader(RobustAMQPConnection):
 
     Args:
         callback: Function called when a message is received, prototype: func(tag, Task)
+        parse_task: Function called to parse message body into a task, prototype: func(body) -> Task
         app_name: DP3 application name (used as prefix for RMQ queues and exchanges)
         worker_index: index of this worker
             (filled into DEFAULT_QUEUE string using .format() method)
@@ -334,6 +334,7 @@ class TaskQueueReader(RobustAMQPConnection):
     def __init__(
         self,
         callback: Callable,
+        parse_task: Callable[[str], Task],
         app_name: str,
         model_spec: ModelSpec,
         worker_index: int = 0,
@@ -356,6 +357,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self.log = logging.getLogger("TaskQueueReader")
 
         self.callback = callback
+        self.parse_task = parse_task
         self.model_spec = model_spec
 
         if queue is None:
@@ -495,10 +497,8 @@ class TaskQueueReader(RobustAMQPConnection):
             )
 
             # Parse and check validity of received message
-            # Not converting to `Task` instance here, because we don't have
-            # any access to `ModelSpec`.
             try:
-                task = Task(model_spec=self.model_spec, **json.loads(body))
+                task = self.parse_task(body)
             except (ValueError, TypeError, KeyError) as e:
                 # Print error, acknowledge reception of the message and drop it
                 self.log.error(

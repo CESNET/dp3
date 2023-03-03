@@ -15,7 +15,7 @@ from dp3.common.attrspec import (
     AttrType,
 )
 from dp3.common.config import ModelSpec
-from dp3.common.task import Task
+from dp3.common.task import Push
 
 
 class SnapshotTimeseriesHookContainer:
@@ -28,7 +28,7 @@ class SnapshotTimeseriesHookContainer:
         self._hooks = defaultdict(list)
 
     def register(
-        self, hook: Callable[[str, str, list[dict]], list[Task]], entity_type: str, attr_type: str
+        self, hook: Callable[[str, str, list[dict]], list[Push]], entity_type: str, attr_type: str
     ):
         """
         Registers passed timeseries hook to be called during snapshot creation.
@@ -51,7 +51,7 @@ class SnapshotTimeseriesHookContainer:
         self._hooks[entity_type, attr_type].append(hook)
         self.log.debug(f"Added hook: '{hook.__qualname__}'")
 
-    def run(self, entity_type: str, attr_type: str, attr_history: list[dict]) -> list[Task]:
+    def run(self, entity_type: str, attr_type: str, attr_history: list[dict]) -> list[Push]:
         """Runs registered hooks."""
         tasks = []
         for hook in self._hooks[entity_type, attr_type]:

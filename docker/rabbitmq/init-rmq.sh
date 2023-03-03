@@ -43,15 +43,19 @@ fi
 
 echo "** Setting up exchanges and queues for $N workers **"
 
-# Declare exchanges (normal and priority)
+# Declare exchanges for datapoint tasks (normal and priority) and for snapshots
 rabbitmqadmin declare exchange "name=${APPNAME}-main-task-exchange" type=direct durable=true
 rabbitmqadmin declare exchange "name=${APPNAME}-priority-task-exchange" type=direct durable=true
+
+rabbitmqadmin declare exchange "name=${APPNAME}-main-snapshot-exchange" type=direct durable=true
 
 # Declare queues for N workers
 for i in $(seq 0 $((N-1)))
 do
   rabbitmqadmin declare queue "name=${APPNAME}-worker-$i" durable=true 'arguments={"x-max-length": 100, "x-overflow": "reject-publish"}'
   rabbitmqadmin declare queue "name=${APPNAME}-worker-$i-pri" durable=true
+
+  rabbitmqadmin declare queue "name=${APPNAME}-worker-$i-snapshots" durable=true
 done
 
 # Bind queues to exchanges
@@ -59,6 +63,8 @@ for i in $(seq 0 $((N-1)))
 do
   rabbitmqadmin declare binding "source=${APPNAME}-main-task-exchange" "destination=${APPNAME}-worker-$i" routing_key=$i
   rabbitmqadmin declare binding "source=${APPNAME}-priority-task-exchange" "destination=${APPNAME}-worker-$i-pri" routing_key=$i
+
+  rabbitmqadmin declare binding "source=${APPNAME}-main-snapshot-exchange" "destination=${APPNAME}-worker-$i-snapshots" routing_key=$i
 done
 
 # bring rabbitmq-server process to foreground

@@ -16,6 +16,7 @@ Module managing creation of snapshots, enabling data correlation and saving snap
     - Callbacks for data correlation and fusion should happen here
     - Save the complete results into database as snapshots
 """
+import json
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -30,13 +31,13 @@ from dp3.common.attrspec import (
 )
 from dp3.common.config import PlatformConfig
 from dp3.common.scheduler import Scheduler
-from dp3.common.task import Task
+from dp3.common.task import Push, Snapshot
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
     SnapshotTimeseriesHookContainer,
 )
-from dp3.task_processing.task_queue import TaskQueueWriter
+from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
 
 class SnapShooterConfig(BaseModel):
@@ -61,11 +62,30 @@ class SnapShooter:
         self.worker_index = platform_config.process_index
         self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
 
+        queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
+        self.snapshot_queue_reader = TaskQueueReader(
+            callback=self.process_snapshot_task,
+            parse_task=lambda body: Snapshot(**json.loads(body)),
+            app_name=platform_config.app_name,
+            model_spec=self.model_spec,
+            worker_index=platform_config.process_index,
+            rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),
+            queue=queue,
+            priority_queue=queue,
+        )
+
         if platform_config.process_index != 0:
             self.log.debug(
-                "Snapshot creation will be disabled in this worker to avoid race conditions."
+                "Snapshot task creation will be disabled in this worker to avoid race conditions."
             )
             return
+
+        self.snapshot_queue_writer = TaskQueueWriter(
+            platform_config.app_name,
+            platform_config.num_processes,
+            platform_config.config.get("processing_core.msg_broker"),
+            f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots",
+        )
 
         # Schedule snapshot period
         snapshot_period = self.config.creation_rate
@@ -74,8 +94,12 @@ class SnapShooter:
         self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec)
         self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec)
 
+        # Snapshot creation control
+        self.running_snapshot_creation = False
+        self.processed_entity_types_ids = {}
+
     def register_timeseries_hook(
-        self, hook: Callable[[str, str, list[dict]], list[Task]], entity_type: str, attr_type: str
+        self, hook: Callable[[str, str, list[dict]], list[Push]], entity_type: str, attr_type: str
     ):
         """
         Registers passed timeseries hook to be called during snapshot creation.
@@ -85,7 +109,7 @@ class SnapShooter:
 
         Args:
             hook: `hook` callable should expect entity_type, attr_type and attribute
-                history as arguments and return a list of `Task` objects.
+                history as arguments and return a list of `Push` objects.
             entity_type: specifies entity type
             attr_type: specifies attribute type
 
@@ -126,10 +150,31 @@ class SnapShooter:
 
     def make_snapshots(self):
         """Create snapshots for all entities currently active in database."""
+        if self.running_snapshot_creation:
+            self.log.warning(
+                "Previous round of snapshot creation is still running, "
+                "skipping to avoid race conditions."
+            )
+            return
+
+        self.running_snapshot_creation = True
         time = datetime.now()
-        for etype in self.model_spec.entities.keys():
-            for master_record in self.db.get_master_records(etype):
-                self.make_snapshot(etype, master_record, time)
+        try:
+            for etype in self.model_spec.entities.keys():
+                for master_record in self.db.get_master_records(etype):
+                    if (etype, master_record["_id"]) not in self.processed_entity_types_ids:
+                        self.make_snapshot(etype, master_record, time)
+        finally:
+            self.running_snapshot_creation = False
+
+    def create_snapshot_task(self, etype, master_record, time):
+        current_values = self.get_values_at_time(etype, master_record, time)
+        linked_entities = self.get_linked_entity_ids(etype, current_values)
+        self.snapshot_queue_writer.put_task(task=Snapshot(entities=linked_entities))
+
+    def process_snapshot_task(self, msg_id, task: Snapshot):
+        """Creates snapshot for specified entities."""
+        self.snapshot_queue_reader.ack(msg_id)
 
     def make_snapshot(self, etype, master_record, time):
         self.run_timeseries_processing(etype, master_record)
@@ -167,7 +212,7 @@ class SnapShooter:
             self.task_queue_writer.put_task(task)
 
     @staticmethod
-    def extend_master_record(etype, master_record, new_tasks: list[Task]):
+    def extend_master_record(etype, master_record, new_tasks: list[Push]):
         """Update existing master record with datapoints from new tasks"""
         for task in new_tasks:
             for datapoint in task.data_points:
@@ -201,6 +246,30 @@ class SnapShooter:
                 current_values[f"{attr}#c"] = conf
         return current_values
 
+    def load_linked_entity_ids(self, entity_type: str, current_values: dict, time: datetime):
+        """
+        Loads the subgraph of entities linked to the current entity,
+        returns a list of their types and ids.
+        """
+        loaded_entity_ids = {(entity_type, current_values["eid"])}
+        linked_entity_ids_to_process = (
+            self.get_linked_entity_ids(entity_type, current_values) - loaded_entity_ids
+        )
+
+        while linked_entity_ids_to_process:
+            entity_identifiers = linked_entity_ids_to_process.pop()
+            linked_etype, linked_eid = entity_identifiers
+            # TODO load only required attributes
+            record = self.db.get_master_record(linked_etype, linked_eid)
+            linked_values = self.get_values_at_time(linked_etype, record, time)
+
+            linked_entity_ids_to_process.update(
+                self.get_linked_entity_ids(entity_type, linked_values) - set(loaded_entity_ids)
+            )
+            loaded_entity_ids.add((linked_etype, linked_eid))
+
+        return loaded_entity_ids
+
     def load_linked_entities(self, entity_type: str, current_values: dict, time: datetime):
         loaded_entities = {(entity_type, current_values["eid"]): current_values}
         linked_entity_ids = self.get_linked_entity_ids(entity_type, current_values)
@@ -222,6 +291,10 @@ class SnapShooter:
         return loaded_entities
 
     def get_linked_entity_ids(self, entity_type: str, current_values: dict) -> set[tuple[str, str]]:
+        """
+        Returns a set of tuples (entity_type, entity_id) identifying entities linked by
+        `current_values`.
+        """
         related_entity_ids = set()
         for attr, val in current_values.items():
             if (entity_type, attr) not in self.model_spec.relations:

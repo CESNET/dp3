@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Optional
 
@@ -8,8 +9,30 @@ from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 
 
-class Task(BaseModel):
-    """Task
+class Task(BaseModel, ABC):
+    """
+    A generic task type class.
+
+    An abstraction for the [task queue][dp3.task_processing.task_queue] classes to depend upon.
+    """
+
+    @abstractmethod
+    def routing_key(self):
+        """
+        Returns:
+            A hashable object to be used as a routing key between workers.
+        """
+
+    @abstractmethod
+    def as_message(self) -> str:
+        """
+        Returns:
+            A string representation of the object.
+        """
+
+
+class Push(Task):
+    """Push
 
     Contains single task to be pushed to TaskQueue and processed.
     Attributes:
@@ -28,6 +51,12 @@ class Task(BaseModel):
     data_points: list[DataPointBase] = []
     tags: list[Any] = []
     ttl_token: Optional[datetime] = None
+
+    def routing_key(self):
+        return f"{self.etype}:{self.ekey}"
+
+    def as_message(self) -> str:
+        return self.json(exclude={"model_spec"})
 
     @validator("etype")
     def validate_etype(cls, v, values):
@@ -76,3 +105,20 @@ class Task(BaseModel):
         # Discard attribute specification.
         del values["model_spec"]
         return values
+
+
+class Snapshot(Task):
+    """Snapshot
+
+    Contains a list of linked entities for which a snapshot should be created.
+    Attributes:
+        entities: List of (entity_type, entity_id)
+    """
+
+    entities: list[tuple[str, str]]
+
+    def routing_key(self):
+        return "-".join(f"{etype}:{ekey}" for etype, ekey in self.entities)
+
+    def as_message(self) -> str:
+        return self.json()

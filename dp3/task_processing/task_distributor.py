@@ -1,3 +1,4 @@
+import json
 import logging
 import queue
 import threading
@@ -5,7 +6,7 @@ import time
 from datetime import datetime
 
 from dp3.common.config import PlatformConfig
-from dp3.common.task import Task
+from dp3.common.task import Push
 from dp3.task_processing.task_executor import TaskExecutor
 
 from ..common.callback_registrar import CallbackRegistrar
@@ -67,11 +68,12 @@ class TaskDistributor:
         # Reader - reads tasks from a pair of queues (one pair per process)
         # and distributes them to worker threads
         self._task_queue_reader = TaskQueueReader(
-            self._distribute_task,
-            platform_config.app_name,
-            self.model_spec,
-            self.process_index,
-            self.rabbit_params,
+            callback=self._distribute_task,
+            parse_task=lambda body: Push(model_spec=self.model_spec, **json.loads(body)),
+            app_name=platform_config.app_name,
+            model_spec=self.model_spec,
+            worker_index=self.process_index,
+            rabbit_config=self.rabbit_params,
         )
         # Writer - allows modules to write new tasks
         self._task_queue_writer = TaskQueueWriter(
@@ -131,7 +133,7 @@ class TaskDistributor:
         # Cleanup
         self._worker_threads = []
 
-    def _distribute_task(self, msg_id, task: Task):
+    def _distribute_task(self, msg_id, task: Push):
         """
         Puts given task into local queue of the corresponding thread.
 

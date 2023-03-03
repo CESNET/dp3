@@ -3,16 +3,20 @@ from time import time
 
 from dp3.common.base_module import BaseModule
 from dp3.common.callback_registrar import CallbackRegistrar
-from dp3.common.task import Task
+from dp3.common.config import PlatformConfig
+from dp3.common.task import Push
 
 
 class TestModule(BaseModule):
-    def __init__(self, registrar: CallbackRegistrar):
+    def __init__(
+        self, platform_config: PlatformConfig, module_config: dict, registrar: CallbackRegistrar
+    ):
         self.log = logging.getLogger("TestModule")
         self.log.setLevel("DEBUG")
+        self.model_spec = platform_config.model_spec
 
         # just for testing purposes - as new value for test_attrib
-        self.counter = 0
+        self.counter = module_config.get("init_value", 0)
 
         registrar.register_entity_hook(
             "on_entity_creation", hook=self.fill_test_attr_string, entity="test_entity_type"
@@ -32,10 +36,10 @@ class TestModule(BaseModule):
             may_change=[["test_attr_int"]],
         )
 
-    def fill_test_attr_string(self, ekey: str, task: Task) -> list[Task]:
+    def fill_test_attr_string(self, ekey: str, task: Push) -> list[Push]:
         """receives ekey and Task, may return new Tasks (including new DataPoints)"""
         return [
-            Task(
+            Push(
                 model_spec=self.model_spec,
                 entity_type="test_entity_type",
                 ekey=ekey,

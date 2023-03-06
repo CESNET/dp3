@@ -37,7 +37,7 @@ class TestHookDependency(unittest.TestCase):
             hook=dummy_hook_abc, entity_type="A", depends_on=[["data1"]], may_change=[["data2"]]
         )
         values = {}
-        self.container.run("A", {("A", "a1"): values})
+        self.container.run({("A", "a1"): values})
         self.assertEqual(values["data2"], "abc")
 
     def test_circular_dependency_error(self):

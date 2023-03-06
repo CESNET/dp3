@@ -113,9 +113,11 @@ class Snapshot(Task):
     Contains a list of linked entities for which a snapshot should be created.
     Attributes:
         entities: List of (entity_type, entity_id)
+        time: timestamp for snapshot creation
     """
 
     entities: list[tuple[str, str]]
+    time: datetime
 
     def routing_key(self):
         return "-".join(f"{etype}:{ekey}" for etype, ekey in self.entities)

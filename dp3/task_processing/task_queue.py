@@ -191,6 +191,7 @@ class TaskQueueWriter(RobustAMQPConnection):
             (default: `"<app-name>-main-task-exchange"`)
         priority_exchange: Name of the exchange to write priority tasks to
             (default: `"<app-name>-priority-task-exchange"`)
+        parent_logger: Logger to inherit prefix from.
     """
 
     def __init__(
@@ -200,6 +201,7 @@ class TaskQueueWriter(RobustAMQPConnection):
         rabbit_config: dict = None,
         exchange: str = None,
         priority_exchange: str = None,
+        parent_logger: logging.Logger = None,
     ) -> None:
         rabbit_config = {} if rabbit_config is None else rabbit_config
         assert isinstance(workers, int) and workers >= 1, "count of workers must be positive number"
@@ -210,7 +212,10 @@ class TaskQueueWriter(RobustAMQPConnection):
 
         super().__init__(rabbit_config)
 
-        self.log = logging.getLogger("TaskQueueWriter")
+        if parent_logger is not None:
+            self.log = parent_logger.getChild("TaskQueueWriter")
+        else:
+            self.log = logging.getLogger("TaskQueueWriter")
 
         if exchange is None:
             exchange = DEFAULT_EXCHANGE.format(app_name)
@@ -329,6 +334,7 @@ class TaskQueueReader(RobustAMQPConnection):
         priority_queue: Name of RabbitMQ queue to read from (priority messages)
             (default: `"<app-name>-worker-<index>-pri"`)
         model_spec: Attribute specification. Used for `Task` validation.
+        parent_logger: Logger to inherit prefix from.
     """
 
     def __init__(
@@ -341,6 +347,7 @@ class TaskQueueReader(RobustAMQPConnection):
         rabbit_config: dict = None,
         queue: str = None,
         priority_queue: str = None,
+        parent_logger: logging.Logger = None,
     ) -> None:
         rabbit_config = {} if rabbit_config is None else rabbit_config
         assert callable(callback), "callback must be callable object"
@@ -354,7 +361,10 @@ class TaskQueueReader(RobustAMQPConnection):
 
         super().__init__(rabbit_config)
 
-        self.log = logging.getLogger("TaskQueueReader")
+        if parent_logger is not None:
+            self.log = parent_logger.getChild("TaskQueueReader")
+        else:
+            self.log = logging.getLogger("TaskQueueReader")
 
         self.callback = callback
         self.parse_task = parse_task

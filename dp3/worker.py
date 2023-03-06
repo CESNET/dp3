@@ -208,6 +208,9 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Run scheduler
     global_scheduler.start()
 
+    # Run SnapShooter
+    snap_shooter.start()
+
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.
     # (try to acquire the lock again,
@@ -228,6 +231,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     signal.signal(signal.SIGABRT, signal.SIG_DFL)
 
     log.info("Stopping running components ...")
+    snap_shooter.stop()
     global_scheduler.stop()
     task_distributor.stop()
     for module in module_list:

@@ -62,6 +62,9 @@ class SnapShooter:
         self.worker_index = platform_config.process_index
         self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
 
+        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec)
+        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec)
+
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
         self.snapshot_queue_reader = TaskQueueReader(
             callback=self.process_snapshot_task,
@@ -72,31 +75,50 @@ class SnapShooter:
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),
             queue=queue,
             priority_queue=queue,
+            parent_logger=self.log,
         )
 
         if platform_config.process_index != 0:
             self.log.debug(
                 "Snapshot task creation will be disabled in this worker to avoid race conditions."
             )
+            self.snapshot_queue_writer = None
             return
 
         self.snapshot_queue_writer = TaskQueueWriter(
             platform_config.app_name,
             platform_config.num_processes,
             platform_config.config.get("processing_core.msg_broker"),
-            f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots",
+            f"{platform_config.app_name}-main-snapshot-exchange",
+            parent_logger=self.log,
         )
 
         # Schedule snapshot period
         snapshot_period = self.config.creation_rate
         scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
 
-        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec)
-        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec)
-
         # Snapshot creation control
         self.running_snapshot_creation = False
-        self.processed_entity_types_ids = {}
+        self.processed_entity_types_ids = set()
+
+    def start(self):
+        """Connect to RabbitMQ and start consuming from TaskQueue."""
+        self.log.info("Connecting to RabbitMQ")
+        self.snapshot_queue_reader.connect()
+        self.snapshot_queue_reader.check()  # check presence of needed queues
+        if self.snapshot_queue_writer is not None:
+            self.snapshot_queue_writer.connect()
+            self.snapshot_queue_writer.check()  # check presence of needed exchanges
+
+        self.snapshot_queue_reader.start()
+
+    def stop(self):
+        """Stop consuming from TaskQueue, disconnect from RabbitMQ."""
+        self.snapshot_queue_reader.stop()
+
+        if self.snapshot_queue_writer is not None:
+            self.snapshot_queue_writer.disconnect()
+        self.snapshot_queue_reader.disconnect()
 
     def register_timeseries_hook(
         self, hook: Callable[[str, str, list[dict]], list[Push]], entity_type: str, attr_type: str
@@ -149,7 +171,7 @@ class SnapShooter:
         self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
 
     def make_snapshots(self):
-        """Create snapshots for all entities currently active in database."""
+        """Creates snapshots for all entities currently active in database."""
         if self.running_snapshot_creation:
             self.log.warning(
                 "Previous round of snapshot creation is still running, "
@@ -158,32 +180,57 @@ class SnapShooter:
             return
 
         self.running_snapshot_creation = True
+        self.processed_entity_types_ids = set()
         time = datetime.now()
         try:
             for etype in self.model_spec.entities.keys():
                 for master_record in self.db.get_master_records(etype):
                     if (etype, master_record["_id"]) not in self.processed_entity_types_ids:
-                        self.make_snapshot(etype, master_record, time)
+                        self.create_snapshot_task(etype, master_record, time)
         finally:
             self.running_snapshot_creation = False
 
     def create_snapshot_task(self, etype, master_record, time):
+        """
+        Loads all entities linked by `master_record` and sends corresponding Snapshot task to queue.
+
+        Fixme:
+            What if the master record doesn't link an entity,
+            but the entity links the master record?
+        """
         current_values = self.get_values_at_time(etype, master_record, time)
-        linked_entities = self.get_linked_entity_ids(etype, current_values)
-        self.snapshot_queue_writer.put_task(task=Snapshot(entities=linked_entities))
+        linked_entities = self.load_linked_entity_ids(etype, current_values, time)
+        self.snapshot_queue_writer.put_task(task=Snapshot(entities=linked_entities, time=time))
+        self.processed_entity_types_ids.update(linked_entities)
 
     def process_snapshot_task(self, msg_id, task: Snapshot):
-        """Creates snapshot for specified entities."""
-        self.snapshot_queue_reader.ack(msg_id)
+        """
+        Acknowledges the received message and makes a snapshot according to the `task`.
 
-    def make_snapshot(self, etype, master_record, time):
-        self.run_timeseries_processing(etype, master_record)
-        current_values = self.get_values_at_time(etype, master_record, time)
-        linked_entities = self.load_linked_entities(etype, current_values, time)
-        self._correlation_hooks.run(etype, linked_entities)
+        This function should not be called directly, but set as callback for TaskQueueReader.
+        """
+        self.snapshot_queue_reader.ack(msg_id)
+        self.make_snapshot(task)
+
+    def make_snapshot(self, task: Snapshot):
+        """
+        Make a snapshot for entities and time specified by `task`.
+
+        Runs timeseries and correlation hooks.
+        The resulting snapshots are saved into DB.
+        """
+        entity_values = {}
+        for entity_type, entity_id in task.entities:
+            record = self.db.get_master_record(entity_type, entity_id)
+            self.run_timeseries_processing(entity_type, record)
+            values = self.get_values_at_time(entity_type, record, task.time)
+            entity_values[entity_type, entity_id] = values
+
+        self.link_loaded_entities(entity_values)
+        self._correlation_hooks.run(entity_values)
 
         # unlink entities again
-        for rtype_rid, record in linked_entities.items():
+        for rtype_rid, record in entity_values.items():
             rtype, rid = rtype_rid
             for attr, value in record.items():
                 if (rtype, attr) not in self.model_spec.relations:
@@ -193,7 +240,8 @@ class SnapShooter:
                 else:
                     record[attr] = value["eid"]
 
-        self.db.save_snapshot(etype, current_values)
+        for rtype_rid, record in entity_values.items():
+            self.db.save_snapshot(rtype_rid[0], record)
 
     def run_timeseries_processing(self, entity_type, master_record):
         """
@@ -269,26 +317,6 @@ class SnapShooter:
             loaded_entity_ids.add((linked_etype, linked_eid))
 
         return loaded_entity_ids
-
-    def load_linked_entities(self, entity_type: str, current_values: dict, time: datetime):
-        loaded_entities = {(entity_type, current_values["eid"]): current_values}
-        linked_entity_ids = self.get_linked_entity_ids(entity_type, current_values)
-
-        while linked_entity_ids:
-            entity_identifiers = linked_entity_ids.pop()
-            if entity_identifiers in loaded_entities:
-                continue
-            linked_etype, linked_eid = entity_identifiers
-            record = self.db.get_master_record(linked_etype, linked_eid)
-            self.run_timeseries_processing(linked_etype, record)
-            linked_values = self.get_values_at_time(linked_etype, record, time)
-
-            linked_entity_ids.update(self.get_linked_entity_ids(entity_type, linked_values))
-            linked_entity_ids -= set(loaded_entities.keys())
-            loaded_entities[linked_etype, linked_eid] = linked_values
-
-        self.link_loaded_entities(loaded_entities)
-        return loaded_entities
 
     def get_linked_entity_ids(self, entity_type: str, current_values: dict) -> set[tuple[str, str]]:
         """

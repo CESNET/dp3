@@ -212,7 +212,7 @@ class SnapshotCorrelationHookContainer:
     def _embed_base_entity(base_entity: str, paths: list[list[str]]):
         return ["->".join([base_entity] + path) for path in paths]
 
-    def run(self, entity_type: str, entities: dict):
+    def run(self, entities: dict):
         """Runs registered hooks."""
         entity_types = {etype for etype, _ in entities.keys()}
         hook_subset = [
@@ -227,7 +227,7 @@ class SnapshotCorrelationHookContainer:
         for hook_id, hook, etype in hook_subset:
             for eid, entity_values in entities_by_etype[etype].items():
                 self.log.debug("Running hook %s on entity %s", hook_id, eid)
-                hook(entity_type, entity_values)
+                hook(etype, entity_values)
 
     def _restore_hook_order(self, hooks: list[tuple[str, Callable]]):
         topological_order = self._dependency_graph.topological_sort()

@@ -6,6 +6,7 @@ import unittest
 from functools import partial, update_wrapper
 
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
+from dp3.common.task import Task
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.snapshots.snapshot_hooks import SnapshotCorrelationHookContainer
 
@@ -107,6 +108,19 @@ class MockDB:
         self.saved_snapshots.append(snapshot)
 
 
+class MockTaskQueueWriter:
+    def __init__(self):
+        self.tasks = []
+
+    def put_task(self, task: Task, priority: bool = False):
+        self.tasks.append(task)
+
+
+class MockTaskQueueReader:
+    def ack(self, msg_tag):
+        ...
+
+
 class TestSnapshotOperation(unittest.TestCase):
     def setUp(self) -> None:
         config_base_path = os.path.join(os.path.dirname(__file__), "..", "test_config")
@@ -150,11 +164,16 @@ class TestSnapshotOperation(unittest.TestCase):
             ),
             scheduler=MockScheduler(),
         )
+        self.task_queue_writer = MockTaskQueueWriter()
+        self.snapshooter.snapshot_queue_writer = self.task_queue_writer
+
+        self.task_queue_reader = MockTaskQueueReader()
+        self.snapshooter.snapshot_queue_reader = self.task_queue_reader
         root = logging.getLogger()
         root.setLevel("DEBUG")
 
     def test_reference_cycle(self):
-        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"], self.now)
+        self.snapshooter.create_snapshot_task("A", self.entities["A"]["a1"], self.now)
 
     def test_linked_entities_loaded(self):
         self.snapshooter.register_correlation_hook(
@@ -170,10 +189,13 @@ class TestSnapshotOperation(unittest.TestCase):
             may_change=[["data2"]],
         )
 
-        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"], self.now)
+        self.snapshooter.create_snapshot_task("A", self.entities["A"]["a1"], self.now)
+        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
-        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"], self.now)
+
+        self.snapshooter.create_snapshot_task("B", self.entities["B"]["b1"], self.now)
+        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
 
@@ -203,10 +225,13 @@ class TestSnapshotOperation(unittest.TestCase):
             may_change=[["data2"]],
         )
 
-        self.snapshooter.make_snapshot("A", self.entities["A"]["a1"], self.now)
+        self.snapshooter.create_snapshot_task("A", self.entities["A"]["a1"], self.now)
+        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
-        self.snapshooter.make_snapshot("B", self.entities["B"]["b1"], self.now)
+
+        self.snapshooter.create_snapshot_task("B", self.entities["B"]["b1"], self.now)
+        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
 
@@ -220,10 +245,10 @@ class TestSnapshotOperation(unittest.TestCase):
                 {"v": "d", "t1": self.t1, "t2": self.t2, "c": 0.0},
             ],
         }
-        self.snapshooter.make_snapshot("test_entity_type", test_entity, self.now)
-        snapshot_result = self.db.saved_snapshots[-1]
-        self.assertEqual(len(snapshot_result["test_attr_multi_value"]), 3)
-        self.assertEqual(set(snapshot_result["test_attr_multi_value"]), {"a", "b", "c"})
+
+        values = self.snapshooter.get_values_at_time("test_entity_type", test_entity, self.now)
+        self.assertEqual(len(values["test_attr_multi_value"]), 3)
+        self.assertEqual(set(values["test_attr_multi_value"]), {"a", "b", "c"})
 
 
 if __name__ == "__main__":

@@ -41,9 +41,9 @@ class TaskEntityHooksContainer:
 
     Possible hooks:
 
-    - `allow_entity_creation`: receives ekey and Task, may prevent entity record creation (by
+    - `allow_entity_creation`: receives eid and Task, may prevent entity record creation (by
           returning False)
-    - `on_entity_creation`: receives ekey and Task, may return new Tasks (including new
+    - `on_entity_creation`: receives eid and Task, may return new Tasks (including new
           DataPoints)
     """
 
@@ -64,12 +64,12 @@ class TaskEntityHooksContainer:
 
         self.log.debug(f"Added '{hook_type}' hook")
 
-    def run_allow_creation(self, ekey: str, task: DataPointTask):
+    def run_allow_creation(self, eid: str, task: DataPointTask):
         for hook in self._allow_creation:
             try:
-                if not hook(ekey, task):
+                if not hook(eid, task):
                     self.log.debug(
-                        f"Creation of ekey '{ekey}' prevented because hook '{hook}' returned False."
+                        f"Creation of eid '{eid}' prevented because hook '{hook}' returned False."
                     )
                     return False
             except Exception as e:
@@ -77,13 +77,13 @@ class TaskEntityHooksContainer:
 
         return True
 
-    def run_on_creation(self, ekey: str, task: DataPointTask):
+    def run_on_creation(self, eid: str, task: DataPointTask):
         new_tasks = []
 
         for hook in self._on_creation:
             try:
                 # Run hook
-                hook_new_tasks = hook(ekey, task)
+                hook_new_tasks = hook(eid, task)
 
                 # Append new tasks to process
                 if type(hook_new_tasks) is list:
@@ -100,7 +100,7 @@ class TaskAttrHooksContainer:
     Possible hooks:
 
     - `on_new_plain`, `on_new_observation`, `on_new_ts_chunk`:
-        receives ekey and Task, may return new Tasks (including new DataPoints)
+        receives eid and Task, may return new Tasks (including new DataPoints)
     """
 
     def __init__(self, entity: str, attr: str, attr_type: AttrType, log: logging.Logger):
@@ -129,13 +129,13 @@ class TaskAttrHooksContainer:
 
         self.log.debug(f"Added '{hook_type}' hook")
 
-    def run_on_new(self, ekey: str, dp: DataPointBase):
+    def run_on_new(self, eid: str, dp: DataPointBase):
         new_tasks = []
 
         for hook in self._on_new:
             try:
                 # Run hook
-                hook_new_tasks = hook(ekey, dp)
+                hook_new_tasks = hook(eid, dp)
 
                 # Append new tasks to process
                 if type(hook_new_tasks) is list:

@@ -139,8 +139,8 @@ class TaskDistributor:
 
         Called by TaskQueueReader when a new task is received from the global queue.
         """
-        # Distribute tasks to worker threads by hash of (etype,ekey)
-        index = hash((task.etype, task.ekey)) % self.num_threads
+        # Distribute tasks to worker threads by hash of (etype,eid)
+        index = hash((task.etype, task.eid)) % self.num_threads
         self._queues[index].put((msg_id, task))
 
     def _worker_func(self, thread_index):
@@ -192,7 +192,7 @@ class TaskDistributor:
                         msg_id,
                         duration,
                         task.etype,
-                        task.ekey,
+                        task.eid,
                         " (new record created)" if created else "",
                     )
                 )

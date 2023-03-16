@@ -37,7 +37,7 @@ class DataPointTask(Task):
     Contains single task to be pushed to TaskQueue and processed.
     Attributes:
         etype: Entity type
-        ekey: Entity id / key
+        eid: Entity id / key
         data_points: List of DataPoints to process
         tags: List of tags
         ttl_token: ...
@@ -47,13 +47,13 @@ class DataPointTask(Task):
     model_spec: ModelSpec
 
     etype: str
-    ekey: str
+    eid: str
     data_points: list[DataPointBase] = []
     tags: list[Any] = []
     ttl_token: Optional[datetime] = None
 
     def routing_key(self):
-        return f"{self.etype}:{self.ekey}"
+        return f"{self.etype}:{self.eid}"
 
     def as_message(self) -> str:
         return self.json(exclude={"model_spec"})
@@ -90,13 +90,13 @@ class DataPointTask(Task):
 
     @validator("data_points", each_item=True)
     def validate_data_points(cls, v, values):
-        if "etype" in values and "ekey" in values:
+        if "etype" in values and "eid" in values:
             assert (
                 v.etype == values["etype"]
             ), f"Task's etype '{values['etype']}' doesn't match datapoint's etype '{v.etype}'"
             assert (
-                v.eid == values["ekey"]
-            ), f"Task's ekey '{values['ekey']}' doesn't match datapoint's eid '{v.eid}'"
+                v.eid == values["eid"]
+            ), f"Task's eid '{values['eid']}' doesn't match datapoint's eid '{v.eid}'"
         return v
 
     @root_validator
@@ -120,7 +120,7 @@ class Snapshot(Task):
     time: datetime
 
     def routing_key(self):
-        return "-".join(f"{etype}:{ekey}" for etype, ekey in self.entities)
+        return "-".join(f"{etype}:{eid}" for etype, eid in self.entities)
 
     def as_message(self) -> str:
         return self.json()

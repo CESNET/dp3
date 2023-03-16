@@ -191,12 +191,10 @@ def push_multiple_datapoints():
 
     # Create Task instances
     for k in tasks_dps:
-        etype, ekey = k
+        etype, eid = k
         try:
             task_list.append(
-                DataPointTask(
-                    model_spec=model_spec, etype=etype, ekey=ekey, data_points=tasks_dps[k]
-                )
+                DataPointTask(model_spec=model_spec, etype=etype, eid=eid, data_points=tasks_dps[k])
             )
         except Exception as e:
             return error_response(f"Failed to create a task: {type(e)}: {str(e)}")

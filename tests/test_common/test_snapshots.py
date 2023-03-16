@@ -100,8 +100,8 @@ class MockDB:
         self.db_content = content
         self.saved_snapshots = []
 
-    def get_master_record(self, etype: str, ekey: str) -> dict:
-        return self.db_content[etype][ekey] or {}
+    def get_master_record(self, etype: str, eid: str) -> dict:
+        return self.db_content[etype][eid] or {}
 
     def save_snapshot(self, etype: str, snapshot: dict):
         json.dumps(snapshot)

@@ -36,30 +36,30 @@ class TestModule(BaseModule):
             may_change=[["test_attr_int"]],
         )
 
-    def fill_test_attr_string(self, ekey: str, task: DataPointTask) -> list[DataPointTask]:
-        """receives ekey and Task, may return new Tasks (including new DataPoints)"""
+    def fill_test_attr_string(self, eid: str, task: DataPointTask) -> list[DataPointTask]:
+        """receives eid and Task, may return new Tasks (including new DataPoints)"""
         return [
             DataPointTask(
                 model_spec=self.model_spec,
                 entity_type="test_entity_type",
-                ekey=ekey,
+                eid=eid,
                 data_points=[
                     {
                         "etype": "test_entity_type",
-                        "eid": ekey,
+                        "eid": eid,
                         "attr": "test_attr_string",
                         "src": "secondary/test_module",
-                        "v": f"entity key {ekey}",
+                        "v": f"entity key {eid}",
                     }
                 ],
             )
         ]
 
-    def processing_func_timestamp(self, ekey: str, record: dict):
+    def processing_func_timestamp(self, eid: str, record: dict):
         """
         Set current time to 'test_timestamp'
         Args:
-            ekey: entity identifier
+            eid: entity identifier
             record: record with current values
         Returns:
             new update as Task.
@@ -69,11 +69,11 @@ class TestModule(BaseModule):
 
         record["test_attr_time"] = current_time
 
-    def processing_func_test_attrib(self, ekey: str, record: dict):
+    def processing_func_test_attrib(self, eid: str, record: dict):
         """
         Increase test_attrib's value by one.
         Args:
-            ekey: entity identificator
+            eid: entity identificator
             record: record with current values
         Returns:
             new update as Task.

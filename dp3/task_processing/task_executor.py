@@ -107,7 +107,7 @@ class TaskExecutor:
             True if a new record was created, False otherwise,
             and a list of new tasks created by hooks
         """
-        self.log.debug(f"Received new task {task.etype}/{task.ekey}, starting processing!")
+        self.log.debug(f"Received new task {task.etype}/{task.eid}, starting processing!")
 
         new_tasks = []
 
@@ -116,34 +116,34 @@ class TaskExecutor:
 
         # Check existence of etype
         if task.etype not in self.entity_types:
-            self.log.error(f"Task {task.etype}/{task.ekey}: Unknown entity type!")
+            self.log.error(f"Task {task.etype}/{task.eid}: Unknown entity type!")
             self.elog.log("task_processing_error")
             return False, new_tasks
 
-        # Check existence of ekey
+        # Check existence of eid
         try:
-            ekey_exists = self.db.ekey_exists(task.etype, task.ekey)
+            ekey_exists = self.db.ekey_exists(task.etype, task.eid)
         except DatabaseError as e:
-            self.log.error(f"Task {task.etype}/{task.ekey}: DB error: {e}")
+            self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")
             return False, new_tasks
 
         if not ekey_exists:
             # Run allow_entity_creation hook
-            if not self._task_entity_hooks[task.etype].run_allow_creation(task.ekey, task):
+            if not self._task_entity_hooks[task.etype].run_allow_creation(task.eid, task):
                 self.log.debug(
-                    f"Task {task.etype}/{task.ekey}: hooks decided not to create new ekey record"
+                    f"Task {task.etype}/{task.eid}: hooks decided not to create new eid record"
                 )
                 return False, new_tasks
 
             # Run on_entity_creation hook
-            new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.ekey, task)
+            new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.eid, task)
 
         # Insert into database
         try:
-            self.db.insert_datapoints(task.etype, task.ekey, task.data_points)
-            self.log.debug(f"Task {task.etype}/{task.ekey}: All changes written to DB")
+            self.db.insert_datapoints(task.etype, task.eid, task.data_points)
+            self.log.debug(f"Task {task.etype}/{task.eid}: All changes written to DB")
         except DatabaseError as e:
-            self.log.error(f"Task {task.etype}/{task.ekey}: DB error: {e}")
+            self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")
             return False, new_tasks
 
         # Run attribute hooks

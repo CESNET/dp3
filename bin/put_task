@@ -69,7 +69,7 @@ except Exception as e:
 
 # Put task
 logger.debug(
-    f"Sending task for {task_body['etype']}/{task_body['ekey']}: \n"
+    f"Sending task for {task_body['etype']}/{task_body['eid']}: \n"
     f"attr_updates: {task_body['attr_updates']}\n"
     f"data_points: {task_body['data_points']}"
 )

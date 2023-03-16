@@ -7,11 +7,11 @@ import common
 class PushTask(common.APITest):
     base_task = {
         "etype": "test_entity_type",
-        "ekey": "test_entity_id",
+        "eid": "test_entity_id",
     }
 
     def test_unknown_entity_type(self):
-        response = self.push_task({"etype": "xyz", "ekey": "test_entity_id"})
+        response = self.push_task({"etype": "xyz", "eid": "test_entity_id"})
         self.assertEqual(400, response.status_code)
 
     def test_invalid_attr_updates(self):

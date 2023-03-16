@@ -89,7 +89,7 @@ class EntityDatabase:
         """Returns name of raw data collection for `entity`."""
         return f"{entity}#raw"
 
-    def insert_datapoints(self, etype: str, ekey: str, dps: list[DataPointBase]) -> None:
+    def insert_datapoints(self, etype: str, eid: str, dps: list[DataPointBase]) -> None:
         """Inserts datapoint to raw data collection and updates master record.
 
         Raises DatabaseError when insert or update fails.
@@ -132,8 +132,8 @@ class EntityDatabase:
 
         master_col = self._master_col_name(etype)
         try:
-            self._db[master_col].update_one({"_id": ekey}, master_changes, upsert=True)
-            self.log.debug(f"Updated master record of {etype} {ekey}: {master_changes}")
+            self._db[master_col].update_one({"_id": eid}, master_changes, upsert=True)
+            self.log.debug(f"Updated master record of {etype} {eid}: {master_changes}")
         except Exception as e:
             raise DatabaseError(f"Update of master record failed: {e}\n{dps}") from e
 
@@ -148,8 +148,8 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 
-    def get_master_record(self, etype: str, ekey: str) -> dict:
-        """Get current master record for etype/ekey.
+    def get_master_record(self, etype: str, eid: str) -> dict:
+        """Get current master record for etype/eid.
 
         If doesn't exist, returns {}.
         """
@@ -157,11 +157,11 @@ class EntityDatabase:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
         master_col = self._master_col_name(etype)
-        return self._db[master_col].find_one({"_id": ekey}) or {}
+        return self._db[master_col].find_one({"_id": eid}) or {}
 
-    def ekey_exists(self, etype: str, ekey: str) -> bool:
-        """Checks whether master record for etype/ekey exists"""
-        return bool(self.get_master_record(etype, ekey))
+    def ekey_exists(self, etype: str, eid: str) -> bool:
+        """Checks whether master record for etype/eid exists"""
+        return bool(self.get_master_record(etype, eid))
 
     def get_master_records(self, etype: str) -> pymongo.cursor.Cursor:
         """Get cursor to current master records of etype."""
@@ -186,35 +186,35 @@ class EntityDatabase:
             raise DatabaseError(f"Insert of snaphsot failed: {e}\n{snapshot}") from e
 
     def get_latest_snapshot(self):
-        """Get latest snapshot of given `ekey`.
+        """Get latest snapshot of given `eid`.
 
         This method is useful for displaying data on web.
         """
 
     def get_snapshots(self):
-        """Get all (or filtered) snapshots of given `ekey`.
+        """Get all (or filtered) snapshots of given `eid`.
 
-        This method is useful for displaying `ekey`'s history on web.
+        This method is useful for displaying `eid`'s history on web.
         """
 
     def get_observation_history(
         self,
         etype: str,
         attr_name: str,
-        ekey: str,
+        eid: str,
         t1: datetime = None,
         t2: datetime = None,
         sort: int = None,
     ) -> list[dict]:
         """Get full (or filtered) history of observation attribute.
 
-        This method is useful for displaying `ekey`'s history on web.
+        This method is useful for displaying `eid`'s history on web.
         Also used to feed data into `get_timeseries_history()`.
 
         Args:
             etype: entity type
             attr_name: name of attribute
-            ekey: id of entity, to which data-points correspond
+            eid: id of entity, to which data-points correspond
             t1: left value of time interval (inclusive)
             t2: right value of time interval (inclusive)
             sort: sort by timestamps - 0: ascending order by t1, 1: descending order by t2,
@@ -226,7 +226,7 @@ class EntityDatabase:
         t2 = datetime.now() if t2 is None else t2
 
         # Get attribute history
-        mr = self.get_master_record(etype, ekey)
+        mr = self.get_master_record(etype, eid)
         attr_history = mr.get(attr_name, [])
 
         # Filter
@@ -244,7 +244,7 @@ class EntityDatabase:
         self,
         etype: str,
         attr_name: str,
-        ekey: str,
+        eid: str,
         t1: datetime = None,
         t2: datetime = None,
         sort: int = None,
@@ -264,12 +264,12 @@ class EntityDatabase:
                 ...
             ]
         ```
-        This method is useful for displaying `ekey`'s history on web.
+        This method is useful for displaying `eid`'s history on web.
 
         Args:
             etype: entity type
             attr_name: name of attribute
-            ekey: id of entity, to which data-points correspond
+            eid: id of entity, to which data-points correspond
             t1: left value of time interval (inclusive)
             t2: right value of time interval (inclusive)
             sort: sort by timestamps - `0`: ascending order by `t1`, `1`: descending order by `t2`,
@@ -280,7 +280,7 @@ class EntityDatabase:
         t1 = datetime.fromtimestamp(0) if t1 is None else t1
         t2 = datetime.now() if t2 is None else t2
 
-        attr_history = self.get_observation_history(etype, attr_name, ekey, t1, t2, sort)
+        attr_history = self.get_observation_history(etype, attr_name, eid, t1, t2, sort)
         if not attr_history:
             return []
 

@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 
 from dp3.common.config import PlatformConfig
-from dp3.common.task import Push
+from dp3.common.task import DataPointTask
 from dp3.task_processing.task_executor import TaskExecutor
 
 from ..common.callback_registrar import CallbackRegistrar
@@ -69,7 +69,7 @@ class TaskDistributor:
         # and distributes them to worker threads
         self._task_queue_reader = TaskQueueReader(
             callback=self._distribute_task,
-            parse_task=lambda body: Push(model_spec=self.model_spec, **json.loads(body)),
+            parse_task=lambda body: DataPointTask(model_spec=self.model_spec, **json.loads(body)),
             app_name=platform_config.app_name,
             model_spec=self.model_spec,
             worker_index=self.process_index,
@@ -133,7 +133,7 @@ class TaskDistributor:
         # Cleanup
         self._worker_threads = []
 
-    def _distribute_task(self, msg_id, task: Push):
+    def _distribute_task(self, msg_id, task: DataPointTask):
         """
         Puts given task into local queue of the corresponding thread.
 

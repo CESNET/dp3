@@ -12,7 +12,7 @@ from flask import Flask, jsonify, request
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec, read_config_dir
-from dp3.common.task import Push
+from dp3.common.task import DataPointTask
 from dp3.common.utils import parse_rfc_time
 from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
@@ -123,7 +123,7 @@ def error_response(msg, msg_log_suffix=""):
 
 
 def push_task(task):
-    """Push given task (instance of task.Task) to platform's task queue (RabbitMQ)"""
+    """Push given task (instance of task.DataPointTask) to platform's task queue (RabbitMQ)"""
     task_writer.put_task(task, False)
 
 
@@ -194,7 +194,9 @@ def push_multiple_datapoints():
         etype, ekey = k
         try:
             task_list.append(
-                Push(model_spec=model_spec, etype=etype, ekey=ekey, data_points=tasks_dps[k])
+                DataPointTask(
+                    model_spec=model_spec, etype=etype, ekey=ekey, data_points=tasks_dps[k]
+                )
             )
         except Exception as e:
             return error_response(f"Failed to create a task: {type(e)}: {str(e)}")

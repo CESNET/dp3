@@ -31,7 +31,7 @@ from dp3.common.attrspec import (
 )
 from dp3.common.config import PlatformConfig
 from dp3.common.scheduler import Scheduler
-from dp3.common.task import Push, Snapshot
+from dp3.common.task import DataPointTask, Snapshot
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
@@ -121,7 +121,10 @@ class SnapShooter:
         self.snapshot_queue_reader.disconnect()
 
     def register_timeseries_hook(
-        self, hook: Callable[[str, str, list[dict]], list[Push]], entity_type: str, attr_type: str
+        self,
+        hook: Callable[[str, str, list[dict]], list[DataPointTask]],
+        entity_type: str,
+        attr_type: str,
     ):
         """
         Registers passed timeseries hook to be called during snapshot creation.
@@ -131,7 +134,7 @@ class SnapShooter:
 
         Args:
             hook: `hook` callable should expect entity_type, attr_type and attribute
-                history as arguments and return a list of `Push` objects.
+                history as arguments and return a list of `DataPointTask` objects.
             entity_type: specifies entity type
             attr_type: specifies attribute type
 
@@ -260,7 +263,7 @@ class SnapShooter:
             self.task_queue_writer.put_task(task)
 
     @staticmethod
-    def extend_master_record(etype, master_record, new_tasks: list[Push]):
+    def extend_master_record(etype, master_record, new_tasks: list[DataPointTask]):
         """Update existing master record with datapoints from new tasks"""
         for task in new_tasks:
             for datapoint in task.data_points:

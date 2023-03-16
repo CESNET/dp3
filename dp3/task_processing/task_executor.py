@@ -3,7 +3,7 @@ from typing import Callable
 
 from event_count_logger import DummyEventGroup, EventCountLogger
 
-from dp3.common.task import Push
+from dp3.common.task import DataPointTask
 from dp3.database.database import DatabaseError, EntityDatabase
 from dp3.task_processing.task_hooks import (
     TaskAttrHooksContainer,
@@ -97,7 +97,7 @@ class TaskExecutor:
         """
         self._task_attr_hooks[entity, attr].register(hook_type, hook)
 
-    def process_task(self, task: Push) -> tuple[bool, list[Push]]:
+    def process_task(self, task: DataPointTask) -> tuple[bool, list[DataPointTask]]:
         """
         Main processing function - push datapoint values, running all registered hooks.
 

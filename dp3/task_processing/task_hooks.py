@@ -3,7 +3,7 @@ from typing import Callable
 
 from dp3.common.attrspec import AttrType
 from dp3.common.datapoint import DataPointBase
-from dp3.common.task import Push
+from dp3.common.task import DataPointTask
 
 
 class TaskGenericHooksContainer:
@@ -27,7 +27,7 @@ class TaskGenericHooksContainer:
 
         self.log.debug(f"Added '{hook_type}' hook")
 
-    def run_on_start(self, task: Push):
+    def run_on_start(self, task: DataPointTask):
         for hook in self._on_start:
             # Run hook
             try:
@@ -64,7 +64,7 @@ class TaskEntityHooksContainer:
 
         self.log.debug(f"Added '{hook_type}' hook")
 
-    def run_allow_creation(self, ekey: str, task: Push):
+    def run_allow_creation(self, ekey: str, task: DataPointTask):
         for hook in self._allow_creation:
             try:
                 if not hook(ekey, task):
@@ -77,7 +77,7 @@ class TaskEntityHooksContainer:
 
         return True
 
-    def run_on_creation(self, ekey: str, task: Push):
+    def run_on_creation(self, ekey: str, task: DataPointTask):
         new_tasks = []
 
         for hook in self._on_creation:

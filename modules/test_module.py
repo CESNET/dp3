@@ -4,7 +4,7 @@ from time import time
 from dp3.common.base_module import BaseModule
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
-from dp3.common.task import Push
+from dp3.common.task import DataPointTask
 
 
 class TestModule(BaseModule):
@@ -36,10 +36,10 @@ class TestModule(BaseModule):
             may_change=[["test_attr_int"]],
         )
 
-    def fill_test_attr_string(self, ekey: str, task: Push) -> list[Push]:
+    def fill_test_attr_string(self, ekey: str, task: DataPointTask) -> list[DataPointTask]:
         """receives ekey and Task, may return new Tasks (including new DataPoints)"""
         return [
-            Push(
+            DataPointTask(
                 model_spec=self.model_spec,
                 entity_type="test_entity_type",
                 ekey=ekey,

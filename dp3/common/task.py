@@ -31,8 +31,8 @@ class Task(BaseModel, ABC):
         """
 
 
-class Push(Task):
-    """Push
+class DataPointTask(Task):
+    """DataPointTask
 
     Contains single task to be pushed to TaskQueue and processed.
     Attributes:

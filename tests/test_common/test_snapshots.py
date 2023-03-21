@@ -12,7 +12,7 @@ from dp3.snapshots.snapshot_hooks import SnapshotCorrelationHookContainer
 
 
 def copy_linked(_: str, record: dict, link: str, attr: str):
-    record[attr] = record[link][attr]
+    record[attr] = record.get(link, {}).get(attr, None)
 
 
 def modify_value(_: str, record: dict, attr: str, value):
@@ -99,6 +99,11 @@ class MockDB:
     def __init__(self, content: dict):
         self.db_content = content
         self.saved_snapshots = []
+
+    def get_master_records(self, etype: str):
+        if etype not in self.db_content:
+            return []
+        return self.db_content[etype].values()
 
     def get_master_record(self, etype: str, eid: str) -> dict:
         return self.db_content[etype][eid] or {}
@@ -198,6 +203,31 @@ class TestSnapshotOperation(unittest.TestCase):
         self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
         self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
         self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
+
+    def test_linked_entities_single_link(self):
+        self.db.db_content["A"]["a1"]["bs"] = []
+
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
+            "A",
+            depends_on=[["bs", "data1"]],
+            may_change=[["data1"]],
+        )
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(copy_linked, link="as", attr="data2"), copy_linked),
+            "B",
+            depends_on=[["as", "data2"]],
+            may_change=[["data2"]],
+        )
+
+        self.snapshooter.make_snapshots()
+
+        self.assertEqual(len(self.task_queue_writer.tasks), 1)
+        self.assertEqual(len(self.task_queue_writer.tasks[0].entities), 2)
+        for task in self.task_queue_writer.tasks:
+            self.snapshooter.process_snapshot_task(0, task)
+
+        self.db.db_content["A"]["a1"]["bs"] = [{"v": "b1", "t1": self.t1, "t2": self.t2, "c": 1.0}]
 
     def test_loaded_entities_hooks_run(self):
         self.snapshooter.register_correlation_hook(

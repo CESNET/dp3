@@ -99,7 +99,6 @@ class SnapShooter:
 
         # Snapshot creation control
         self.running_snapshot_creation = False
-        self.processed_entity_types_ids = set()
 
     def start(self):
         """Connect to RabbitMQ and start consuming from TaskQueue."""
@@ -183,15 +182,46 @@ class SnapShooter:
             return
 
         self.running_snapshot_creation = True
-        self.processed_entity_types_ids = set()
         time = datetime.now()
         try:
-            for etype in self.model_spec.entities.keys():
-                for master_record in self.db.get_master_records(etype):
-                    if (etype, master_record["_id"]) not in self.processed_entity_types_ids:
-                        self.create_snapshot_task(etype, master_record, time)
+            for linked_entities_component in self.get_linked_entities(time):
+                self.snapshot_queue_writer.put_task(
+                    task=Snapshot(entities=linked_entities_component, time=time)
+                )
         finally:
             self.running_snapshot_creation = False
+
+    def get_linked_entities(self, time: datetime):
+        """Get weakly connected components from entity graph."""
+        visited_entities = set()
+        entity_to_component = {}
+        linked_components = []
+        for etype in self.model_spec.entities.keys():
+            for master_record in self.db.get_master_records(etype):
+                if (etype, master_record["_id"]) not in visited_entities:
+                    # Get entities linked by current entity
+                    current_values = self.get_values_at_time(etype, master_record, time)
+                    linked_entities = self.load_linked_entity_ids(etype, current_values, time)
+
+                    # Set linked as visited
+                    visited_entities.update(linked_entities)
+
+                    # Update component
+                    have_component = linked_entities & set(entity_to_component.keys())
+                    if have_component:
+                        for entity in have_component:
+                            component = entity_to_component[entity]
+                            component.update(linked_entities)
+                            entity_to_component.update(
+                                {entity: component for entity in linked_entities}
+                            )
+                            break
+                    else:
+                        entity_to_component.update(
+                            {entity: linked_entities for entity in linked_entities}
+                        )
+                        linked_components.append(linked_entities)
+        return linked_components
 
     def create_snapshot_task(self, etype, master_record, time):
         """
@@ -204,7 +234,6 @@ class SnapShooter:
         current_values = self.get_values_at_time(etype, master_record, time)
         linked_entities = self.load_linked_entity_ids(etype, current_values, time)
         self.snapshot_queue_writer.put_task(task=Snapshot(entities=linked_entities, time=time))
-        self.processed_entity_types_ids.update(linked_entities)
 
     def process_snapshot_task(self, msg_id, task: Snapshot):
         """

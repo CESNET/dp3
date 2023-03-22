@@ -178,47 +178,26 @@ class TestSnapshotOperation(unittest.TestCase):
         root.setLevel("DEBUG")
 
     def test_reference_cycle(self):
-        self.snapshooter.create_snapshot_task("A", self.entities["A"]["a1"], self.now)
+        self.snapshooter.make_snapshots()
 
     def test_linked_entities_loaded(self):
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
-            "A",
-            depends_on=[["bs", "data1"]],
-            may_change=[["data1"]],
-        )
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="as", attr="data2"), copy_linked),
-            "B",
-            depends_on=[["as", "data2"]],
-            may_change=[["data2"]],
-        )
+        self.setup_copy_linked_hooks()
 
-        self.snapshooter.create_snapshot_task("A", self.entities["A"]["a1"], self.now)
-        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
-        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
-        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
+        self.snapshooter.make_snapshots()
+        for task in self.task_queue_writer.tasks:
+            self.snapshooter.process_snapshot_task(0, task)
 
-        self.snapshooter.create_snapshot_task("B", self.entities["B"]["b1"], self.now)
-        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
-        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "initb")
-        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "inita")
+        for snapshot in self.db.saved_snapshots:
+            self.assertEqual(snapshot["data1"], "initb")
+            self.assertEqual(snapshot["data2"], "inita")
 
-    def test_linked_entities_single_link(self):
+    def test_weak_component_detection(self):
+        """
+        Remove link from the first entity to be processed, so that an elementary BFS starting
+        from this entity is not enough to load the entire weakly connected component.
+        """
         self.db.db_content["A"]["a1"]["bs"] = []
-
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
-            "A",
-            depends_on=[["bs", "data1"]],
-            may_change=[["data1"]],
-        )
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="as", attr="data2"), copy_linked),
-            "B",
-            depends_on=[["as", "data2"]],
-            may_change=[["data2"]],
-        )
+        self.setup_copy_linked_hooks()
 
         self.snapshooter.make_snapshots()
 
@@ -237,15 +216,26 @@ class TestSnapshotOperation(unittest.TestCase):
             may_change=[["data2"]],
         )
         self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
-            "A",
-            depends_on=[["bs", "data1"]],
-            may_change=[["data1"]],
-        )
-        self.snapshooter.register_correlation_hook(
             update_wrapper(partial(modify_value, attr="data1", value="modifb"), modify_value),
             "B",
             depends_on=[],
+            may_change=[["data1"]],
+        )
+        self.setup_copy_linked_hooks()
+
+        self.snapshooter.make_snapshots()
+        for task in self.task_queue_writer.tasks:
+            self.snapshooter.process_snapshot_task(0, task)
+
+        for snapshot in self.db.saved_snapshots:
+            self.assertEqual(snapshot["data1"], "modifb")
+            self.assertEqual(snapshot["data2"], "modifa")
+
+    def setup_copy_linked_hooks(self):
+        self.snapshooter.register_correlation_hook(
+            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
+            "A",
+            depends_on=[["bs", "data1"]],
             may_change=[["data1"]],
         )
         self.snapshooter.register_correlation_hook(
@@ -254,16 +244,6 @@ class TestSnapshotOperation(unittest.TestCase):
             depends_on=[["as", "data2"]],
             may_change=[["data2"]],
         )
-
-        self.snapshooter.create_snapshot_task("A", self.entities["A"]["a1"], self.now)
-        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
-        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
-        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
-
-        self.snapshooter.create_snapshot_task("B", self.entities["B"]["b1"], self.now)
-        self.snapshooter.process_snapshot_task(0, self.task_queue_writer.tasks[-1])
-        self.assertEqual(self.db.saved_snapshots[-1]["data1"], "modifb")
-        self.assertEqual(self.db.saved_snapshots[-1]["data2"], "modifa")
 
     def test_multivalue_fitering(self):
         test_entity = {

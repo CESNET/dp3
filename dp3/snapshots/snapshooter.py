@@ -223,18 +223,6 @@ class SnapShooter:
                         linked_components.append(linked_entities)
         return linked_components
 
-    def create_snapshot_task(self, etype, master_record, time):
-        """
-        Loads all entities linked by `master_record` and sends corresponding Snapshot task to queue.
-
-        Fixme:
-            What if the master record doesn't link an entity,
-            but the entity links the master record?
-        """
-        current_values = self.get_values_at_time(etype, master_record, time)
-        linked_entities = self.load_linked_entity_ids(etype, current_values, time)
-        self.snapshot_queue_writer.put_task(task=Snapshot(entities=linked_entities, time=time))
-
     def process_snapshot_task(self, msg_id, task: Snapshot):
         """
         Acknowledges the received message and makes a snapshot according to the `task`.

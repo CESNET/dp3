@@ -1,30 +1,67 @@
 # DB entities
 
-Files in `db_entities` folder describe entities and their attributes. Each file looks like this:
+Files in `db_entities` folder describe *entities* and their *attributes*. You can think of entity as class from object-oriented programming.
+
+Below is YAML file (e.g. `db_entities/bus.yml`) corresponding to bus tracking system example from [Data model](../../data_model/#exemplary-system) chapter.
 
 ```yaml
 entity:
-  id: car
-  name: Car
+  id: bus
+  name: Bus
 attribs:
-  # Attribute `color`
-  color:
-    name: Car's color
-    description: Color to which the car is painted
+  # Attribute `label`
+  label:
+    name: Label
+    description: Custom label for the bus.
     type: plain
     data_type: string
     editable: true
 
+  # Attribute `location`
+  location:
+    name: Location
+    description: Location of the bus in a particular time. Value are GPS \
+      coordinates (array of latitude and longitude).
+    type: observations
+    data_type: array<float>
+    history_params:
+      pre_validity: 1m
+      post_validity: 1m
+      max_age: 30d
+
   # Attribute `speed`
   speed:
-    name: Car's speed
-    description: Current car's speed
+    name: Speed
+    description: Speed of the bus in a particular time. In km/h.
     type: observations
     data_type: float
     history_params:
-      max_age: 7d
+      pre_validity: 1m
+      post_validity: 1m
+      max_age: 30d
 
-  # ... more attributes
+  # Attribute `passengers_in_out`
+  passengers_in_out:
+    name: Passengers in/out
+    description: Number of passengers getting in or out of the bus. Distinguished by the doors used (front, middle, back). Regularly sampled every 10 minutes.
+    type: timeseries
+    timeseries_type: regular
+    timeseries_params:
+      max_age: 14d
+    time_step: 10m
+    series:
+      front_in:
+        data_type: int
+      front_out:
+        data_type: int
+      middle_in:
+        data_type: int
+      middle_out:
+        data_type: int
+      back_in:
+        data_type: int
+      back_out:
+        data_type: int
 ```
 
 

@@ -261,7 +261,7 @@ class SnapShooter:
                     record[attr] = value["eid"]
 
         for rtype_rid, record in entity_values.items():
-            self.db.save_snapshot(rtype_rid[0], record)
+            self.db.save_snapshot(rtype_rid[0], record, task.time)
 
     def run_timeseries_processing(self, entity_type, master_record):
         """

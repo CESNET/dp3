@@ -108,7 +108,7 @@ class MockDB:
     def get_master_record(self, etype: str, eid: str) -> dict:
         return self.db_content[etype][eid] or {}
 
-    def save_snapshot(self, etype: str, snapshot: dict):
+    def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
         json.dumps(snapshot)
         self.saved_snapshots.append(snapshot)
 

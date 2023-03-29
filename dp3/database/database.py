@@ -185,6 +185,33 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Insert of snapshot failed: {e}\n{snapshot}") from e
 
+    def save_metadata(self, module: str, time: datetime, metadata: dict):
+        """Saves snapshot to specified entity of current master document."""
+        metadata["_id"] = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+        metadata["#module"] = module
+        metadata["#time_created"] = time
+        metadata["#last_update"] = datetime.now()
+        try:
+            self._db["#metadata"].insert_one(metadata)
+            self.log.debug(f"Inserted metadata:\n{metadata}")
+        except Exception as e:
+            raise DatabaseError(f"Insert of metadata failed: {e}\n{metadata}") from e
+
+    def update_metadata(self, module: str, time: datetime, metadata: dict, increase: dict = None):
+        metadata_id = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+        metadata["#last_update"] = datetime.now()
+
+        if increase is None:
+            changes = {"$set": metadata}
+        else:
+            changes = {"$set": metadata, "$inc": increase}
+
+        try:
+            self._db["#metadata"].update_one({"_id": metadata_id}, changes)
+            self.log.debug(f"Updated metadata {metadata_id}, changes: {changes}")
+        except Exception as e:
+            raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
+
     def get_latest_snapshot(self):
         """Get latest snapshot of given `eid`.
 

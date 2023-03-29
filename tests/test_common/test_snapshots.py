@@ -99,6 +99,7 @@ class MockDB:
     def __init__(self, content: dict):
         self.db_content = content
         self.saved_snapshots = []
+        self.saved_metadata = {}
 
     def get_master_records(self, etype: str):
         if etype not in self.db_content:
@@ -111,6 +112,9 @@ class MockDB:
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
         json.dumps(snapshot)
         self.saved_snapshots.append(snapshot)
+
+    def save_metadata(self, module: str, time: datetime, metadata: dict):
+        self.saved_metadata[module, time] = metadata
 
 
 class MockTaskQueueWriter:
@@ -200,6 +204,9 @@ class TestSnapshotOperation(unittest.TestCase):
         self.setup_copy_linked_hooks()
 
         self.snapshooter.make_snapshots()
+        for value in self.db.saved_metadata.values():
+            self.assertEqual(value["entities"], 2)
+            self.assertEqual(value["components"], 1)
 
         self.assertEqual(len(self.task_queue_writer.tasks), 1)
         self.assertEqual(len(self.task_queue_writer.tasks[0].entities), 2)

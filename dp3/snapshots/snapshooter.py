@@ -183,12 +183,18 @@ class SnapShooter:
 
         self.running_snapshot_creation = True
         time = datetime.now()
+        run_metadata = {"task_creation_start": time, "entities": 0, "components": 0}
         try:
             for linked_entities_component in self.get_linked_entities(time):
+                run_metadata["entities"] += len(linked_entities_component)
+                run_metadata["components"] += 1
+
                 self.snapshot_queue_writer.put_task(
                     task=Snapshot(entities=linked_entities_component, time=time)
                 )
         finally:
+            run_metadata["task_creation_end"] = datetime.now()
+            self.db.save_metadata(str(self.__class__.__qualname__), time, run_metadata)
             self.running_snapshot_creation = False
 
     def get_linked_entities(self, time: datetime):

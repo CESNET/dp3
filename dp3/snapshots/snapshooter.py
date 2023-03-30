@@ -185,7 +185,10 @@ class SnapShooter:
         time = datetime.now()
         run_metadata = {"task_creation_start": time, "entities": 0, "components": 0}
         try:
-            for linked_entities_component in self.get_linked_entities(time):
+            linked_entities = self.get_linked_entities(time)
+            run_metadata["components_loaded"] = datetime.now()
+
+            for linked_entities_component in linked_entities:
                 run_metadata["entities"] += len(linked_entities_component)
                 run_metadata["components"] += 1
 

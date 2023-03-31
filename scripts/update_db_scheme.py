@@ -67,8 +67,8 @@ ATTR_TYPE_MAPPING = {
 def create_config_column_list(config_item, attr_spec):
     # creating list of names of columns required by attributes
     attr_columns = attr_spec.get(config_item).get("attribs")
-    columns_in_attr = list()
-    for attr_col in attr_columns.keys():
+    columns_in_attr = []
+    for attr_col in attr_columns:
         if attr_columns.get(attr_col).type != "timeseries":
             columns_in_attr.append(attr_col)
             if attr_columns.get(attr_col).type == "observations":
@@ -80,8 +80,8 @@ def create_config_column_list(config_item, attr_spec):
 
 
 def create_config_timeseries_list(attr_config):
-    timeseries = list()
-    for key in attr_config.keys():
+    timeseries = []
+    for key in attr_config:
         if attr_config.get(key).type == "timeseries":
             timeseries.append(key)
     return timeseries
@@ -90,7 +90,7 @@ def create_config_timeseries_list(attr_config):
 def create_db_column_list(config_item, db_inspector):
     # creates list with names of columns that are already in database
     db_columns = db_inspector.get_columns(config_item, schema="public")
-    columns_in_db = list()
+    columns_in_db = []
     for col in db_columns:
         columns_in_db.append(col.get("name"))
     return columns_in_db
@@ -107,7 +107,7 @@ def insert_column(col_name, config_item, attr_spec, meta):
 
 def create_column_list(columns_in_attr, attributes):
     # creates list with all columns that have to be in new table
-    column_list = list()
+    column_list = []
     for item in columns_in_attr:
         data_type = get_data_type(item, attributes)
         column_list.append(Column(item, data_type))
@@ -209,7 +209,7 @@ def change_col_data_type(config_item, col_name, config_col_type, meta):
 def add_table_or_column(attr_spec, db_inspector, db_engine, meta, db_table):
     # checks if any tables or colums have to be added
     # db_table = db_inspector.get_table_names(schema="public")
-    for config_item in attr_spec.keys():
+    for config_item in attr_spec:
         columns_in_attr = create_config_column_list(config_item, attr_spec)
         # if table that should be in database is not there, this table is created
         if config_item not in db_table:
@@ -260,7 +260,7 @@ def add_table_or_column(attr_spec, db_inspector, db_engine, meta, db_table):
 def get_table_names_attr(attr_spec):
     # returns list with names of tables that should be in database according to configuration
     attr_table = list(attr_spec.keys())
-    for table in attr_spec.keys():
+    for table in attr_spec:
         attribs = attr_spec.get(table).get("attribs")
         for item in attribs:
             if attribs.get(item).type == "observations" or attribs.get(item).type == "timeseries":
@@ -326,7 +326,7 @@ def delete_table_or_column(attr_spec, db_inspector, db_engine, meta, connection)
 
 
 def create_timeseries_table(ts_table_name, meta, db_engine, ts_attr):
-    columns = list()
+    columns = []
     for name in ts_attr.series:
         data_type = ATTR_TYPE_MAPPING[ts_attr.series[name].get("data_type")]
         columns.append(Column("v_" + name, ARRAY(data_type)))
@@ -350,7 +350,7 @@ def create_timeseries_table(ts_table_name, meta, db_engine, ts_attr):
 
 def check_timeseries_tables(attr_spec, meta, db_engine, db_inspector, db_table):
     # time series table
-    for config_item in attr_spec.keys():
+    for config_item in attr_spec:
         timeseries = create_config_timeseries_list(attr_spec.get(config_item).get("attribs"))
         for ts in timeseries:
             ts_table_name = config_item + "__" + ts
@@ -366,7 +366,7 @@ def check_timeseries_tables(attr_spec, meta, db_engine, db_inspector, db_table):
             # add and chanege data type of column
             table = meta.tables.get(ts_table_name)
             col_in_db = create_db_column_list(ts_table_name, db_inspector)
-            col_in_spec = list()
+            col_in_spec = []
             for col_name in attr_spec.get(config_item).get("attribs").get(ts).series:
                 col = "v_" + col_name
                 col_in_spec.append(col)

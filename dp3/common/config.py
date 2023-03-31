@@ -66,7 +66,7 @@ class HierarchicalDict(dict):
         Changes the dictionary directly, returns `None`.
         """
         other = dict(other)
-        for key in other.keys():
+        for key in other:
             if key in self:
                 if isinstance(self[key], dict) and isinstance(other[key], dict):
                     # The key is present in both dicts and both key values are dicts -> merge them
@@ -237,7 +237,7 @@ class ModelSpec(BaseModel):
         if "config" not in values:
             return v
         return {
-            entity_id: {attr_id: attr_spec for attr_id, attr_spec in entity_dict["attribs"].items()}
+            entity_id: dict(entity_dict["attribs"].items())
             for entity_id, entity_dict in values["config"].items()
         }
 

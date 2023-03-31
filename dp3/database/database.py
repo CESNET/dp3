@@ -201,10 +201,7 @@ class EntityDatabase:
         metadata_id = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
         metadata["#last_update"] = datetime.now()
 
-        if increase is None:
-            changes = {"$set": metadata}
-        else:
-            changes = {"$set": metadata, "$inc": increase}
+        changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}
 
         try:
             self._db["#metadata"].update_one({"_id": metadata_id}, changes)

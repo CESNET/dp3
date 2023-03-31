@@ -142,7 +142,7 @@ class DataTypeContainer:
         try:
             return self._link_to
         except AttributeError:
-            raise ValueError(f"DataType '{self.str_type}' is not a link.")
+            raise ValueError(f"DataType '{self.str_type}' is not a link.") from None
 
     def __repr__(self):
         return f"'{self.str_type}'"

@@ -9,36 +9,8 @@ repos:
       - id: check-symlinks
       - id: check-yaml
       - id: debug-statements
-      - id: end-of-file-fixer
       - id: mixed-line-ending
       - id: requirements-txt-fixer
-      - id: trailing-whitespace
-        args: [--markdown-linebreak-ext=md]
-
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v2.37.3
-    hooks:
-      - id: pyupgrade
-        exclude: ^(install/|docker/)
-        args: [ --py39-plus ]
-
-  - repo: https://github.com/pycqa/isort
-    rev:  5.11.5
-    hooks:
-      - id: isort
-        exclude: ^(install/|docker/)
-        args: [ "--profile", "black", "--filter-files" ]
-
-  - repo: https://github.com/PyCQA/autoflake
-    rev: v2.0.0
-    hooks:
-      - id: autoflake
-        args:
-          - --in-place
-          - --expand-star-imports
-          - --remove-all-unused-imports
-          - --ignore-init-module-imports
-          - --remove-unused-variables
 
   - repo: https://github.com/psf/black
     rev: 23.1.0
@@ -49,15 +21,8 @@ repos:
           - --line-length=100
           - --target-version=py39
 
-  - repo: https://github.com/PyCQA/flake8
-    rev: 5.0.2
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: 'v0.0.260'
     hooks:
-      - id: flake8
-        additional_dependencies:
-          - flake8-bugbear
-          - flake8-simplify
-        exclude: ^(install/|docker/)
-        args:
-          - --max-line-length=100
-          - --ignore=E203,W503
-          - --max-complexity=15
+      - id: ruff
+        args: [ "--fix", "." ]

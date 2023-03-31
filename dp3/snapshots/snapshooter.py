@@ -205,7 +205,7 @@ class SnapShooter:
         visited_entities = set()
         entity_to_component = {}
         linked_components = []
-        for etype in self.model_spec.entities.keys():
+        for etype in self.model_spec.entities:
             for master_record in self.db.get_master_records(etype):
                 if (etype, master_record["_id"]) not in visited_entities:
                     # Get entities linked by current entity

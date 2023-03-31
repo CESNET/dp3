@@ -135,10 +135,7 @@ class LegacyDataPointLoader:
         for etype, spec in model_spec.items():
             for aname, aspec in spec["attribs"].items():
                 data_type = getattr(aspec, "data_type", None)
-                if data_type is None:
-                    converter = json.loads
-                else:
-                    converter = get_converter(data_type.str_type)
+                converter = json.loads if data_type is None else get_converter(data_type.str_type)
                 self.dt_conv[(etype, aname)] = converter
 
         self.model_spec = model_spec
@@ -150,10 +147,7 @@ class LegacyDataPointLoader:
         Values of attributes in datapoints are validated and converted according
         to the attribute configuration passed to LegacyDataPointLoader constructor.
         """
-        if filename.endswith(".gz"):
-            open_function = gzip.open
-        else:
-            open_function = open  # type: ignore
+        open_function = gzip.open if filename.endswith(".gz") else open
 
         # Reformat datapoints file so "val" containing commas can be read properly.
         #   Replace first 7 commas (i.e. all except those inside "v") with semicolon

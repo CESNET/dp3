@@ -162,7 +162,7 @@ class SnapshotCorrelationHookContainer:
                 self._extract_path_from_resolved(resolved) for resolved in expanded
             )
         unique_paths = {tuple(path) for path in expanded_paths}
-        expanded_paths = sorted(list(list(path) for path in unique_paths), key=lambda x: len(x))
+        expanded_paths = sorted([list(path) for path in unique_paths], key=lambda x: len(x))
         return expanded_paths
 
     def _resolve_entities_in_path(self, base_entity: str, path: list[str]) -> list[tuple[str, str]]:
@@ -219,7 +219,7 @@ class SnapshotCorrelationHookContainer:
 
     def run(self, entities: dict):
         """Runs registered hooks."""
-        entity_types = {etype for etype, _ in entities.keys()}
+        entity_types = {etype for etype, _ in entities}
         hook_subset = [
             (hook_id, hook, etype) for etype in entity_types for hook_id, hook in self._hooks[etype]
         ]

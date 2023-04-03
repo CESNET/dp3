@@ -161,7 +161,7 @@ def dp_ts_root_validator_irregular_intervals(cls, values):
 
         # Check time_first[i] <= time_last[i]
         assert all(
-            t[0] <= t[1] for t in zip(values["v"].time_first, values["v"].time_last, strict=True)
+            t[0] <= t[1] for t in zip(values["v"].time_first, values["v"].time_last)
         ), "'time_first[i] <= time_last[i]' isn't true for all 'i'"
 
     return values

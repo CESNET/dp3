@@ -250,7 +250,7 @@ class SnapShooter:
         """
         entity_values = {}
         for entity_type, entity_id in task.entities:
-            record = self.db.get_master_record(entity_type, entity_id)
+            record = self.db.get_master_record(entity_type, entity_id) or {"_id": entity_id}
             self.run_timeseries_processing(entity_type, record)
             values = self.get_values_at_time(entity_type, record, task.time)
             entity_values[entity_type, entity_id] = values
@@ -337,7 +337,7 @@ class SnapShooter:
             entity_identifiers = linked_entity_ids_to_process.pop()
             linked_etype, linked_eid = entity_identifiers
             # TODO load only required attributes
-            record = self.db.get_master_record(linked_etype, linked_eid)
+            record = self.db.get_master_record(linked_etype, linked_eid) or {"_id": linked_eid}
             linked_values = self.get_values_at_time(linked_etype, record, time)
 
             linked_entity_ids_to_process.update(

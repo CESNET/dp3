@@ -145,16 +145,16 @@ class TestSnapshotOperation(unittest.TestCase):
                 "b1": {
                     "_id": "b1",
                     "as": [{"v": "a1", "t1": self.t1, "t2": self.t2, "c": 1.0}],
-                    "data1": "initb",
-                    "data2": "initb",
+                    "data1": {"v": "initb", "ts_last_update": self.now},
+                    "data2": {"v": "initb", "ts_last_update": self.now},
                 }
             },
             "A": {
                 "a1": {
                     "_id": "a1",
                     "bs": [{"v": "b1", "t1": self.t1, "t2": self.t2, "c": 1.0}],
-                    "data1": "inita",
-                    "data2": "inita",
+                    "data1": {"v": "inita", "ts_last_update": self.now},
+                    "data2": {"v": "inita", "ts_last_update": self.now},
                 }
             },
         }

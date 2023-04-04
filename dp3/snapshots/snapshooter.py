@@ -310,7 +310,7 @@ class SnapShooter:
             ):
                 continue
             if attr_spec.t == AttrType.PLAIN:
-                current_values[attr] = master_record[attr]
+                current_values[attr] = master_record[attr]["v"]
                 continue
 
             if attr_spec.multi_value:

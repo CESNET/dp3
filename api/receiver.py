@@ -9,6 +9,7 @@ from datetime import datetime
 
 import requests
 from flask import Flask, jsonify, request
+from pydantic import ValidationError
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec, read_config_dir
@@ -172,13 +173,17 @@ def push_multiple_datapoints():
         if type(record) is not dict:
             return error_response(f"Invalid data-point no. {i}: Not a dictionary", f"DP: {record}")
 
+        dp_obj = get_datapoint_object_from_record(record)
+
+        try:
+            dp_model = model_spec.attr(dp_obj["etype"], dp_obj["attr"]).dp_model
+        except KeyError as e:
+            return error_response(f"Non-existing attribute: {str(e)}")
+
         # Convert to DataPoint class instances
         try:
-            dp_obj = get_datapoint_object_from_record(record)
-
-            dp_model = model_spec.attr(dp_obj["etype"], dp_obj["attr"]).dp_model
             dps.append(dp_model.parse_obj(dp_obj))
-        except Exception as e:
+        except ValidationError as e:
             return error_response(str(e))
 
     # Group datapoints by (etype, eid)
@@ -202,7 +207,6 @@ def push_multiple_datapoints():
     # Push valid tasks to platform task queue
     for task in task_list:
         try:
-            print(task)
             push_task(task)
         except Exception as e:
             return error_response(f"Failed to push task: {type(e)}: {str(e)}")

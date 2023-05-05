@@ -89,6 +89,14 @@ class EntityDatabase:
         """Returns name of raw data collection for `entity`."""
         return f"{entity}#raw"
 
+    def _assert_etype_exists(self, etype: str):
+        """Asserts `etype` existence.
+
+        If doesn't exist, raises `DatabaseError`.
+        """
+        if etype not in self._db_schema_config.entities:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
     def insert_datapoints(self, etype: str, eid: str, dps: list[DataPointBase]) -> None:
         """Inserts datapoint to raw data collection and updates master record.
 
@@ -99,8 +107,8 @@ class EntityDatabase:
 
         etype = dps[0].etype
 
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         # Insert raw datapoints
         raw_col = self._raw_col_name(etype)
@@ -153,8 +161,8 @@ class EntityDatabase:
 
         If doesn't exist, returns {}.
         """
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         master_col = self._master_col_name(etype)
         return self._db[master_col].find_one({"_id": eid}) or {}
@@ -165,24 +173,24 @@ class EntityDatabase:
 
     def get_master_records(self, etype: str) -> pymongo.cursor.Cursor:
         """Get cursor to current master records of etype."""
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({})
 
     def estimate_count_eids(self, etype: str) -> int:
         """Estimates count of `eid`s in given `etype`"""
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         master_col = self._master_col_name(etype)
         return self._db[master_col].estimated_document_count({})
 
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
         """Saves snapshot to specified entity of current master document."""
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         snapshot["_time_created"] = time
 

@@ -4,7 +4,8 @@ from fastapi import APIRouter
 
 from api.internal.config import DB, MODEL_SPEC, TASK_WRITER
 from api.internal.helpers import api_to_dp3_datapoint
-from api.internal.models import DataPoint, EntityState, HealthCheckResponse, SuccessResponse
+from api.internal.models import DataPoint, EntityState
+from api.internal.response_models import HealthCheckResponse, SuccessResponse
 from dp3.common.task import DataPointTask
 
 router = APIRouter()

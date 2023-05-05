@@ -6,18 +6,6 @@ from pydantic import BaseModel, NonNegativeInt, confloat, root_validator, valida
 from api.internal.helpers import api_to_dp3_datapoint
 
 
-class HealthCheckResponse(BaseModel):
-    """Healthcheck endpoint response"""
-
-    detail: str = "It works!"
-
-
-class SuccessResponse(BaseModel):
-    """Generic success response"""
-
-    detail: str = "OK"
-
-
 class DataPoint(BaseModel):
     """Data-point for API
 

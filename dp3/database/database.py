@@ -59,20 +59,10 @@ class EntityDatabase:
         self._db_schema_config = model_spec
 
         # Init and switch to correct database
-        self._init_database_schema(db_name)
         self._db = self._db[db_name]
+        self._init_database_schema(db_name)
 
         self.log.info("Database successfully initialized!")
-
-    def _init_database_schema(self, db_name) -> None:
-        """Runs full check and update of database schema.
-
-        Checks whether `db_name` database exists. If not, creates it.
-        Checks whether all collections exist. If not, creates them.
-
-        This all is done automatically in MongoDB, so this function doesn't do
-        anything.
-        """
 
     @staticmethod
     def _master_col_name(entity: str) -> str:
@@ -88,6 +78,21 @@ class EntityDatabase:
     def _raw_col_name(entity: str) -> str:
         """Returns name of raw data collection for `entity`."""
         return f"{entity}#raw"
+
+    def _init_database_schema(self, db_name) -> None:
+        """Runs full check and update of database schema.
+
+        Checks whether `db_name` database exists. If not, creates it.
+        Checks whether all collections exist. If not, creates them.
+        This all is done automatically in MongoDB.
+
+        We need to create indexes, however.
+        """
+        for etype in self._db_schema_config.entities:
+            # Snapshots index on `eid` and `_time_created` fields
+            snapshot_col = self._snapshots_col_name(etype)
+            self._db[snapshot_col].create_index("eid", background=True)
+            self._db[snapshot_col].create_index("_time_created", background=True)
 
     def _assert_etype_exists(self, etype: str):
         """Asserts `etype` existence.

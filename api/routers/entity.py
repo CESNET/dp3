@@ -15,15 +15,21 @@ async def check_entity(entity: str):
 router = APIRouter(dependencies=[Depends(check_entity)])
 
 
+# TODO: type hint return values
 @router.get("/{entity}")
 async def list_entity_eids(
     entity: str, skip: NonNegativeInt = 0, limit: PositiveInt = 20
 ) -> list[dict]:
     """List `id`s present in database under `entity`
 
-    Contains only master record + latest snapshot.
+    Contains only latest snapshot.
 
     Uses pagination.
     """
-    cursor = DB.get_master_records(entity).skip(skip).limit(limit)
-    return list(cursor)
+    cursor = DB.get_latest_snapshots(entity).skip(skip).limit(limit)
+
+    # Remove _id field
+    result = list(cursor)
+    for r in result:
+        del r["_id"]
+    return result

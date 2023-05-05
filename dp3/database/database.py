@@ -179,6 +179,25 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({})
 
+    def get_latest_snapshots(self, etype: str) -> pymongo.cursor.Cursor:
+        """Get latest snapshots of given `etype`.
+
+        This method is useful for displaying data on web.
+        """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        snapshot_col = self._snapshots_col_name(etype)
+        latest_snapshot = self._db[snapshot_col].find_one({}, sort=[("_id", -1)])
+        latest_snapshot_date = latest_snapshot["_time_created"]
+        return self._db[snapshot_col].find({"_time_created": latest_snapshot_date})
+
+    def get_snapshots(self):
+        """Get all (or filtered) snapshots of given `eid`.
+
+        This method is useful for displaying `eid`'s history on web.
+        """
+
     def estimate_count_eids(self, etype: str) -> int:
         """Estimates count of `eid`s in given `etype`"""
         # Check `etype`
@@ -224,18 +243,6 @@ class EntityDatabase:
             self.log.debug(f"Updated metadata {metadata_id}, changes: {changes}")
         except Exception as e:
             raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
-
-    def get_latest_snapshot(self):
-        """Get latest snapshot of given `eid`.
-
-        This method is useful for displaying data on web.
-        """
-
-    def get_snapshots(self):
-        """Get all (or filtered) snapshots of given `eid`.
-
-        This method is useful for displaying `eid`'s history on web.
-        """
 
     def get_observation_history(
         self,

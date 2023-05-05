@@ -29,7 +29,6 @@ async def insert_datapoints(dps: list[DataPoint]) -> SuccessResponse:
     # Convert to DP3 datapoints
     # This should not fail as all datapoints are already validated
     dp3_dps = [api_to_dp3_datapoint(dp.dict()) for dp in dps]
-    print(dp3_dps)
 
     # Group datapoints by etype-eid
     tasks_dps = defaultdict(list)

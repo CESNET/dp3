@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, confloat, root_validator, validator
+from pydantic import BaseModel, NonNegativeInt, confloat, root_validator, validator
 
 from api.internal.helpers import api_to_dp3_datapoint
 
@@ -56,3 +56,16 @@ class DataPoint(BaseModel):
         api_to_dp3_datapoint(values)
 
         return values
+
+
+class EntityState(BaseModel):
+    """Entity specification and current state
+
+    Merges (some) data from DP3's `EntitySpec` and state information from `Database`.
+    Provides estimate count of master records in database.
+    """
+
+    id: str
+    name: str
+    attr_count: NonNegativeInt
+    eid_estimate_count: NonNegativeInt

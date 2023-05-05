@@ -171,6 +171,14 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({})
 
+    def estimate_count_eids(self, etype: str) -> int:
+        """Estimates count of `eid`s in given `etype`"""
+        if etype not in self._db_schema_config.entities:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
+        master_col = self._master_col_name(etype)
+        return self._db[master_col].estimated_document_count({})
+
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
         """Saves snapshot to specified entity of current master document."""
         if etype not in self._db_schema_config.entities:

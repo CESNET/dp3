@@ -14,7 +14,7 @@ def api_to_dp3_datapoint(api_dp_values: dict) -> DataPointBase:
     # Convert to DP3 datapoint format
     dp3_dp_values = api_dp_values
     dp3_dp_values["etype"] = etype
-    dp3_dp_values["eid"] = attr
+    dp3_dp_values["eid"] = api_dp_values["id"]
 
     # Get attribute-specific model
     try:

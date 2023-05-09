@@ -153,12 +153,6 @@ def dp_ts_root_validator_irregular_intervals(cls, values):
         else:
             values["t2"] = last_time
 
-        # time_first must be ordered
-        assert is_list_ordered(values["v"].time_first), "'time_first' series is not ordered"
-
-        # time_last must be ordered
-        assert is_list_ordered(values["v"].time_last), "'time_last' series is not ordered"
-
         # Check time_first[i] <= time_last[i]
         assert all(
             t[0] <= t[1] for t in zip(values["v"].time_first, values["v"].time_last)

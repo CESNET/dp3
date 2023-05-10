@@ -23,24 +23,24 @@ TODO - architecture, main parts of repository (Python package, other files)
 * `install` - installation scripts and files
 
 
-## Installing dependencies
+## Installing for development
 
-`$ pip3 install pipenv`
+Following steps create a virtual environment with all dependencies installed.
 
-### Install all dependencies:
+```shell
+python3.9 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-**development**: `$ pipenv install`
+The `venv` is activated using `source venv/bin/activate`, and can be deactivated using `deactivate`.
 
-**production**: `$ pipenv install --ignore-pipfile` 
+## Installing DP³ platform
 
-Generated virtualenv is located at `~/.local/share/virtualenvs`, but should be activated automatically. Deactivate virtualenv with `$ exit`
-
-### Install DP³ platform
-
-`$ pipenv install -e .`
+`$ pip install -e .`
 
 ## Running tests
 
-Activate virtualenv (if not already - `$ pipenv shell`) and run:
+Activate virtualenv (if not already - `$ source venv/bin/activate`) and run:
 
 `$ cd tests && python3 -m unittest`

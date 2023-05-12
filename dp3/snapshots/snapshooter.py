@@ -371,9 +371,12 @@ class SnapShooter:
                     continue
                 attr_spec = self.model_spec.relations[entity_type, attr]
                 if attr_spec.multi_value:
-                    entity[attr] = [loaded_entities[attr_spec.relation_to, eid] for eid in val]
+                    entity[attr] = [
+                        loaded_entities.get((attr_spec.relation_to, eid), {"eid": eid})
+                        for eid in val
+                    ]
                 else:
-                    entity[attr] = loaded_entities[attr_spec.relation_to, val]
+                    entity[attr] = loaded_entities.get((attr_spec.relation_to, val), {"eid": val})
 
     def get_value_at_time(
         self, attr_spec: AttrSpecObservations, attr_history, time: datetime

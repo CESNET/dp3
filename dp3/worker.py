@@ -211,7 +211,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Run SnapShooter
     snap_shooter.start()
 
-    hm.archive_old_dps()
+    if process_index == 0:
+        hm.archive_old_dps()
 
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.

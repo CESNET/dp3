@@ -155,7 +155,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     task_executor = TaskExecutor(db, platform_config)
     registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter)
 
-    HistoryManager(db, platform_config, registrar)
+    hm = HistoryManager(db, platform_config, registrar)
 
     # Lock used to control when the program stops.
     daemon_stop_lock = threading.Lock()
@@ -210,6 +210,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     # Run SnapShooter
     snap_shooter.start()
+
+    hm.archive_old_dps()
 
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.

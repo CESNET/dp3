@@ -376,3 +376,30 @@ class EntityDatabase:
                     result.append(row_new)
 
         return result
+
+    def get_raw_summary(self, etype: str, before: datetime) -> pymongo.cursor:
+        raw_col_name = self._raw_col_name(etype)
+        try:
+            return self._db[raw_col_name].aggregate(
+                [
+                    {"$match": {"t1": {"$lt": before}}},
+                    {
+                        "$group": {
+                            "_id": "date_range",
+                            "earliest": {"$min": "$t1"},
+                            "latest": {"$max": "$t1"},
+                            "count": {"$sum": 1},
+                        }
+                    },
+                ]
+            )
+        except Exception as e:
+            raise DatabaseError(f"Raw collection {raw_col_name} fetch failed: {e}") from e
+
+    def get_raw(self, etype: str, after: datetime, before: datetime) -> pymongo.cursor:
+        raw_col_name = self._raw_col_name(etype)
+        return self._db[raw_col_name].find({"t1": {"$gte": after, "$lt": before}})
+
+    def delete_old_raw_dps(self, etype: str, before: datetime):
+        raw_col_name = self._raw_col_name(etype)
+        return self._db[raw_col_name].delete_many({"t1": {"$lt": before}})

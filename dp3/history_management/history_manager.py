@@ -119,11 +119,11 @@ class HistoryManager:
                 json.dump(day_datapoints, archive, cls=DatetimeEncoder)
             self.log.debug("%s: written to %s", date_string, date_logfile)
 
-        deleted_count = 0
-        for etype in self.model_spec.entities:
-            deleted_res = self.db.delete_old_raw_dps(etype, t_old)
-            deleted_count += deleted_res.deleted_count
-        self.log.debug("Deleted %s datapoints", deleted_count)
+            deleted_count = 0
+            for etype in self.model_spec.entities:
+                deleted_res = self.db.delete_old_raw_dps(etype, next_date)
+                deleted_count += deleted_res.deleted_count
+            self.log.debug("Deleted %s datapoints", deleted_count)
 
     @staticmethod
     def _reformat_dp(dp):

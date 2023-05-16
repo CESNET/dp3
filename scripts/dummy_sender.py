@@ -88,7 +88,7 @@ if __name__ == "__main__":
         args.input_file,
         orient="records",
         convert_dates=["t1", "t2"],
-    )
+    ).fillna(value={"c": 1.0})
     log.info("Input file contains %s DataPoints", datapoints.shape[0])
 
     # Get all datapoints that will be sent.
@@ -111,7 +111,10 @@ if __name__ == "__main__":
         try:
             response = requests.post(url=datapoints_url, json=batch)
         except requests.exceptions.ConnectionError as err:
-            print(err)
+            log.exception(err)
+        except requests.exceptions.InvalidJSONError as err:
+            log.exception(err)
+            log.error(batch)
 
         if response.status_code == 200:
             attributes = {dp["attr"] for dp in batch}

@@ -44,8 +44,12 @@ class HistoryManager:
         datapoint_cleaning_period = self.config["datapoint_cleaning"]["tick_rate"]
         registrar.scheduler_register(self.delete_old_dps, minute=f"*/{datapoint_cleaning_period}")
 
+        snapshot_cleaning_cron = self.config["snapshot_cleaning"]["cron_schedule"]
+        self.keep_snapshot_delta = timedelta(days=self.config["snapshot_cleaning"]["days_to_keep"])
+        registrar.scheduler_register(self.delete_old_snapshots, **snapshot_cleaning_cron)
+
         # Schedule datapoint archivation
-        self.keep_timedelta = timedelta(days=self.config["datapoint_archivation"]["days_to_keep"])
+        self.keep_raw_delta = timedelta(days=self.config["datapoint_archivation"]["days_to_keep"])
         self.log_dir = self._ensure_log_dir(self.config["datapoint_archivation"]["archive_dir"])
         registrar.scheduler_register(self.archive_old_dps, minute=0, hour=2)  # Every day at 2 AM
 
@@ -72,6 +76,20 @@ class HistoryManager:
             except DatabaseError as e:
                 self.log.error(e)
 
+    def delete_old_snapshots(self):
+        """Deletes old snapshots."""
+        t_old = datetime.now() - self.keep_snapshot_delta
+        self.log.debug("Deleting all snapshots before %s", t_old)
+
+        deleted_total = 0
+        for etype in self.model_spec.entities:
+            try:
+                result = self.db.delete_old_snapshots(etype, t_old)
+                deleted_total += result.deleted_count
+            except DatabaseError as e:
+                self.log.exception(e)
+        self.log.debug("Deleted %s snapshots in total.", deleted_total)
+
     def archive_old_dps(self):
         """
         Archives old data points from raw collection.
@@ -79,7 +97,7 @@ class HistoryManager:
         Updates already saved archive files, if present.
         """
 
-        t_old = datetime.utcnow() - self.keep_timedelta
+        t_old = datetime.utcnow() - self.keep_raw_delta
         t_old = t_old.replace(hour=0, minute=0, second=0, microsecond=0)
         self.log.debug("Archiving all records before %s ...", t_old)
 

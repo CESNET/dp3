@@ -402,4 +402,18 @@ class EntityDatabase:
 
     def delete_old_raw_dps(self, etype: str, before: datetime):
         raw_col_name = self._raw_col_name(etype)
-        return self._db[raw_col_name].delete_many({"t1": {"$lt": before}})
+        try:
+            return self._db[raw_col_name].delete_many({"t1": {"$lt": before}})
+        except Exception as e:
+            raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
+
+    def delete_old_snapshots(self, etype: str, t_old: datetime):
+        """Delete old snapshots.
+
+        Periodically called for all `etype`s from HistoryManager.
+        """
+        snapshot_col_name = self._snapshots_col_name(etype)
+        try:
+            return self._db[snapshot_col_name].delete_many({"_time_created": {"$lt": t_old}})
+        except Exception as e:
+            raise DatabaseError(f"Delete of olds snapshots failed: {e}") from e

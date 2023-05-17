@@ -1,5 +1,7 @@
+import gzip
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from json import JSONEncoder
 from pathlib import Path
@@ -95,17 +97,30 @@ class HistoryManager:
         ]:
             date_string = date.strftime("%Y%m%d")
             day_datapoints = 0
-            date_logfile = self.log_dir / f"dp-log-{date_string}.txt"
+            date_logfile = self.log_dir / f"dp-log-{date_string}.json"
 
-            with open(date_logfile, "a", encoding="utf-8") as logfile:
+            with open(date_logfile, "w", encoding="utf-8") as logfile:
+                first = True
                 for etype in self.model_spec.entities:
                     result_cursor = self.db.get_raw(etype, after=date, before=next_date)
                     for dp in result_cursor:
-                        logfile.write(f"{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}\n")
+                        if first:
+                            logfile.write(
+                                f"[\n{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}"
+                            )
+                            first = False
+                        else:
+                            logfile.write(
+                                f",\n{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}"
+                            )
                         day_datapoints += 1
+                logfile.write("\n]")
             self.log.debug(
                 "%s: Archived %s datapoints to %s", date_string, day_datapoints, date_logfile
             )
+            compress_file(date_logfile)
+            os.remove(date_logfile)
+            self.log.debug("%s: Saved archive was compressed", date_string)
 
             if not day_datapoints:
                 continue
@@ -149,3 +164,13 @@ class HistoryManager:
         log_dir = Path(log_dir_path)
         log_dir.mkdir(parents=True, exist_ok=True)
         return log_dir
+
+
+def compress_file(original: Path, compressed: Path = None):
+    if compressed is None:
+        compressed = original.parent / (original.name + ".gz")
+
+    with open(original, encoding="utf-8") as in_fp, gzip.open(
+        compressed, "wt", encoding="utf-8"
+    ) as out_fp:
+        out_fp.writelines(in_fp)

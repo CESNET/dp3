@@ -1,4 +1,3 @@
-import gzip
 import json
 import logging
 from datetime import datetime, timedelta
@@ -95,35 +94,27 @@ class HistoryManager:
             (min_date + timedelta(days=n), min_date + timedelta(days=n + 1)) for n in range(n_days)
         ]:
             date_string = date.strftime("%Y%m%d")
-            day_datapoints = []
-            for etype in self.model_spec.entities:
-                result_cursor = self.db.get_raw(etype, after=date, before=next_date)
-                for dp in result_cursor:
-                    day_datapoints.append(self._reformat_dp(dp))
-            self.log.debug("%s: %s datapoints to archive", date_string, len(day_datapoints))
+            day_datapoints = 0
+            date_logfile = self.log_dir / f"dp-log-{date_string}.txt"
+
+            with open(date_logfile, "a", encoding="utf-8") as logfile:
+                for etype in self.model_spec.entities:
+                    result_cursor = self.db.get_raw(etype, after=date, before=next_date)
+                    for dp in result_cursor:
+                        logfile.write(f"{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}\n")
+                        day_datapoints += 1
+            self.log.debug(
+                "%s: Archived %s datapoints to %s", date_string, day_datapoints, date_logfile
+            )
+
             if not day_datapoints:
                 continue
-
-            date_logfile = self.log_dir / f"dp-log-{date_string}.json.gz"
-            if date_logfile.exists():
-                with gzip.open(date_logfile, "rt", encoding="utf-8") as archive:
-                    saved = json.load(archive)
-                self.log.debug("%s: %s already saved on disk", date_string, len(saved))
-                saved.extend(day_datapoints)
-                day_datapoints = saved
-                self.log.debug(
-                    "%s: Archiving %s datapoints in total", date_string, len(day_datapoints)
-                )
-
-            with gzip.open(date_logfile, "wt", encoding="utf-8") as archive:
-                json.dump(day_datapoints, archive, cls=DatetimeEncoder)
-            self.log.debug("%s: written to %s", date_string, date_logfile)
 
             deleted_count = 0
             for etype in self.model_spec.entities:
                 deleted_res = self.db.delete_old_raw_dps(etype, next_date)
                 deleted_count += deleted_res.deleted_count
-            self.log.debug("Deleted %s datapoints", deleted_count)
+            self.log.debug("%s: Deleted %s datapoints", date_string, deleted_count)
 
     @staticmethod
     def _reformat_dp(dp):

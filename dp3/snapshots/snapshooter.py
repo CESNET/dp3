@@ -206,30 +206,34 @@ class SnapShooter:
         entity_to_component = {}
         linked_components = []
         for etype in self.model_spec.entities:
-            for master_record in self.db.get_master_records(etype):
-                if (etype, master_record["_id"]) not in visited_entities:
-                    # Get entities linked by current entity
-                    current_values = self.get_values_at_time(etype, master_record, time)
-                    linked_entities = self.load_linked_entity_ids(etype, current_values, time)
+            records_cursor = self.db.get_master_records(etype, no_cursor_timeout=True)
+            try:
+                for master_record in records_cursor:
+                    if (etype, master_record["_id"]) not in visited_entities:
+                        # Get entities linked by current entity
+                        current_values = self.get_values_at_time(etype, master_record, time)
+                        linked_entities = self.load_linked_entity_ids(etype, current_values, time)
 
-                    # Set linked as visited
-                    visited_entities.update(linked_entities)
+                        # Set linked as visited
+                        visited_entities.update(linked_entities)
 
-                    # Update component
-                    have_component = linked_entities & set(entity_to_component.keys())
-                    if have_component:
-                        for entity in have_component:
-                            component = entity_to_component[entity]
-                            component.update(linked_entities)
+                        # Update component
+                        have_component = linked_entities & set(entity_to_component.keys())
+                        if have_component:
+                            for entity in have_component:
+                                component = entity_to_component[entity]
+                                component.update(linked_entities)
+                                entity_to_component.update(
+                                    {entity: component for entity in linked_entities}
+                                )
+                                break
+                        else:
                             entity_to_component.update(
-                                {entity: component for entity in linked_entities}
+                                {entity: linked_entities for entity in linked_entities}
                             )
-                            break
-                    else:
-                        entity_to_component.update(
-                            {entity: linked_entities for entity in linked_entities}
-                        )
-                        linked_components.append(linked_entities)
+                            linked_components.append(linked_entities)
+            finally:
+                records_cursor.close()
         return linked_components
 
     def process_snapshot_task(self, msg_id, task: Snapshot):

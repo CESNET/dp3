@@ -22,6 +22,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any, Callable
 
+import pymongo.errors
 from pydantic import BaseModel
 
 from dp3.common.attrspec import (
@@ -180,6 +181,7 @@ class SnapShooter:
                 "skipping to avoid race conditions."
             )
             return
+        self.log.debug("Loading linked entities.")
 
         self.running_snapshot_creation = True
         time = datetime.now()
@@ -195,6 +197,8 @@ class SnapShooter:
                 self.snapshot_queue_writer.put_task(
                     task=Snapshot(entities=linked_entities_component, time=time)
                 )
+        except pymongo.errors.CursorNotFound as err:
+            self.log.exception(err)
         finally:
             run_metadata["task_creation_end"] = datetime.now()
             self.db.save_metadata(str(self.__class__.__qualname__), time, run_metadata)

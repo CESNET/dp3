@@ -43,12 +43,38 @@ def batched(iterable, n):
         yield batch
 
 
+def cherry_pick_send(datapoints, dp_factory, log, args):
+    # Get all datapoints that will be sent.
+    attributes = datapoints["attr"].unique()
+    log.debug("Found %s attributes", len(datapoints))
+    log.debug(attributes)
+    dp_list = []
+    for attr in attributes:
+        selected = datapoints[datapoints["attr"] == attr]
+        selected_dps = selected.iloc[: args.count, :].apply(dp_factory, axis=1).to_list()
+        log.debug("Selected %s datapoints of attribute %s", len(selected_dps), attr)
+        dp_list.extend(selected_dps)
+
+    log.info("Selected %s datapoints", len(dp_list))
+    return dp_list
+
+
+def send_all(datapoints, dp_factory, *_):
+    for _, dp in datapoints.iterrows():
+        yield dp_factory(dp)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser("Simple datapoint sender script for testing local DP3 instance.")
     parser.add_argument(
         "input_file",
         help="DataPoint log file in JSON format (pandas orient=records)",
         type=lambda x: get_valid_path(parser, x),
+    )
+    parser.add_argument(
+        "mode",
+        help="Mode of operation for the sender. Either cherry-pick datapoints by attribute, or send the entire log.",
+        choices=["cherry-pick", "all"],
     )
     parser.add_argument(
         "--endpoint_url",
@@ -91,34 +117,30 @@ if __name__ == "__main__":
     ).fillna(value={"c": 1.0})
     log.info("Input file contains %s DataPoints", datapoints.shape[0])
 
-    # Get all datapoints that will be sent.
-    attributes = datapoints["attr"].unique()
-    log.debug("Found %s attributes", len(datapoints))
-    log.debug(attributes)
-    dp_list = []
-    for attr in attributes:
-        selected = datapoints[datapoints["attr"] == attr]
-        selected_dps = selected.iloc[: args.count, :].apply(dp_factory, axis=1).to_list()
-        log.debug("Selected %s datapoints of attribute %s", len(selected_dps), attr)
-        dp_list.extend(selected_dps)
+    if args.mode == "cherry-pick":
+        dps = cherry_pick_send(datapoints, dp_factory, log, args)
+    elif args.mode == "all":
+        dps = send_all(datapoints, dp_factory, log, args)
+    else:
+        raise ValueError(f"Invalid mode selected: {args.mode}")
 
     # Send them
-    log.info("Sending %s datapoints", len(dp_list))
     datapoints_url = f"{args.endpoint_url}/datapoints"
-    for batch in batched(dp_list, args.chunk):
+    for batch in batched(dps, args.chunk):
         payload = json.dumps(batch)
         log.debug(payload)
         try:
             response = requests.post(url=datapoints_url, json=batch)
+            if response.status_code == 200:
+                attributes = {dp["attr"] for dp in batch}
+                log.info("%s datapoints of attribute(s) %s OK", len(batch), ", ".join(attributes))
+            else:
+                log.error("Payload: %s", payload)
+                log.error(
+                    "Request failed: %s: %s", response.reason, response.content.decode("utf-8")
+                )
         except requests.exceptions.ConnectionError as err:
             log.exception(err)
         except requests.exceptions.InvalidJSONError as err:
             log.exception(err)
             log.error(batch)
-
-        if response.status_code == 200:
-            attributes = {dp["attr"] for dp in batch}
-            log.info("%s datapoints of attribute(s) %s OK", len(batch), ", ".join(attributes))
-        else:
-            log.error("Payload: %s", payload)
-            log.error("Request failed: %s: %s", response.reason, response.content.decode("utf-8"))

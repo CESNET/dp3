@@ -194,17 +194,15 @@ class HistoryManager:
             records_cursor = self.db.get_master_records(entity, no_cursor_timeout=True)
             try:
                 for master_document in records_cursor:
-                    self.aggregate_master_doc(entity, entity_attr_specs, master_document)
+                    self.aggregate_master_doc(entity_attr_specs, master_document)
                     self.db.update_master_record(entity, master_document["_id"], master_document)
             finally:
                 records_cursor.close()
 
         self.log.debug("Master documents aggregation end.")
 
-    def aggregate_master_doc(
-        self, entity: str, attr_specs: dict[str, AttrSpecType], master_document: dict
-    ):
-        self.log.debug("Aggregating master document: %s - %s", entity, master_document["_id"])
+    @staticmethod
+    def aggregate_master_doc(attr_specs: dict[str, AttrSpecType], master_document: dict):
         for attr, history in master_document.items():
             if attr not in attr_specs:
                 continue

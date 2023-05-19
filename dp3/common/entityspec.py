@@ -11,9 +11,7 @@ class EntitySpec(BaseModel):
 
     id: str
     name: str
+    snapshot: bool
 
     def __init__(self, id: str, spec: dict[str, Union[str, bool]]):
-        super().__init__(
-            id=id,
-            name=spec.get("name"),
-        )
+        super().__init__(id=id, name=spec.get("name"), snapshot=spec.get("snapshot"))

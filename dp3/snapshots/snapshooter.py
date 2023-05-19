@@ -94,6 +94,11 @@ class SnapShooter:
             parent_logger=self.log,
         )
 
+        self.snapshot_entities = [
+            entity for entity, spec in self.model_spec.entities.items() if spec.snapshot
+        ]
+        self.log.info("Snapshots will be created for entities: %s", self.snapshot_entities)
+
         # Schedule snapshot period
         snapshot_period = self.config.creation_rate
         scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
@@ -209,7 +214,7 @@ class SnapShooter:
         visited_entities = set()
         entity_to_component = {}
         linked_components = []
-        for etype in self.model_spec.entities:
+        for etype in self.snapshot_entities:
             records_cursor = self.db.get_master_records(etype, no_cursor_timeout=True)
             try:
                 for master_record in records_cursor:

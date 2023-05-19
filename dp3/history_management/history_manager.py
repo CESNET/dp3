@@ -7,7 +7,7 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Optional
 
-from dp3.common.attrspec import AttrType
+from dp3.common.attrspec import AttrSpecType, AttrType, ObservationsHistoryParams
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.database.database import DatabaseError, EntityDatabase
@@ -52,6 +52,9 @@ class HistoryManager:
         self.keep_raw_delta = timedelta(days=self.config["datapoint_archivation"]["days_to_keep"])
         self.log_dir = self._ensure_log_dir(self.config["datapoint_archivation"]["archive_dir"])
         registrar.scheduler_register(self.archive_old_dps, minute=0, hour=2)  # Every day at 2 AM
+
+        # Schedule master document aggregation
+        registrar.scheduler_register(self.aggregate_master_docs, minute="*/10")
 
     def delete_old_dps(self):
         """Deletes old data points from master collection."""
@@ -182,6 +185,70 @@ class HistoryManager:
         log_dir = Path(log_dir_path)
         log_dir.mkdir(parents=True, exist_ok=True)
         return log_dir
+
+    def aggregate_master_docs(self):
+        self.log.debug("Starting master documents aggregation.")
+
+        for entity in self.model_spec.entities:
+            entity_attr_specs = self.model_spec.entity_attributes[entity]
+            records_cursor = self.db.get_master_records(entity, no_cursor_timeout=True)
+            try:
+                for master_document in records_cursor:
+                    self.aggregate_master_doc(entity, entity_attr_specs, master_document)
+                    self.db.update_master_record(entity, master_document["_id"], master_document)
+            finally:
+                records_cursor.close()
+
+        self.log.debug("Master documents aggregation end.")
+
+    def aggregate_master_doc(
+        self, entity: str, attr_specs: dict[str, AttrSpecType], master_document: dict
+    ):
+        self.log.debug("Aggregating master document: %s - %s", entity, master_document["_id"])
+        for attr, history in master_document.items():
+            if attr not in attr_specs:
+                continue
+            spec = attr_specs[attr]
+
+            if spec.t != AttrType.OBSERVATIONS or not spec.history_params.aggregate:
+                continue
+
+            master_document[attr] = aggregate_dp_history_on_equal(history, spec.history_params)
+
+
+def aggregate_dp_history_on_equal(history: list[dict], spec: ObservationsHistoryParams):
+    """
+    Merge datapoints in the history with equal values and overlapping time validity.
+
+    Avergages the confidence.
+    """
+    history = sorted(history, key=lambda x: x["t1"])
+    aggregated_history = []
+    current_dp = None
+    merged_cnt = 0
+    pre = spec.pre_validity
+    post = spec.post_validity
+
+    for dp in history:
+        if not current_dp:
+            current_dp = dp
+            merged_cnt += 1
+            continue
+
+        if current_dp["v"] == dp["v"] and current_dp["t2"] + post >= dp["t1"] - pre:
+            current_dp["t2"] = max(dp["t2"], current_dp["t2"])
+            current_dp["c"] += dp["c"]
+            merged_cnt += 1
+        else:
+            aggregated_history.append(current_dp)
+            current_dp["c"] /= merged_cnt
+
+            merged_cnt = 1
+            current_dp = dp
+    if current_dp:
+        current_dp["c"] /= merged_cnt
+        aggregated_history.append(current_dp)
+    return aggregated_history
 
 
 def compress_file(original: Path, compressed: Path = None):

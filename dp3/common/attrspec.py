@@ -70,6 +70,8 @@ class ObservationsHistoryParams(BaseModel):
     pre_validity: Optional[timedelta] = timedelta()
     post_validity: Optional[timedelta] = timedelta()
 
+    aggregate: bool
+
     @validator("max_age", "expire_time", "pre_validity", "post_validity", pre=True)
     def parse_time_duration(cls, v):
         if v:

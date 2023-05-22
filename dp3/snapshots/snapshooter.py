@@ -63,6 +63,8 @@ class SnapShooter:
         self.entity_relation_attrs = defaultdict(dict)
         for (entity, attr), _ in self.model_spec.relations.items():
             self.entity_relation_attrs[entity][attr] = True
+        for entity in self.model_spec.entities:
+            self.entity_relation_attrs[entity]["_id"] = True
 
         self.worker_index = platform_config.process_index
         self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
@@ -208,7 +210,9 @@ class SnapShooter:
         entity_to_component = {}
         linked_components = []
         for etype in self.snapshot_entities:
-            records_cursor = self.db.get_master_records(etype, no_cursor_timeout=True)
+            records_cursor = self.db.get_master_records(
+                etype, no_cursor_timeout=True, projection=self.entity_relation_attrs[etype]
+            )
             try:
                 for master_record in records_cursor:
                     if (etype, master_record["_id"]) not in visited_entities:

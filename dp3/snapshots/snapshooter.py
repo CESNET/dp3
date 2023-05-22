@@ -107,9 +107,6 @@ class SnapShooter:
         snapshot_period = self.config.creation_rate
         scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
 
-        # Snapshot creation control
-        self.running_snapshot_creation = False
-
     def start(self):
         """Connect to RabbitMQ and start consuming from TaskQueue."""
         self.log.info("Connecting to RabbitMQ")
@@ -184,15 +181,8 @@ class SnapShooter:
 
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
-        if self.running_snapshot_creation:
-            self.log.warning(
-                "Previous round of snapshot creation is still running, "
-                "skipping to avoid race conditions."
-            )
-            return
         self.log.debug("Loading linked entities.")
 
-        self.running_snapshot_creation = True
         time = datetime.now()
         run_metadata = {"task_creation_start": time, "entities": 0, "components": 0}
         try:
@@ -211,7 +201,6 @@ class SnapShooter:
         finally:
             run_metadata["task_creation_end"] = datetime.now()
             self.db.save_metadata(str(self.__class__.__qualname__), time, run_metadata)
-            self.running_snapshot_creation = False
 
     def get_linked_entities(self, time: datetime):
         """Get weakly connected components from entity graph."""

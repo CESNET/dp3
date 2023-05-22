@@ -95,18 +95,30 @@ class MockScheduler:
         return None
 
 
+class MockCursor(list):
+    def close(self):
+        return None
+
+
 class MockDB:
     def __init__(self, content: dict):
         self.db_content = content
         self.saved_snapshots = []
         self.saved_metadata = {}
 
-    def get_master_records(self, etype: str):
+    def get_master_records(self, etype: str, **kwargs):
         if etype not in self.db_content:
-            return []
-        return self.db_content[etype].values()
+            return MockCursor([])
+        return MockCursor(list(self.db_content[etype].values()))
 
-    def get_master_record(self, etype: str, eid: str) -> dict:
+    def get_master_record(self, etype: str, eid: str, projection=None) -> dict:
+        if projection is not None:
+            projection["_id"] = True if "_id" not in projection else projection["_id"]
+            return {
+                key: val
+                for key, val in self.db_content[etype][eid].items()
+                if key in projection and projection[key]
+            }
         return self.db_content[etype][eid] or {}
 
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):

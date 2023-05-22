@@ -3,6 +3,7 @@ entity:
   name: test entity A
   key_data_type: string
   auto_create_record: true
+  snapshot: true
 attribs:
   data1:
     name: data1
@@ -25,6 +26,7 @@ attribs:
       pre_validity: 12h
       post_validity: 12h
       max_age: 14d
+      aggregate: true
 
   bs:
     name: Bs
@@ -35,6 +37,7 @@ attribs:
       pre_validity: 12h
       post_validity: 12h
       max_age: 14d
+      aggregate: true
 
   cs:
     name: Cs
@@ -45,6 +48,7 @@ attribs:
       pre_validity: 12h
       post_validity: 12h
       max_age: 14d
+      aggregate: true
 
   ds:
     name: Ds
@@ -55,3 +59,4 @@ attribs:
       pre_validity: 12h
       post_validity: 12h
       max_age: 14d
+      aggregate: true

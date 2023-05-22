@@ -188,17 +188,26 @@ class HistoryManager:
 
     def aggregate_master_docs(self):
         self.log.debug("Starting master documents aggregation.")
+        start = datetime.now()
+        entities = 0
 
         for entity in self.model_spec.entities:
             entity_attr_specs = self.model_spec.entity_attributes[entity]
             records_cursor = self.db.get_master_records(entity, no_cursor_timeout=True)
             try:
                 for master_document in records_cursor:
+                    entities += 1
                     self.aggregate_master_doc(entity_attr_specs, master_document)
                     self.db.update_master_record(entity, master_document["_id"], master_document)
             finally:
                 records_cursor.close()
 
+        run_metadata = {
+            "entities": entities,
+            "aggregation_start": start,
+            "aggregation_end": datetime.now(),
+        }
+        self.db.save_metadata(str(self.__class__.__qualname__), start, run_metadata)
         self.log.debug("Master documents aggregation end.")
 
     @staticmethod

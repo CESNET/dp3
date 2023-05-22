@@ -146,13 +146,14 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     db = EntityDatabase(config.get("database"), model_spec)
 
     global_scheduler = scheduler.Scheduler()
+    task_executor = TaskExecutor(db, platform_config)
     snap_shooter = SnapShooter(
         db,
         TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
+        task_executor,
         platform_config,
         global_scheduler,
     )
-    task_executor = TaskExecutor(db, platform_config)
     registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter)
 
     HistoryManager(db, platform_config, registrar)

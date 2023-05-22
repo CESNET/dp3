@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from enum import Enum
 from typing import Any, Optional
 
 from pydantic import BaseModel, root_validator, validator
@@ -107,10 +108,19 @@ class DataPointTask(Task):
         return values
 
 
+class SnapshotMessageType(Enum):
+    task = "task"
+    linked_entities = "linked_entities"
+
+
 class Snapshot(Task):
     """Snapshot
 
-    Contains a list of linked entities for which a snapshot should be created.
+    Contains a list of entities, the meaning of which depends on the `type`.
+    If `type` is "task", then the list contains linked entities for which a snapshot should be created.
+    Otherwise `type` is "linked_entities", indicating which entities must be skipped in a parallelized
+    creation of unlinked entities.
+
     Attributes:
         entities: List of (entity_type, entity_id)
         time: timestamp for snapshot creation
@@ -118,6 +128,7 @@ class Snapshot(Task):
 
     entities: list[tuple[str, str]]
     time: datetime
+    type: SnapshotMessageType
 
     def routing_key(self):
         return "-".join(f"{etype}:{eid}" for etype, eid in self.entities)

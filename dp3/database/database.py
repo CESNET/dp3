@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase
+from dp3.task_processing.task_queue import HASH
 
 
 class DatabaseError(Exception):
@@ -94,7 +95,9 @@ class EntityDatabase:
             self._db[snapshot_col].create_index("eid", background=True)
             self._db[snapshot_col].create_index("_time_created", background=True)
 
-    def insert_datapoints(self, etype: str, eid: str, dps: list[DataPointBase]) -> None:
+    def insert_datapoints(
+        self, etype: str, eid: str, dps: list[DataPointBase], new_entity: bool = False
+    ) -> None:
         """Inserts datapoint to raw data collection and updates master record.
 
         Raises DatabaseError when insert or update fails.
@@ -134,6 +137,9 @@ class EntityDatabase:
             # Push new data of timeseries
             if attr_spec.t == AttrType.TIMESERIES:
                 master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": v}
+
+        if new_entity:
+            master_changes["$set"]["#hash"] = HASH(f"{etype}:{eid}")
 
         master_col = self._master_col_name(etype)
         try:
@@ -187,6 +193,16 @@ class EntityDatabase:
 
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({}, **kwargs)
+
+    def get_worker_master_records(
+        self, worker_index: int, worker_cnt: int, etype: str, **kwargs
+    ) -> pymongo.cursor.Cursor:
+        """Get cursor to current master records of etype."""
+        if etype not in self._db_schema_config.entities:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
+        master_col = self._master_col_name(etype)
+        return self._db[master_col].find({"#hash": {"$mod": [worker_cnt, worker_index]}}, **kwargs)
 
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
         """Saves snapshot to specified entity of current master document."""
@@ -429,3 +445,7 @@ class EntityDatabase:
             return self._db[snapshot_col_name].delete_many({"_time_created": {"$lt": t_old}})
         except Exception as e:
             raise DatabaseError(f"Delete of olds snapshots failed: {e}") from e
+
+    def get_module_cache(self, module: str):
+        """Return a persistent cache collection for given module name."""
+        return self._db[f"#cache#{module}"]

@@ -19,11 +19,12 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import json
 import logging
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable
 
 import pymongo.errors
 from pydantic import BaseModel
+from pymongo import ReplaceOne
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
@@ -31,13 +32,15 @@ from dp3.common.attrspec import (
     ObservationsHistoryParams,
 )
 from dp3.common.config import PlatformConfig
+from dp3.common.datapoint import DataPointBase
 from dp3.common.scheduler import Scheduler
-from dp3.common.task import DataPointTask, Snapshot
+from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
     SnapshotTimeseriesHookContainer,
 )
+from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
 
@@ -52,6 +55,7 @@ class SnapShooter:
         self,
         db: EntityDatabase,
         task_queue_writer: TaskQueueWriter,
+        task_executor: TaskExecutor,
         platform_config: PlatformConfig,
         scheduler: Scheduler,
     ) -> None:
@@ -67,6 +71,7 @@ class SnapShooter:
             self.entity_relation_attrs[entity]["_id"] = True
 
         self.worker_index = platform_config.process_index
+        self.worker_cnt = platform_config.num_processes
         self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
 
         self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec)
@@ -108,6 +113,17 @@ class SnapShooter:
         # Schedule snapshot period
         snapshot_period = self.config.creation_rate
         scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
+
+        # Register snapshot cache
+        for (entity, attr), spec in self.model_spec.relations.items():
+            if spec.t == AttrType.PLAIN:
+                task_executor.register_attr_hook(
+                    "on_new_plain", self.add_to_link_cache, entity, attr
+                )
+            elif spec.t == AttrType.OBSERVATIONS:
+                task_executor.register_attr_hook(
+                    "on_new_observation", self.add_to_link_cache, entity, attr
+                )
 
     def start(self):
         """Connect to RabbitMQ and start consuming from TaskQueue."""
@@ -181,14 +197,44 @@ class SnapShooter:
         """
         self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
 
+    def add_to_link_cache(self, eid: str, dp: DataPointBase):
+        """Adds the given entity,eid pair to the cache of all linked entitites."""
+        cache = self.db.get_module_cache(self.__class__.__qualname__)
+        etype_to = self.model_spec.relations[dp.etype, dp.attr].relation_to
+        to_insert = [
+            {
+                "_id": f"{dp.etype}#{eid}",
+                "etype": dp.etype,
+                "eid": eid,
+                "expire_at": datetime.now() + timedelta(days=2),
+            },
+            {
+                "_id": f"{etype_to}#{dp.v}",
+                "etype": etype_to,
+                "eid": dp.v,
+                "expire_at": datetime.now() + timedelta(days=2),
+            },
+        ]
+        self.log.debug(to_insert)
+        res = cache.bulk_write([ReplaceOne({"_id": x["_id"]}, x, upsert=True) for x in to_insert])
+        self.log.debug(res)
+
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
-        self.log.debug("Loading linked entities.")
-
         time = datetime.now()
+
+        # distribute list of possibly linked entities to all workers
+        cached = self.get_cached_link_entity_ids()
+        self.log.debug("Broadcasting %s cached linked entities", len(cached))
+        self.snapshot_queue_writer.broadcast_task(
+            task=Snapshot(entities=cached, time=time, type=SnapshotMessageType.linked_entities)
+        )
+
+        # Load links only for a reduced set of entities
+        self.log.debug("Loading linked entities.")
         run_metadata = {"task_creation_start": time, "entities": 0, "components": 0}
         try:
-            linked_entities = self.get_linked_entities(time)
+            linked_entities = self.get_linked_entities(time, cached)
             run_metadata["components_loaded"] = datetime.now()
 
             for linked_entities_component in linked_entities:
@@ -196,50 +242,53 @@ class SnapShooter:
                 run_metadata["components"] += 1
 
                 self.snapshot_queue_writer.put_task(
-                    task=Snapshot(entities=linked_entities_component, time=time)
+                    task=Snapshot(
+                        entities=linked_entities_component, time=time, type=SnapshotMessageType.task
+                    )
                 )
         except pymongo.errors.CursorNotFound as err:
             self.log.exception(err)
         finally:
             run_metadata["task_creation_end"] = datetime.now()
-            self.db.save_metadata(str(self.__class__.__qualname__), time, run_metadata)
+            self.db.save_metadata(self.__class__.__qualname__, time, run_metadata)
 
-    def get_linked_entities(self, time: datetime):
+    def get_cached_link_entity_ids(self):
+        cache = self.db.get_module_cache(self.__class__.__qualname__)
+        result = cache.aggregate([{"$group": {"_id": "$etype", "eid": {"$addToSet": "$eid"}}}])
+        return [(res_obj["_id"], eid) for res_obj in result for eid in res_obj["eid"]]
+
+    def get_linked_entities(self, time: datetime, cached_linked_entities: list[tuple[str, str]]):
         """Get weakly connected components from entity graph."""
         visited_entities = set()
         entity_to_component = {}
         linked_components = []
-        for etype in self.snapshot_entities:
-            records_cursor = self.db.get_master_records(
-                etype, no_cursor_timeout=True, projection=self.entity_relation_attrs[etype]
-            )
-            try:
-                for master_record in records_cursor:
-                    if (etype, master_record["_id"]) not in visited_entities:
-                        # Get entities linked by current entity
-                        current_values = self.get_values_at_time(etype, master_record, time)
-                        linked_entities = self.load_linked_entity_ids(etype, current_values, time)
+        for etype, eid in cached_linked_entities:
+            master_record = self.db.get_master_record(
+                etype, eid, projection=self.entity_relation_attrs[etype]
+            ) or {"_id": eid}
+            if (etype, master_record["_id"]) not in visited_entities:
+                # Get entities linked by current entity
+                current_values = self.get_values_at_time(etype, master_record, time)
+                linked_entities = self.load_linked_entity_ids(etype, current_values, time)
 
-                        # Set linked as visited
-                        visited_entities.update(linked_entities)
+                # Set linked as visited
+                visited_entities.update(linked_entities)
 
-                        # Update component
-                        have_component = linked_entities & set(entity_to_component.keys())
-                        if have_component:
-                            for entity in have_component:
-                                component = entity_to_component[entity]
-                                component.update(linked_entities)
-                                entity_to_component.update(
-                                    {entity: component for entity in linked_entities}
-                                )
-                                break
-                        else:
-                            entity_to_component.update(
-                                {entity: linked_entities for entity in linked_entities}
-                            )
-                            linked_components.append(linked_entities)
-            finally:
-                records_cursor.close()
+                # Update component
+                have_component = linked_entities & set(entity_to_component.keys())
+                if have_component:
+                    for entity in have_component:
+                        component = entity_to_component[entity]
+                        component.update(linked_entities)
+                        entity_to_component.update(
+                            {entity: component for entity in linked_entities}
+                        )
+                        break
+                else:
+                    entity_to_component.update(
+                        {entity: linked_entities for entity in linked_entities}
+                    )
+                    linked_components.append(linked_entities)
         return linked_components
 
     def process_snapshot_task(self, msg_id, task: Snapshot):
@@ -249,7 +298,57 @@ class SnapShooter:
         This function should not be called directly, but set as callback for TaskQueueReader.
         """
         self.snapshot_queue_reader.ack(msg_id)
-        self.make_snapshot(task)
+        if task.type == SnapshotMessageType.task:
+            self.make_snapshot(task)
+        elif task.type == SnapshotMessageType.linked_entities:
+            self.make_snapshots_by_hash(task)
+
+    def make_snapshots_by_hash(self, task: Snapshot):
+        """
+        Make snapshots for all entities with routing key belonging to this worker.
+        """
+        self.log.debug("Creating snapshots for worker portion by hash.")
+        have_links = set(task.entities)
+        entity_cnt = 0
+        for etype in self.snapshot_entities:
+            records_cursor = self.db.get_worker_master_records(
+                self.worker_index,
+                self.worker_cnt,
+                etype,
+                no_cursor_timeout=True,
+                projection=self.entity_relation_attrs[etype],
+            )
+            try:
+                for master_record in records_cursor:
+                    if (etype, master_record["_id"]) in have_links:
+                        continue
+                    entity_cnt += 1
+                    self.make_linkless_snapshot(etype, master_record, task.time)
+            finally:
+                records_cursor.close()
+        self.db.update_metadata(
+            self.__class__.__qualname__,
+            task.time,
+            metadata={},
+            increase={"entities": entity_cnt, "components": entity_cnt},
+        )
+        self.log.debug("Worker snapshot creation done.")
+
+    def make_linkless_snapshot(self, entity_type: str, master_record: dict, time: datetime):
+        """
+        Make a snapshot for given entity `master_record` and `time`.
+
+        Runs timeseries and correlation hooks.
+        The resulting snapshot is saved into DB.
+        """
+        self.run_timeseries_processing(entity_type, master_record)
+        values = self.get_values_at_time(entity_type, master_record, time)
+        entity_values = {(entity_type, master_record["_id"]): values}
+
+        self._correlation_hooks.run(entity_values)
+
+        for rtype_rid, record in entity_values.items():
+            self.db.save_snapshot(rtype_rid[0], record, time)
 
     def make_snapshot(self, task: Snapshot):
         """

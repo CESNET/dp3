@@ -252,7 +252,27 @@ class TaskQueueWriter(RobustAMQPConnection):
             raise ExchangeNotDeclared(self.exchange_pri)
         return True
 
-    def put_task(self, task: Task, priority: bool = False):
+    def broadcast_task(self, task: Task, priority: bool = False) -> None:
+        """
+        Broadcast task to all workers
+
+        Args:
+            task: prepared task
+            priority: if true, the task is placed into priority queue
+                (should only be used internally by workers)
+        """
+        if not self.channel:
+            self.connect()
+
+        self.log.debug(f"Received new broadcast task: {task}")
+
+        body = task.as_message()
+        exchange = self.exchange_pri if priority else self.exchange
+
+        for routing_key in range(self.workers):
+            self._send_message(routing_key, exchange, body)
+
+    def put_task(self, task: Task, priority: bool = False) -> None:
         """
         Put task (update_request) to the queue of corresponding worker
 
@@ -272,8 +292,11 @@ class TaskQueueWriter(RobustAMQPConnection):
         routing_key = HASH(key) % self.workers  # index of the worker to send the task to
 
         exchange = self.exchange_pri if priority else self.exchange
+        self._send_message(routing_key, exchange, body)
 
-        # Send the message
+    def _send_message(self, routing_key, exchange, body):
+        """Send the message."""
+
         # ('mandatory' flag means that we want to guarantee it's delivered to someone.
         # If it can't be delivered (no consumer or full queue), wait a while and try again.
         # Always print just one error message for each unsuccessful message to be send.)

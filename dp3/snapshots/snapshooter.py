@@ -60,6 +60,10 @@ class SnapShooter:
         self.db = db
         self.task_queue_writer = task_queue_writer
         self.model_spec = platform_config.model_spec
+        self.entity_relation_attrs = defaultdict(dict)
+        for (entity, attr), _ in self.model_spec.relations.items():
+            self.entity_relation_attrs[entity][attr] = True
+
         self.worker_index = platform_config.process_index
         self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
 
@@ -349,8 +353,10 @@ class SnapShooter:
         while linked_entity_ids_to_process:
             entity_identifiers = linked_entity_ids_to_process.pop()
             linked_etype, linked_eid = entity_identifiers
-            # TODO load only required attributes
-            record = self.db.get_master_record(linked_etype, linked_eid) or {"_id": linked_eid}
+            relevant_attributes = self.entity_relation_attrs[linked_etype]
+            record = self.db.get_master_record(
+                linked_etype, linked_eid, projection=relevant_attributes
+            ) or {"_id": linked_eid}
             linked_values = self.get_values_at_time(linked_etype, record, time)
 
             linked_entity_ids_to_process.update(

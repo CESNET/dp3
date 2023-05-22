@@ -165,7 +165,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 
-    def get_master_record(self, etype: str, eid: str) -> dict:
+    def get_master_record(self, etype: str, eid: str, projection: dict = None) -> dict:
         """Get current master record for etype/eid.
 
         If doesn't exist, returns {}.
@@ -174,7 +174,7 @@ class EntityDatabase:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
         master_col = self._master_col_name(etype)
-        return self._db[master_col].find_one({"_id": eid}) or {}
+        return self._db[master_col].find_one({"_id": eid}, projection or {}) or {}
 
     def ekey_exists(self, etype: str, eid: str) -> bool:
         """Checks whether master record for etype/eid exists"""

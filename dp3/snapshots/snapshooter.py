@@ -321,7 +321,6 @@ class SnapShooter:
                 self.worker_cnt,
                 etype,
                 no_cursor_timeout=True,
-                projection=self.entity_relation_attrs[etype],
             )
             try:
                 for master_record in records_cursor:

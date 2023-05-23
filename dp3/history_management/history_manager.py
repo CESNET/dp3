@@ -202,12 +202,14 @@ class HistoryManager:
             finally:
                 records_cursor.close()
 
-        run_metadata = {
-            "entities": entities,
-            "aggregation_start": start,
-            "aggregation_end": datetime.now(),
-        }
-        self.db.save_metadata(str(self.__class__.__qualname__), start, run_metadata)
+        self.db.save_metadata(
+            start,
+            {
+                "entities": entities,
+                "aggregation_start": start,
+                "aggregation_end": datetime.now(),
+            },
+        )
         self.log.debug("Master documents aggregation end.")
 
     @staticmethod

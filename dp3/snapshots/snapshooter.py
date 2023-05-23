@@ -199,7 +199,7 @@ class SnapShooter:
 
     def add_to_link_cache(self, eid: str, dp: DataPointBase):
         """Adds the given entity,eid pair to the cache of all linked entitites."""
-        cache = self.db.get_module_cache(self.__class__.__qualname__)
+        cache = self.db.get_module_cache()
         etype_to = self.model_spec.relations[dp.etype, dp.attr].relation_to
         to_insert = [
             {
@@ -215,9 +215,8 @@ class SnapShooter:
                 "expire_at": datetime.now() + timedelta(days=2),
             },
         ]
-        self.log.debug(to_insert)
         res = cache.bulk_write([ReplaceOne({"_id": x["_id"]}, x, upsert=True) for x in to_insert])
-        self.log.debug(res)
+        self.log.debug("Cached %s linked entities: %s", len(to_insert), res.bulk_api_result)
 
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
@@ -232,10 +231,9 @@ class SnapShooter:
 
         # Load links only for a reduced set of entities
         self.log.debug("Loading linked entities.")
-        run_metadata = {"task_creation_start": time, "entities": 0, "components": 0}
+        self.db.save_metadata(time, {"task_creation_start": time, "entities": 0, "components": 0})
         times = {}
         counts = {"entities": 0, "components": 0}
-        self.db.save_metadata(self.__class__.__qualname__, time, run_metadata)
         try:
             linked_entities = self.get_linked_entities(time, cached)
             times["components_loaded"] = datetime.now()
@@ -254,14 +252,13 @@ class SnapShooter:
         finally:
             times["task_creation_end"] = datetime.now()
             self.db.update_metadata(
-                self.__class__.__qualname__,
                 time,
                 metadata=times,
                 increase=counts,
             )
 
     def get_cached_link_entity_ids(self):
-        cache = self.db.get_module_cache(self.__class__.__qualname__)
+        cache = self.db.get_module_cache()
         result = cache.aggregate([{"$group": {"_id": "$etype", "eid": {"$addToSet": "$eid"}}}])
         return [(res_obj["_id"], eid) for res_obj in result for eid in res_obj["eid"]]
 
@@ -335,7 +332,6 @@ class SnapShooter:
             finally:
                 records_cursor.close()
         self.db.update_metadata(
-            self.__class__.__qualname__,
             task.time,
             metadata={},
             increase={"entities": entity_cnt, "components": entity_cnt},

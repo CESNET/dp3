@@ -90,6 +90,22 @@ class SnapShooter:
             parent_logger=self.log,
         )
 
+        self.snapshot_entities = [
+            entity for entity, spec in self.model_spec.entities.items() if spec.snapshot
+        ]
+        self.log.info("Snapshots will be created for entities: %s", self.snapshot_entities)
+
+        # Register snapshot cache
+        for (entity, attr), spec in self.model_spec.relations.items():
+            if spec.t == AttrType.PLAIN:
+                task_executor.register_attr_hook(
+                    "on_new_plain", self.add_to_link_cache, entity, attr
+                )
+            elif spec.t == AttrType.OBSERVATIONS:
+                task_executor.register_attr_hook(
+                    "on_new_observation", self.add_to_link_cache, entity, attr
+                )
+
         if platform_config.process_index != 0:
             self.log.debug(
                 "Snapshot task creation will be disabled in this worker to avoid race conditions."
@@ -105,25 +121,9 @@ class SnapShooter:
             parent_logger=self.log,
         )
 
-        self.snapshot_entities = [
-            entity for entity, spec in self.model_spec.entities.items() if spec.snapshot
-        ]
-        self.log.info("Snapshots will be created for entities: %s", self.snapshot_entities)
-
         # Schedule snapshot period
         snapshot_period = self.config.creation_rate
         scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
-
-        # Register snapshot cache
-        for (entity, attr), spec in self.model_spec.relations.items():
-            if spec.t == AttrType.PLAIN:
-                task_executor.register_attr_hook(
-                    "on_new_plain", self.add_to_link_cache, entity, attr
-                )
-            elif spec.t == AttrType.OBSERVATIONS:
-                task_executor.register_attr_hook(
-                    "on_new_observation", self.add_to_link_cache, entity, attr
-                )
 
     def start(self):
         """Connect to RabbitMQ and start consuming from TaskQueue."""

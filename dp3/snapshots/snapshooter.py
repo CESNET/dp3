@@ -233,13 +233,16 @@ class SnapShooter:
         # Load links only for a reduced set of entities
         self.log.debug("Loading linked entities.")
         run_metadata = {"task_creation_start": time, "entities": 0, "components": 0}
+        times = {}
+        counts = {"entities": 0, "components": 0}
+        self.db.save_metadata(self.__class__.__qualname__, time, run_metadata)
         try:
             linked_entities = self.get_linked_entities(time, cached)
-            run_metadata["components_loaded"] = datetime.now()
+            times["components_loaded"] = datetime.now()
 
             for linked_entities_component in linked_entities:
-                run_metadata["entities"] += len(linked_entities_component)
-                run_metadata["components"] += 1
+                counts["entities"] += len(linked_entities_component)
+                counts["components"] += 1
 
                 self.snapshot_queue_writer.put_task(
                     task=Snapshot(
@@ -249,8 +252,13 @@ class SnapShooter:
         except pymongo.errors.CursorNotFound as err:
             self.log.exception(err)
         finally:
-            run_metadata["task_creation_end"] = datetime.now()
-            self.db.save_metadata(self.__class__.__qualname__, time, run_metadata)
+            times["task_creation_end"] = datetime.now()
+            self.db.update_metadata(
+                self.__class__.__qualname__,
+                time,
+                metadata=times,
+                increase=counts,
+            )
 
     def get_cached_link_entity_ids(self):
         cache = self.db.get_module_cache(self.__class__.__qualname__)

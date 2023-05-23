@@ -36,6 +36,9 @@ class HistoryManager:
         self.num_workers = platform_config.num_processes
         self.config = platform_config.config.get("history_manager")
 
+        # Schedule master document aggregation
+        registrar.scheduler_register(self.aggregate_master_docs, minute="*/10")
+
         if platform_config.process_index != 0:
             self.log.debug(
                 "History management will be disabled in this worker to avoid race conditions."
@@ -54,9 +57,6 @@ class HistoryManager:
         self.keep_raw_delta = timedelta(days=self.config["datapoint_archivation"]["days_to_keep"])
         self.log_dir = self._ensure_log_dir(self.config["datapoint_archivation"]["archive_dir"])
         registrar.scheduler_register(self.archive_old_dps, minute=0, hour=2)  # Every day at 2 AM
-
-        # Schedule master document aggregation
-        registrar.scheduler_register(self.aggregate_master_docs, minute="*/10")
 
     def delete_old_dps(self):
         """Deletes old data points from master collection."""
@@ -192,12 +192,16 @@ class HistoryManager:
         self.log.debug("Starting master documents aggregation.")
         start = datetime.now()
         entities = 0
+        if self.worker_index == 0:
+            self.db.save_metadata(start, {"entities": 0, "aggregation_start": start})
 
         for entity in self.model_spec.entities:
             entity_attr_specs = self.model_spec.entity_attributes[entity]
             eids = []
             aggregated_records = []
-            records_cursor = self.db.get_master_records(entity, no_cursor_timeout=True)
+            records_cursor = self.db.get_worker_master_records(
+                self.worker_index, self.num_workers, entity, no_cursor_timeout=True
+            )
             try:
                 for master_document in records_cursor:
                     entities += 1
@@ -217,13 +221,8 @@ class HistoryManager:
             finally:
                 records_cursor.close()
 
-        self.db.save_metadata(
-            start,
-            {
-                "entities": entities,
-                "aggregation_start": start,
-                "aggregation_end": datetime.now(),
-            },
+        self.db.update_metadata(
+            start, metadata={"aggregation_end": datetime.now()}, increase={"entities": entities}
         )
         self.log.debug("Master documents aggregation end.")
 

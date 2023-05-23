@@ -5,6 +5,7 @@ from datetime import datetime
 
 import pymongo
 from pydantic import BaseModel
+from pymongo import ReplaceOne
 
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
@@ -157,17 +158,22 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Update of master record failed: {e}\n{dps}") from e
 
-    def update_master_record(self, etype: str, eid: str, record: dict) -> None:
+    def update_master_records(self, etype: str, eids: list[str], records: list[dict]) -> None:
         """Replace master record of `etype`:`eid` with the provided `record`.
 
         Raises DatabaseError when update fails.
         """
         master_col = self._master_col_name(etype)
         try:
-            self._db[master_col].replace_one({"_id": eid}, record, upsert=True)
-            self.log.debug(f"Updated master record of {etype} {eid}.")
+            self._db[master_col].bulk_write(
+                [
+                    ReplaceOne({"_id": eid}, record, upsert=True)
+                    for eid, record in zip(eids, records)
+                ]
+            )
+            self.log.debug("Updated master records of %s: %s.", eids, eids)
         except Exception as e:
-            raise DatabaseError(f"Update of master record failed: {e}\n{record}") from e
+            raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
 
     def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> None:
         """Delete old datapoints from master collection.
@@ -223,9 +229,28 @@ class EntityDatabase:
         snapshot_col = self._snapshots_col_name(etype)
         try:
             self._db[snapshot_col].insert_one(snapshot)
-            self.log.debug(f"Inserted snapshot:\n{snapshot}")
+            self.log.debug(f"Inserted snapshot: {snapshot}")
         except Exception as e:
             raise DatabaseError(f"Insert of snapshot failed: {e}\n{snapshot}") from e
+
+    def save_snapshots(self, etype: str, snapshots: list[dict], time: datetime):
+        """
+        Saves a list of snapshots of current master documents.
+
+        All snapshots must belong to same entity type.
+        """
+        if etype not in self._db_schema_config.entities:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
+        for snapshot in snapshots:
+            snapshot["_time_created"] = time
+
+        snapshot_col = self._snapshots_col_name(etype)
+        try:
+            self._db[snapshot_col].insert_many(snapshots)
+            self.log.debug(f"Inserted snapshots: {snapshots}")
+        except Exception as e:
+            raise DatabaseError(f"Insert of snapshots failed: {e}\n{snapshots}") from e
 
     def save_metadata(self, time: datetime, metadata: dict):
         """Saves snapshot to specified entity of current master document."""

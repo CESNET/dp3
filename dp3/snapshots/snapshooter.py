@@ -43,6 +43,8 @@ from dp3.snapshots.snapshot_hooks import (
 from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
+DB_SEND_CHUNK = 100
+
 
 class SnapShooterConfig(BaseModel):
     creation_rate: int = 30
@@ -323,11 +325,20 @@ class SnapShooter:
                 no_cursor_timeout=True,
             )
             try:
+                snapshots = []
                 for master_record in records_cursor:
                     if (etype, master_record["_id"]) in have_links:
                         continue
                     entity_cnt += 1
-                    self.make_linkless_snapshot(etype, master_record, task.time)
+                    snapshots.append(self.make_linkless_snapshot(etype, master_record, task.time))
+
+                    if len(snapshots) >= DB_SEND_CHUNK:
+                        self.db.save_snapshots(etype, snapshots, task.time)
+                        snapshots.clear()
+
+                if snapshots:
+                    self.db.save_snapshots(etype, snapshots, task.time)
+                    snapshots.clear()
             finally:
                 records_cursor.close()
         self.db.update_metadata(
@@ -350,8 +361,9 @@ class SnapShooter:
 
         self._correlation_hooks.run(entity_values)
 
-        for rtype_rid, record in entity_values.items():
-            self.db.save_snapshot(rtype_rid[0], record, time)
+        assert len(entity_values) == 1, "Expected a single entity."
+        for record in entity_values.values():
+            return record
 
     def make_snapshot(self, task: Snapshot):
         """

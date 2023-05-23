@@ -12,6 +12,8 @@ from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.database.database import DatabaseError, EntityDatabase
 
+DB_SEND_CHUNK = 100
+
 
 class DatetimeEncoder(JSONEncoder):
     """JSONEncoder to encode datetime using the standard ADiCT format string."""
@@ -193,12 +195,25 @@ class HistoryManager:
 
         for entity in self.model_spec.entities:
             entity_attr_specs = self.model_spec.entity_attributes[entity]
+            eids = []
+            aggregated_records = []
             records_cursor = self.db.get_master_records(entity, no_cursor_timeout=True)
             try:
                 for master_document in records_cursor:
                     entities += 1
                     self.aggregate_master_doc(entity_attr_specs, master_document)
-                    self.db.update_master_record(entity, master_document["_id"], master_document)
+                    eids.append(master_document["_id"])
+                    aggregated_records.append(master_document)
+
+                    if len(aggregated_records) > DB_SEND_CHUNK:
+                        self.db.update_master_records(entity, eids, aggregated_records)
+                        eids.clear()
+                        aggregated_records.clear()
+
+                if aggregated_records:
+                    self.db.update_master_records(entity, eids, aggregated_records)
+                    eids.clear()
+                    aggregated_records.clear()
             finally:
                 records_cursor.close()
 

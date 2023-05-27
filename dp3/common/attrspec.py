@@ -22,7 +22,7 @@ from dp3.common.datapoint import (
     dp_ts_root_validator_regular_wrapper,
     dp_ts_v_validator,
 )
-from dp3.common.datatype import DataTypeContainer
+from dp3.common.datatype import DataType
 from dp3.common.utils import parse_time_duration
 
 # Regex of attribute and series id's
@@ -95,16 +95,16 @@ class TimeseriesTSParams(BaseModel):
 class TimeseriesSeries(BaseModel):
     """Series of timeseries attribute"""
 
-    data_type: DataTypeContainer
+    data_type: DataType
 
     @validator("data_type")
     def check_series_data_type(cls, v):
-        assert v.str_type in [
+        assert str(v) in [
             "int",
             "int64",
             "float",
             "time",
-        ], f"Data type of series must be one of int, int64, float, time; not {v.str_type}"
+        ], f"Data type of series must be one of int, int64, float, time; not {v}"
         return v
 
 
@@ -129,7 +129,7 @@ class AttrSpecGeneric(BaseModel):
 class AttrSpecClassic(AttrSpecGeneric):
     """Parent of non-timeseries `AttrSpec` classes."""
 
-    data_type: DataTypeContainer
+    data_type: DataType
     categories: list[str] = None
     editable: bool = False
 
@@ -233,13 +233,13 @@ class AttrSpecTimeseries(AttrSpecGeneric):
         return v
 
 
-AttrSpecType = Union[AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries]
 """A type union that covers AttrSpec class types:
 
-    - [AttrSpecPlain][dp3.common.attrspec.AttrSpecPlain]
-    - [AttrSpecObservations][dp3.common.attrspec.AttrSpecObservations]
-    - [AttrSpecTimeseries][dp3.common.attrspec.AttrSpecTimeseries]
+- [AttrSpecPlain][dp3.common.attrspec.AttrSpecPlain]
+- [AttrSpecObservations][dp3.common.attrspec.AttrSpecObservations]
+- [AttrSpecTimeseries][dp3.common.attrspec.AttrSpecTimeseries]
 """
+AttrSpecType = Union[AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries]
 
 
 def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:

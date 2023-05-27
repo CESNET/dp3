@@ -4,6 +4,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, NonNegativeInt, confloat, root_validator, validator
 
 from api.internal.helpers import api_to_dp3_datapoint
+from dp3.common.attrspec import AttrSpecType
 
 
 class DataPoint(BaseModel):
@@ -14,7 +15,7 @@ class DataPoint(BaseModel):
 
     Provides front line of validation for this data value.
 
-    This differs slightly compared to DataPoint from DP3 in naming of attributes due to historic
+    This differs slightly compared to `DataPoint` from DP3 in naming of attributes due to historic
     reasons.
 
     After validation of this schema, datapoint is validated using attribute-specific validator to
@@ -55,7 +56,7 @@ class EntityState(BaseModel):
 
     id: str
     name: str
-    attr_count: NonNegativeInt
+    attribs: dict[str, AttrSpecType]
     eid_estimate_count: NonNegativeInt
 
 

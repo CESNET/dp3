@@ -16,7 +16,6 @@ async def check_entity(entity: str):
 router = APIRouter(dependencies=[Depends(check_entity)])
 
 
-# TODO: type hint return values
 @router.get("/{entity}")
 async def list_entity_eids(
     entity: str, skip: NonNegativeInt = 0, limit: PositiveInt = 20

@@ -67,7 +67,7 @@ async def list_entities() -> dict[str, EntityState]:
         entities[e_id] = {
             "id": e_id,
             "name": entity_spec.name,
-            "attr_count": len(MODEL_SPEC.attribs(e_id)),
+            "attribs": MODEL_SPEC.attribs(e_id),
             "eid_estimate_count": DB.estimate_count_eids(e_id),
         }
 

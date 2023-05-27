@@ -171,10 +171,15 @@ class AttrSpecObservations(AttrSpecClassic):
     def __init__(self, **data):
         super().__init__(**data)
 
+        # Accept list of values if multi_value is enabled
+        value_validator = self.data_type.data_type
+        if self.multi_value:
+            value_validator = list[value_validator]
+
         self._dp_model = create_model(
             f"DataPointObservations_{self.id}",
             __base__=DataPointObservationsBase,
-            v=(self.data_type.data_type, ...),
+            v=(value_validator, ...),
         )
 
 

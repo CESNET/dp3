@@ -57,3 +57,15 @@ class EntityState(BaseModel):
     name: str
     attr_count: NonNegativeInt
     eid_estimate_count: NonNegativeInt
+
+
+class EntityEidList(BaseModel):
+    """List of entity eids and their data based on latest snapshot
+
+    Includes timestamp of latest snapshot creation.
+
+    Data does not include history of observations attributes and timeseries.
+    """
+
+    time_created: Optional[datetime]
+    data: list[dict]

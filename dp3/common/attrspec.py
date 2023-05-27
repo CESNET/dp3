@@ -239,7 +239,7 @@ class AttrSpecTimeseries(AttrSpecGeneric):
 - [AttrSpecObservations][dp3.common.attrspec.AttrSpecObservations]
 - [AttrSpecTimeseries][dp3.common.attrspec.AttrSpecTimeseries]
 """
-AttrSpecType = Union[AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries]
+AttrSpecType = Union[AttrSpecTimeseries, AttrSpecObservations, AttrSpecPlain]
 
 
 def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:

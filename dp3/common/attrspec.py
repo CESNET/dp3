@@ -1,5 +1,5 @@
 from datetime import timedelta
-from enum import Flag, auto
+from enum import Flag
 from typing import Any, Literal, Optional, Union
 
 from pydantic import (
@@ -44,11 +44,16 @@ class AttrTypeError(Exception):
 
 
 class AttrType(Flag):
-    """Enum of attribute types"""
+    """Enum of attribute types
 
-    PLAIN = auto()
-    OBSERVATIONS = auto()
-    TIMESERIES = auto()
+    `PLAIN` = 1
+    `OBSERVATIONS` = 2
+    `TIMESERIES` = 4
+    """
+
+    PLAIN = 1
+    OBSERVATIONS = 2
+    TIMESERIES = 4
 
     @classmethod
     def from_str(cls, type_str: str):

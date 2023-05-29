@@ -1,13 +1,21 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends
-from pydantic import NonNegativeInt, PositiveInt
+from fastapi import APIRouter, Depends, Request
+from pydantic import NonNegativeInt, PositiveInt, ValidationError
 
-from api.internal.config import DB, MODEL_SPEC
-from api.internal.models import EntityEidData, EntityEidList
-from api.internal.response_models import RequestValidationError
+from api.internal.config import DB, MODEL_SPEC, TASK_WRITER
+from api.internal.helpers import api_to_dp3_datapoint
+from api.internal.models import (
+    DataPoint,
+    EntityEidAttrValue,
+    EntityEidAttrValueOrHistory,
+    EntityEidData,
+    EntityEidList,
+)
+from api.internal.response_models import RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
+from dp3.common.task import DataPointTask
 
 
 async def check_entity(entity: str):
@@ -45,7 +53,7 @@ async def list_entity_eids(
 
 
 @router.get("/{entity}/{eid}")
-async def get_data_of_eid(
+async def get_eid_data(
     entity: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
 ) -> EntityEidData:
     """Get data of `entity`'s `eid`.
@@ -54,6 +62,9 @@ async def get_data_of_eid(
     Snapshots are ordered by ascending creation time.
     """
     # Get master record
+    # TODO: This is probably not the most efficient way. Maybe gather only
+    # plain data from master record and then call `get_timeseries_history`
+    # for timeseries.
     master_record = DB.get_master_record(entity, eid)
     if "_id" in master_record:
         del master_record["_id"]
@@ -74,3 +85,70 @@ async def get_data_of_eid(
     empty = not master_record and len(snapshots) == 0
 
     return EntityEidData(empty=empty, master_record=master_record, snapshots=snapshots)
+
+
+@router.get("/{entity}/{eid}/get/{attr}")
+async def get_eid_attr_value(
+    entity: str,
+    eid: str,
+    attr: str,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+) -> EntityEidAttrValueOrHistory:
+    """Get attribute value
+
+    Value is either of:
+    - current value: in case of plain attribute
+    - current value and history: in case of observation attribute
+    - history: in case of timeseries attribute
+    """
+    # Check if attribute exists
+    if attr not in MODEL_SPEC.attribs(entity):
+        raise RequestValidationError(["path", "attr"], f"Attribute '{attr}' doesn't exist")
+
+    value_or_history = DB.get_value_or_history(entity, attr, eid, t1=date_from, t2=date_to)
+
+    return EntityEidAttrValueOrHistory(
+        attr_type=MODEL_SPEC.attr(entity, attr).t, **value_or_history
+    )
+
+
+@router.post("/{entity}/{eid}/set/{attr}")
+async def set_eid_attr_value(
+    entity: str, eid: str, attr: str, body: EntityEidAttrValue, request: Request
+) -> SuccessResponse:
+    """Set current value of attribute
+
+    Internally just creates datapoint for specified attribute and value.
+
+    This endpoint is meant for `editable` plain attributes -- for direct user edit on DP3 web UI.
+    """
+    # Check if attribute exists
+    if attr not in MODEL_SPEC.attribs(entity):
+        raise RequestValidationError(["path", "attr"], f"Attribute '{attr}' doesn't exist")
+
+    # Construct datapoint
+    try:
+        dp = DataPoint(
+            type=entity,
+            id=eid,
+            attr=attr,
+            v=body.value,
+            t1=datetime.now(),
+            src=f"{request.client.host} via API",
+        )
+        dp3_dp = api_to_dp3_datapoint(dp.dict())
+    except ValidationError as e:
+        raise RequestValidationError(["body", "value"], e.errors()[0]["msg"]) from e
+
+    # This shouldn't fail
+    task = DataPointTask(model_spec=MODEL_SPEC, etype=entity, eid=eid, data_points=[dp3_dp])
+
+    # Push tasks to task queue
+    TASK_WRITER.put_task(task, False)
+
+    # Datapoints from this endpoint are intentionally not logged using `DPLogger`.
+    # If for some reason, in the future, they need to be, just copy code from data ingestion
+    # endpoint.
+
+    return SuccessResponse()

@@ -4,7 +4,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, NonNegativeInt, confloat, root_validator, validator
 
 from api.internal.helpers import api_to_dp3_datapoint
-from dp3.common.attrspec import AttrSpecType
+from dp3.common.attrspec import AttrSpecType, AttrType
 
 
 class DataPoint(BaseModel):
@@ -83,3 +83,26 @@ class EntityEidData(BaseModel):
     empty: bool
     master_record: dict
     snapshots: list[dict]
+
+
+class EntityEidAttrValueOrHistory(BaseModel):
+    """Value and/or history of entity attribute for given eid
+
+    Depends on attribute type:
+    - plain: just (current) value
+    - observations: (current) value and history stored in master record (optionally filtered)
+    - timeseries: just history stored in master record (optionally filtered)
+    """
+
+    attr_type: AttrType
+    current_value: Any = None
+    history: list[dict] = []
+
+
+class EntityEidAttrValue(BaseModel):
+    """Value of entity attribute for given eid
+
+    The value is fetched from master record.
+    """
+
+    value: Any

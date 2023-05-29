@@ -185,6 +185,17 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({})
 
+    def get_latest_snapshot(self, etype: str, eid: str) -> dict:
+        """Get latest snapshot of given etype/eid.
+
+        If doesn't exist, returns {}.
+        """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        snapshot_col = self._snapshots_col_name(etype)
+        return self._db[snapshot_col].find_one({"eid": eid}, sort=[("_id", -1)]) or {}
+
     def get_latest_snapshots(self, etype: str) -> pymongo.cursor.Cursor:
         """Get latest snapshots of given `etype`.
 
@@ -228,6 +239,46 @@ class EntityDatabase:
             del query["_time_created"]
 
         return self._db[snapshot_col].find(query).sort([("_time_created", pymongo.ASCENDING)])
+
+    def get_value_or_history(
+        self,
+        etype: str,
+        attr_name: str,
+        eid: str,
+        t1: Optional[datetime] = None,
+        t2: Optional[datetime] = None,
+    ) -> dict:
+        """Gets current value and/or history of attribute for given `eid`.
+
+        Depends on attribute type:
+        - plain: just (current) value
+        - observations: (current) value and history stored in master record (optionally filtered)
+        - timeseries: just history stored in master record (optionally filtered)
+
+        Returns dict with two keys: `current_value` and `history` (list of values).
+        """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        attr_spec = self._db_schema_config.attr(etype, attr_name)
+
+        result = {"current_value": None, "history": []}
+
+        # Add current value to the result
+        if attr_spec.t == AttrType.PLAIN:
+            result["current_value"] = (
+                self.get_master_record(etype, eid).get(attr_name, {}).get("v", None)
+            )
+        elif attr_spec.t == AttrType.OBSERVATIONS:
+            result["current_value"] = self.get_latest_snapshot(etype, eid).get(attr_name, None)
+
+        # Add history
+        if attr_spec.t == AttrType.OBSERVATIONS:
+            result["history"] = self.get_observation_history(etype, attr_name, eid, t1, t2)
+        elif attr_spec.t == AttrType.TIMESERIES:
+            result["history"] = self.get_timeseries_history(etype, attr_name, eid, t1, t2)
+
+        return result
 
     def estimate_count_eids(self, etype: str) -> int:
         """Estimates count of `eid`s in given `etype`"""

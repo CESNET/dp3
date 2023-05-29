@@ -1,8 +1,14 @@
 from collections import defaultdict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
-from api.internal.config import DB, MODEL_SPEC, TASK_WRITER
+from api.internal.config import (
+    DATAPOINTS_INGESTION_URL_PATH,
+    DB,
+    DP_LOGGER,
+    MODEL_SPEC,
+    TASK_WRITER,
+)
 from api.internal.helpers import api_to_dp3_datapoint
 from api.internal.models import DataPoint, EntityState
 from api.internal.response_models import HealthCheckResponse, SuccessResponse
@@ -20,8 +26,8 @@ async def health_check() -> HealthCheckResponse:
     return HealthCheckResponse()
 
 
-@router.post("/datapoints", tags=["Data ingestion"])
-async def insert_datapoints(dps: list[DataPoint]) -> SuccessResponse:
+@router.post(DATAPOINTS_INGESTION_URL_PATH, tags=["Data ingestion"])
+async def insert_datapoints(dps: list[DataPoint], request: Request) -> SuccessResponse:
     """Insert datapoints
 
     Validates and pushes datapoints into task queue, so they are processed by one of DP3 workers.
@@ -49,6 +55,9 @@ async def insert_datapoints(dps: list[DataPoint]) -> SuccessResponse:
     # Push tasks to task queue
     for task in tasks:
         TASK_WRITER.put_task(task, False)
+
+    # Log datapoints
+    DP_LOGGER.log_good(dp3_dps, src=request.client.host)
 
     return SuccessResponse()
 

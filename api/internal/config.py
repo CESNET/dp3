@@ -3,9 +3,12 @@ import sys
 
 from pydantic import BaseModel, ValidationError, validator
 
+from api.internal.dp_logger import DPLogger
 from dp3.common.config import ModelSpec, read_config_dir
 from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
+
+DATAPOINTS_INGESTION_URL_PATH = "/datapoints"
 
 
 class ConfigEnv(BaseModel):
@@ -51,3 +54,4 @@ TASK_WRITER = TaskQueueWriter(
     CONFIG.get("processing_core.worker_processes"),
     CONFIG.get("processing_core.msg_broker"),
 )
+DP_LOGGER = DPLogger(CONFIG.get("api.datapoint_logger"))

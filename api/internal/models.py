@@ -70,3 +70,16 @@ class EntityEidList(BaseModel):
 
     time_created: Optional[datetime]
     data: list[dict]
+
+
+class EntityEidData(BaseModel):
+    """Data of entity eid
+
+    Includes all snapshots and master record.
+
+    `empty` signalizes whether this eid includes any data.
+    """
+
+    empty: bool
+    master_record: dict
+    snapshots: list[dict]

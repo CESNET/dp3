@@ -1,6 +1,7 @@
 import logging
 import urllib
 from datetime import datetime
+from typing import Optional
 
 import pymongo
 from pydantic import BaseModel
@@ -197,11 +198,36 @@ class EntityDatabase:
         latest_snapshot_date = latest_snapshot["_time_created"]
         return self._db[snapshot_col].find({"_time_created": latest_snapshot_date})
 
-    def get_snapshots(self):
+    def get_snapshots(
+        self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+    ) -> pymongo.cursor.Cursor:
         """Get all (or filtered) snapshots of given `eid`.
 
         This method is useful for displaying `eid`'s history on web.
+
+        Args:
+            etype: entity type
+            eid: id of entity, to which data-points correspond
+            t1: left value of time interval (inclusive)
+            t2: right value of time interval (inclusive)
         """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        snapshot_col = self._snapshots_col_name(etype)
+        query = {"eid": eid, "_time_created": {}}
+
+        # Filter by date
+        if t1:
+            query["_time_created"]["$gte"] = t1
+        if t2:
+            query["_time_created"]["$lte"] = t2
+
+        # Unset if empty
+        if not query["_time_created"]:
+            del query["_time_created"]
+
+        return self._db[snapshot_col].find(query).sort([("_time_created", pymongo.ASCENDING)])
 
     def estimate_count_eids(self, etype: str) -> int:
         """Estimates count of `eid`s in given `etype`"""

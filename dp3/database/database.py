@@ -273,8 +273,10 @@ class EntityDatabase:
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}
 
         try:
-            self._db["#metadata"].update_one({"_id": metadata_id}, changes)
-            self.log.debug("Updated metadata %s, changes: %s", metadata_id, changes)
+            res = self._db["#metadata"].update_one({"_id": metadata_id}, changes)
+            self.log.debug(
+                "Updated metadata %s, changes: %s, result: %s", metadata_id, changes, res.raw_result
+            )
         except Exception as e:
             raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
 

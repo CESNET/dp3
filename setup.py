@@ -24,7 +24,7 @@ setuptools.setup(
         "pydantic~=1.10",
         "pymongo~=4.3.3",
         "pyyaml>=5.3.1,<5.5.0",
-        "requests~=2.28.1",
+        "requests~=2.31.0",
         "SQLAlchemy~=1.3.17",
     ],
     # TODO include other files as well

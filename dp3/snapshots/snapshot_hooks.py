@@ -132,6 +132,7 @@ class SnapshotCorrelationHookContainer:
         return hook_id
 
     def _validate_attr_paths(self, base_entity: str, paths: list[list[str]]):
+        """Validates paths of links between entity attributes"""
         entity_attributes = self.model_spec.entity_attributes
         for path in paths:
             position = entity_attributes[base_entity]
@@ -166,6 +167,16 @@ class SnapshotCorrelationHookContainer:
         return expanded_paths
 
     def _resolve_entities_in_path(self, base_entity: str, path: list[str]) -> list[tuple[str, str]]:
+        """
+        Resolves attributes in the path to tuples of  (entity_name, attr_name).
+
+        Args:
+            base_entity: Entity to which the first attribute belongs.
+            path: List of attribute names, all must be link type except for the last one.
+
+        Returns:
+            A resolved link path of tuples (entity_name, attr_name).
+        """
         entity_attributes = self.model_spec.entity_attributes
         position = entity_attributes[base_entity]
         resolved_path = []
@@ -179,9 +190,17 @@ class SnapshotCorrelationHookContainer:
 
     @staticmethod
     def _extract_path_from_resolved(path: list[tuple[str, str]]) -> list[str]:
+        """Transform list[(entity_name, attr_name)] to list[attr_name]."""
         return [attr for entity, attr in path]
 
     def _catch_them_all(self, path: list[tuple[str, str]]) -> list[list[tuple[str, str]]]:
+        """
+        Recursively searches for all possible path cycles and returns
+        Args:
+            path: A resolved link path of tuples (entity_name, attr_name).
+        Returns:
+            A list of all possible path permutations.
+        """
         root_cycles = self._get_root_cycles(path)
         out = []
         for beg, end in root_cycles:
@@ -193,10 +212,22 @@ class SnapshotCorrelationHookContainer:
             out.append(pre + post)
         return out
 
-    def _get_root_cycles(self, path: list[tuple[str, str]]) -> list[tuple[int, int]]:
+    @staticmethod
+    def _get_root_cycles(path: list[tuple[str, str]]) -> list[tuple[int, int]]:
+        """
+        Collects indexes of entities on the path, and returns a list of "root cycles"
+        A root cycle is defined using tuple of (start_index, end_index) in the path.
+        Examines all possible combinations of backlink cycles,
+        but returns only ones not completely inside any other existing cycle.
+
+        Args:
+            path: A resolved link path of tuples (entity_name, attr_name).
+        Returns:
+            Empty list if path contains no cycles,
+            a list of all possible "root cycle" combinations otherwise.
+        """
         entity_indexes: defaultdict[str, list[int]] = defaultdict(list)
-        for i, step in enumerate(path):
-            entity, attr = step
+        for i, (entity, _attr) in enumerate(path):
             entity_indexes[entity].append(i)
 
         if not any(len(indexes) > 1 for indexes in entity_indexes.values()):

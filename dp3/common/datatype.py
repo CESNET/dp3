@@ -3,12 +3,12 @@ import re
 from datetime import datetime
 from typing import Any, Union
 
-from pydantic import Json, constr, create_model
+from pydantic import BaseModel, Extra, Json, constr, create_model
 
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
-re_link = re.compile(r"^link<(\w+)>$")
+re_link = re.compile(r"^link<\s*(?P<etype>\w+)\s*(?:,\s*(?P<data>\S+)\s*)?>$")
 re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
 
 # Dictionary containing validator functions for primitive data types
@@ -26,6 +26,10 @@ primitive_data_types = {
     "special": Any,
     "json": Union[Json[Any], dict, list],
 }
+
+
+class LinkType(BaseModel, extra=Extra.forbid):
+    eid: str
 
 
 class DataTypeContainer:
@@ -66,10 +70,13 @@ class DataTypeContainer:
             or "array" in str_type
             or "special" in str_type
             or "json" in str_type
+            or "link" in str_type
         )
 
         if m := re.match(re_link, self.str_type):
-            self._link_to = m.group(1)
+            self._link_to = m.group("etype")
+            self._link_data = bool(m.group("data"))
+
         self.is_link = bool(m)
 
     @classmethod
@@ -105,8 +112,16 @@ class DataTypeContainer:
                 raise TypeError(f"Data type {element_type} is not supported as an set element")
             data_type = list[primitive_data_types[element_type]]  # set is not supported by MongoDB
 
-        elif re.match(re_link, str_type):
-            data_type = str
+        elif m := re.match(re_link, str_type):
+            etype, data = m.group("etype"), m.group("data")
+
+            if etype and data:
+                if data not in primitive_data_types:
+                    raise TypeError(f"{data}: Link data must be primitive type.")
+                validator = primitive_data_types[data]
+                data_type = create_model(f"Link<{data}>", __base__=LinkType, data=(validator, ...))
+            else:
+                data_type = LinkType
 
         elif re.match(re_dict, str_type):
             dict_spec = {}
@@ -137,10 +152,17 @@ class DataTypeContainer:
 
         return cls(str_type, data_type)
 
-    def get_linked_entity(self) -> id:
+    def get_linked_entity(self) -> str:
         """Returns linked entity id. Raises ValueError if DataType is not a link."""
         try:
             return self._link_to
+        except AttributeError:
+            raise ValueError(f"DataType '{self.str_type}' is not a link.") from None
+
+    def link_has_data(self) -> bool:
+        """Whether link has data. Raises ValueError if DataType is not a link."""
+        try:
+            return self._link_data
         except AttributeError:
             raise ValueError(f"DataType '{self.str_type}' is not a link.") from None
 

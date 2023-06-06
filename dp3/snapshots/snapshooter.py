@@ -211,9 +211,9 @@ class SnapShooter:
                 "expire_at": datetime.now() + timedelta(days=2),
             },
             {
-                "_id": f"{etype_to}#{dp.v}",
+                "_id": f"{etype_to}#{dp.v.eid}",
                 "etype": etype_to,
-                "eid": dp.v,
+                "eid": dp.v.eid,
                 "expire_at": datetime.now() + timedelta(days=2),
             },
         ]
@@ -389,9 +389,11 @@ class SnapShooter:
                 if (rtype, attr) not in self.model_spec.relations:
                     continue
                 if self.model_spec.relations[rtype, attr].multi_value:
-                    record[attr] = [val["eid"] for val in value]
+                    record[attr] = [
+                        {k: v for k, v in link_dict.items() if k != "record"} for link_dict in value
+                    ]
                 else:
-                    record[attr] = value["eid"]
+                    record[attr] = {k: v for k, v in value.items() if k != "record"}
 
         for rtype_rid, record in entity_values.items():
             self.db.save_snapshot(rtype_rid[0], record, task.time)
@@ -484,9 +486,9 @@ class SnapShooter:
                 continue
             attr_spec = self.model_spec.relations[entity_type, attr]
             if attr_spec.multi_value:
-                related_entity_ids.update((attr_spec.relation_to, eid) for eid in val)
+                related_entity_ids.update((attr_spec.relation_to, v["eid"]) for v in val)
             else:
-                related_entity_ids.add((attr_spec.relation_to, val))
+                related_entity_ids.add((attr_spec.relation_to, val["eid"]))
         return related_entity_ids
 
     def link_loaded_entities(self, loaded_entities: dict):
@@ -498,11 +500,21 @@ class SnapShooter:
                 attr_spec = self.model_spec.relations[entity_type, attr]
                 if attr_spec.multi_value:
                     entity[attr] = [
-                        loaded_entities.get((attr_spec.relation_to, eid), {"eid": eid})
-                        for eid in val
+                        {
+                            **v,
+                            "record": loaded_entities.get(
+                                (attr_spec.relation_to, v["eid"]), {"eid": v["eid"]}
+                            ),
+                        }
+                        for v in val
                     ]
                 else:
-                    entity[attr] = loaded_entities.get((attr_spec.relation_to, val), {"eid": val})
+                    entity[attr] = {
+                        **val,
+                        "record": loaded_entities.get(
+                            (attr_spec.relation_to, val["eid"]), {"eid": val["eid"]}
+                        ),
+                    }
 
     def get_value_at_time(
         self, attr_spec: AttrSpecObservations, attr_history, time: datetime

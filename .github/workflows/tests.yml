@@ -1,9 +1,9 @@
 name: Tests
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "new_dp3" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "new_dp3" ]
 
 jobs:
   api-tests:
@@ -12,13 +12,13 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Setup running platform stack
-        run: docker-compose up --build -d
+        run: docker compose up --build -d
 
       - name: Integration tests - API
         run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest discover -s tests/test_api -v
 
       - name: Get API logs
-        run: docker-compose logs receiver_api
+        run: docker compose logs receiver_api
 
   unit-tests:
     runs-on: ubuntu-latest

@@ -28,7 +28,7 @@ primitive_data_types = {
 }
 
 
-class LinkType(BaseModel, extra=Extra.forbid):
+class Link(BaseModel, extra=Extra.forbid):
     eid: str
 
 
@@ -116,12 +116,12 @@ class DataTypeContainer:
             etype, data = m.group("etype"), m.group("data")
 
             if etype and data:
-                if data not in primitive_data_types:
-                    raise TypeError(f"{data}: Link data must be primitive type.")
-                validator = primitive_data_types[data]
-                data_type = create_model(f"Link<{data}>", __base__=LinkType, data=(validator, ...))
+                value_type = cls.validate_and_create(data)
+                data_type = create_model(
+                    f"Link<{data}>", __base__=Link, data=(value_type.data_type, ...)
+                )
             else:
-                data_type = LinkType
+                data_type = Link
 
         elif re.match(re_dict, str_type):
             dict_spec = {}

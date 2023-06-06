@@ -8,7 +8,7 @@ import requests
 
 base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000/")
 api_up = None
-MAX_RETRY_ATTEMPTS = 5
+RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 
 values = {
     "valid": {
@@ -56,13 +56,13 @@ values = {
 
 
 def retry_request_on_error(request):
-    for attempt in range(MAX_RETRY_ATTEMPTS):
+    for attempt, delay in enumerate(RECONNECT_DELAYS):
         try:
             return request()
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout) as err:
-            logging.warning("Connection failed, retrying (attempt %d)", attempt + 1)
-            time.sleep(2)
-            if attempt + 1 == MAX_RETRY_ATTEMPTS:
+            logging.warning("Connection failed, retrying in %ds (attempt %d)", delay, attempt + 1)
+            time.sleep(delay)
+            if attempt + 1 == len(RECONNECT_DELAYS):
                 raise err
 
 

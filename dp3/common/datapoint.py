@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, confloat, root_validator, validator
 
 
-class DataPointBase(BaseModel):
+class DataPointBase(BaseModel, use_enum_values=True):
     """Data-point
 
     Contains single raw data value received on API.

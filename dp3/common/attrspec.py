@@ -115,7 +115,7 @@ class TimeseriesSeries(BaseModel):
         return v
 
 
-class AttrSpecGeneric(BaseModel):
+class AttrSpecGeneric(BaseModel, use_enum_values=True):
     """Base of attribute specification
 
     Parent of other `AttrSpec` classes.

@@ -60,8 +60,7 @@ attribs:
   test_attr_category:
     name: test_attr_category
     type: plain
-    data_type: category
-    categories: [ "cat1" ]
+    data_type: category<string;cat1,cat2>
   test_attr_array:
     name: test_attr_array
     type: plain

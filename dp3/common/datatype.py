@@ -1,6 +1,7 @@
 import ipaddress
 import re
 from datetime import datetime
+from enum import Enum
 from typing import Any, Union
 
 from pydantic import BaseModel, Extra, Json, PrivateAttr, constr, create_model
@@ -10,12 +11,14 @@ re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
 re_link = re.compile(r"^link<\s*(?P<etype>\w+)\s*(?:,\s*(?P<data>\S+)\s*)?>$")
 re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
+re_category = re.compile(
+    r"^category<\s*(?P<type>\w+)\s*;\s*(?P<vals>(?:\s*\w+,\s*)*(?:\s*\w+\s*))>$"
+)
 
 # Dictionary containing validator functions for primitive data types
 primitive_data_types = {
     "tag": bool,
     "binary": bool,
-    "category": str,  # TODO
     "string": str,
     "int": int,
     "int64": int,
@@ -55,6 +58,7 @@ class DataType(BaseModel):
     - array<str_type>
     - set<str_type>
     - dict<keys>
+    - category<str_type;category1,category2,...>
 
     Consists of additional attributes:
     - `data_type`: type for incoming value validation
@@ -154,6 +158,17 @@ class DataType(BaseModel):
 
             # Create model for this dict
             data_type = create_model(f"{str_type}__inner", **dict_spec)
+
+        elif m := re.match(re_category, str_type):
+            # Category
+            category_type, category_values = m.group("type"), m.group("vals")
+
+            category_type = DataType(__root__=category_type)
+            category_values = [
+                category_type._data_type(value.strip()) for value in category_values.split(",")
+            ]
+
+            data_type = Enum(f"Category<{category_type}>", {val: val for val in category_values})
         else:
             raise TypeError(f"Data type '{str_type}' is not supported")
 

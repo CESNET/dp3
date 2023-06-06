@@ -1,5 +1,6 @@
 import inspect
 import logging
+import time
 import urllib
 from datetime import datetime
 
@@ -29,6 +30,10 @@ def get_caller_id():
     return caller.function
 
 
+# number of seconds to wait for the i-th attempt to reconnect after error
+RECONNECT_DELAYS = [1, 2, 5, 10, 30]
+
+
 class EntityDatabase:
     """
     MongoDB database wrapper responsible for whole communication with database server.
@@ -53,19 +58,27 @@ class EntityDatabase:
         db_name = connection_conf.get("db_name", "dp3")
 
         self.log.info("Connecting to database...")
-        self._db = pymongo.MongoClient(
-            f"mongodb://{username}:{password}@{address}:{port}/",
-            connectTimeoutMS=3000,
-            serverSelectionTimeoutMS=5000,
-        )
-
-        # Check if connected
-        try:
-            self._db.admin.command("ping")
-        except pymongo.errors.ConnectionFailure as e:
-            raise DatabaseError(
-                "Cannot connect to database with specified connection arguments."
-            ) from e
+        for attempt, delay in enumerate(RECONNECT_DELAYS):
+            try:
+                self._db = pymongo.MongoClient(
+                    f"mongodb://{username}:{password}@{address}:{port}/",
+                    connectTimeoutMS=3000,
+                    serverSelectionTimeoutMS=5000,
+                )
+                # Check if connected
+                self._db.admin.command("ping")
+            except pymongo.errors.ConnectionFailure as e:
+                if attempt + 1 == len(RECONNECT_DELAYS):
+                    raise DatabaseError(
+                        "Cannot connect to database with specified connection arguments."
+                    ) from e
+                else:
+                    self.log.error(
+                        "Cannot connect to database (attempt %d, retrying in %ds).",
+                        attempt + 1,
+                        delay,
+                    )
+                    time.sleep(delay)
 
         self._db_schema_config = model_spec
 

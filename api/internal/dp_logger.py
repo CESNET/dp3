@@ -1,4 +1,5 @@
 import logging
+import pathlib
 
 from dp3.common.datapoint import DataPointBase
 
@@ -37,6 +38,12 @@ class DPLogger:
         """Creates new logger instance with `log_file` as target"""
         # Create log handler
         if log_file:
+            parent_path = pathlib.Path(log_file).parent
+            if not parent_path.exists():
+                raise FileNotFoundError(
+                    f"The directory {parent_path} does not exist,"
+                    " check the configured path or create the directory."
+                )
             log_handler = logging.FileHandler(log_file)
             log_handler.setFormatter(self.LOG_FORMATTER)
         else:

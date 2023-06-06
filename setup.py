@@ -18,7 +18,7 @@ setuptools.setup(
         "AMQPStorm~=2.7.2",
         "apscheduler~=3.6.3",
         "event-count-logger>=1.1",
-        "Flask>=2.1.0",
+        "fastapi>=0.95.1",
         "numpy>=1.23.0",
         "psycopg2-binary~=2.9.5",
         "pydantic~=1.10",

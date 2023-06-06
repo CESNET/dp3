@@ -3,6 +3,7 @@ import logging
 import time
 import urllib
 from datetime import datetime
+from typing import Optional
 
 import pymongo
 from pydantic import BaseModel
@@ -118,6 +119,14 @@ class EntityDatabase:
             self._db[snapshot_col].create_index("eid", background=True)
             self._db[snapshot_col].create_index("_time_created", background=True)
 
+    def _assert_etype_exists(self, etype: str):
+        """Asserts `etype` existence.
+
+        If doesn't exist, raises `DatabaseError`.
+        """
+        if etype not in self._db_schema_config.entities:
+            raise DatabaseError(f"Entity '{etype}' does not exist")
+
     def insert_datapoints(
         self, etype: str, eid: str, dps: list[DataPointBase], new_entity: bool = False
     ) -> None:
@@ -130,8 +139,8 @@ class EntityDatabase:
 
         etype = dps[0].etype
 
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         # Insert raw datapoints
         raw_col = self._raw_col_name(etype)
@@ -204,8 +213,8 @@ class EntityDatabase:
 
         If doesn't exist, returns {}.
         """
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         master_col = self._master_col_name(etype)
         return self._db[master_col].find_one({"_id": eid}, **kwargs) or {}
@@ -216,8 +225,8 @@ class EntityDatabase:
 
     def get_master_records(self, etype: str, **kwargs) -> pymongo.cursor.Cursor:
         """Get cursor to current master records of etype."""
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({}, **kwargs)
@@ -232,10 +241,113 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].find({"#hash": {"$mod": [worker_cnt, worker_index]}}, **kwargs)
 
+    def get_latest_snapshot(self, etype: str, eid: str) -> dict:
+        """Get latest snapshot of given etype/eid.
+
+        If doesn't exist, returns {}.
+        """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        snapshot_col = self._snapshots_col_name(etype)
+        return self._db[snapshot_col].find_one({"eid": eid}, sort=[("_id", -1)]) or {}
+
+    def get_latest_snapshots(self, etype: str) -> pymongo.cursor.Cursor:
+        """Get latest snapshots of given `etype`.
+
+        This method is useful for displaying data on web.
+        """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        snapshot_col = self._snapshots_col_name(etype)
+        latest_snapshot = self._db[snapshot_col].find_one({}, sort=[("_id", -1)])
+        latest_snapshot_date = latest_snapshot["_time_created"]
+        return self._db[snapshot_col].find({"_time_created": latest_snapshot_date})
+
+    def get_snapshots(
+        self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+    ) -> pymongo.cursor.Cursor:
+        """Get all (or filtered) snapshots of given `eid`.
+
+        This method is useful for displaying `eid`'s history on web.
+
+        Args:
+            etype: entity type
+            eid: id of entity, to which data-points correspond
+            t1: left value of time interval (inclusive)
+            t2: right value of time interval (inclusive)
+        """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        snapshot_col = self._snapshots_col_name(etype)
+        query = {"eid": eid, "_time_created": {}}
+
+        # Filter by date
+        if t1:
+            query["_time_created"]["$gte"] = t1
+        if t2:
+            query["_time_created"]["$lte"] = t2
+
+        # Unset if empty
+        if not query["_time_created"]:
+            del query["_time_created"]
+
+        return self._db[snapshot_col].find(query).sort([("_time_created", pymongo.ASCENDING)])
+
+    def get_value_or_history(
+        self,
+        etype: str,
+        attr_name: str,
+        eid: str,
+        t1: Optional[datetime] = None,
+        t2: Optional[datetime] = None,
+    ) -> dict:
+        """Gets current value and/or history of attribute for given `eid`.
+
+        Depends on attribute type:
+        - plain: just (current) value
+        - observations: (current) value and history stored in master record (optionally filtered)
+        - timeseries: just history stored in master record (optionally filtered)
+
+        Returns dict with two keys: `current_value` and `history` (list of values).
+        """
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        attr_spec = self._db_schema_config.attr(etype, attr_name)
+
+        result = {"current_value": None, "history": []}
+
+        # Add current value to the result
+        if attr_spec.t == AttrType.PLAIN:
+            result["current_value"] = (
+                self.get_master_record(etype, eid).get(attr_name, {}).get("v", None)
+            )
+        elif attr_spec.t == AttrType.OBSERVATIONS:
+            result["current_value"] = self.get_latest_snapshot(etype, eid).get(attr_name, None)
+
+        # Add history
+        if attr_spec.t == AttrType.OBSERVATIONS:
+            result["history"] = self.get_observation_history(etype, attr_name, eid, t1, t2)
+        elif attr_spec.t == AttrType.TIMESERIES:
+            result["history"] = self.get_timeseries_history(etype, attr_name, eid, t1, t2)
+
+        return result
+
+    def estimate_count_eids(self, etype: str) -> int:
+        """Estimates count of `eid`s in given `etype`"""
+        # Check `etype`
+        self._assert_etype_exists(etype)
+
+        master_col = self._master_col_name(etype)
+        return self._db[master_col].estimated_document_count({})
+
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
         """Saves snapshot to specified entity of current master document."""
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         snapshot["_time_created"] = time
 
@@ -252,8 +364,8 @@ class EntityDatabase:
 
         All snapshots must belong to same entity type.
         """
-        if etype not in self._db_schema_config.entities:
-            raise DatabaseError(f"Entity '{etype}' does not exist")
+        # Check `etype`
+        self._assert_etype_exists(etype)
 
         for snapshot in snapshots:
             snapshot["_time_created"] = time
@@ -292,18 +404,6 @@ class EntityDatabase:
             )
         except Exception as e:
             raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
-
-    def get_latest_snapshot(self):
-        """Get latest snapshot of given `eid`.
-
-        This method is useful for displaying data on web.
-        """
-
-    def get_snapshots(self):
-        """Get all (or filtered) snapshots of given `eid`.
-
-        This method is useful for displaying `eid`'s history on web.
-        """
 
     def get_observation_history(
         self,

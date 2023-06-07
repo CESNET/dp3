@@ -19,6 +19,7 @@ setuptools.setup(
         "apscheduler~=3.6.3",
         "event-count-logger>=1.1",
         "fastapi>=0.95.1",
+        "uvicorn>=0.22.0",
         "numpy>=1.23.0",
         "psycopg2-binary~=2.9.5",
         "pydantic~=1.10",
@@ -35,5 +36,5 @@ setuptools.setup(
         "Development Status :: 3 - Alpha",
     ],
     python_requires="~=3.9",
-    scripts=["bin/worker", "bin/updater", "bin/update_all", "api/receiver.py"],
+    scripts=["bin/worker", "bin/updater", "bin/update_all"],
 )

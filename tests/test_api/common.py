@@ -6,7 +6,7 @@ import unittest
 
 import requests
 
-base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000/")
+base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000")
 api_up = None
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 
@@ -93,11 +93,14 @@ class APITest(unittest.TestCase):
             lambda: requests.post(f"{base_url}/{path}", json=json_data, timeout=5)
         )
 
-    def push_multiple(self, json_data) -> requests.Response:
+    def push_datapoints(self, json_data) -> requests.Response:
         return self.request("datapoints", json_data=json_data)
 
     def push_task(self, json_data) -> requests.Response:
         return self.request("tasks", json_data=json_data)
+
+    def get_entity(self, path: str, **kwargs):
+        return self.get_request(f"entity/{path}", **kwargs)
 
     @staticmethod
     def get_request(path, **kwargs) -> requests.Response:

@@ -5,13 +5,15 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import NonNegativeInt, PositiveInt, ValidationError
 
 from api.internal.config import DB, MODEL_SPEC, TASK_WRITER
-from api.internal.helpers import api_to_dp3_datapoint
-from api.internal.models import (
-    DataPoint,
+from api.internal.entity_response_models import (
     EntityEidAttrValue,
     EntityEidAttrValueOrHistory,
     EntityEidData,
     EntityEidList,
+)
+from api.internal.helpers import api_to_dp3_datapoint
+from api.internal.models import (
+    DataPoint,
 )
 from api.internal.response_models import RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType

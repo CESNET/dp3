@@ -2,21 +2,19 @@ import sys
 import time
 
 import common
-from pydantic import BaseModel
+from common import ACCEPTED_ERROR_CODES
 
 from api.internal.entity_response_models import EntityEidAttrValueOrHistory
 
-ACCEPTED_UNKNOWN_CODES = {400, 404, 422}
 
-
-class GetValue(common.APITest):
+class GetEidAttrValue(common.APITest):
     def test_unknown_entity_type(self):
         response = self.get_entity("xyz/test_entity_id/get/test_attr_int")
-        self.assertIn(response.status_code, ACCEPTED_UNKNOWN_CODES)
+        self.assertIn(response.status_code, ACCEPTED_ERROR_CODES)
 
     def test_unknown_attr_name(self):
         response = self.get_entity("test_entity_type/test_entity_id/get/xyz")
-        self.assertIn(response.status_code, ACCEPTED_UNKNOWN_CODES)
+        self.assertIn(response.status_code, ACCEPTED_ERROR_CODES)
 
     def test_unknown_entity_id(self):
         payload = self.get_entity_data(
@@ -49,7 +47,22 @@ class GetValue(common.APITest):
                 break
         self.assertEqual(payload, expected)
 
-    def get_entity_data(self, path: str, model: BaseModel) -> BaseModel:
-        response = self.get_entity(path)
-        self.assertEqual(response.status_code, 200)
-        return model.parse_raw(response.content)
+    def test_invalid_timestamp(self):
+        response = self.get_entity(
+            "test_entity_type/test_entity_id/get/test_attr_history", date_from="xyz"
+        )
+        self.assertEqual(422, response.status_code)
+
+    def test_valid_time_intervals(self):
+        time_intervals = {
+            "<T1, T2>": {"date_from": "2020-01-01T00:00:00", "date_to": "2020-01-01T00:00:00"},
+            "<T1, _>": {"date_from": "2020-01-01T00:00:00"},
+            "<_, T2>": {"date_to": "2020-01-01T00:00:00"},
+            "<_, _>": {},
+        }
+        for msg, intervals in time_intervals.items():
+            with self.subTest(msg=msg):
+                response = self.get_entity(
+                    "test_entity_type/test_entity_id/get/test_attr_history", **intervals
+                )
+                self.assertEqual(200, response.status_code)

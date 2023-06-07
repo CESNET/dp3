@@ -1,8 +1,7 @@
 import sys
 
 import common
-
-ACCEPTED_ERROR_CODES = {400, 422}
+from common import ACCEPTED_ERROR_CODES
 
 
 class PushDatapoints(common.APITest):

@@ -3,12 +3,18 @@ import logging
 import os
 import time
 import unittest
+from typing import TypeVar
 
 import requests
+from pydantic import BaseModel
+
+Model = TypeVar("Model", bound=BaseModel)  # Can be any subtype of BaseModel
 
 base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000")
 api_up = None
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
+
+ACCEPTED_ERROR_CODES = {400, 422}
 
 values = {
     "valid": {
@@ -98,6 +104,11 @@ class APITest(unittest.TestCase):
 
     def push_task(self, json_data) -> requests.Response:
         return self.request("tasks", json_data=json_data)
+
+    def get_entity_data(self, path: str, model: type[Model]) -> Model:
+        response = self.get_entity(path)
+        self.assertEqual(response.status_code, 200)
+        return model.parse_raw(response.content)
 
     def get_entity(self, path: str, **kwargs):
         return self.get_request(f"entity/{path}", **kwargs)

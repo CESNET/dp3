@@ -1,24 +1,34 @@
-import sys
-import time
-
 import common
 from common import ACCEPTED_ERROR_CODES
 
 from api.internal.entity_response_models import EntityEidAttrValueOrHistory
 
+TESTED_PATH = "entity/{entity}/{eid}/get/{attr}"
+TESTED_HISTORY_PATH = TESTED_PATH.format(
+    entity="test_entity_type", eid="test_entity_id", attr="test_attr_history"
+)
+TESTED_INT_PATH = TESTED_PATH.format(
+    entity="test_entity_type", eid="test_entity_id", attr="test_attr_int"
+)
+
 
 class GetEidAttrValue(common.APITest):
     def test_unknown_entity_type(self):
-        response = self.get_entity("xyz/test_entity_id/get/test_attr_int")
+        response = self.get_request(
+            TESTED_PATH.format(entity="xyz", eid="test_entity_id", attr="test_attr_int")
+        )
         self.assertIn(response.status_code, ACCEPTED_ERROR_CODES)
 
     def test_unknown_attr_name(self):
-        response = self.get_entity("test_entity_type/test_entity_id/get/xyz")
+        response = self.get_request(
+            TESTED_PATH.format(entity="test_entity_type", eid="test_entity_id", attr="xyz")
+        )
         self.assertIn(response.status_code, ACCEPTED_ERROR_CODES)
 
     def test_unknown_entity_id(self):
         payload = self.get_entity_data(
-            "test_entity_type/xyz/get/test_attr_int", EntityEidAttrValueOrHistory
+            TESTED_PATH.format(entity="test_entity_type", eid="xyz", attr="test_attr_int"),
+            EntityEidAttrValueOrHistory,
         )
         expected = EntityEidAttrValueOrHistory(attr_type=1)
         self.assertEqual(payload, expected, "The returned object is not empty")
@@ -36,21 +46,12 @@ class GetEidAttrValue(common.APITest):
         )
         self.assertEqual(200, response.status_code, "setup push failed")
         expected = EntityEidAttrValueOrHistory(attr_type=1, current_value=123)
-        payload = None
-        for _ in range(5):
-            time.sleep(0.5)
-            payload = self.get_entity_data(
-                "test_entity_type/test_entity_id/get/test_attr_int", EntityEidAttrValueOrHistory
-            )
-            print(payload, file=sys.stderr)
-            if payload == expected:
-                break
-        self.assertEqual(payload, expected)
+        self.query_expected_value(
+            lambda: self.get_entity_data(TESTED_INT_PATH, EntityEidAttrValueOrHistory), expected
+        )
 
     def test_invalid_timestamp(self):
-        response = self.get_entity(
-            "test_entity_type/test_entity_id/get/test_attr_history", date_from="xyz"
-        )
+        response = self.get_request(TESTED_HISTORY_PATH, date_from="xyz")
         self.assertEqual(422, response.status_code)
 
     def test_valid_time_intervals(self):
@@ -62,7 +63,5 @@ class GetEidAttrValue(common.APITest):
         }
         for msg, intervals in time_intervals.items():
             with self.subTest(msg=msg):
-                response = self.get_entity(
-                    "test_entity_type/test_entity_id/get/test_attr_history", **intervals
-                )
+                response = self.get_request(TESTED_HISTORY_PATH, **intervals)
                 self.assertEqual(200, response.status_code)

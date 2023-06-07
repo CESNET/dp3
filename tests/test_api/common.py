@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import sys
 import time
 import unittest
 from typing import TypeVar
@@ -85,33 +86,28 @@ class APITest(unittest.TestCase):
         return self.assertTrue(api_up, msg="API is down.")
 
     @staticmethod
-    def push_single(endpoint_path: str, **datapoint_values) -> requests.Response:
-        args_str = "&".join([f"{key}={value}" for key, value in datapoint_values.items()])
-        if args_str != "":
-            args_str = f"?{args_str}"
+    def request(path, **kwargs) -> requests.Response:
         return retry_request_on_error(
-            lambda: requests.post(f"{base_url}/{endpoint_path}{args_str}", timeout=5)
+            lambda: requests.post(f"{base_url}/{path}", **kwargs, timeout=5)
         )
 
-    @staticmethod
-    def request(path, json_data) -> requests.Response:
-        return retry_request_on_error(
-            lambda: requests.post(f"{base_url}/{path}", json=json_data, timeout=5)
-        )
+    def query_expected_value(self, query, expected_value, attempts=5, delay_s=0.5):
+        payload = None
+        for _ in range(attempts):
+            time.sleep(delay_s)
+            payload = query()
+            print(payload, file=sys.stderr)
+            if payload == expected_value:
+                break
+        self.assertEqual(payload, expected_value)
 
     def push_datapoints(self, json_data) -> requests.Response:
-        return self.request("datapoints", json_data=json_data)
+        return self.request("datapoints", json=json_data)
 
-    def push_task(self, json_data) -> requests.Response:
-        return self.request("tasks", json_data=json_data)
-
-    def get_entity_data(self, path: str, model: type[Model]) -> Model:
-        response = self.get_entity(path)
+    def get_entity_data(self, path: str, model: type[Model], **kwargs) -> Model:
+        response = self.get_request(path, **kwargs)
         self.assertEqual(response.status_code, 200)
         return model.parse_raw(response.content)
-
-    def get_entity(self, path: str, **kwargs):
-        return self.get_request(f"entity/{path}", **kwargs)
 
     @staticmethod
     def get_request(path, **kwargs) -> requests.Response:

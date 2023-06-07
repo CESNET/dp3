@@ -28,7 +28,7 @@ services:
     command: [ "redis-server", "--appendonly", "yes" ]
 
   receiver_api:
-    container_name: "dp3_receiver_api"
+    container_name: "dp3_api"
     image: "dp3_interpreter"
     build:
       context: .
@@ -36,9 +36,12 @@ services:
       target: "base"
     ports:
       - "5000:5000"
+    working_dir: "/api"
     environment:
       HOST: "0.0.0.0"
-    command: [ "python", "api/receiver.py", "test", "./tests/test_config" ]
+      APP_NAME: "test"
+      CONF_DIR: "/tests/test_config"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000" ]
 
   worker:
     container_name: "dp3_worker"

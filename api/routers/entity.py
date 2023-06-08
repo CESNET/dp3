@@ -34,7 +34,7 @@ router = APIRouter(dependencies=[Depends(check_entity)])
 async def list_entity_eids(
     entity: str, skip: NonNegativeInt = 0, limit: PositiveInt = 20
 ) -> EntityEidList:
-    """List `id`s present in database under `entity`
+    """List latest snapshots of all `id`s present in database under `entity`.
 
     Contains only latest snapshot.
 

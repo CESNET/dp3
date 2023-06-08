@@ -164,11 +164,31 @@ class EntityDatabase:
 
             # Push new data of observation
             if attr_spec.t == AttrType.OBSERVATIONS:
-                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": v, "c": dp.c}
+                if dp.attr in master_changes["$push"]:
+                    # Support multiple datapoints being pushed in the same request
+                    if "$each" not in master_changes["$push"][dp.attr]:
+                        saved_dp = master_changes["$push"][dp.attr]
+                        master_changes["$push"][dp.attr] = {"$each": [saved_dp]}
+                    master_changes["$push"][dp.attr]["$each"].append(
+                        {"t1": dp.t1, "t2": dp.t2, "v": v, "c": dp.c}
+                    )
+                else:
+                    # Otherwise just push one datapoint
+                    master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": v, "c": dp.c}
 
             # Push new data of timeseries
             if attr_spec.t == AttrType.TIMESERIES:
-                master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": v}
+                if dp.attr in master_changes["$push"]:
+                    # Support multiple datapoints being pushed in the same request
+                    if "$each" not in master_changes["$push"][dp.attr]:
+                        saved_dp = master_changes["$push"][dp.attr]
+                        master_changes["$push"][dp.attr] = {"$each": [saved_dp]}
+                    master_changes["$push"][dp.attr]["$each"].append(
+                        {"t1": dp.t1, "t2": dp.t2, "v": v}
+                    )
+                else:
+                    # Otherwise just push one datapoint
+                    master_changes["$push"][dp.attr] = {"t1": dp.t1, "t2": dp.t2, "v": v}
 
         if new_entity:
             master_changes["$set"]["#hash"] = HASH(f"{etype}:{eid}")

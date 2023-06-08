@@ -14,7 +14,6 @@ from dp3.common.config import ModelSpec, read_config_dir
 Model = TypeVar("Model", bound=BaseModel)  # Can be any subtype of BaseModel
 
 base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000")
-api_up = None
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 
 ACCEPTED_ERROR_CODES = {400, 422}
@@ -79,16 +78,15 @@ def retry_request_on_error(request):
 
 
 class APITest(unittest.TestCase):
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
         # Test the base endpoint is live before running tests.
-        global api_up
-        if api_up is None:
-            try:
-                retry_request_on_error(lambda: requests.get(base_url))
-                api_up = True
-            except requests.exceptions.ConnectionError:
-                api_up = False
-        return self.assertTrue(api_up, msg="API is down.")
+        try:
+            retry_request_on_error(lambda: requests.get(base_url))
+            api_up = True
+        except requests.exceptions.ConnectionError:
+            api_up = False
+        assert api_up, "API is down."
 
     @staticmethod
     def post_request(path, **kwargs) -> requests.Response:
@@ -106,8 +104,9 @@ class APITest(unittest.TestCase):
                 break
         self.assertEqual(payload, expected_value)
 
-    def push_datapoints(self, json_data) -> requests.Response:
-        return self.post_request("datapoints", json=json_data)
+    @classmethod
+    def push_datapoints(cls, json_data) -> requests.Response:
+        return cls.post_request("datapoints", json=json_data)
 
     def get_entity_data(self, path: str, model: type[Model], **kwargs) -> Model:
         response = self.get_request(path, **kwargs)

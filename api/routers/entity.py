@@ -70,6 +70,8 @@ async def get_eid_data(
     master_record = DB.get_master_record(entity, eid)
     if "_id" in master_record:
         del master_record["_id"]
+    if "#hash" in master_record:
+        del master_record["#hash"]
 
     # Get filtered timeseries data
     for attr in master_record:

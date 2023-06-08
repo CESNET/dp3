@@ -49,14 +49,20 @@ rabbitmqadmin declare exchange "name=${APPNAME}-priority-task-exchange" type=dir
 
 rabbitmqadmin declare exchange "name=${APPNAME}-main-snapshot-exchange" type=direct durable=true
 
+# Declare exchange for control tasks
+rabbitmqadmin declare exchange "name=${APPNAME}-control-exchange" type=direct durable=true
+
 # Declare queues for N workers
 for i in $(seq 0 $((N-1)))
 do
-  rabbitmqadmin declare queue "name=${APPNAME}-worker-$i" durable=true 'arguments={"x-max-length": 100, "x-overflow": "reject-publish"}'
+  rabbitmqadmin declare queue "name=${APPNAME}-worker-$i" durable=true 'arguments={"x-max-length": 10000, "x-overflow": "reject-publish"}'
   rabbitmqadmin declare queue "name=${APPNAME}-worker-$i-pri" durable=true
 
   rabbitmqadmin declare queue "name=${APPNAME}-worker-$i-snapshots" durable=true
 done
+
+# Declare control queue
+rabbitmqadmin declare queue "name=${APPNAME}-control" durable=true
 
 # Bind queues to exchanges
 for i in $(seq 0 $((N-1)))
@@ -66,6 +72,7 @@ do
 
   rabbitmqadmin declare binding "source=${APPNAME}-main-snapshot-exchange" "destination=${APPNAME}-worker-$i-snapshots" routing_key=$i
 done
+rabbitmqadmin declare binding "source=${APPNAME}-control-exchange" "destination=${APPNAME}-control" routing_key=0
 
 # bring rabbitmq-server process to foreground
 fg

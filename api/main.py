@@ -5,7 +5,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 
 from api.internal.config import DATAPOINTS_INGESTION_URL_PATH, DP_LOGGER
-from api.routers import entity, root
+from api.routers import control, entity, root
 
 # Create new FastAPI app
 app = FastAPI()
@@ -26,4 +26,5 @@ async def validation_exception_handler(request, exc):
 
 # Register routers
 app.include_router(entity.router, prefix="/entity", tags=["Entity"])
+app.include_router(control.router, prefix="/control", tags=["Control"])
 app.include_router(root.router)

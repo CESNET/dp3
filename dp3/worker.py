@@ -13,6 +13,7 @@ from importlib import import_module
 
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
+from dp3.common.control import Control, ControlAction
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 if __name__ == "__main__":
@@ -177,6 +178,9 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     task_distributor = TaskDistributor(task_executor, platform_config, registrar, daemon_stop_lock)
 
+    control = Control(platform_config)
+    control.set_action_handler(ControlAction.make_snapshots, snap_shooter.make_snapshots)
+
     ##############################################
     # Load all plug-in modules
 
@@ -212,6 +216,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Run SnapShooter
     snap_shooter.start()
 
+    control.start()
+
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.
     # (try to acquire the lock again,
@@ -232,6 +238,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     signal.signal(signal.SIGABRT, signal.SIG_DFL)
 
     log.info("Stopping running components ...")
+    control.stop()
     snap_shooter.stop()
     global_scheduler.stop()
     task_distributor.stop()

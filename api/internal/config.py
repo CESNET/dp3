@@ -54,4 +54,10 @@ TASK_WRITER = TaskQueueWriter(
     CONFIG.get("processing_core.worker_processes"),
     CONFIG.get("processing_core.msg_broker"),
 )
+CONTROL_WRITER = TaskQueueWriter(
+    conf_env.APP_NAME,
+    CONFIG.get("processing_core.worker_processes"),
+    CONFIG.get("processing_core.msg_broker"),
+    exchange=f"{conf_env.APP_NAME}-control-exchange",
+)
 DP_LOGGER = DPLogger(CONFIG.get("api.datapoint_logger"))

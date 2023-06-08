@@ -10,7 +10,7 @@ from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 
 
-class Task(BaseModel, ABC, use_enum_values=True):
+class Task(BaseModel, ABC):
     """
     A generic task type class.
 

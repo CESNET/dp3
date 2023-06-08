@@ -9,6 +9,8 @@ from typing import TypeVar
 import requests
 from pydantic import BaseModel
 
+from dp3.common.config import ModelSpec, read_config_dir
+
 Model = TypeVar("Model", bound=BaseModel)  # Can be any subtype of BaseModel
 
 base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000")
@@ -16,6 +18,9 @@ api_up = None
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 
 ACCEPTED_ERROR_CODES = {400, 422}
+
+CONFIG = read_config_dir("../test_config", recursive=True)
+MODEL_SPEC = ModelSpec(CONFIG.get("db_entities"))
 
 values = {
     "valid": {
@@ -86,7 +91,7 @@ class APITest(unittest.TestCase):
         return self.assertTrue(api_up, msg="API is down.")
 
     @staticmethod
-    def request(path, **kwargs) -> requests.Response:
+    def post_request(path, **kwargs) -> requests.Response:
         return retry_request_on_error(
             lambda: requests.post(f"{base_url}/{path}", **kwargs, timeout=5)
         )
@@ -102,7 +107,7 @@ class APITest(unittest.TestCase):
         self.assertEqual(payload, expected_value)
 
     def push_datapoints(self, json_data) -> requests.Response:
-        return self.request("datapoints", json=json_data)
+        return self.post_request("datapoints", json=json_data)
 
     def get_entity_data(self, path: str, model: type[Model], **kwargs) -> Model:
         response = self.get_request(path, **kwargs)

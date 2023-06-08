@@ -7,12 +7,12 @@ TESTED_PATH = "entity/test_entity_type/eid01/{action}/test_attr_string"
 
 class SetEidAttrValue(common.APITest):
     def test_invalid_payload(self):
-        response = self.request(TESTED_PATH.format(action="set"), json={})
+        response = self.post_request(TESTED_PATH.format(action="set"), json={})
         self.assertEqual(response.status_code, 422)
 
     def test_valid_payload(self):
         payload = EntityEidAttrValue(value="Test string val1")
-        response = self.request(TESTED_PATH.format(action="set"), data=payload.json())
+        response = self.post_request(TESTED_PATH.format(action="set"), data=payload.json())
         self.assertEqual(response.status_code, 200)
 
         expected = EntityEidAttrValueOrHistory(attr_type=1, current_value="Test string val1")

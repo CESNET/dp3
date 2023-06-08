@@ -309,6 +309,8 @@ class SnapShooter:
             self.make_snapshot(task)
         elif task.type == SnapshotMessageType.linked_entities:
             self.make_snapshots_by_hash(task)
+        else:
+            raise ValueError("Unknown SnapshotMessageType.")
 
     def make_snapshots_by_hash(self, task: Snapshot):
         """

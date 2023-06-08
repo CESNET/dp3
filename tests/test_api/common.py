@@ -4,7 +4,7 @@ import os
 import sys
 import time
 import unittest
-from typing import TypeVar
+from typing import Callable, TypeVar
 
 import requests
 from pydantic import BaseModel
@@ -12,13 +12,22 @@ from pydantic import BaseModel
 from dp3.common.config import ModelSpec, read_config_dir
 
 Model = TypeVar("Model", bound=BaseModel)  # Can be any subtype of BaseModel
+A = TypeVar("A")
 
 base_url = os.getenv("BASE_URL", default="http://127.0.0.1:5000")
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 
 ACCEPTED_ERROR_CODES = {400, 422}
 
-CONFIG = read_config_dir("../test_config", recursive=True)
+
+class ConfigEnv(BaseModel):
+    """Configuration environment variables container"""
+
+    CONF_DIR: str
+
+
+conf_env = ConfigEnv.parse_obj(os.environ)
+CONFIG = read_config_dir(conf_env.CONF_DIR, recursive=True)
 MODEL_SPEC = ModelSpec(CONFIG.get("db_entities"))
 
 values = {
@@ -94,15 +103,18 @@ class APITest(unittest.TestCase):
             lambda: requests.post(f"{base_url}/{path}", **kwargs, timeout=5)
         )
 
-    def query_expected_value(self, query, expected_value, attempts=5, delay_s=0.5):
-        payload = None
+    def query_expected_value(
+        self, query: Callable[[], A], assertion: Callable[[A], bool], attempts=5, delay_s=0.5
+    ):
+        payload: A = None
         for _ in range(attempts):
             time.sleep(delay_s)
             payload = query()
             print(payload, file=sys.stderr)
-            if payload == expected_value:
+            if assertion(payload):
                 break
-        self.assertEqual(payload, expected_value)
+        self.assertTrue(assertion(payload))
+        return payload
 
     @classmethod
     def push_datapoints(cls, json_data) -> requests.Response:

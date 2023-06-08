@@ -20,5 +20,5 @@ class SetEidAttrValue(common.APITest):
             lambda: self.get_entity_data(
                 TESTED_PATH.format(action="get"), EntityEidAttrValueOrHistory
             ),
-            expected,
+            lambda received: received == expected,
         )

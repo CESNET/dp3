@@ -47,7 +47,8 @@ class GetEidAttrValue(common.APITest):
         self.assertEqual(200, response.status_code, "setup push failed")
         expected = EntityEidAttrValueOrHistory(attr_type=1, current_value=123)
         self.query_expected_value(
-            lambda: self.get_entity_data(TESTED_INT_PATH, EntityEidAttrValueOrHistory), expected
+            lambda: self.get_entity_data(TESTED_INT_PATH, EntityEidAttrValueOrHistory),
+            lambda received: received == expected,
         )
 
     def test_invalid_timestamp(self):

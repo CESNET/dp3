@@ -16,7 +16,7 @@ class GetEntityEids(common.APITest):
                 [{**dp_base, "id": f"A{i}", "v": f"v{i}"} for i in range(i, i + 20)]
             )
             print(res.content.decode("utf-8"), file=sys.stderr)
-        cls.post_request("control/make_snapshots")
+        cls.get_request("control/make_snapshots")
         sleep(3)
 
     def test_get_entity_eids(self):

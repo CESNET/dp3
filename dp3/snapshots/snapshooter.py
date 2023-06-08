@@ -16,7 +16,6 @@ Module managing creation of snapshots, enabling data correlation and saving snap
     - Callbacks for data correlation and fusion should happen here
     - Save the complete results into database as snapshots
 """
-import json
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -82,9 +81,8 @@ class SnapShooter:
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
         self.snapshot_queue_reader = TaskQueueReader(
             callback=self.process_snapshot_task,
-            parse_task=lambda body: Snapshot(**json.loads(body)),
+            parse_task=Snapshot.parse_raw,
             app_name=platform_config.app_name,
-            model_spec=self.model_spec,
             worker_index=platform_config.process_index,
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),
             queue=queue,

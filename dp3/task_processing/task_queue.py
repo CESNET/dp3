@@ -41,7 +41,6 @@ from typing import Any, Callable
 
 import amqpstorm
 
-from dp3.common.config import ModelSpec
 from dp3.common.task import Task
 
 # Exchange and queue names
@@ -356,7 +355,6 @@ class TaskQueueReader(RobustAMQPConnection):
         queue: Name of RabbitMQ queue to read from (default: `"<app-name>-worker-<index>"`)
         priority_queue: Name of RabbitMQ queue to read from (priority messages)
             (default: `"<app-name>-worker-<index>-pri"`)
-        model_spec: Attribute specification. Used for `Task` validation.
         parent_logger: Logger to inherit prefix from.
     """
 
@@ -365,7 +363,6 @@ class TaskQueueReader(RobustAMQPConnection):
         callback: Callable,
         parse_task: Callable[[str], Task],
         app_name: str,
-        model_spec: ModelSpec,
         worker_index: int = 0,
         rabbit_config: dict = None,
         queue: str = None,
@@ -391,7 +388,6 @@ class TaskQueueReader(RobustAMQPConnection):
 
         self.callback = callback
         self.parse_task = parse_task
-        self.model_spec = model_spec
 
         if queue is None:
             queue = DEFAULT_QUEUE.format(app_name, worker_index)

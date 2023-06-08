@@ -54,7 +54,6 @@ class Control:
             callback=self.process_control_task,
             parse_task=ControlMessage.parse_raw,
             app_name=platform_config.app_name,
-            model_spec=platform_config.model_spec,
             worker_index=platform_config.process_index,
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),
             queue=queue,

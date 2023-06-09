@@ -30,8 +30,8 @@ Documentation = "https://cesnet.github.io/dp3"
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
-[tool.setuptools.packages]
-find = {}
+[tool.setuptools]
+packages = ["dp3", "bin", "api", "scripts"]
 
 ### Ruff Code Linting ##################################################################
 [tool.ruff]

@@ -1,4 +1,3 @@
--i https://pypi.org/simple
 AMQPStorm~=2.7.2
 apscheduler~=3.6.3
 event-count-logger>=1.1

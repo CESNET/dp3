@@ -23,6 +23,9 @@ re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
 re_link = re.compile(r"^link<(\w+)>$")
 re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
+re_category = re.compile(
+    r"^category<\s*(?P<type>\w+)\s*;\s*(?P<vals>(?:\s*\w+,\s*)*(?:\s*\w+\s*))>$"
+)
 
 
 def valid_ipv4(address):
@@ -53,7 +56,6 @@ CONVERTERS = {
     "tag": lambda v: json.loads(f'{{"v": {v}}}')["v"],
     "binary": lambda v: v.lower() == "true",
     "string": str,
-    "category": str,
     "int": int,
     "int64": int,
     "float": float,
@@ -79,7 +81,10 @@ def get_converter(attr_data_type: str) -> Callable[[str], Any]:
         return json.loads
     # link<X>
     if re.match(re_link, attr_data_type):
-        return lambda x: str(x)
+        return str
+    # category<X; Y>
+    if re.match(re_category, attr_data_type):
+        return str
     raise ValueError(f"No conversion function for attribute type '{attr_data_type}'")
 
 
@@ -135,7 +140,7 @@ class LegacyDataPointLoader:
         for etype, spec in model_spec.items():
             for aname, aspec in spec["attribs"].items():
                 data_type = getattr(aspec, "data_type", None)
-                converter = json.loads if data_type is None else get_converter(data_type.str_type)
+                converter = json.loads if data_type is None else get_converter(str(data_type))
                 self.dt_conv[(etype, aname)] = converter
 
         self.model_spec = model_spec

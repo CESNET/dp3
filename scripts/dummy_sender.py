@@ -67,7 +67,7 @@ def send_all(datapoints, dp_factory, *_):
 if __name__ == "__main__":
     parser = ArgumentParser("Simple datapoint sender script for testing local DP3 instance.")
     parser.add_argument(
-        "input_file",
+        "input-file",
         help="DataPoint log file in JSON format (pandas orient=records)",
         type=lambda x: get_valid_path(parser, x),
     )
@@ -77,7 +77,7 @@ if __name__ == "__main__":
         choices=["cherry-pick", "all"],
     )
     parser.add_argument(
-        "--endpoint_url",
+        "--endpoint-url",
         help="base DP3 endpoint, default='http://127.0.0.1:5000'",
         default="http://127.0.0.1:5000",
         type=str,
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         type=int,
     )
     parser.add_argument(
-        "--shift_time",
+        "--shift-time",
         help="shift timestamps so that 't1' is the current UTC time",
         default=False,
         action="store_true",

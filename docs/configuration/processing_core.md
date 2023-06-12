@@ -21,13 +21,13 @@ enabled_modules:
 
 Message broker section describes connection details to RabbitMQ (or compatible) broker.
 
-| Parameter      | Data-type | Default value | Description |
-|----------------|-----------|---------------|-------------|
+| Parameter      | Data-type | Default value | Description                                      |
+|----------------|-----------|---------------|--------------------------------------------------|
 | `host`         | string    | `localhost`   | IP address or hostname for connection to broker. |
-| `port`         | int       | 5672          | Listening port of broker. |
-| `virtual_host` | string    | `/`           | Virtual host for connection to broker. |
-| `username`     | string    | `guest`       | Username for connection to broker. |
-| `password`     | string    | `guest`       | Password for connection to broker. |
+| `port`         | int       | 5672          | Listening port of broker.                        |
+| `virtual_host` | string    | `/`           | Virtual host for connection to broker.           |
+| `username`     | string    | `guest`       | Username for connection to broker.               |
+| `password`     | string    | `guest`       | Password for connection to broker.               |
 
 ## Worker processes
 

@@ -22,11 +22,11 @@ groups:
 
 This section describes Redis connection details:
 
-| Parameter  | Data-type | Default value | Description |
-|------------|-----------|---------------|-------------|
-| `host`     | string    | `localhost`   | IP address or hostname for connection to Redis. |
-| `port`     | int       | 6379          | Listening port of Redis. |
-| `db`       | int       | 0             | Index of Redis DB used for the counters (it shouldn't be used for anything else). |
+| Parameter | Data-type | Default value | Description                                                                       |
+|-----------|-----------|---------------|-----------------------------------------------------------------------------------|
+| `host`    | string    | `localhost`   | IP address or hostname for connection to Redis.                                   |
+| `port`    | int       | 6379          | Listening port of Redis.                                                          |
+| `db`      | int       | 0             | Index of Redis DB used for the counters (it shouldn't be used for anything else). |
 
 # Groups
 

@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import sys
@@ -46,8 +45,6 @@ values = {
         "array": [[1, 2, 3]],
         "set": [[1, 2, 3]],
         "dict": [{"key1": 1, "key2": "xyz"}],
-        # TODO property datatype not yet implemented
-        "probability": [json.dumps({"A": 0.6, "B": 0.3, "C": 0.05, "D": 0.05})],
     },
     "invalid": {
         "binary": ["xyz"],
@@ -60,17 +57,10 @@ values = {
         "mac": ['"xyz"'],
         "time": ['"xyz"'],
         "json": ["xyz"],
-        # TODO category validation is in progress
-        # "category": ['"xyz"'],
+        "category": ["xyz"],
         "array": ["xyz", '["xyz"]'],
         "set": ["xyz", '["xyz"]'],
         "dict": ["xyz", '{"xyz":"xyz"}', '{"key1":"xyz","key2":"xyz"}'],
-        # TODO property datatype not yet implemented
-        # "probability": [
-        #     json.dumps({"A": "A", "B": "B", "C": "C", "D": "D"}), # not a probability distribution
-        #     '"xyz"',  # invalid format (not a dict)
-        #     "{'A':1.0}",
-        # ],  # invalid JSON
     },
 }
 

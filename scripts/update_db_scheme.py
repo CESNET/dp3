@@ -449,7 +449,7 @@ def check_workers(worker_check_url):
             print(
                 "Script can't run while workers are running, stop workers and run the script again."
             )
-            exit(1)
+            sys.exit(1)
 
 
 def parse_arguments():
@@ -493,7 +493,7 @@ def main():
         connection = db_engine.connect()
     except Exception as e:
         print(f"ERROR: {e}")
-        exit(1)
+        sys.exit(1)
     print("Checking if the database scheme matches the configuration...")
     db_inspector = inspect(db_engine)
     meta = MetaData()

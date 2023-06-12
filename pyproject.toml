@@ -36,18 +36,32 @@ packages = ["dp3", "bin", "api", "scripts"]
 ### Ruff Code Linting ##################################################################
 [tool.ruff]
 target-version = "py39"
-
 extend-exclude = ["install", "docker"]
-line-length = 120
+line-length = 100
 show-fixes = true
-
 select = [
-    "I",  # isort
+    "I", # isort
     "UP", # PyUpgrade
-    "F",  # Pyflakes
-    "E",  # Pycodestyle Errors
-    "W",  # Pycodestyle Warnings
-    "B",  # Flake8 Bugbear
-    "SIM",# Flake8 Simplify
+    "F", # Pyflakes
+    "E", # Pycodestyle Errors
+    "W", # Pycodestyle Warnings
+    "B", # Flake8 Bugbear
+    "SIM", # Flake8 Simplify
     "C4", # Flake8 Comprehensions
+    "PL", # PyLint
+    "ISC", # Implicit str concatenation
 ]
+ignore = [
+    "PLR2004", # Magic value used in comparison
+    "PLW2901", # Loop variable overwritten by assignment
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+]
+
+[tool.ruff.per-file-ignores]
+"dp3/task_processing/task_queue.py" = ["PLR0913"]
+"dp3/common/scheduler.py" = ["PLR0913"]
+
+[tool.ruff.pylint]
+# Most arguments in a function call.
+max-args = 8

@@ -67,13 +67,14 @@ def send_all(datapoints, dp_factory, *_):
 if __name__ == "__main__":
     parser = ArgumentParser("Simple datapoint sender script for testing local DP3 instance.")
     parser.add_argument(
-        "input-file",
+        "input_file",
         help="DataPoint log file in JSON format (pandas orient=records)",
         type=lambda x: get_valid_path(parser, x),
     )
     parser.add_argument(
         "mode",
-        help="Mode of operation for the sender. Either cherry-pick datapoints by attribute, or send the entire log.",
+        help="Mode of operation for the sender. "
+        "Either cherry-pick datapoints by attribute, or send the entire log.",
         choices=["cherry-pick", "all"],
     )
     parser.add_argument(
@@ -81,6 +82,7 @@ if __name__ == "__main__":
         help="base DP3 endpoint, default='http://127.0.0.1:5000'",
         default="http://127.0.0.1:5000",
         type=str,
+        dest="endpoint_url",
     )
     parser.add_argument(
         "-n",
@@ -102,6 +104,7 @@ if __name__ == "__main__":
         help="shift timestamps so that 't1' is the current UTC time",
         default=False,
         action="store_true",
+        dest="shift_time",
     )
     args = parser.parse_args()
     if args.chunk is None:
@@ -131,7 +134,7 @@ if __name__ == "__main__":
         log.debug(payload)
         try:
             response = requests.post(url=datapoints_url, json=batch)
-            if response.status_code == 200:
+            if response.status_code == requests.codes.ok:
                 attributes = {dp["attr"] for dp in batch}
                 log.info("%s datapoints of attribute(s) %s OK", len(batch), ", ".join(attributes))
             else:

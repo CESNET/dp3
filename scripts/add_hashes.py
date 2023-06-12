@@ -12,7 +12,7 @@ from dp3.task_processing.task_queue import HASH
 
 # Arguments parser
 parser = argparse.ArgumentParser(
-    description="Return age of the latest data-point of each attribute in ADiCT (designed for Munin plugin)"
+    description="Add hashes to master records to allow for easier parallelization in ADiCT."
 )
 parser.add_argument(
     "--config",

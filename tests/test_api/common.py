@@ -128,7 +128,7 @@ class APITest(unittest.TestCase):
     @staticmethod
     def get_request(path, **kwargs) -> requests.Response:
         args_str = "&".join([f"{key}={value}" for key, value in kwargs.items()])
-        if args_str != "":
+        if args_str:
             args_str = f"?{args_str}"
         return retry_request_on_error(
             lambda: requests.get(f"{base_url}/{path}{args_str}", timeout=5)

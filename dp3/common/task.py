@@ -18,10 +18,10 @@ class Task(BaseModel, ABC):
     """
 
     @abstractmethod
-    def routing_key(self):
+    def routing_key(self) -> str:
         """
         Returns:
-            A hashable object to be used as a routing key between workers.
+            A string to be used as a routing key between workers.
         """
 
     @abstractmethod

@@ -37,8 +37,8 @@ class Scheduler:
     def register(
         self,
         func: Callable,
-        func_args=None,
-        func_kwargs=None,
+        func_args: Union[list, tuple] = None,
+        func_kwargs: dict = None,
         year: Union[int, str] = None,
         month: Union[int, str] = None,
         day: Union[int, str] = None,

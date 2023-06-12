@@ -103,4 +103,31 @@ May be:
 
 ## Relationships
 
-TODO
+Relationships between entities can be represented with or without history.
+They are realized using the **link** attribute type.
+Depedning on whether the history is important, they can be configured using as the mentioned
+**plain** data or **observations**.
+
+Relationships **can contain additional data**, if that fits the modelling needs of your use case. 
+
+Very useful for:
+
+- any kind of relationship between entities
+- linkning dynamic entities to entities with static data
+
+> As our example so far contains only one entity, we currently have no need for relationships.
+> However, if we wanted to track the different **bus drivers** driving individual buses, 
+> relationships would come in quite handy. 
+> The bus driver is a separate entity, and can drive multiple buses during the day.
+> The current bus driver will be represented as an observation link between the bus and the driver,
+> as can be seen in the [resulting configuration](../configuration/db_entities/).
+
+[//]: # (TODO more info?)
+
+## Continue to ...
+
+Now that you have an understanding of the data model and the types of attributes,
+you might want to check out the details of [DB configuration](../configuration/db_entities/),
+where you will find the **parameters for each attribute type**
+and the **data types** supported by the platform.
+

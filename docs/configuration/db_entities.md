@@ -62,6 +62,17 @@ attribs:
         data_type: int
       back_out:
         data_type: int
+
+  # Attribute `driver` to link the driver of the bus at a given time.
+  driver:
+    name: Driver
+    description: Driver of the bus at a given time.
+    type: observations
+    data_type: link<driver>
+    history_params:
+      pre_validity: 1m
+      post_validity: 1m
+      max_age: 30d
 ```
 
 
@@ -184,6 +195,7 @@ List of supported values for parameter `data_type`:
 - `ip6`: IPv6 address (passed as string in short or full format)
 - `mac`: MAC address (passed as string)
 - `link<entity_type>`: Link to a record of the specified type, e.g. `link<ip>`
+- `link<entity_type,data_type>`: Link to a record of the specified type, carrying additional data, e.g. `link<ip,int>` 
 - `array<data_type>`: An array of values of specified data type (which must be one of the types above), e.g. `array<int>`
 - `set<data_type>`: Same as array, but values can't repeat and order is irrelevant.
 - `dict<keys>`: Dictionary (object) containing multiple values as subkeys. keys should contain a comma-separated list of key names and types separated by colon, e.g. `dict<port:int,protocol:string,tag?:string>`. By default, all fields are mandatory (i.e. a data-point missing some subkey will be refused), to mark a field as optional, put `?` after its name. Only the following data types can be used here: `binary,category,string,int,float,time,ip4,ip6,mac`. Multi-level dicts are not supported.

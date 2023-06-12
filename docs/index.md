@@ -11,13 +11,6 @@ This is a basis of CESNET's "Asset Discovery Classification and Tagging" (ADiCT)
 focused on discovery and classification of network devices,
 but the platform itself is general and should be usable for any kind of data.
 
-This documentation is a WIP, see following TODO list:
-
-- [ ] Architecture overview
-- [ ] Data Model
-- [ ] Main parts of repository
-- [ ] Other aspects documented only on internal wiki
-
 ## Repository structure
 
 * `dp3` - Python package containing code of the processing core

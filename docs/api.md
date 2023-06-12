@@ -114,6 +114,37 @@ More details depends on the particular type of the attribute.
 }
 ```
 
+##### Relations
+
+Can be represented using both **plain** attributes and **observations**. The difference will be only
+in time specification. Two examples using observations:
+
+**no data - `link<mac>`**: just the eid is sent
+
+```json
+{
+  "type": "ip",
+  "id": "192.168.0.1",
+  "attr": "mac_addrs",
+  "v": "AA:AA:AA:AA:AA",
+  "t1": "2022-08-01T12:00:00",
+  "t2": "2022-08-01T12:10:00"
+}
+```
+
+**with additional data - `link<ip, int>`**: The eid and the data are sent as a dictionary.
+
+```json
+{
+  "type": "ip",
+  "id": "192.168.0.1",
+  "attr": "ip_dep",
+  "v": {"eid": "192.168.0.2", "data": 22},
+  "t1": "2022-08-01T12:00:00",
+  "t2": "2022-08-01T12:10:00"
+}
+```
+
 **`irregular_interval`**:
 
 ```json

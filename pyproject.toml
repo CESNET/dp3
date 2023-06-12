@@ -60,6 +60,7 @@ ignore = [
 
 [tool.ruff.per-file-ignores]
 "dp3/task_processing/task_queue.py" = ["PLR0913"]
+"dp3/common/callback_registrar.py" = ["PLR0913"]
 "dp3/common/scheduler.py" = ["PLR0913"]
 
 [tool.ruff.pylint]

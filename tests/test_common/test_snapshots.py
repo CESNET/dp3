@@ -11,10 +11,6 @@ from dp3.snapshots.snapshooter import SnapShooter
 from dp3.snapshots.snapshot_hooks import SnapshotCorrelationHookContainer
 
 
-def copy_linked(_: str, record: dict, link: str, attr: str):
-    record[attr] = record.get(link, {}).get(attr, None)
-
-
 def modify_value(_: str, record: dict, attr: str, value):
     record[attr] = value
 
@@ -195,88 +191,6 @@ class TestSnapshotOperation(unittest.TestCase):
             ),
             scheduler=MockScheduler(),
             task_executor=MockTaskExecutor(),
-        )
-        self.task_queue_writer = MockTaskQueueWriter()
-        self.snapshooter.snapshot_queue_writer = self.task_queue_writer
-
-        self.task_queue_reader = MockTaskQueueReader()
-        self.snapshooter.snapshot_queue_reader = self.task_queue_reader
-        root = logging.getLogger()
-        root.setLevel("DEBUG")
-
-    @unittest.skip
-    def test_reference_cycle(self):
-        self.snapshooter.make_snapshots()
-
-    @unittest.skip
-    def test_linked_entities_loaded(self):
-        self.setup_copy_linked_hooks()
-
-        self.snapshooter.make_snapshots()
-        for task in self.task_queue_writer.tasks:
-            self.snapshooter.process_snapshot_task(0, task)
-
-        for snapshot in self.db.saved_snapshots:
-            self.assertEqual(snapshot["data1"], "initb")
-            self.assertEqual(snapshot["data2"], "inita")
-
-    @unittest.skip
-    def test_weak_component_detection(self):
-        """
-        Remove link from the first entity to be processed, so that an elementary BFS starting
-        from this entity is not enough to load the entire weakly connected component.
-        """
-        self.db.db_content["A"]["a1"]["bs"] = []
-        self.setup_copy_linked_hooks()
-
-        self.snapshooter.make_snapshots()
-        for value in self.db.saved_metadata.values():
-            self.assertEqual(value["entities"], 2)
-            self.assertEqual(value["components"], 1)
-
-        self.assertEqual(len(self.task_queue_writer.tasks), 1)
-        self.assertEqual(len(self.task_queue_writer.tasks[0].entities), 2)
-        for task in self.task_queue_writer.tasks:
-            self.snapshooter.process_snapshot_task(0, task)
-
-        self.db.db_content["A"]["a1"]["bs"] = [{"v": "b1", "t1": self.t1, "t2": self.t2, "c": 1.0}]
-
-    @unittest.skip
-    def test_loaded_entities_hooks_run(self):
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(modify_value, attr="data2", value="modifa"), modify_value),
-            "A",
-            depends_on=[],
-            may_change=[["data2"]],
-        )
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(modify_value, attr="data1", value="modifb"), modify_value),
-            "B",
-            depends_on=[],
-            may_change=[["data1"]],
-        )
-        self.setup_copy_linked_hooks()
-
-        self.snapshooter.make_snapshots()
-        for task in self.task_queue_writer.tasks:
-            self.snapshooter.process_snapshot_task(0, task)
-
-        for snapshot in self.db.saved_snapshots:
-            self.assertEqual(snapshot["data1"], "modifb")
-            self.assertEqual(snapshot["data2"], "modifa")
-
-    def setup_copy_linked_hooks(self):
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="bs", attr="data1"), copy_linked),
-            "A",
-            depends_on=[["bs", "data1"]],
-            may_change=[["data1"]],
-        )
-        self.snapshooter.register_correlation_hook(
-            update_wrapper(partial(copy_linked, link="as", attr="data2"), copy_linked),
-            "B",
-            depends_on=[["as", "data2"]],
-            may_change=[["data2"]],
         )
 
     def test_multivalue_fitering(self):

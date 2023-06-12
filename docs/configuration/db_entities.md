@@ -185,7 +185,7 @@ List of supported values for parameter `data_type`:
 
 - `tag`: set/not_set (When the attribute is set, its value is always assumed to be `true`, the "v" field doesn't have to be stored.)
 - `binary`: `true`/`false`/not_set (Attribute value is `true` or `false`, or the attribute is not set at all.)
-- `category`: Categorical values. When only a fixed set of values should be allowed, these should be specified in the `categories` parameter. Otherwise the set of values is open, any string can be stored (but only a small number of unique values are expected).
+- `category<data_type; category1, category2, ...>`: Categorical values. Use only when a fixed set of values should be allowed, which should be specified in the second part of the type definition. The first part of the type definition describes the data_type of the category.
 - `string`
 - `int`: 32-bit signed integer (range from -2147483648 to +2147483647)
 - `int64`: 64-bit signed integer (use when the range of normal `int` is not sufficent)

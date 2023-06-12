@@ -29,6 +29,8 @@ theme:
   features:
     # Copy code blocks
     - content.code.copy
+    # Code annotations
+    - content.code.annotate
 
 extra_css:
   - stylesheets/slate.css

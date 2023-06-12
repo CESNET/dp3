@@ -37,7 +37,7 @@ If changing number of worker processes, the following process must be followed:
 
 1. stop all inputs writing to task queue (e.g. API)
 2. when all queues are empty, stop all workers
-3. reconfigure queues in RabbitMQ using script (TODO: provide script)
+3. reconfigure queues in RabbitMQ using script found in `/scripts/rmq_reconfigure.sh`
 4. change the settings here and in init scripts for worker processes (e.g. supervisor)
 5. reload workers (e.g. using `supervisorctl`) and start all inputs again
 

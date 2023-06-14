@@ -38,16 +38,17 @@ class Control:
         platform_config: PlatformConfig,
     ) -> None:
         self.log = logging.getLogger("Control")
+        self.action_handlers: dict[ControlAction, Callable] = {}
+        self.enabled = False
 
         if platform_config.process_index != 0:
             self.log.debug("Control will be disabled in this worker to avoid race conditions.")
             return
 
+        self.enabled = True
         self.config = ControlConfig.parse_obj(platform_config.config.get("control"))
         self.allowed_actions = set(self.config.allowed_actions)
         self.log.debug("Allowed actions: %s", self.allowed_actions)
-
-        self.action_handlers: dict[ControlAction, Callable] = {}
 
         queue = f"{platform_config.app_name}-control"
         self.control_queue = TaskQueueReader(
@@ -63,6 +64,9 @@ class Control:
 
     def start(self):
         """Connect to RabbitMQ and start consuming from TaskQueue."""
+        if not self.enabled:
+            return
+
         unconfigured_handlers = self.allowed_actions - set(self.action_handlers)
         if unconfigured_handlers:
             raise ValueError(
@@ -78,6 +82,9 @@ class Control:
 
     def stop(self):
         """Stop consuming from TaskQueue, disconnect from RabbitMQ."""
+        if not self.enabled:
+            return
+
         self.control_queue.stop()
         self.control_queue.disconnect()
 

@@ -4,11 +4,11 @@ from fastapi import FastAPI
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 
-from api.internal.config import DATAPOINTS_INGESTION_URL_PATH, DP_LOGGER
+from api.internal.config import DATAPOINTS_INGESTION_URL_PATH, DP_LOGGER, ROOT_PATH
 from api.routers import control, entity, root
 
 # Create new FastAPI app
-app = FastAPI()
+app = FastAPI(root_path=ROOT_PATH)
 
 
 # Redefine Pydantic validation error handler to log all bad datapoints

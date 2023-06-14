@@ -16,6 +16,7 @@ class ConfigEnv(BaseModel):
 
     APP_NAME: str
     CONF_DIR: str
+    ROOT_PATH: str = ""
 
     @validator("CONF_DIR")
     def validate(cls, v, values):
@@ -61,3 +62,4 @@ CONTROL_WRITER = TaskQueueWriter(
     exchange=f"{conf_env.APP_NAME}-control-exchange",
 )
 DP_LOGGER = DPLogger(CONFIG.get("api.datapoint_logger"))
+ROOT_PATH = conf_env.ROOT_PATH

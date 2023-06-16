@@ -45,6 +45,8 @@ values = {
         "array": [[1, 2, 3]],
         "set": [[1, 2, 3]],
         "dict": [{"key1": 1, "key2": "xyz"}],
+        "link": [{"eid": "test_entity_2"}],
+        "data_link": [{"eid": "test_entity_3", "data": 42}],
     },
     "invalid": {
         "binary": ["xyz"],
@@ -61,6 +63,13 @@ values = {
         "array": ["xyz", '["xyz"]'],
         "set": ["xyz", '["xyz"]'],
         "dict": ["xyz", '{"xyz":"xyz"}', '{"key1":"xyz","key2":"xyz"}'],
+        "link": ["test_entity_2", {"id": "test_entity_2"}],
+        "data_link": [
+            "test_entity_2",
+            {"id": "test_entity_2"},
+            {"eid": "test_entity_3"},
+            {"eid": "test_entity_3", "data": [42]},
+        ],
     },
 }
 

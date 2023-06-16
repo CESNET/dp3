@@ -87,3 +87,11 @@ attribs:
     type: plain
     data_type: json
     probability: true
+  test_attr_link:
+    name: test_attr_link
+    type: plain
+    data_type: link<test_entity_type>
+  test_attr_data_link:
+    name: test_attr_data_link
+    type: plain
+    data_type: link<test_entity_type, int>

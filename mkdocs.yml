@@ -41,6 +41,7 @@ nav:
   - Architecture: architecture.md
   - Data model: data_model.md
   - API: api.md
+  - Modules: modules.md
   - Configuration:
     - General: configuration/index.md
     - Database: configuration/database.md

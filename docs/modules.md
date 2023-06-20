@@ -24,6 +24,7 @@ As mentioned in the [Processing core configuration](configuration/processing_cor
 the modules directory must be specified in the `modules_dir` configuration option.
 Let's create the main module file now - assuming the module will be called `my_awesome_module`,
 create a file `/modules/my_awesome_module.py`. 
+
 Finally, to make the processing core load the module, add the module name to the `enabled_modules`
 configuration option, e.g.:
 
@@ -31,6 +32,25 @@ configuration option, e.g.:
 modules_dir: "/modules/"
 enabled_modules:
   - "my_awesome_module"
+```
+
+Here is a basic skeleton for the module file:
+
+```python
+import logging
+
+from dp3.common.base_module import BaseModule
+from dp3.common.config import PlatformConfig
+from dp3.common.callback_registrar import CallbackRegistrar
+
+
+class MyAwesomeModule(BaseModule):
+    def __init__(self,
+        _platform_config: PlatformConfig, 
+        _module_config: dict, 
+        _registrar: CallbackRegistrar
+    ):
+        self.log = logging.getLogger("MyAwesomeModule")
 ```
 
 All modules must subclass the [`BaseModule`][dp3.common.base_module.BaseModule] class.
@@ -100,7 +120,7 @@ The function return value will always be ignored.
 
 The complete documentation can be found at the 
 [`scheduler_register`][dp3.common.callback_registrar.CallbackRegistrar.scheduler_register] page.
-As DP3 utilizes the [APScheduler](https://apscheduler.readthedocs.io/en/latest/) package internally
+As DP³ utilizes the [APScheduler](https://apscheduler.readthedocs.io/en/latest/) package internally
 to realize this functionality, specifically the [`CronTrigger`](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html), feel free to check their documentation for more details.
 
 

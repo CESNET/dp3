@@ -10,15 +10,15 @@ This page describes the high-level architecture of DP³ and the individual compo
 
 The base unit of data that DP³ uses is called a **data-point**, which looks like this:
 
-```{ .json .annotate }
+```{ .json }
 {
-  "type": "ip", // (1)
-  "id": "192.168.0.1", // (2)
-  "attr": "open_ports", // (3)
-  "v": [22, 80, 443], // (4)
-  "t1": "2022-08-01T12:00:00", // (5)
+  "type": "ip", // (1)!
+  "id": "192.168.0.1", // (2)!
+  "attr": "open_ports", // (3)!
+  "v": [22, 80, 443], // (4)!
+  "t1": "2022-08-01T12:00:00", // (5)!
   "t2": "2022-08-01T12:10:00",
-  "src": "open_ports_module" // (6)
+  "src": "open_ports_module" // (6)!
 }
 ```
 

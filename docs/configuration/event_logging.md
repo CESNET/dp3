@@ -20,8 +20,8 @@ groups:
     events:
       - task_processed
       - task_processing_error
-    intervals: ["5s", "5m"] # (1)
-    sync-interval: 1 # (2)
+    intervals: ["5s", "5m"] # (1)!
+    sync-interval: 1 # (2)!
   # Number of processed tasks by their "src" attribute
   tasks_by_src:
     events: []

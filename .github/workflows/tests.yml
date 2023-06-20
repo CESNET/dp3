@@ -15,7 +15,10 @@ jobs:
         run: docker compose up --build -d
 
       - name: Integration tests - API
-        run: docker run --env CONF_DIR=/tests/test_config --network container:dp3_api dp3_interpreter python -m unittest discover -s tests/test_api -v
+        run: docker run 
+          --env CONF_DIR=/dp3/tests/test_config 
+          --network container:dp3_api 
+          dp3_interpreter python -m unittest discover -s tests/test_api -v
 
       - name: Get API logs
         run: docker compose logs receiver_api

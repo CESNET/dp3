@@ -36,11 +36,11 @@ services:
       target: "base"
     ports:
       - "5000:5000"
-    working_dir: "/api"
+    working_dir: "/dp3/api"
     environment:
       HOST: "0.0.0.0"
       APP_NAME: "test"
-      CONF_DIR: "/tests/test_config"
+      CONF_DIR: "/dp3/tests/test_config"
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000" ]
 
   worker:
@@ -50,7 +50,10 @@ services:
       context: .
       dockerfile: "docker/python/Dockerfile"
       target: "base"
-    command: [ "bin/worker", "test", "./tests/test_config", "0", "-v" ]
+
+    working_dir: "/dp3/"
+    command: [ "bin/worker", "test", "/dp3/tests/test_config", "0", "-v" ]
+
     depends_on:
       - rabbitmq
       - mongo

@@ -108,7 +108,7 @@ class CallbackRegistrar:
 
         Args:
             hook: `hook` callable should expect entity_type, attr_type and attribute
-                history as arguments and return a list of `Task` objects.
+                history as arguments and return a list of `DataPointTask` objects.
             entity_type: specifies entity type
             attr_type: specifies attribute type
 

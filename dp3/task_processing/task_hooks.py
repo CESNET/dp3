@@ -43,8 +43,7 @@ class TaskEntityHooksContainer:
 
     - `allow_entity_creation`: receives eid and Task, may prevent entity record creation (by
           returning False)
-    - `on_entity_creation`: receives eid and Task, may return new Tasks (including new
-          DataPoints)
+    - `on_entity_creation`: receives eid and Task, may return list of DataPointTasks
     """
 
     def __init__(self, entity: str, log: logging.Logger):
@@ -100,7 +99,7 @@ class TaskAttrHooksContainer:
     Possible hooks:
 
     - `on_new_plain`, `on_new_observation`, `on_new_ts_chunk`:
-        receives eid and Task, may return new Tasks (including new DataPoints)
+        receives eid and DataPointBase, may return a list of DataPointTasks
     """
 
     def __init__(self, entity: str, attr: str, attr_type: AttrType, log: logging.Logger):

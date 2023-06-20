@@ -55,7 +55,7 @@ class Scheduler:
         Pass cron-like specification of when the function should be called,
         see [docs](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html)
         of apscheduler.triggers.cron for details.
-        `
+
         Args:
             func: function or method to be called
             func_args: list of positional arguments to call func with

@@ -40,6 +40,7 @@ class DataType(BaseModel):
     """Data type container
 
     Represents one of primitive data types:
+
     - tag
     - binary
     - string
@@ -54,17 +55,18 @@ class DataType(BaseModel):
     - json
 
     or composite data type:
+
     - link<entity_type>
     - array<str_type>
     - set<str_type>
     - dict<keys>
     - category<str_type;category1,category2,...>
 
-    Consists of additional attributes:
-    - `data_type`: type for incoming value validation
-    - `hashable`: whether contained data is hashable
-    - `is_link`: whether this data type is link
-    - `link_to`: if `is_link` is True, what is linked target
+    Attributes:
+        data_type: type for incoming value validation
+        hashable: whether contained data is hashable
+        is_link: whether this data type is link
+        link_to: if `is_link` is True, what is linked target
     """
 
     __root__: str
@@ -93,8 +95,8 @@ class DataType(BaseModel):
     def determine_value_validator(self, str_type: str):
         """Determines value validator (inner `data_type`)
 
-        This is not implemented inside @validator, because it apparently doesn't work with
-        # __root__ models.
+        This is not implemented inside `@validator`, because it apparently doesn't work with
+        `__root__` models.
         """
         data_type = None
 

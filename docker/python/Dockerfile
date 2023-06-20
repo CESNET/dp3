@@ -6,5 +6,5 @@ RUN apt-get update; apt-get install -y git libpq-dev gcc
 COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip; \
     pip install -r requirements.txt
-COPY . /.
+COPY . /
 RUN pip install -e .

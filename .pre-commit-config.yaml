@@ -16,10 +16,6 @@ repos:
     rev: 23.1.0
     hooks:
       - id: black
-        exclude: ^(install/|docker/)
-        args:
-          - --line-length=100
-          - --target-version=py39
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: 'v0.0.272'

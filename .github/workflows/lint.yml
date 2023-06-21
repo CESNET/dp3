@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: psf/black@stable
         with:
-          options: "--check --verbose --diff --color --line-length=100 --target-version=py39"
+          options: "--check --verbose --diff --color"
 
   ruff:
     runs-on: ubuntu-latest

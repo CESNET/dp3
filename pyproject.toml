@@ -33,11 +33,17 @@ Homepage = "https://github.com/CESNET/dp3"
 Repository = "https://github.com/CESNET/dp3"
 Documentation = "https://cesnet.github.io/dp3"
 
+[tool.setuptools]
+packages = ["dp3", "bin", "api", "scripts"]
+
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
-[tool.setuptools]
-packages = ["dp3", "bin", "api", "scripts"]
+[tool.setuptools.dynamic.optional-dependencies]
+# For development - pre-commit hooks, mkdocs documentation
+dev = { file = ["requirements.dev.txt"] }
+# Using gunicorn for API deployment
+deploy = { file = ["requirements.deploy.txt"] }
 
 ### Black Formatting ###################################################################
 [tool.black]

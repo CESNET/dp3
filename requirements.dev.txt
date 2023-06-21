@@ -5,3 +5,4 @@ mkdocs-material>=9.0
 mkdocs-section-index>=0.3
 mkdocstrings>=0.19
 mkdocstrings-python>=0.8
+pre-commit~=3.0

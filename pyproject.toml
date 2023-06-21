@@ -1,3 +1,9 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools >= 61",
+]
+
 [project]
 name = "dp3"
 version = "0.2.0"

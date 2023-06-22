@@ -12,7 +12,7 @@ Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`
 Pull the repository and install using:
 
 ```shell
-git clone git@github.com:CESNET/dp3.git dp3 
+git --branch new_dp3 clone git@github.com:CESNET/dp3.git dp3 
 cd dp3
 python3 -m venv venv  # (1)!
 source venv/bin/activate  # (2)!

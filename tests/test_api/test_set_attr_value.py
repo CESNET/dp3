@@ -1,6 +1,6 @@
 import common
 
-from api.internal.entity_response_models import EntityEidAttrValue, EntityEidAttrValueOrHistory
+from dp3.api.internal.entity_response_models import EntityEidAttrValue, EntityEidAttrValueOrHistory
 
 TESTED_PATH = "entity/test_entity_type/eid01/{action}/test_attr_string"
 

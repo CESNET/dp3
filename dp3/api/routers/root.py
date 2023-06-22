@@ -2,17 +2,17 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Request
 
-from api.internal.config import (
+from dp3.api.internal.config import (
     DATAPOINTS_INGESTION_URL_PATH,
     DB,
     DP_LOGGER,
     MODEL_SPEC,
     TASK_WRITER,
 )
-from api.internal.entity_response_models import EntityState
-from api.internal.helpers import api_to_dp3_datapoint
-from api.internal.models import DataPoint
-from api.internal.response_models import HealthCheckResponse, SuccessResponse
+from dp3.api.internal.entity_response_models import EntityState
+from dp3.api.internal.helpers import api_to_dp3_datapoint
+from dp3.api.internal.models import DataPoint
+from dp3.api.internal.response_models import HealthCheckResponse, SuccessResponse
 from dp3.common.task import DataPointTask
 
 router = APIRouter()

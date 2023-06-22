@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import common
 
-from api.internal.entity_response_models import EntityEidData
+from dp3.api.internal.entity_response_models import EntityEidData
 
 DATAPOINT_COUNT = 6
 

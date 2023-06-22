@@ -36,7 +36,7 @@ services:
       target: "base"
     ports:
       - "5000:5000"
-    working_dir: "/dp3/api"
+    working_dir: "/dp3/dp3/api"
     environment:
       HOST: "0.0.0.0"
       APP_NAME: "test"
@@ -52,7 +52,7 @@ services:
       target: "base"
 
     working_dir: "/dp3/"
-    command: [ "bin/worker", "test", "/dp3/tests/test_config", "0", "-v" ]
+    command: [ "worker", "test", "/dp3/tests/test_config", "0", "-v" ]
 
     depends_on:
       - rabbitmq

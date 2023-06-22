@@ -3,7 +3,7 @@ from time import sleep
 
 import common
 
-from api.internal.entity_response_models import EntityEidList
+from dp3.api.internal.entity_response_models import EntityEidList
 
 
 class GetEntityEids(common.APITest):

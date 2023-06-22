@@ -3,7 +3,7 @@ from time import sleep
 
 import common
 
-from api.internal.entity_response_models import EntityEidData
+from dp3.api.internal.entity_response_models import EntityEidData
 
 
 class SnapshotIntegration(common.APITest):

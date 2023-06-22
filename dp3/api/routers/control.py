@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from api.internal.config import CONTROL_WRITER
-from api.internal.response_models import SuccessResponse
+from dp3.api.internal.config import CONTROL_WRITER
+from dp3.api.internal.response_models import SuccessResponse
 from dp3.common.control import ControlAction, ControlMessage
 
 router = APIRouter()

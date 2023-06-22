@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, confloat, root_validator, validator
 
-from api.internal.helpers import api_to_dp3_datapoint
+from dp3.api.internal.helpers import api_to_dp3_datapoint
 
 
 class DataPoint(BaseModel):

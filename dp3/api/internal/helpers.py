@@ -1,4 +1,4 @@
-from api.internal.config import MODEL_SPEC
+from dp3.api.internal.config import MODEL_SPEC
 from dp3.common.datapoint import DataPointBase
 
 

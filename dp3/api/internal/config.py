@@ -3,7 +3,7 @@ import sys
 
 from pydantic import BaseModel, ValidationError, validator
 
-from api.internal.dp_logger import DPLogger
+from dp3.api.internal.dp_logger import DPLogger
 from dp3.common.config import ModelSpec, read_config_dir
 from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter

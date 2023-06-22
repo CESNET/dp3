@@ -17,6 +17,7 @@ class TestModule(BaseModule):
 
         # just for testing purposes - as new value for test_attrib
         self.counter = module_config.get("init_value", 0)
+        self.msg = module_config.get("msg", "Hello World!")
 
         registrar.register_entity_hook(
             "on_entity_creation", hook=self.fill_test_attr_string, entity="test_entity_type"

@@ -1,7 +1,7 @@
 import common
 from common import ACCEPTED_ERROR_CODES
 
-from api.internal.entity_response_models import EntityEidAttrValueOrHistory
+from dp3.api.internal.entity_response_models import EntityEidAttrValueOrHistory
 
 TESTED_PATH = "entity/{entity}/{eid}/get/{attr}"
 TESTED_HISTORY_PATH = TESTED_PATH.format(

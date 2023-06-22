@@ -1,6 +1,6 @@
 import common
 
-from api.internal.entity_response_models import EntityState
+from dp3.api.internal.entity_response_models import EntityState
 
 
 class ListEntities(common.APITest):

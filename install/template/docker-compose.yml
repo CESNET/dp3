@@ -1,0 +1,41 @@
+version: "3.4"
+# This Compose file runs the dependencies for the DP3 platform.
+
+services:
+  rabbitmq:
+    container_name: "{{DP3_APP}}_rabbitmq"
+    image: "__dp3_app___rabbitmq"
+    build: "docker/rabbitmq"
+
+    network_mode: "host"
+    environment:
+      DP3_APP_NAME: "{{DP3_APP}}"
+      DP3_WORKER_NUM: 1
+
+  mongo:
+    container_name: "{{DP3_APP}}_mongo"
+    image: mongo:latest
+
+    network_mode: "host"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "{{DP3_APP}}"
+      MONGO_INITDB_ROOT_PASSWORD: "{{DP3_APP}}"
+
+  mongo_express:
+    container_name: "{{DP3_APP}}_mongo_express"
+    image: mongo-express:latest
+
+    network_mode: "host"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: "127.0.0.1"
+      ME_CONFIG_MONGODB_ADMINUSERNAME: "{{DP3_APP}}"
+      ME_CONFIG_MONGODB_ADMINPASSWORD: "{{DP3_APP}}"
+    depends_on:
+      - mongo
+    restart: "unless-stopped"
+
+  redis:
+    container_name: "{{DP3_APP}}_redis"
+    image: redis
+    network_mode: "host"
+    command: [ "redis-server", "--appendonly", "yes" ]

@@ -12,12 +12,15 @@ class DPLogger:
     Bad datapoints are logged together with their error message.
 
     Logging may be disabled in `api.yml` configuration file:
+
     ```yml
     # ...
     datapoint_logger:
       good_log: false
       bad_log: false
     # ...
+    ```
+
     """
 
     LOG_FORMATTER = logging.Formatter("%(asctime)s (%(src)s) | %(message)s")

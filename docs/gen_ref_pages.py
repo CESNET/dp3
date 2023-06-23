@@ -6,7 +6,17 @@ import mkdocs_gen_files
 
 nav = mkdocs_gen_files.Nav()
 
+EXCLUDE = [
+    ".core_modules",
+    "template",
+]
+
+EXCLUDE = [f.format(p) for p in EXCLUDE for f in ["dp3/{}/*", "dp3/{}/**/*"]]
+
 for path in sorted(Path("dp3").rglob("*.py")):
+    if any(path.match(excluded) for excluded in EXCLUDE):
+        continue
+
     module_path = path.with_suffix("")
     doc_path = path.relative_to("dp3").with_suffix(".md")
     full_doc_path = Path("reference", doc_path)
@@ -17,9 +27,6 @@ for path in sorted(Path("dp3").rglob("*.py")):
         doc_path = doc_path.with_name("index.md")
         full_doc_path = full_doc_path.with_name("index.md")
     elif parts[-1] == "__main__":
-        continue
-
-    if ".core_modules" in parts:
         continue
 
     nav[parts] = doc_path.as_posix()

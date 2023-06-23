@@ -5,6 +5,129 @@ for **platform development**, installing for application development (i.e. platf
 and installing for **application** and platform **deployment**. 
 We will cover all three cases separately.
 
+## Installing for application development
+
+Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
+
+Create a virtualenv and install the DP³ platform using:
+
+```shell
+python3 -m venv venv  # (1)!
+source venv/bin/activate  # (2)!
+pip install git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
+```
+
+1. We recommend using virtual environment. If you are not familiar with it, please read 
+   [this](https://docs.python.org/3/tutorial/venv.html) first.
+   Note for Windows: If `python3` does not work, try `py -3` or `python` instead.
+2. Windows: `venv/Scripts/activate.bat`
+
+### Creating a DP³ application
+
+To create a new DP³ application we will use the included `dp3-setup` utility. Run:
+
+```shell
+dp3-setup <application_directory> <your_application_name> 
+```
+
+So for example, to create an application called `my_app` in the current directory, run:
+
+```shell
+dp3-setup . my_app
+```
+
+This produces the following directory structure:
+```shell
+ 📂 .
+ ├── 📁 config  # (1)! 
+ │  ├── api.yml
+ │  ├── control.yml
+ │  ├── database.yml
+ │  ├── 📁 db_entities # (2)!
+ │  ├── event_logging.yml
+ │  ├── history_manager.yml
+ │  ├── 📁 modules # (3)!
+ │  ├── processing_core.yml
+ │  ├── README.md
+ │  └── snapshots.yml
+ ├── 📁 docker # (4)!
+ │  ├── 📁 python
+ │  └── 📁 rabbitmq
+ ├── docker-compose.app.yml
+ ├── docker-compose.yml
+ ├── 📁 modules # (5)!
+ │  └── test_module.py
+ ├── README.md # (6)!
+ └── requirements.txt
+```
+
+1. The `config` directory contains the configuration files for the DP³ platform. For more details,
+   please check out the [configuration documentation](configuration/index.md).
+2. The `config/db_entities` directory contains the database entities of the application.
+   This defines the data model of your application. 
+   For more details, you may want to check out the [data model](data_model.md) and the
+   [DB entities](configuration/db_entities.md) documentation.
+3. The `config/modules` directory is where you can place the configuration specific to your modules.
+4. The `docker` directory contains the Dockerfiles for the RabbitMQ and python images, 
+   tailored to your application. 
+5. The `modules` directory contains the modules of your application. To get started,
+   a single module called `test_module` is included. 
+   For more details, please check out the [Modules page](modules.md).
+6. The `README.md` file contains some instructions to get started. 
+   Edit it to your liking.
+
+### Running the Application
+
+To run the application, we first need to setup the other services the platform depends on,
+such as the MongoDB database, the RabbitMQ message distribution and the Redis database.
+This can be done using the supplied `docker-compose.yml` file. Simply run:
+
+```shell
+docker compose up -d --build  # (1)!
+```
+
+1. The `-d` flag runs the services in the background, so you can continue working in the same terminal.
+   The `--build` flag forces Docker to rebuild the images, so you can be sure you are running the latest version.
+   If you want to run the services in the foreground, omit the `-d` flag.
+
+There are two main ways to run the application itself. First is a little more hand-on, 
+and allows easier debugging. 
+There are two main kinds of processes in the application: the API and the worker processes.
+
+To run the API, simply run:
+
+```shell
+APP_NAME=my_app CONF_DIR=config api
+```
+
+The starting configuration sets only a single worker process, which you can run using:
+
+```shell
+worker my_app config 0     
+```
+
+The second way is to use the `docker-compose.app.yml` file, which runs the API and the worker processes
+in separate containers. To run the API, simply run:
+
+```shell
+docker compose -f docker-compose.app.yml up -d --build
+```
+
+Either way, to test that everything is running properly, you can run:
+```shell
+curl -X 'GET' 'http://localhost:5000/' \
+     -H 'Accept: application/json' 
+```
+
+Which should return a JSON response with the following content:
+```json
+{
+   "detail": "It works!"
+}
+```
+
+You are now ready to start developing your application!
+
 ## Installing for platform development
 
 Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.

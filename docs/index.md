@@ -13,7 +13,6 @@ but the platform itself is general and should be usable for any kind of data.
 
 ## Repository structure
 
-* `dp3` - Python package containing code of the processing core
-* `api` - HTTP API (Flask) for data ingestion and extraction
+* `dp3` - Python package containing code of the processing core and the API
 * `config` - default/example configuration
 * `install` - installation scripts and files

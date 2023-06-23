@@ -2,6 +2,7 @@
 build-backend = "setuptools.build_meta"
 requires = [
     "setuptools >= 61",
+    "wheel"
 ]
 
 [project]
@@ -26,7 +27,7 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 requires-python = ">=3.9"
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "optional-dependencies"]
 
 [project.scripts]
 updater = "bin.updater:main"

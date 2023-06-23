@@ -16,9 +16,9 @@ def replace_template(directory: Path, template: str, replace_with: str):
                     f.write(contents)
                     f.truncate()
             except UnicodeDecodeError:
-                print(f"Skipping {file} as it is a binary file.")
+                pass
             except PermissionError:
-                print(f"Skipping {file} as it is a read-only file.")
+                pass
 
 
 def main():
@@ -35,14 +35,10 @@ def main():
     project_dir.mkdir(exist_ok=True, parents=True)
 
     # Get the current package location.
-    package_dir = Path(__file__).parent.parent.parent
-
-    directories_to_copy = ["config"]
-    for directory in directories_to_copy:
-        shutil.copytree(package_dir / directory, project_dir / directory, dirs_exist_ok=True)
+    package_dir = Path(__file__).parent.parent
 
     # Copy the template files to the project directory.
-    shutil.copytree(package_dir / "install" / "template", project_dir, dirs_exist_ok=True)
+    shutil.copytree(package_dir / "template", project_dir, dirs_exist_ok=True)
 
     replace_template(project_dir, "{{DP3_APP}}", app_name)
     replace_template(project_dir, "__dp3_app__", app_name)

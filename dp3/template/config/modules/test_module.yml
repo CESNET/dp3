@@ -1,0 +1,2 @@
+msg: "Hello, I am a test module of the '{{DP3_APP}}' app!"
+init_value: 42

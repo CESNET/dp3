@@ -40,8 +40,11 @@ Homepage = "https://github.com/CESNET/dp3"
 Repository = "https://github.com/CESNET/dp3"
 Documentation = "https://cesnet.github.io/dp3"
 
-[tool.setuptools]
-packages = ["dp3", "bin", "scripts"]
+[tool.setuptools.packages.find]
+include = ["dp3*"]
+
+[tool.setuptools.package-data]
+dp3 = ["template/**/*"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

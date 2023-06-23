@@ -1,0 +1,115 @@
+entity:
+  id: example
+  name: Example entity type
+  snapshot: true
+
+attribs:
+  tag_attr:
+    name: tag_attr
+    type: plain
+    data_type: tag
+
+  binary_attr:
+    name: binary_attr
+    type: plain
+    data_type: binary
+
+  int_attr:
+    name: int_attr
+    type: plain
+    data_type: int
+
+  int64_attr:
+    name: int64_attr
+    type: plain
+    data_type: int64
+
+  string_attr:
+    name: string_attr
+    type: plain
+    data_type: string
+
+  multi_value_attr:
+    name: multi_value_attr
+    type: observations
+    data_type: string
+    multi_value: true
+    history_params:
+      max_age: 7d
+      aggregate: true
+
+  float_attr:
+    name: float_attr
+    type: plain
+    data_type: float
+
+  ipv4_attr:
+    name: ipv4_attr
+    type: plain
+    data_type: ipv4
+
+  ipv6_attr:
+    name: ipv6_attr
+    type: plain
+    data_type: ipv6
+
+  mac_attr:
+    name: mac_attr
+    type: plain
+    data_type: mac
+
+  time_attr:
+    name: time_attr
+    type: plain
+    data_type: time
+
+  json_attr:
+    name: json_attr
+    type: plain
+    data_type: json
+
+  category_attr:
+    name: category_attr
+    type: plain
+    data_type: category<string;cat1,cat2>
+
+  array_attr:
+    name: array_attr
+    type: plain
+    data_type: array<int>
+
+  set_attr:
+    name: set_attr
+    type: plain
+    data_type: set<int>
+
+  dict_attr:
+    name: dict_attr
+    type: plain
+    data_type: dict<key1:int,key2:string>
+
+  history_attr:
+    name: history_attr
+    type: observations
+    data_type: int
+    history_params:
+      max_age: 7d
+      aggregate: true
+      post_validity: 1h
+      pre_validity: 1h
+
+  probability_attr:
+    name: probability_attr
+    type: plain
+    data_type: json
+    probability: true
+
+  link_attr:
+    name: link_attr
+    type: plain
+    data_type: link<example>
+
+  data_link_attr:
+    name: data_link_attr
+    type: plain
+    data_type: link<example, int>

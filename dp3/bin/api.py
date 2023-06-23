@@ -8,7 +8,7 @@ from dp3.api.main import app
 
 
 def run():
-    uvicorn.run(app, host="0.0.0.0", port=5000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
 
 
 if __name__ == "__main__":

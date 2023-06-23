@@ -14,14 +14,16 @@ Create a virtualenv and install the DP³ platform using:
 ```shell
 python3 -m venv venv  # (1)!
 source venv/bin/activate  # (2)!
-python -m pip install --upgrade pip
-pip install -e git+https://github.com/CESNET/dp3.git@new_dp3
+python -m pip install --upgrade pip  # (3)!
+pip install -e git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
 ```
 
 1. We recommend using virtual environment. If you are not familiar with it, please read 
    [this](https://docs.python.org/3/tutorial/venv.html) first.
    Note for Windows: If `python3` does not work, try `py -3` or `python` instead.
 2. Windows: `venv/Scripts/activate.bat`
+3. We require `pip>=21.0.1` for the `pyproject.toml` support.
+   If your pip is up-to-date, you can skip this step.
 
 ### Creating a DP³ application
 
@@ -41,25 +43,25 @@ This produces the following directory structure:
 ```shell
  📂 .
  ├── 📁 config  # (1)! 
- │  ├── api.yml
- │  ├── control.yml
- │  ├── database.yml
- │  ├── 📁 db_entities # (2)!
- │  ├── event_logging.yml
- │  ├── history_manager.yml
- │  ├── 📁 modules # (3)!
- │  ├── processing_core.yml
- │  ├── README.md
- │  └── snapshots.yml
+ │   ├── 📄 api.yml
+ │   ├── 📄 control.yml
+ │   ├── 📄 database.yml
+ │   ├── 📁 db_entities # (2)!
+ │   ├── 📄 event_logging.yml
+ │   ├── 📄 history_manager.yml
+ │   ├── 📁 modules # (3)!
+ │   ├── 📄 processing_core.yml
+ │   ├── 📄 README.md
+ │   └── 📄 snapshots.yml
  ├── 📁 docker # (4)!
- │  ├── 📁 python
- │  └── 📁 rabbitmq
- ├── docker-compose.app.yml
- ├── docker-compose.yml
+ │   ├── 📁 python
+ │   └── 📁 rabbitmq
+ ├── 📄 docker-compose.app.yml
+ ├── 📄 docker-compose.yml
  ├── 📁 modules # (5)!
- │  └── test_module.py
- ├── README.md # (6)!
- └── requirements.txt
+ │   └── 📄 test_module.py
+ ├── 📄 README.md # (6)!
+ └── 📄 requirements.txt
 ```
 
 1. The `config` directory contains the configuration files for the DP³ platform. For more details,
@@ -140,17 +142,20 @@ git clone --branch new_dp3 git@github.com:CESNET/dp3.git dp3
 cd dp3
 python3 -m venv venv  # (1)!
 source venv/bin/activate  # (2)!
-pip install --editable ".[dev]" # (3)!
-pre-commit install  # (4)!
+python -m pip install --upgrade pip  # (3)!
+pip install --editable ".[dev]" # (4)!
+pre-commit install  # (5)!
 ```
 
 1. We recommend using virtual environment. If you are not familiar with it, please read 
    [this](https://docs.python.org/3/tutorial/venv.html) first.
    Note for Windows: If `python3` does not work, try `py -3` or `python` instead.
 2. Windows: `venv/Scripts/activate.bat`
-3. Install using editable mode to allow for changes in the code to be reflected in the installed package.
+3. We require `pip>=21.0.1` for the `pyproject.toml` support.
+   If your pip is up-to-date, you can skip this step.
+4. Install using editable mode to allow for changes in the code to be reflected in the installed package.
    Also, install the development dependencies, such as `pre-commit` and `mkdocs`.
-4. Install `pre-commit` hooks to automatically format and lint the code before committing.
+5. Install `pre-commit` hooks to automatically format and lint the code before committing.
 
 ### Running the dependencies and the platform
 

@@ -15,7 +15,7 @@ Create a virtualenv and install the DP³ platform using:
 python3 -m venv venv  # (1)!
 source venv/bin/activate  # (2)!
 python -m pip install --upgrade pip  # (3)!
-pip install -e git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
+pip install git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
 ```
 
 1. We recommend using virtual environment. If you are not familiar with it, please read 
@@ -92,6 +92,37 @@ docker compose up -d --build  # (1)!
 1. The `-d` flag runs the services in the background, so you can continue working in the same terminal.
    The `--build` flag forces Docker to rebuild the images, so you can be sure you are running the latest version.
    If you want to run the services in the foreground, omit the `-d` flag.
+
+??? info "Docker Compose basics"
+      
+      The state of running containers can be checked using:
+      
+      ```shell
+      docker compose ps
+      ```
+      
+      which will display the state of running processes. The logs of the services can be displayed using:
+      
+      ```shell
+      docker compose logs
+      ```
+      
+      which will display the logs of all services, or:
+      
+      ```shell
+      docker compose logs <service name>
+      ```
+      
+      which will display only the logs of the given service. 
+      (In this case, the services are *rabbitmq*, *mongo*, *mongo_express*, and *redis*)
+      
+      We can now focus on running the platform and developing or testing. After you are done, simply run:
+      
+      ```shell
+      docker compose down
+      ```
+      
+      which will stop and remove all containers, networks and volumes created by `docker compose up`.
 
 There are two main ways to run the application itself. First is a little more hand-on, 
 and allows easier debugging. 
@@ -204,34 +235,36 @@ curl -X 'POST' 'http://localhost:5000/datapoints' \
      --data '[{"type": "test_entity_type", "id": "abc", "attr": "test_attr_int", "v": 123, "t1": "2023-07-01T12:00:00", "t2": "2023-07-01T13:00:00"}]'
 ```
 
-The state of running containers can be checked using:
-
-```shell
-docker compose ps
-```
-
-which will display the state of running processes. The logs of the services can be displayed using:
-
-```shell
-docker compose logs
-```
-
-which will display the logs of all services, or:
-
-```shell
-docker compose logs <service name>
-```
-
-which will display only the logs of the given service. 
-(In this case, the services are *rabbitmq*, *mongo*, *redis*, *receiver_api* and *worker*)
-
-We can now focus on running the platform and developing or testing. After you are done, simply run:
-
-```shell
-docker compose down
-```
-
-which will stop and remove all containers, networks and volumes created by `docker compose up`.
+??? info "Docker Compose basics"
+      
+      The state of running containers can be checked using:
+      
+      ```shell
+      docker compose ps
+      ```
+      
+      which will display the state of running processes. The logs of the services can be displayed using:
+      
+      ```shell
+      docker compose logs
+      ```
+      
+      which will display the logs of all services, or:
+      
+      ```shell
+      docker compose logs <service name>
+      ```
+      
+      which will display only the logs of the given service. 
+      (In this case, the services are *rabbitmq*, *mongo*, *redis*, *receiver_api* and *worker*)
+      
+      We can now focus on running the platform and developing or testing. After you are done, simply run:
+      
+      ```shell
+      docker compose down
+      ```
+      
+      which will stop and remove all containers, networks and volumes created by `docker compose up`.
 
 ### Testing
 

@@ -29,4 +29,4 @@ APP_NAME={{DP3_APP}} CONF_DIR=config api
 
 **DP3 documentation**: https://cesnet.github.io/dp3/
 
-**Swagger API documentation** (once the app is running): http://localhost:5000/api/docs/
+**Swagger API documentation** (once the app is running): http://localhost:5000/docs/

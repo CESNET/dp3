@@ -17,6 +17,8 @@ def replace_template(directory: Path, template: str, replace_with: str):
                     f.truncate()
             except UnicodeDecodeError:
                 print(f"Skipping {file} as it is a binary file.")
+            except PermissionError:
+                print(f"Skipping {file} as it is a read-only file.")
 
 
 def main():

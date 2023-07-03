@@ -38,6 +38,10 @@ class Telemetry:
                     upsert=True,
                 )
             )
+
+        if not updates:
+            return
+
         res = cache_col.bulk_write(updates)
         self.log.debug(
             "Updating %s src_timestamp records: %s modified",

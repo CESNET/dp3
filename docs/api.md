@@ -1,14 +1,20 @@
 # API
 
 DP³'s has HTTP API which you can use to post datapoints and to read data stored in DP³.
+As the API is made using FastAPI, there is also an interactive documentation available at `/docs` endpoint.
 
 There are several API endpoints:
 
 - [`GET /`](#index): check if API is running (just returns `It works!` message)
 - [`POST /datapoints`](#insert-datapoints): insert datapoints into DP³
-- [`GET /<entity_type>/<entity_id>/<attr_id>`](#attribute-value): read current value for an attribute
-- [`GET /<entity_type>/<entity_id>/<attr_id>/history`](#attribute-history): read history of an attribute
-- [`GET /workers_alive`](#workers-alive): check whether any workers are running
+- [`GET /entity/<entity_type>`](#list-entities): list current snapshots of all entities of given type
+- [`GET /entity/<entity_type>/<entity_id>`](#get-eid-data): get data of entity with given entity id
+- [`GET /entity/<entity_type>/<entity_id>/get/<attr_id>`](#get-attr-value): get attribute value
+- [`GET /entity/<entity_type>/<entity_id>/set/<attr_id>`](#set-attr-value): set attribute value
+- [`GET /entities`](#entities): list entity configuration
+- [`GET /control/<action>`](#control): send a pre-defined action into execution queue.
+
+---
 
 ## Index
 
@@ -22,7 +28,12 @@ Health check.
 
 **`200 OK`**:
 
-`It works!`
+`{
+  "detail": "It works!"
+}`
+
+---
+
 
 ## Insert datapoints
 
@@ -179,87 +190,172 @@ v -> some_embedded_dict_field
   field required (type=value_error.missing)
 ```
 
-## Attribute value
+---
+
+## List entities
+
+List latest snapshots of all ids present in database under entity.
+
+Contains only latest snapshot.
+
+Uses pagination.
 
 ### Request
 
-`GET /<entity_type>/<entity_id>/<attr_id>`
-
-Currently not working. TODO
-
-### Response
-
-TODO
-
-## Attribute history
-
-### Request
-
-`GET /<entity_type>/<entity_id>/<attr_id>/history`
+`GET /entity/<entity_type>`
 
 **Optional query parameters:**
 
-- `t1`: history since what time to return
-- `t2`: history until what time to return
-
-Example usage:
-
-```
-/ip/1.2.3.4/test_attr/history?t1=2020-01-23T12:00:00&t2=2020-01-23T14:00:00
-/ip/1.2.3.4/test_attr/history?t1=2020-01-23T12:00:00
-/ip/1.2.3.4/test_attr/history?t2=2020-01-23T14:00:00
-/ip/1.2.3.4/test_attr/history
-```
+- skip: how many entities to skip (default: 0)
+- limit: how many entities to return (default: 20)
 
 ### Response
-
-**`200 OK`**:
-
-```json
-[
-  {
-    "c": 1.0,
-    "t1": "Fri, 24 Feb 2023 08:45:46 GMT",
-    "t2": "Fri, 24 Feb 2023 09:45:46 GMT",
-    "v": "value1"
-  },
-  {
-    "c": 0.84,
-    "t1": "Fri, 24 Feb 2023 19:49:49 GMT",
-    "t2": "Fri, 24 Feb 2023 20:49:49 GMT",
-    "v": "value2"
-  },
-  {
-    "c": 0.991,
-    "t1": "Sat, 25 Feb 2023 01:40:46 GMT",
-    "t2": "Sat, 25 Feb 2023 02:40:46 GMT",
-    "v": "value3"
-  }
-]
-```
-
-**`400 Bad request`**:
-
-```
-Error: no attribute specification found for 'some_attribute'
-```
-
-## Workers alive
-
-### Request
-
-`GET /workers_alive`
-
-Checks the RabbitMQ statistics twice, if there is any difference,
-a live worker is assumed.
-
-### Response
-
-**`200 OK`**:
 
 ```json
 {
-  "workers_alive": true,
-  "deliver_get_difference": 15
+  "time_created": "2023-07-04T12:10:38.827Z",
+  "data": [
+    {}
+  ]
 }
 ```
+
+---
+
+## Get Eid data
+
+Get data of entity's eid.
+
+Contains all snapshots and master record. Snapshots are ordered by ascending creation time.
+
+### Request
+
+`GET /entity/<entity_type>/<entity_id>`
+
+**Optional query parameters:**
+
+- date_from: date-time string
+- date_to: date-time string
+
+### Response
+
+```json
+{
+  "empty": true,
+  "master_record": {},
+  "snapshots": [
+    {}
+  ]
+}
+```
+
+---
+
+## Get attr value
+
+
+Get attribute value
+
+Value is either of:
+
+- current value: in case of plain attribute
+- current value and history: in case of observation attribute
+- history: in case of timeseries attribute
+
+### Request
+
+`GET /entity/<entity_type>/<entity_id>/get/<attr_id>`
+
+**Optional query parameters:**
+
+- date_from: date-time string
+- date_to: date-time string
+
+### Response
+
+```json
+{
+  "attr_type": 1,
+  "current_value": "string",
+  "history": []
+}
+```
+
+---
+
+## Set attr value
+
+Set current value of attribute
+
+Internally just creates datapoint for specified attribute and value.
+
+This endpoint is meant for `editable` plain attributes -- for direct user edit on DP3 web UI.
+
+### Request
+
+`POST /entity/<entity_type>/<entity_id>/set/<attr_id>`
+
+**Required request body:**
+
+```json
+{
+  "value": "string"
+}
+```
+
+### Response
+
+```json
+{
+  "detail": "OK"
+}
+```
+
+---
+
+## Entities
+
+List entities
+
+Returns dictionary containing all entities configured -- their simplified configuration and current state information.
+
+### Request
+
+`GET /entities`
+
+### Response
+
+```json
+{
+  "<entity_id>": {
+    "id": "<entity_id>",
+    "name": "<entity_spec.name>",
+    "attribs": "<MODEL_SPEC.attribs(e_id)>",
+    "eid_estimate_count": "<DB.estimate_count_eids(e_id)>"
+  },
+  ...
+}
+```
+
+---
+
+## Control
+
+Execute Action - Sends the given action into execution queue.
+
+You can see the enabled actions in `/config/control.yml`, available are:
+
+- `make_snapshots` - Makes an out-of-order snapshot of all entities
+
+### Request
+
+`GET /control/<action>`
+
+### Response
+
+```json
+{
+  "detail": "OK"
+}
+```
+

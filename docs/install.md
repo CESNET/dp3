@@ -188,10 +188,17 @@ pre-commit install  # (5)!
    Also, install the development dependencies, such as `pre-commit` and `mkdocs`.
 5. Install `pre-commit` hooks to automatically format and lint the code before committing.
 
+With the dependencies, the [pre-commit](https://pre-commit.com/) package is installed.
+You can verify the installation using `pre-commit --version`.
+Pre-commit is used to automatically unify code formatting and perform code linting.
+The hooks configured in `.pre-commit-config.yaml` should now run automatically on every commit.
+
+In case you want to make sure, you can run `pre-commit run --all-files` to see it in action.
+
 ### Running the dependencies and the platform
 
 The DP³ platform is now installed and ready for development.
-To run it, we first need to setup the other services the platform depends on,
+To run it, we first need to set up the other services the platform depends on,
 such as the MongoDB database, the RabbitMQ message distribution and the Redis database.
 This can be done using the supplied `docker-compose.yml` file. Simply run:
 
@@ -285,4 +292,4 @@ python -m unittest discover \
 
 For extending of this documentation, please refer to the [Extending](extending.md) page.
 
-[//]: # (TODO expland - installing for application development, deployment.)
+[//]: # (TODO expland - installing for deployment.)

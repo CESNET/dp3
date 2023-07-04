@@ -4,7 +4,7 @@ DP³ is a platform helps to keep a database of information (attributes) about in
 entities (designed for IP addresses and other network identifiers, but may be anything),
 when the data constantly changes in time.
 
-TODO - more description of basic principles and goals
+You can read more about how it works in the [documentation](https://cesnet.github.io/dp3/architecture/).
 
 This is a basis of CESNET's "Asset Discovery Classification and Tagging" (ADiCT) project,
 focused on discovery and classification of network devices,
@@ -13,47 +13,154 @@ but the platform itself is general and should be usable for any kind of data.
 DP³ doesn't do much by itself, it must be supplemented by application-specific modules providing
 and processing data.
 
-TODO - architecture, main parts of repository (Python package, other files)
-
 ## Repository structure
 
-* `dp3` - Python package containing code of the processing core (?)
-* `api` - HTTP API (Flask) for data ingestion and extraction
+* `dp3` - Python package containing code of the processing core and the API
 * `config` - default/example configuration
-* `install` - installation scripts and files
+* `install` - deployment configuration
 
 See the [documentation](https://cesnet.github.io/dp3/) for more details.
 
-## Installing for development
+## Installation
 
-### Dependencies
+See the [docs](https://cesnet.github.io/dp3/install/) for more details.
 
-Following steps create a virtual environment with all dependencies installed.
+### Installing for application development
+
+Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
+
+Create a virtualenv and install the DP³ platform using:
 
 ```shell
-python3.9 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+pip install git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
+```
+
+#### Creating a DP³ application
+
+To create a new DP³ application we will use the included `dp3-setup` utility. Run:
+
+```shell
+dp3-setup <application_directory> <your_application_name> 
+```
+
+So for example, to create an application called `my_app` in the current directory, run:
+
+```shell
+dp3-setup . my_app
+```
+
+Which produces a template DP3 application directory structure.
+
+#### Running the Application
+
+To run the application, we first need to setup the other services the platform depends on,
+such as the MongoDB database, the RabbitMQ message distribution and the Redis database.
+This can be done using the supplied `docker-compose.yml` file. Simply run:
+
+```shell
+docker compose up -d --build
+```
+There are two main ways to run the application itself. First is a little more hand-on, 
+and allows easier debugging. 
+There are two main kinds of processes in the application: the API and the worker processes.
+
+To run the API, simply run:
+
+```shell
+APP_NAME=my_app CONF_DIR=config api
+```
+
+The starting configuration sets only a single worker process, which you can run using:
+
+```shell
+worker my_app config 0     
+```
+
+The second way is to use the `docker-compose.app.yml` file, which runs the API and the worker processes
+in separate containers. To run the API, simply run:
+
+```shell
+docker compose -f docker-compose.app.yml up -d --build
+```
+
+Either way, to test that everything is running properly, you can run:
+```shell
+curl -X 'GET' 'http://localhost:5000/' \
+     -H 'Accept: application/json' 
+```
+
+Which should return a JSON response with the following content:
+```json
+{
+   "detail": "It works!"
+}
+```
+
+You are now ready to start developing your application!
+
+## Installing for platform development
+
+Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
+
+Pull the repository and install using:
+
+```shell
+git clone --branch new_dp3 git@github.com:CESNET/dp3.git dp3 
+cd dp3
+python3 -m venv venv
+source venv/bin/activate  
+python -m pip install --upgrade pip  
+pip install --editable ".[dev]" 
 pre-commit install
 ```
 
-The `venv` is activated using `source venv/bin/activate`, and can be deactivated using `deactivate`.
+### Running the dependencies and the platform
 
-### Using pre-commit
+The DP³ platform is now installed and ready for development.
+To run it, we first need to setup the other services the platform depends on,
+such as the MongoDB database, the RabbitMQ message distribution and the Redis database.
+This can be done using the supplied `docker-compose.yml` file. Simply run:
 
-With the dependencies, the [pre-commit](https://pre-commit.com/) package is installed.
-You can verify the installation using `pre-commit --version`.
-Pre-commit is used to automatically unify code formatting and perform code linting.
-The hooks configured in `.pre-commit-config.yaml` should now run automatically on every commit.
+```shell
+docker compose up -d --build
+```
 
-In case you want to make sure, you can run `pre-commit run --all-files` to see it in action.
+After the first `compose up` command, the images for RabbitMQ, MongoDB and Redis will be downloaded,
+their images will be built according to the configuration and all three services will be started.
+On subsequent runs, Docker will use the cache, so if the configuration does not change, the download
+and build steps will not be repeated.
 
-## Installing DP³ platform
+The configuration is taken implicitly from the `docker-compose.yml` file in the current directory.
+The `docker-compose.yml` configuration contains the configuration for the services,
+as well as a testing setup of the DP³ platform itself. 
+The full configuration is in `tests/test_config`.
+The setup includes one worker process and one API process to handle requests. 
+The API process is exposed on port 5000, so you can send requests to it using `curl` or from your browser:
 
-`$ pip install -e .`
+```shell
+curl -X 'GET' 'http://localhost:5000/' \
+     -H 'Accept: application/json' 
+```
+```shell
+curl -X 'POST' 'http://localhost:5000/datapoints' \
+     -H 'Content-Type: application/json' \
+     --data '[{"type": "test_entity_type", "id": "abc", "attr": "test_attr_int", "v": 123, "t1": "2023-07-01T12:00:00", "t2": "2023-07-01T13:00:00"}]'
+```
 
-## Running tests
+### Testing
 
-Activate virtualenv (if not already - `$ source venv/bin/activate`) and run:
+With the testing platform setup running, we can now run tests. 
+Tests are run using the `unittest` framework and can be run using:
 
-`$ cd tests && python3 -m unittest`
+```shell
+python -m unittest discover \
+       -s tests/test_common \
+       -v
+CONF_DIR=tests/test_config \
+python -m unittest discover \
+       -s tests/test_api \
+       -v
+```

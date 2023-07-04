@@ -11,6 +11,8 @@ import sys
 import threading
 from importlib import import_module
 
+from pydantic import ValidationError
+
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.common.control import Control, ControlAction
@@ -126,7 +128,11 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     # Whole configuration should be loaded
     config = read_config_dir(config_base_path, recursive=True)
-    model_spec = ModelSpec(config.get("db_entities"))
+    try:
+        model_spec = ModelSpec(config.get("db_entities"))
+    except ValidationError as e:
+        log.fatal("Invalid model specification: %s", e)
+        sys.exit(2)
 
     # Print whole attribute specification
     log.debug(model_spec)

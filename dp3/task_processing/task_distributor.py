@@ -196,10 +196,13 @@ class TaskDistributor:
                     )
                 )
 
-            # Push tasks
+            # Push new tasks (resulting from hooks) to the priority queue.
+            # (priority queue is not limited in size, so put_task() never blocks; the normal
+            # queue has limited size, so if it was used here, a deadlock could occur if all
+            # workers try to push new tasks to a full queue)
             try:
                 for task in new_tasks:
-                    self._task_queue_writer.put_task(task)
+                    self._task_queue_writer.put_task(task, priority=True)
             except Exception as e:
                 self.log.error(f"Failed to push tasks created from hooks: {e}")
 

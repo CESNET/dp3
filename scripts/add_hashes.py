@@ -2,12 +2,11 @@
 """Simple script to add hashes to master records to allow for easier parallelization."""
 
 import argparse
-import urllib
 
-import pymongo
 from pymongo import UpdateOne
 
 from dp3.common.config import ModelSpec, read_config_dir
+from dp3.database.database import EntityDatabase, MongoConfig
 from dp3.task_processing.task_queue import HASH
 
 # Arguments parser
@@ -27,19 +26,11 @@ config = read_config_dir(args.config, recursive=True)
 model_spec = ModelSpec(config.get("db_entities"))
 
 # Connect to database
-connection_conf = config.get("database.connection", {})
-username = urllib.parse.quote_plus(connection_conf.get("username", "dp3"))
-password = urllib.parse.quote_plus(connection_conf.get("password", "dp3"))
-address = connection_conf.get("address", "localhost")
-port = str(connection_conf.get("port", 27017))
-db_name = connection_conf.get("db_name", "dp3")
+connection_conf = MongoConfig.parse_obj(config.get("database", {}))
+client = EntityDatabase.connect(connection_conf)
+client.admin.command("ping")
 
-db = pymongo.MongoClient(
-    f"mongodb://{username}:{password}@{address}:{port}/",
-    connectTimeoutMS=3000,
-    serverSelectionTimeoutMS=5000,
-)
-db = db[db_name]
+db = client[connection_conf.db_name]
 
 
 def send_updates(entity: str, update_list: list):

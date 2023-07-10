@@ -3,10 +3,10 @@ import logging
 import time
 import urllib
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional, Union
 
 import pymongo
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from pymongo import ReplaceOne
 
 from dp3.common.attrspec import AttrType, timeseries_types
@@ -21,6 +21,41 @@ class DatabaseError(Exception):
 
 class MissingTableError(DatabaseError):
     pass
+
+
+class MongoHostConfig(BaseModel, extra="forbid"):
+    """MongoDB host."""
+
+    address: str = "localhost"
+    port: int = 27017
+
+
+class MongoStandaloneConfig(BaseModel, extra="forbid"):
+    """MongoDB standalone configuration."""
+
+    mode: Literal["standalone"]
+    host: MongoHostConfig = MongoHostConfig()
+
+
+class MongoReplicaConfig(BaseModel, extra="forbid"):
+    """MongoDB replica set configuration."""
+
+    mode: Literal["replica"]
+    replica_set: str = "dp3"
+    hosts: list[MongoHostConfig]
+
+
+class MongoConfig(BaseModel, extra="forbid"):
+    """Database configuration."""
+
+    db_name: str = "dp3"
+    username: str = "dp3"
+    password: str = "dp3"
+    connection: Union[MongoStandaloneConfig, MongoReplicaConfig] = Field(..., discriminator="mode")
+
+    @validator("username", "password")
+    def url_safety(cls, v):
+        return urllib.parse.quote_plus(v)
 
 
 def get_caller_id():
@@ -51,21 +86,12 @@ class EntityDatabase:
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
 
-        connection_conf = db_conf.get("connection", {})
-        username = urllib.parse.quote_plus(connection_conf.get("username", "dp3"))
-        password = urllib.parse.quote_plus(connection_conf.get("password", "dp3"))
-        address = connection_conf.get("address", "localhost")
-        port = str(connection_conf.get("port", 27017))
-        db_name = connection_conf.get("db_name", "dp3")
+        config = MongoConfig.parse_obj(db_conf)
 
         self.log.info("Connecting to database...")
         for attempt, delay in enumerate(RECONNECT_DELAYS):
             try:
-                self._db = pymongo.MongoClient(
-                    f"mongodb://{username}:{password}@{address}:{port}/",
-                    connectTimeoutMS=3000,
-                    serverSelectionTimeoutMS=5000,
-                )
+                self._db = self.connect(config)
                 # Check if connected
                 self._db.admin.command("ping")
             except pymongo.errors.ConnectionFailure as e:
@@ -84,10 +110,34 @@ class EntityDatabase:
         self._db_schema_config = model_spec
 
         # Init and switch to correct database
-        self._db = self._db[db_name]
-        self._init_database_schema(db_name)
+        self._db = self._db[config.db_name]
+        self._init_database_schema(config.db_name)
 
         self.log.info("Database successfully initialized!")
+
+    @staticmethod
+    def connect(config: MongoConfig) -> pymongo.MongoClient:
+        if isinstance(config.connection, MongoStandaloneConfig):
+            host = config.connection.host
+            return pymongo.MongoClient(
+                f"mongodb://{config.username}:{config.password}@{host.address}:{host.port}/",
+                connectTimeoutMS=3000,
+                serverSelectionTimeoutMS=5000,
+            )
+        elif isinstance(config.connection, MongoReplicaConfig):
+            uri = (
+                f"mongodb://{config.username}:{config.password}@"
+                + ",".join(f"{host.address}:{host.port}" for host in config.connection.hosts)
+                + f"/?replicaSet={config.connection.replica_set}"
+            )
+            return pymongo.MongoClient(
+                uri,
+                replicaSet=config.connection.replica_set,
+                connectTimeoutMS=3000,
+                serverSelectionTimeoutMS=5000,
+            )
+        else:
+            raise NotImplementedError()
 
     @staticmethod
     def _master_col_name(entity: str) -> str:

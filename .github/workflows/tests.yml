@@ -9,7 +9,7 @@ jobs:
   api-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Setup running platform stack
         run: docker compose up --build -d
@@ -26,7 +26,7 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Build Test
         run: docker build -f docker/python/Dockerfile --target base -t dp3_interpreter .

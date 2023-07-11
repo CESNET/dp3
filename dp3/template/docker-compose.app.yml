@@ -14,10 +14,10 @@ services:
 
     network_mode: "host"
 
-    working_dir: "/dp3/dp3/api"
+    working_dir: "/{{DP3_APP}}/dp3/api"
     environment:
       APP_NAME: "{{DP3_APP}}"
-      CONF_DIR: "/dp3/config"
+      CONF_DIR: "/{{DP3_APP}}/config"
     command: ["api"]
 
   worker:
@@ -30,5 +30,5 @@ services:
 
     network_mode: "host"
 
-    working_dir: "/dp3/"
+    working_dir: "/{{DP3_APP}}/"
     command: [ "worker", "{{DP3_APP}}", "config", "0", "-v" ]

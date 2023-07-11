@@ -1,7 +1,23 @@
-# Connection parameters to MongoDB database
+# MongoDB Connection configuration
+db_name: "{{DP3_APP}}"
+username: "{{DP3_APP}}"
+password: "{{DP3_APP}}"
+
+# Standalone - single host, just specify the connection
 connection:
-  username: "{{DP3_APP}}"
-  password: "{{DP3_APP}}"
-  address: "127.0.0.1"
-  port: 27017
-  db_name: "{{DP3_APP}}"
+  mode: "standalone"
+  host:
+    address: "127.0.0.1"
+    port: 27017
+
+# Replica-set - specify the list of connections of all nodes and the replica-set name
+#connection:
+#  mode: "replica"
+#  replica_set: "{{DP3_APP}}"
+#  hosts:
+#    - address: "127.0.0.1"
+#      port: 27017
+#    - address: "127.0.0.2"
+#      port: 27017
+#    - address: "127.0.0.3"
+#      port: 27017

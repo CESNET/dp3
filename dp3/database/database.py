@@ -169,6 +169,13 @@ class EntityDatabase:
             self._db[snapshot_col].create_index("eid", background=True)
             self._db[snapshot_col].create_index("_time_created", background=True)
 
+            # Existence indexes for each attribute in master collection
+            master_col = self._master_col_name(etype)
+            for attr, _spec in self._db_schema_config.entity_attributes[etype].items():
+                self._db[master_col].create_index(
+                    attr, background=True, partialFilterExpression={attr: {"$exists": True}}
+                )
+
     def _assert_etype_exists(self, etype: str):
         """Asserts `etype` existence.
 

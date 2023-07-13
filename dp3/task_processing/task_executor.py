@@ -48,10 +48,13 @@ class TaskExecutor:
             platform_config.config.get("event_logging.redis"),
         )
         self.elog = ecl.get_group("te") or DummyEventGroup()
+        self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
         # Print warning if some event group is not configured
         not_configured_groups = []
         if isinstance(self.elog, DummyEventGroup):
             not_configured_groups.append("te")
+        if isinstance(self.elog_by_src, DummyEventGroup):
+            not_configured_groups.append("tasks_by_src")
         if not_configured_groups:
             self.log.warning(
                 "EventCountLogger: No configuration for event group(s) "
@@ -125,6 +128,7 @@ class TaskExecutor:
             ekey_exists = self.db.ekey_exists(task.etype, task.eid)
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")
+            self.elog.log("task_processing_error")
             return False, new_tasks
 
         if not ekey_exists:
@@ -146,6 +150,7 @@ class TaskExecutor:
             self.log.debug(f"Task {task.etype}/{task.eid}: All changes written to DB")
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")
+            self.elog.log("task_processing_error")
             return False, new_tasks
 
         # Run attribute hooks
@@ -154,6 +159,9 @@ class TaskExecutor:
 
         # Log the processed task
         self.elog.log("task_processed")
+        for dp in task.data_points:
+            if dp.src:
+                self.elog_by_src.log(dp.src)
 
         self.log.debug(f"Secondary modules created {len(new_tasks)} new tasks.")
 

@@ -20,23 +20,17 @@ groups:
     events:
       - task_processed
       - task_processing_error
-    intervals: ["5s", "5m"] # (1)!
+    intervals: [ "5m", "2h" ] # (1)!
     sync-interval: 1 # (2)!
   # Number of processed tasks by their "src" attribute
   tasks_by_src:
-    events: []
+    events: [ ]
     auto_declare_events: true
-    intervals: ["5s", "5m"]
-    sync-interval: 1
-  # Number of occurrences of task tags (each task can have multiple tags or no tag at all)
-  tasks_by_tag:
-    events: []
-    auto_declare_events: true
-    intervals: ["5s", "5m"]
+    intervals: [ "5s", "5m" ]
     sync-interval: 1
 ```
 
-1. Two intervals - 5 sec for immediate status view in admin's box on the web, and 5 min for longer-term history in Munin
+1. Two intervals - 5 min and 2 hours for longer-term history in Munin/Icinga
 2. Cache counts locally, push to Redis every second
 
 # Redis

@@ -131,7 +131,8 @@ class TaskExecutor:
             self.elog.log("task_processing_error")
             return False, new_tasks
 
-        if not ekey_exists:
+        new_entity = not ekey_exists
+        if new_entity:
             # Run allow_entity_creation hook
             if not self._task_entity_hooks[task.etype].run_allow_creation(task.eid, task):
                 self.log.debug(
@@ -144,9 +145,7 @@ class TaskExecutor:
 
         # Insert into database
         try:
-            self.db.insert_datapoints(
-                task.etype, task.eid, task.data_points, new_entity=not ekey_exists
-            )
+            self.db.insert_datapoints(task.etype, task.eid, task.data_points, new_entity=new_entity)
             self.log.debug(f"Task {task.etype}/{task.eid}: All changes written to DB")
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")
@@ -162,7 +161,9 @@ class TaskExecutor:
         for dp in task.data_points:
             if dp.src:
                 self.elog_by_src.log(dp.src)
+        if new_entity:
+            self.elog.log("record_created")
 
         self.log.debug(f"Secondary modules created {len(new_tasks)} new tasks.")
 
-        return True, new_tasks
+        return new_entity, new_tasks

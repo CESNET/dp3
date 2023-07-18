@@ -1,3 +1,10 @@
+# CORS
+cors:
+  # Which origins are allowed
+  # Default is to allow any origin. This needs to allow at least access
+  # from the web interface.
+  allow_origins: ["*"]
+
 # Datapoint logger configuration
 datapoint_logger:
   # Path of file for logging of good datapoints

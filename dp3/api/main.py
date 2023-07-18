@@ -3,8 +3,9 @@ import json
 from fastapi import FastAPI
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 
-from dp3.api.internal.config import DATAPOINTS_INGESTION_URL_PATH, DP_LOGGER, ROOT_PATH
+from dp3.api.internal.config import CONFIG, DATAPOINTS_INGESTION_URL_PATH, DP_LOGGER, ROOT_PATH
 from dp3.api.routers import control, entity, root
 
 # Create new FastAPI app
@@ -23,6 +24,14 @@ async def validation_exception_handler(request, exc):
     # Call default handler
     return await request_validation_exception_handler(request, exc)
 
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CONFIG.get("api.cors.allow_origins", ["*"]),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Register routers
 app.include_router(entity.router, prefix="/entity", tags=["Entity"])

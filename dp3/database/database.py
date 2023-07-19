@@ -510,8 +510,8 @@ class EntityDatabase:
         Returns:
             list of dicts (reduced datapoints)
         """
-        t1 = datetime.fromtimestamp(0) if t1 is None else t1
-        t2 = datetime.now() if t2 is None else t2
+        t1 = datetime.fromtimestamp(0) if t1 is None else t1.replace(tzinfo=None)
+        t2 = datetime.now() if t2 is None else t2.replace(tzinfo=None)
 
         # Get attribute history
         mr = self.get_master_record(etype, eid)
@@ -565,8 +565,8 @@ class EntityDatabase:
         Returns:
              list of dicts (reduced datapoints) - each represents just one point at time
         """
-        t1 = datetime.fromtimestamp(0) if t1 is None else t1
-        t2 = datetime.now() if t2 is None else t2
+        t1 = datetime.fromtimestamp(0) if t1 is None else t1.replace(tzinfo=None)
+        t2 = datetime.now() if t2 is None else t2.replace(tzinfo=None)
 
         attr_history = self.get_observation_history(etype, attr_name, eid, t1, t2, sort)
         if not attr_history:

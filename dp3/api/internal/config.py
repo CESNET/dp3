@@ -39,7 +39,15 @@ try:
     # Validate and parse environmental variables
     conf_env = ConfigEnv.parse_obj(os.environ)
 except ValidationError as e:
-    print("Invalid or missing environmental variables:", file=sys.stderr)
+    config_error = any("CONF_DIR" in x["loc"] and len(x["loc"]) > 1 for x in e.errors())
+    env_error = any(len(x["loc"]) == 1 for x in e.errors())
+    print(
+        ("Invalid or missing environmental variables" if env_error else "")
+        + (" && " if env_error and config_error else "")
+        + ("Invalid model specification (check entity config)" if config_error else "")
+        + ":",
+        file=sys.stderr,
+    )
 
     error_message_no_first_line = str(e).split("\n", 1)[-1]
     print(error_message_no_first_line, file=sys.stderr)

@@ -75,8 +75,10 @@ class SnapShooter:
         self.worker_cnt = platform_config.num_processes
         self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
 
-        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec)
-        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec)
+        elog = task_executor.elog
+
+        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec, elog)
+        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec, elog)
 
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
         self.snapshot_queue_reader = TaskQueueReader(

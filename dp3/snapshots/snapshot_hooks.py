@@ -16,13 +16,15 @@ from dp3.common.attrspec import (
 )
 from dp3.common.config import ModelSpec
 from dp3.common.task import DataPointTask
+from dp3.task_processing.task_hooks import EventGroupType
 
 
 class SnapshotTimeseriesHookContainer:
     """Container for timeseries analysis hooks"""
 
-    def __init__(self, log: logging.Logger, model_spec: ModelSpec):
+    def __init__(self, log: logging.Logger, model_spec: ModelSpec, elog: EventGroupType):
         self.log = log.getChild("TimeseriesHooks")
+        self.elog = elog
         self.model_spec = model_spec
 
         self._hooks = defaultdict(list)
@@ -64,6 +66,7 @@ class SnapshotTimeseriesHookContainer:
                 new_tasks = hook(entity_type, attr_type, attr_history)
                 tasks.extend(new_tasks)
             except Exception as e:
+                self.elog.log("module_error")
                 self.log.error(f"Error during running hook {hook}: {e}")
         return tasks
 
@@ -71,8 +74,9 @@ class SnapshotTimeseriesHookContainer:
 class SnapshotCorrelationHookContainer:
     """Container for data fusion and correlation hooks."""
 
-    def __init__(self, log: logging.Logger, model_spec: ModelSpec):
+    def __init__(self, log: logging.Logger, model_spec: ModelSpec, elog: EventGroupType):
         self.log = log.getChild("CorrelationHooks")
+        self.elog = elog
         self.model_spec = model_spec
 
         self._hooks: defaultdict[str, list[tuple[str, Callable]]] = defaultdict(list)
@@ -263,7 +267,11 @@ class SnapshotCorrelationHookContainer:
         for hook_id, hook, etype in hook_subset:
             for eid, entity_values in entities_by_etype[etype].items():
                 self.log.debug("Running hook %s on entity %s", hook_id, eid)
-                hook(etype, entity_values)
+                try:
+                    hook(etype, entity_values)
+                except Exception as e:
+                    self.elog.log("module_error")
+                    self.log.error(f"Error during running hook {hook_id}: {e}")
 
     def _restore_hook_order(self, hooks: list[tuple[str, Callable]]):
         topological_order = self._dependency_graph.topological_sort()

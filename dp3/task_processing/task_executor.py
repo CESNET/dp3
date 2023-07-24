@@ -63,17 +63,17 @@ class TaskExecutor:
             )
 
         # Hooks
-        self._task_generic_hooks = TaskGenericHooksContainer(self.log)
+        self._task_generic_hooks = TaskGenericHooksContainer(self.log, self.elog)
         self._task_entity_hooks = {}
         self._task_attr_hooks = {}
 
         for entity in self.model_spec.entities:
-            self._task_entity_hooks[entity] = TaskEntityHooksContainer(entity, self.log)
+            self._task_entity_hooks[entity] = TaskEntityHooksContainer(entity, self.log, self.elog)
 
         for entity, attr in self.model_spec.attributes:
             attr_type = self.model_spec.attributes[entity, attr].t
             self._task_attr_hooks[entity, attr] = TaskAttrHooksContainer(
-                entity, attr, attr_type, self.log
+                entity, attr, attr_type, self.log, self.elog
             )
 
     def register_task_hook(self, hook_type: str, hook: Callable):

@@ -5,6 +5,8 @@ import os
 import unittest
 from functools import partial, update_wrapper
 
+from event_count_logger import DummyEventGroup
+
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
 from dp3.common.task import Task
 from dp3.snapshots.snapshooter import SnapShooter
@@ -26,7 +28,7 @@ class TestHookDependency(unittest.TestCase):
         )
         self.model_spec = ModelSpec(config.get("db_entities"))
         self.container = SnapshotCorrelationHookContainer(
-            log=logging.getLogger("TestLogger"), model_spec=self.model_spec
+            log=logging.getLogger("TestLogger"), model_spec=self.model_spec, elog=DummyEventGroup()
         )
 
     def test_basic_function(self):
@@ -143,6 +145,8 @@ class MockTaskQueueReader:
 
 
 class MockTaskExecutor:
+    elog = DummyEventGroup()
+
     def register_attr_hook(self, *args, **kwargs):
         ...
 

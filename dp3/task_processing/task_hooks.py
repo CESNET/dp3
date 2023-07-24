@@ -1,9 +1,13 @@
 import logging
-from typing import Callable
+from typing import Callable, Union
+
+from event_count_logger import DummyEventGroup, EventGroup
 
 from dp3.common.attrspec import AttrType
 from dp3.common.datapoint import DataPointBase
 from dp3.common.task import DataPointTask
+
+EventGroupType = Union[EventGroup, DummyEventGroup]
 
 
 class TaskGenericHooksContainer:
@@ -14,8 +18,9 @@ class TaskGenericHooksContainer:
     - `on_task_start`: receives Task, no return value requirements
     """
 
-    def __init__(self, log: logging.Logger):
+    def __init__(self, log: logging.Logger, elog: EventGroupType):
         self.log = log.getChild("genericHooks")
+        self.elog = elog
 
         self._on_start = []
 
@@ -33,6 +38,7 @@ class TaskGenericHooksContainer:
             try:
                 hook(task)
             except Exception as e:
+                self.elog.log("module_error")
                 self.log.error(f"Error during running hook {hook}: {e}")
 
 
@@ -46,9 +52,10 @@ class TaskEntityHooksContainer:
     - `on_entity_creation`: receives eid and Task, may return list of DataPointTasks
     """
 
-    def __init__(self, entity: str, log: logging.Logger):
+    def __init__(self, entity: str, log: logging.Logger, elog: EventGroupType):
         self.entity = entity
         self.log = log.getChild(f"entityHooks.{entity}")
+        self.elog = elog
 
         self._allow_creation = []
         self._on_creation = []
@@ -72,6 +79,7 @@ class TaskEntityHooksContainer:
                     )
                     return False
             except Exception as e:
+                self.elog.log("module_error")
                 self.log.error(f"Error during running hook {hook}: {e}")
 
         return True
@@ -88,6 +96,7 @@ class TaskEntityHooksContainer:
                 if type(hook_new_tasks) is list:
                     new_tasks += hook_new_tasks
             except Exception as e:
+                self.elog.log("module_error")
                 self.log.error(f"Error during running hook {hook}: {e}")
 
         return new_tasks
@@ -102,10 +111,18 @@ class TaskAttrHooksContainer:
         receives eid and DataPointBase, may return a list of DataPointTasks
     """
 
-    def __init__(self, entity: str, attr: str, attr_type: AttrType, log: logging.Logger):
+    def __init__(
+        self,
+        entity: str,
+        attr: str,
+        attr_type: AttrType,
+        log: logging.Logger,
+        elog: EventGroupType,
+    ):
         self.entity = entity
         self.attr = attr
         self.log = log.getChild(f"attributeHooks.{entity}.{attr}")
+        self.elog = elog
 
         if attr_type == AttrType.PLAIN:
             self.on_new_hook_type = "on_new_plain"
@@ -140,6 +157,7 @@ class TaskAttrHooksContainer:
                 if type(hook_new_tasks) is list:
                     new_tasks += hook_new_tasks
             except Exception as e:
+                self.elog.log("module_error")
                 self.log.error(f"Error during running hook {hook}: {e}")
 
         return new_tasks

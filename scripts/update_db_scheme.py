@@ -263,7 +263,7 @@ def get_table_names_attr(attr_spec):
     for table in attr_spec:
         attribs = attr_spec.get(table).get("attribs")
         for item in attribs:
-            if attribs.get(item).type == "observations" or attribs.get(item).type == "timeseries":
+            if attribs.get(item).type in ("observations", "timeseries"):
                 attr_table.append(table + "__" + item)
     return attr_table
 

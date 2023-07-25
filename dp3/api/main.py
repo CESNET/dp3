@@ -16,8 +16,11 @@ app = FastAPI(root_path=ROOT_PATH)
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     if request.url.path == DATAPOINTS_INGESTION_URL_PATH:
-        # Body should by JSON
-        body = exc.body if type(exc.body) is str else json.dumps(exc.body)
+        # Convert body to readable form
+        if type(exc.body) is dict or type(exc.body) is list:
+            body = json.dumps(exc.body)
+        else:
+            body = str(exc.body)
 
         DP_LOGGER.log_bad(body, str(exc), src=request.client.host)
 

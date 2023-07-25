@@ -18,6 +18,10 @@ class PushDatapoints(common.APITest):
             "invalid payload (list element is not a dictionary)",
         )
 
+    def test_invalid_content_type(self):
+        response = self.post_request("datapoints", data="bodyisstring")
+        self.assertIn(response.status_code, ACCEPTED_ERROR_CODES, "invalid payload (not a list)")
+
     def test_unknown_entity_type(self):
         response = self.push_datapoints(
             [{"type": "xyz", "attr": "test_attr_int", "id": "test_entity_id", "v": 123}]

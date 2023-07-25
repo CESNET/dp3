@@ -1,5 +1,6 @@
 """DP3 Setup Script for creating a DP3 application."""
 import argparse
+import contextlib
 import shutil
 from pathlib import Path
 
@@ -8,17 +9,12 @@ def replace_template(directory: Path, template: str, replace_with: str):
     """Replace all occurrences of `template` with the given text."""
     for file in directory.rglob("*"):
         if file.is_file():
-            try:
-                with file.open("r+") as f:
-                    contents = f.read()
-                    contents = contents.replace(template, replace_with)
-                    f.seek(0)
-                    f.write(contents)
-                    f.truncate()
-            except UnicodeDecodeError:
-                pass
-            except PermissionError:
-                pass
+            with contextlib.suppress(UnicodeDecodeError, PermissionError), file.open("r+") as f:
+                contents = f.read()
+                contents = contents.replace(template, replace_with)
+                f.seek(0)
+                f.write(contents)
+                f.truncate()
 
 
 def main():

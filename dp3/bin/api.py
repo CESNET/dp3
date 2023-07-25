@@ -7,8 +7,7 @@ import argparse
 import uvicorn
 
 
-def run():
-    parser = argparse.ArgumentParser(description="Run the DP3 API using uvicorn.")
+def init_parser(parser):
     parser.add_argument(
         "--host",
         type=str,
@@ -24,8 +23,17 @@ def run():
         default=False,
         help="Enable auto-reload of the api. (API changes will be picked up automatically.)",
     )
+
+
+def run():
+    parser = argparse.ArgumentParser(description="Run the DP3 API using uvicorn.")
+    init_parser(parser)
     args = parser.parse_args()
 
+    main(args)
+
+
+def main(args):
     uvicorn.run("dp3.api.main:app", host=args.host, port=args.port, reload=args.reload)
 
 

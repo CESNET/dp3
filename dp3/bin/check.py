@@ -4,7 +4,6 @@ Load and check configuration from given directory, print any errors, and exit.
 TODO:
  - refactor to simplify the code, some error path matching must be done to counteract
    the AttrSpec function magic where Pydantic fails, but otherwise it is not required
- - integrate to the DP3 executable when ready
  - some errors are printed to stdout, some to stderr - unify
  - integrate code into worker and api to get better errors at startup
 """
@@ -19,26 +18,6 @@ from pydantic import BaseModel, ValidationError
 
 from dp3.common.attrspec import AttrSpec
 from dp3.common.config import EntitySpecDict, ModelSpec, read_config_dir
-
-# Parse arguments
-parser = argparse.ArgumentParser(
-    prog="check_config",
-    description="Load configuration from given directory and check its validity. "
-    "When configuration is OK, program exits immediately with status code 0, "
-    "otherwise it prints error messages on stderr and exits with non-zero status.",
-)
-parser.add_argument(
-    "config_dir",
-    metavar="CONFIG_DIRECTORY",
-    help="Path to a directory containing configuration files (e.g. /etc/my_app/config)",
-)
-parser.add_argument(
-    "-v",
-    "--verbose",
-    action="store_true",
-    help="Verbose mode - print parsed configuration",
-    default=False,
-)
 
 special_model_cases = {
     (EntitySpecDict, "attribs"): AttrSpec,
@@ -158,9 +137,36 @@ def locate_errors(exc: ValidationError, data: dict):
     return paths, sources, errors
 
 
-def main():
+def init_parser(parser):
+    parser.add_argument(
+        "config_dir",
+        metavar="CONFIG_DIRECTORY",
+        help="Path to a directory containing configuration files (e.g. /etc/my_app/config)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose mode - print parsed configuration",
+        default=False,
+    )
+
+
+def run():
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        prog="check",
+        description="Load configuration from given directory and check its validity. "
+        "When configuration is OK, program exits immediately with status code 0, "
+        "otherwise it prints error messages on stderr and exits with non-zero status.",
+    )
+    init_parser(parser)
     args = parser.parse_args()
 
+    main(args)
+
+
+def main(args):
     try:
         config = read_config_dir(args.config_dir, recursive=True)
     except OSError:
@@ -189,4 +195,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run()

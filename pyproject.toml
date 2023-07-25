@@ -30,12 +30,11 @@ requires-python = ">=3.9"
 dynamic = ["dependencies", "optional-dependencies"]
 
 [project.scripts]
-updater = "bin.updater:main"
-update_all = "bin.update_all:main"
 api = "dp3.bin.api:run"
-worker = "dp3.bin.worker:main"
-dp3-setup = "dp3.bin.setup:main"
-check = "dp3.bin.check:main"
+worker = "dp3.bin.worker:run"
+dp3-setup = "dp3.bin.setup:run"
+check = "dp3.bin.check:run"
+dp3 = "dp3.bin.cli:run"
 
 [project.urls]
 Homepage = "https://github.com/CESNET/dp3"

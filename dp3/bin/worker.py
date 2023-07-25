@@ -4,13 +4,7 @@ import argparse
 from dp3 import worker
 
 
-def main():
-    # Parse arguments
-    parser = argparse.ArgumentParser(
-        prog="worker",
-        description="Main worker process of the DP3 platform. "
-        "There are usually multiple workers running in parallel.",
-    )
+def init_parser(parser):
     parser.add_argument(
         "app_name",
         metavar="APP_NAME",
@@ -37,11 +31,27 @@ def main():
         default=False,
         help="More verbose output (set log level to DEBUG).",
     )
-    args = parser.parse_args()
 
-    # Run main code
+
+def run():
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        prog="worker",
+        description="Main worker process of the DP3 platform. "
+        "There are usually multiple workers running in parallel.",
+    )
+    init_parser(parser)
+    args = parser.parse_args()
+    # Create an argparse object to parse the project directory and the app name.
+    parser = argparse.ArgumentParser(description="Create a DP3 application.")
+    init_parser(parser)
+    args = parser.parse_args()
+    main(args)
+
+
+def main(args):
     worker.main(args.app_name, args.config_dir, args.process_index, args.verbose)
 
 
 if __name__ == "__main__":
-    main()
+    run()

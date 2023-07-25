@@ -17,12 +17,23 @@ def replace_template(directory: Path, template: str, replace_with: str):
                 f.truncate()
 
 
-def main():
-    # Create an argparse object to parse the project directory and the app name.
-    parser = argparse.ArgumentParser(description="Create a DP3 application.")
+def init_parser(parser):
+    """
+    Initialize an argparse object to parse the project directory and the app name.
+    """
     parser.add_argument("project_dir", help="The project directory.", type=str)
     parser.add_argument("app_name", help="The name of the application.", type=str)
+
+
+def run():
+    parser = argparse.ArgumentParser(description="Create a DP3 application.")
+    init_parser(parser)
     args = parser.parse_args()
+
+    main(args)
+
+
+def main(args):
     app_name = args.app_name.lower()
 
     # Ensure the project directory exists.
@@ -41,4 +52,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run()

@@ -8,6 +8,7 @@ Below is YAML file (e.g. `db_entities/bus.yml`) corresponding to bus tracking sy
 entity:
   id: bus
   name: Bus
+  snapshot: true
 attribs:
   # Attribute `label`
   label:
@@ -84,6 +85,7 @@ Entity is described simply by:
 |------------|---------------------|---------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | **`id`**   | string (identifier) | *(mandatory)* | Short string identifying the entity type, it's machine name (must match regex `[a-zA-Z_][a-zA-Z0-9_-]*`). Lower-case only is recommended. |
 | **`name`** | string              | *(mandatory)* | Attribute name for humans. May contain any symbols.                                                                                       |
+| `snapshot` | bool                | *(mandatory)* | Whether to create snapshots of the entity. See [Architecture](../architecture.md#data-flow) for more details.                             |
 
 
 ## Attributes
@@ -136,6 +138,7 @@ Description of `history_params` subobject (see table above).
 | `expire_time`   | `<int><s/m/h/d>` or `inf` (infinity)       | infinity      | How long after the end time (`t2`) is the last value considered valid (i.e. is used as "current value"). Zero (`0`) means to strictly follow `t1`, `t2`. Zero can be specified without a unit (`s/m/h/d`). Currently not implemented. |
 | `pre_validity`  | `<int><s/m/h/d>` (e.g. `30s`, `12h`, `7d`) | `0s`          | Max time *before* `t1` for which the data-point's value is still considered to be the "current value" if there's no other data-point closer in time.                                                                                  |
 | `post_validity` | `<int><s/m/h/d>` (e.g. `30s`, `12h`, `7d`) | `0s`          | Max time *after* `t2` for which the data-point's value is still considered to be the "current value" if there's no other data-point closer in time.                                                                                   |
+| `aggregate`     | `bool`                                     | `true`        | Whether to aggregate data-points in DB master records. Currently only identical value aggregation is supported.                                                                                                                       |
 
 *Note: At least one of `max_age` and `max_items` SHOULD be defined, otherwise the amount of stored data can grow unbounded.*
 

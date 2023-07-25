@@ -35,6 +35,7 @@ update_all = "bin.update_all:main"
 api = "dp3.bin.api:run"
 worker = "dp3.bin.worker:main"
 dp3-setup = "dp3.bin.setup:main"
+check = "dp3.bin.check:main"
 
 [project.urls]
 Homepage = "https://github.com/CESNET/dp3"

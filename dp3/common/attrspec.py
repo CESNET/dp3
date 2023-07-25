@@ -39,10 +39,6 @@ timeseries_types = {
 }
 
 
-class AttrTypeError(Exception):
-    pass
-
-
 class AttrType(Flag):
     """Enum of attribute types
 
@@ -63,7 +59,7 @@ class AttrType(Flag):
         try:
             return cls(cls[type_str.upper()])
         except Exception as e:
-            raise AttrTypeError(f"Invalid attribute type '{type_str}'") from e
+            raise ValueError(f"Invalid `type` of attribute '{type_str}'") from e
 
 
 class ObservationsHistoryParams(BaseModel):
@@ -249,6 +245,8 @@ AttrSpecType = Union[AttrSpecTimeseries, AttrSpecObservations, AttrSpecPlain]
 def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:
     """Factory for `AttrSpec` classes"""
 
+    if "type" not in spec:
+        raise ValueError("Missing mandatory attribute `type`")
     attr_type = AttrType.from_str(spec.get("type"))
     subclasses = {
         AttrType.PLAIN: AttrSpecPlain,

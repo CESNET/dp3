@@ -9,8 +9,8 @@ from pydantic import BaseModel, Extra, Json, PrivateAttr, constr, create_model
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
-re_link = re.compile(r"^link<\s*(?P<etype>\w+)\s*(?:,\s*(?P<data>\S+)\s*)?>$")
-re_dict = re.compile(r"^dict<((\w+\??:\w+,)*(\w+\??:\w+))>$")
+re_link = re.compile(r"^link\s*<\s*(?P<etype>\w+)\s*(?:,\s*(?P<data>\S+)\s*)?>$")
+re_dict = re.compile(r"^dict\s*<(\s*(\w+\??:\w+,\s*)*(\w+\??:\w+\s*))>$")
 re_category = re.compile(
     r"^category<\s*(?P<type>\w+)\s*;\s*(?P<vals>(?:\s*\w+,\s*)*(?:\s*\w+\s*))>$"
 )
@@ -141,7 +141,7 @@ class DataType(BaseModel):
             dict_spec = {}
 
             key_str = str_type.split("<")[1].split(">")[0]
-            key_spec = dict(item.split(":") for item in key_str.split(","))
+            key_spec = dict(item.strip().split(":") for item in key_str.split(","))
 
             # For each dict key
             for k, v in key_spec.items():

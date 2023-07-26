@@ -34,7 +34,7 @@ class Telemetry:
             updates.append(
                 UpdateOne(
                     {"_id": dp.src},
-                    {"$set": {"_id": dp.src, "src_t": latest_timestamp}},
+                    [{"$set": {"_id": dp.src, "src_t": {"$max": ["$src_t", latest_timestamp]}}}],
                     upsert=True,
                 )
             )

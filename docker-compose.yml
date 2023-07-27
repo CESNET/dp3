@@ -52,7 +52,7 @@ services:
       target: "base"
 
     working_dir: "/dp3/"
-    command: [ "worker", "test", "/dp3/tests/test_config", "0", "-v" ]
+    command: [ "dp3", "worker", "test", "/dp3/tests/test_config", "0", "-v" ]
 
     depends_on:
       - rabbitmq

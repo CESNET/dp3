@@ -19,12 +19,19 @@ Or run the `worker` process and the `api` directly in your terminal for easier d
 To run `worker`:
 
 ```shell
-worker {{DP3_APP}} config 0     
+dp3 worker {{DP3_APP}} config 0     
 ```
 
 To run api:
 ```shell
-APP_NAME={{DP3_APP}} CONF_DIR=config api
+APP_NAME={{DP3_APP}} CONF_DIR=config dp3 api
+```
+
+You can validate your configuration after changes using the `check` command,
+which will pinpoint any errors in your configuration (especially of DB entities):
+
+```shell
+dp3 check config
 ```
 
 **DP3 documentation**: https://cesnet.github.io/dp3/

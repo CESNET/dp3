@@ -40,16 +40,17 @@ pip install git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
 
 #### Creating a DP³ application
 
-To create a new DP³ application we will use the included `dp3-setup` utility. Run:
+DP³ comes with a `dp3` utility, which is used to create a new DP³ application and run it.
+To create a new DP³ application we use the `setup` command. Run:
 
 ```shell
-dp3-setup <application_directory> <your_application_name> 
+dp3 setup <application_directory> <your_application_name> 
 ```
 
 So for example, to create an application called `my_app` in the current directory, run:
 
 ```shell
-dp3-setup . my_app
+dp3 setup . my_app
 ```
 
 Which produces a template DP3 application directory structure.
@@ -70,13 +71,13 @@ There are two main kinds of processes in the application: the API and the worker
 To run the API, simply run:
 
 ```shell
-APP_NAME=my_app CONF_DIR=config api
+APP_NAME=my_app CONF_DIR=config dp3 api
 ```
 
 The starting configuration sets only a single worker process, which you can run using:
 
 ```shell
-worker my_app config 0     
+dp3 worker my_app config 0     
 ```
 
 The second way is to use the `docker-compose.app.yml` file, which runs the API and the worker processes
@@ -97,6 +98,15 @@ Which should return a JSON response with the following content:
 {
    "detail": "It works!"
 }
+```
+
+Final note, to simplify the experience of adjusting the app configuration, 
+especially that of the DB entities, we provide the `dp3 check` command.
+The command simply loads the configuration and checks that it is valid, but if not,
+it tries really hard to pinpoint where exactly you went wrong. This can be used as follows:
+
+```shell
+dp3 check <config_directory>
 ```
 
 You are now ready to start developing your application!

@@ -52,7 +52,6 @@ This produces the following directory structure:
  │   ├── 📄 history_manager.yml
  │   ├── 📁 modules # (3)!
  │   ├── 📄 processing_core.yml
- │   ├── 📄 README.md
  │   └── 📄 snapshots.yml
  ├── 📁 docker # (4)!
  │   ├── 📁 python

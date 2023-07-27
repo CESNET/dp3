@@ -153,6 +153,12 @@ def init_parser(parser):
 
 
 def run():
+    print(
+        "WARNING: The `check` entrypoint is deprecated due to possible namespace conflicts. "
+        "Please use `dp3 check` instead.",
+        file=sys.stderr,
+    )
+
     # Parse arguments
     parser = argparse.ArgumentParser(
         prog="check",

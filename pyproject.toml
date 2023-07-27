@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "dp3"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
     { name = "Vaclav Bartos" },
     { email = "bartos@cesnet.cz" },

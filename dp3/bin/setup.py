@@ -2,6 +2,7 @@
 import argparse
 import contextlib
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -26,6 +27,11 @@ def init_parser(parser):
 
 
 def run():
+    print(
+        "WARNING: The `dp3-setup` entrypoint is deprecated. Please use `dp3 setup` instead. ",
+        file=sys.stderr,
+    )
+
     parser = argparse.ArgumentParser(description="Create a DP3 application.")
     init_parser(parser)
     args = parser.parse_args()

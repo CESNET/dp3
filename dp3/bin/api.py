@@ -3,6 +3,7 @@
 Run the DP3 API using uvicorn.
 """
 import argparse
+import sys
 
 import uvicorn
 
@@ -26,6 +27,12 @@ def init_parser(parser):
 
 
 def run():
+    print(
+        "WARNING: The `api` entrypoint is deprecated due to possible namespace conflicts. "
+        "Please use `dp3 api` instead.",
+        file=sys.stderr,
+    )
+
     parser = argparse.ArgumentParser(description="Run the DP3 API using uvicorn.")
     init_parser(parser)
     args = parser.parse_args()

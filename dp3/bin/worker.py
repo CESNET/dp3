@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import sys
 
 from dp3 import worker
 
@@ -34,6 +35,12 @@ def init_parser(parser):
 
 
 def run():
+    print(
+        "WARNING: The `worker` entrypoint is deprecated due to possible namespace conflicts. "
+        "Please use `dp3 worker` instead.",
+        file=sys.stderr,
+    )
+
     # Parse arguments
     parser = argparse.ArgumentParser(
         prog="worker",
@@ -42,10 +49,7 @@ def run():
     )
     init_parser(parser)
     args = parser.parse_args()
-    # Create an argparse object to parse the project directory and the app name.
-    parser = argparse.ArgumentParser(description="Create a DP3 application.")
-    init_parser(parser)
-    args = parser.parse_args()
+
     main(args)
 
 

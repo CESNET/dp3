@@ -3,4 +3,4 @@
 
 # Creating snapshots - period in minutes for creating new snapshots
 creation_rate:
-  minute: 30
+  minute: "*/30"

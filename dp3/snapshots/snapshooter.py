@@ -19,10 +19,10 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import pymongo.errors
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra, Field
 from pymongo import ReplaceOne
 
 from dp3.common.attrspec import (
@@ -45,8 +45,38 @@ from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 DB_SEND_CHUNK = 100
 
 
+class CronExpression(BaseModel, extra=Extra.forbid):
+    """
+    Cron expression used for scheduling.
+
+    Attributes:
+        year: 4-digit year
+        month: month (1-12)
+        day: day of month (1-31)
+        week: ISO week (1-53)
+        day_of_week: number or name of weekday (0-6 or mon,tue,wed,thu,fri,sat,sun)
+        hour: hour (0-23)
+        minute: minute (0-59)
+        second: second (0-59)
+        timezone: Timezone for time specification (default is UTC).
+    """
+
+    second: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+    minute: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+    hour: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+
+    day: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+    day_of_week: Optional[str] = Field(default=None, regex=r"^(\d|mon|tue|wed|thu|fri|sat|sun)$")
+
+    week: Optional[int] = Field(default=None, ge=1, le=53)
+    month: Optional[int] = Field(default=None, ge=1, le=12)
+    year: Optional[str] = Field(default=None, regex=r"^\d{4}$")
+
+    timezone: str = "UTC"
+
+
 class SnapShooterConfig(BaseModel):
-    creation_rate: int = 30
+    creation_rate: CronExpression = CronExpression(minute="*/30")
 
 
 class SnapShooter:
@@ -124,8 +154,8 @@ class SnapShooter:
         )
 
         # Schedule snapshot period
-        snapshot_period = self.config.creation_rate
-        scheduler.register(self.make_snapshots, minute=f"*/{snapshot_period}")
+        snapshot_cron = self.config.creation_rate.dict(exclude_none=True)
+        scheduler.register(self.make_snapshots, **snapshot_cron)
 
     def start(self):
         """Connect to RabbitMQ and start consuming from TaskQueue."""

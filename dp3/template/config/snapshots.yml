@@ -2,4 +2,5 @@
 # creating entity snapshots and running configured data correlation
 
 # Creating snapshots - period in minutes for creating new snapshots
-creation_rate: 30
+creation_rate:
+  minute: 30

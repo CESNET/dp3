@@ -1,5 +1,5 @@
 AMQPStorm~=2.7.2
-apscheduler~=3.6.3
+apscheduler~=3.10.0
 event-count-logger>=1.1
 fastapi>=0.95.1
 numpy>=1.23.0

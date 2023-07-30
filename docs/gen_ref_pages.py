@@ -6,15 +6,18 @@ import mkdocs_gen_files
 
 nav = mkdocs_gen_files.Nav()
 
-EXCLUDE = [
+EXCLUDE_str = [
     ".core_modules",
     "template",
 ]
 
-EXCLUDE = [f.format(p) for p in EXCLUDE for f in ["dp3/{}/*", "dp3/{}/**/*"]]
+EXCLUDE = [f.format(p) for p in EXCLUDE_str for f in ["dp3/{}/*", "dp3/{}/**/*"]]
 
 for path in sorted(Path("dp3").rglob("*.py")):
     if any(path.match(excluded) for excluded in EXCLUDE):
+        continue
+
+    if any(excluded in str(path) for excluded in EXCLUDE_str):
         continue
 
     module_path = path.with_suffix("")

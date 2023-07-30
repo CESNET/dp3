@@ -171,6 +171,181 @@ dp3 check <config_directory>
 
 You are now ready to start developing your application!
 
+## A container-less deployment guide
+
+Install pre-requisites and packages:
+
+```shell
+sudo dnf install git wget nginx supervisor redis
+```
+
+Inside your virtualenv, install DP3 with the `deploy` extras, which includes the gunicorn server:
+
+```shell
+pip install "git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3[deploy]"
+```
+
+We want to run your app under a special user, where the username should be the same as the name of your app. Create the user and group:
+```
+sudo useradd <APP_NAME>
+sudo groupadd <APP_NAME>
+```
+
+### Redis
+Already installed as package, just enable and start the service with default configuration
+
+```
+sudo systemctl start redis
+sudo systemctl enable redis
+```
+
+### MongoDB
+If you already have an existing MongoDB instance with credentials matching your configuration, you can skip this step.
+
+!!! warning "This part is under construction"
+      
+      A base mongo install with a user and password should be sufficient.
+      Use a container install if it fails for now.
+
+Now the API should start OK.
+
+### RabbitMQ
+This is the most painful part of the installation, so do not get discouraged, it gets only easier from here.
+For the most up-to date instructions, pick and follow an installation guide for your platform from [RabbitMQ's webpage](https://www.rabbitmq.com/download.html). 
+In this section we will just briefly go through the installation process on a RPM-based Linux (OL 9).
+
+As we will be adding RabbitMQ's and Erlang repositories,
+which have individual signing keys for their packages, we first need to add these keys:
+
+```shell
+sudo rpm --import 'https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc'
+sudo rpm --import 'https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-erlang/gpg.E495BB49CC4BBE5B.key'
+sudo rpm --import 'https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-server/gpg.9F4587F226208342.key'
+```
+
+Then add the repositories themselves, into a new file: `/etc/yum.repos.d/rabbitmq.repo`. 
+RabbitMQ provides a listing of these depending on the exact distribution version, 
+so just look for "Add Yum Repositories for RabbitMQ and Modern Erlang" on the
+[guide page](https://www.rabbitmq.com/install-rpm.html) and copy the relevant contents.
+
+Finally, we can install the package itself:
+
+```shell
+sudo dnf update -y
+sudo dnf install socat logrotate -y
+sudo dnf install -y erlang-25.3.2.3 rabbitmq-server
+```
+
+We want RabbitMQ to run on localhost, so add a file `/etc/rabbitmq/rabbitmq-env.conf` and paste into it the following:
+
+```
+HOSTNAME=localhost
+```
+
+Enable and start the service:
+
+```shell
+sudo systemctl enable rabbitmq-server
+sudo systemctl start rabbitmq-server
+```
+
+Enable the web management interface:
+
+```shell
+sudo rabbitmq-plugins enable rabbitmq_management
+```
+
+Almost ready. RabbitMQ uses an HTTP API for its configuration, but it provides a `rabbitmqadmin` 
+CLI interface that abstracts us from the details of this API. We need to get this,
+as our configuration scripts depend on it. With the RabbitMQ server running,
+we can download the CLI script and place it on the `PATH`:
+
+```shell
+wget 'http://localhost:15672/cli/rabbitmqadmin'
+sudo chmod +x rabbitmqadmin
+sudo mv rabbitmqadmin /usr/bin/
+```
+
+Finally, we have to configure the appropriate queues and exchanges, 
+which is done using a provided `rmq_reconfigure.sh` script,
+which can be downloaded from [our repository](https://github.com/CESNET/dp3/blob/new_dp3/scripts/rmq_reconfigure.sh).
+With it, simply run:
+
+```shell
+sudo ./rmq_reconfigure.sh <APP_NAME> <NUM_WORKERS>
+```
+
+### Nginx
+
+We have already installed `nginx` in the beggining of this guide, 
+so all that is left to do is to configure the server. 
+DP3 provides a basic configuration that assumes only DP3 is running on the webserver,
+so if that is not your case, please adjust the configuration to your liking.
+
+To get the configuration, run:
+```shell
+dp3 config nginx \
+  --hostname <SERVER_HOSTNAME> \
+  --appname <APP_NAME> \
+  --www-root <DIRECTORY>
+```
+
+
+This will set up a *simple* landing page for the server, and proxies for the API, 
+its docs and RabbitMQ management interface. With this ready, you can enable and start `nginx`:
+
+```shell
+sudo systemctl enable nginx
+sudo systemctl start nginx
+```
+
+In order to reach your server, you will also have to open the firewall:
+
+```shell
+# Get firewalld running
+sudo systemctl unmask firewalld
+sudo systemctl enable firewalld
+sudo systemctl start firewalld
+# Open http/tcp
+sudo firewall-cmd --add-port 80/tcp --permanent
+sudo firewall-cmd --reload
+```
+
+Now you should be able to go to your server and see the landing page. 
+The RabbitMQ management interface should be up and running with the 
+default credentials `guest/guest`. You will notice however, that the API is currently not running,
+so let's fix that.
+
+### Setting up Supervisor control of all DP3 processes
+
+We will set up a supervisor configuration for your DP3 app in `/etc/APPNAME`. 
+For the base configuration, run:
+
+```shell
+dp3 config supervisor --config <CONFIG_DIR> --appname <APP_NAME>
+```
+
+Enable the service:
+
+```shell
+sudo systemctl enable <APP_NAME>
+sudo systemctl start <APP_NAME>
+```
+
+Now a new executable should be on your path, `<APPNAME>ctl`, which you can use to control the app.
+It is a shortcut for `supervisorctl -c <CONFIG_DIR>/supervisord.conf`, 
+so you can use it to start the app:
+
+```shell
+<APPNAME>ctl start all
+```
+
+You can also use it to check the status of the app:
+
+```shell
+<APPNAME>ctl status
+```
+
 ## Installing for platform development
 
 Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.

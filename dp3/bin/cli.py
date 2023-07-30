@@ -8,6 +8,8 @@ from dp3.bin.api import init_parser as init_api_parser
 from dp3.bin.api import main as api_main
 from dp3.bin.check import init_parser as init_check_parser
 from dp3.bin.check import main as check_main
+from dp3.bin.config import init_parser as init_config_parser
+from dp3.bin.config import main as config_main
 from dp3.bin.setup import init_parser as init_setup_parser
 from dp3.bin.setup import main as setup_main
 from dp3.bin.worker import init_parser as init_worker_parser
@@ -40,6 +42,13 @@ def init_parser():
         "otherwise it prints error messages on stderr and exits with non-zero status.",
     )
     init_check_parser(check_parser)
+
+    config_parser = commands.add_parser(
+        "config",
+        help="Setup configuration files for a container-less DP3 application deployment.",
+        description="Setup configuration files for a container-less DP3 application deployment. ",
+    )
+    init_config_parser(config_parser)
     return parser
 
 
@@ -55,6 +64,8 @@ def run():
         setup_main(args)
     elif args.command == "check":
         check_main(args)
+    elif args.command == "config":
+        config_main(args)
     else:
         parser.print_help()
         sys.exit(1)

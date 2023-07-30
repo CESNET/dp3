@@ -10,12 +10,16 @@ def replace_template(directory: Path, template: str, replace_with: str):
     """Replace all occurrences of `template` with the given text."""
     for file in directory.rglob("*"):
         if file.is_file():
-            with contextlib.suppress(UnicodeDecodeError, PermissionError), file.open("r+") as f:
-                contents = f.read()
-                contents = contents.replace(template, replace_with)
-                f.seek(0)
-                f.write(contents)
-                f.truncate()
+            replace_template_file(file, template, replace_with)
+
+
+def replace_template_file(file: Path, template: str, replace_with: str):
+    with contextlib.suppress(UnicodeDecodeError, PermissionError), file.open("r+") as f:
+        contents = f.read()
+        contents = contents.replace(template, replace_with)
+        f.seek(0)
+        f.write(contents)
+        f.truncate()
 
 
 def init_parser(parser):
@@ -51,7 +55,7 @@ def main(args):
     package_dir = Path(__file__).parent.parent
 
     # Copy the template files to the project directory.
-    shutil.copytree(package_dir / "template", project_dir, dirs_exist_ok=True)
+    shutil.copytree(package_dir / "template" / "app", project_dir, dirs_exist_ok=True)
 
     replace_template(project_dir, "{{DP3_APP}}", app_name)
     replace_template(project_dir, "__dp3_app__", app_name)

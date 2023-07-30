@@ -1,0 +1,15 @@
+[Unit]
+Description=Supervisord instance for controlling DP3 components of {{DP3_APP}}
+Documentation=http://supervisord.org
+After=network.target rabbitmq-server.service
+
+[Service]
+Type=forking
+User={{DP3_APP}}
+Group={{DP3_APP}}
+ExecStart=/usr/bin/supervisord -c /etc/{{DP3_APP}}/supervisord.conf
+ExecReload=/usr/bin/supervisorctl -c /etc/{{DP3_APP}}/supervisord.conf reread
+ExecStop=/usr/bin/supervisorctl -c /etc/{{DP3_APP}}/supervisord.conf shutdown
+
+[Install]
+WantedBy=multi-user.target

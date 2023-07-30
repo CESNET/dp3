@@ -60,6 +60,17 @@ def config_nginx(app_name, server_hostname, www_root):
     replace_template(nginx_dir, "__SERVER_NAME__", server_hostname)
     replace_template(nginx_dir, "__WWW_ROOT__", www_root)
 
+    # Create the www root directory.
+    www_root_dir = Path(www_root)
+    www_root_dir.mkdir(exist_ok=True, parents=True)
+    shutil.copytree(package_dir / "template" / "html", www_root_dir, dirs_exist_ok=True)
+
+    replace_template(www_root_dir, "{{DP3_APP}}", app_name)
+    replace_template(www_root_dir, "{{HOSTNAME}}", server_hostname)
+
+    shutil.chown(www_root_dir, user=app_name, group=app_name)
+    www_root_dir.chmod(0o775)
+
 
 def config_supervisor(app_name, config_dir):
     """
@@ -81,13 +92,13 @@ def config_supervisor(app_name, config_dir):
     supervisor_dir = Path(f"/etc/{app_name}/")
     supervisor_dir.mkdir(exist_ok=True, parents=True)
     shutil.chown(supervisor_dir, user=app_name, group=app_name)
-    supervisor_dir.chmod(0o664)
+    supervisor_dir.chmod(0o775)
 
     # Ensure a log directory exists.
     log_dir = Path(f"/var/log/{app_name}/")
     log_dir.mkdir(exist_ok=True, parents=True)
     shutil.chown(log_dir, user=app_name, group=app_name)
-    log_dir.chmod(0o664)
+    log_dir.chmod(0o775)
 
     # Copy the template files to the project directory.
     shutil.copytree(package_dir / "template" / "supervisor", supervisor_dir, dirs_exist_ok=True)

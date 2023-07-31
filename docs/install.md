@@ -171,9 +171,16 @@ dp3 check <config_directory>
 
 You are now ready to start developing your application!
 
-## A container-less deployment guide
+---
 
-Install pre-requisites and packages:
+## Supervisor deployment guide
+
+The application development installation above is not suitable for production use.
+For production use, we recommend using the [supervisor](http://supervisord.org/) process manager,
+which greatly simplifies having multiple worker processes. We recommend gunicorn as the API server, 
+hidden behind nginx as a reverse proxy.
+
+To start, install the pre-requisites and explicitly dependent packages:
 
 ```shell
 sudo dnf install git wget nginx supervisor redis
@@ -185,21 +192,30 @@ Inside your virtualenv, install DP3 with the `deploy` extras, which includes the
 pip install "git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3[deploy]"
 ```
 
-We want to run your app under a special user, where the username should be the same as the name of your app. Create the user and group:
+We will assume that you have the python environment activated for the rest of the installation.
+
+We want to run your app under a special user, where the username should be the same as the name of your app. 
+Create the user and group:
 ```
 sudo useradd <APP_NAME>
 sudo groupadd <APP_NAME>
 ```
 
-### Redis
-Already installed as package, just enable and start the service with default configuration
+### Installing dependencies
+
+We must first cover the dependencies which were set up in the docker-compose file in the development installation.
+
+#### Redis
+
+You have already installed redis as a package, just enable and start the service with default configuration:
 
 ```
 sudo systemctl start redis
 sudo systemctl enable redis
 ```
 
-### MongoDB
+#### MongoDB
+
 If you already have an existing MongoDB instance with credentials matching your configuration, you can skip this step.
 
 !!! warning "This part is under construction"
@@ -209,10 +225,11 @@ If you already have an existing MongoDB instance with credentials matching your 
 
 Now the API should start OK.
 
-### RabbitMQ
+#### RabbitMQ
+
 This is the most painful part of the installation, so do not get discouraged, it gets only easier from here.
 For the most up-to date instructions, pick and follow an installation guide for your platform from [RabbitMQ's webpage](https://www.rabbitmq.com/download.html). 
-In this section we will just briefly go through the installation process on a RPM-based Linux (OL 9).
+In this section we will just briefly go through the [installation process on a RPM-based Linux](https://www.rabbitmq.com/install-rpm.html) (Oracle Linux 9).
 
 As we will be adding RabbitMQ's and Erlang repositories,
 which have individual signing keys for their packages, we first need to add these keys:
@@ -249,7 +266,7 @@ sudo systemctl enable rabbitmq-server
 sudo systemctl start rabbitmq-server
 ```
 
-Enable the web management interface:
+Enable the web [management interface](https://www.rabbitmq.com/management.html):
 
 ```shell
 sudo rabbitmq-plugins enable rabbitmq_management
@@ -277,19 +294,22 @@ sudo ./rmq_reconfigure.sh <APP_NAME> <NUM_WORKERS>
 
 ### Nginx
 
-We have already installed `nginx` in the beggining of this guide, 
+Having the app dependencies installed, and running, we can now set up the webserver.
+We have already installed `nginx` in the beginning of this guide, 
 so all that is left to do is to configure the server. 
 DP3 provides a basic configuration that assumes only DP3 is running on the webserver,
 so if that is not your case, please adjust the configuration to your liking.
 
 To get the configuration, run:
 ```shell
-dp3 config nginx \
-  --hostname <SERVER_HOSTNAME> \
-  --appname <APP_NAME> \
-  --www-root <DIRECTORY>
+sudo $(which dp3) config nginx \
+  --hostname <SERVER_HOSTNAME> \ # (1)! 
+  --appname <APP_NAME> \ 
+  --www-root <DIRECTORY> # (2)! 
 ```
 
+1. e.g. dp3.example.com
+2. Where to place HTML, e.g. /var/www/dp3
 
 This will set up a *simple* landing page for the server, and proxies for the API, 
 its docs and RabbitMQ management interface. With this ready, you can enable and start `nginx`:
@@ -322,7 +342,7 @@ We will set up a supervisor configuration for your DP3 app in `/etc/APPNAME`.
 For the base configuration, run:
 
 ```shell
-dp3 config supervisor --config <CONFIG_DIR> --appname <APP_NAME>
+sudo $(which dp3) config supervisor --config <CONFIG_DIR> --appname <APP_NAME>
 ```
 
 Enable the service:
@@ -345,6 +365,12 @@ You can also use it to check the status of the app:
 ```shell
 <APPNAME>ctl status
 ```
+
+For more information on `supervisorctl`, see [its documentation](http://supervisord.org/running.html#running-supervisorctl).
+
+You can view the generated configuration in `/etc/<APP_NAME>` and the full logs of the app's processes in `/var/log/<APP_NAME>`.
+
+---
 
 ## Installing for platform development
 

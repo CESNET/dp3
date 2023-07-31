@@ -49,6 +49,8 @@ Very useful for:
 > until it's changed - particularly display label next to a marker on a map.
 > No history is needed and it has 100% confidence.
 
+Detailed information about **plain** attribute configuration can be found in [DB configuration](configuration/db_entities.md#plain-specific-parameters).
+
 ### Observations
 
 Attributes with history of values at some time or interval of time.
@@ -67,6 +69,8 @@ Very useful for data where both current value and history is needed.
 > ago. This is all possible (predictions using custom secondary modules).
 >
 > The same applies to **speed**. It can also be derived from location.
+
+Detailed information about **observations** attribute configuration can be found in [DB configuration](configuration/db_entities.md#observations-specific-parameters).
 
 ### Timeseries
 
@@ -100,6 +104,8 @@ May be:
 > Every 10 minutes we receive values for all 6 series and store them.
 > Current value is not important as these data are only useful for passenger
 > flow analysis throught whole month/year/...
+
+Detailed information about **timeseries** attribute configuration can be found in [DB configuration](configuration/db_entities.md#timeseries-specific-parameters).
 
 ## Relationships
 

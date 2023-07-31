@@ -186,9 +186,10 @@ Description of `timeseries_params` subobject (see table above).
 
 List of supported values for parameter `data_type`:
 
+#### Primitive types
+
 - `tag`: set/not_set (When the attribute is set, its value is always assumed to be `true`, the "v" field doesn't have to be stored.)
 - `binary`: `true`/`false`/not_set (Attribute value is `true` or `false`, or the attribute is not set at all.)
-- `category<data_type; category1, category2, ...>`: Categorical values. Use only when a fixed set of values should be allowed, which should be specified in the second part of the type definition. The first part of the type definition describes the data_type of the category.
 - `string`
 - `int`: 32-bit signed integer (range from -2147483648 to +2147483647)
 - `int64`: 64-bit signed integer (use when the range of normal `int` is not sufficent)
@@ -197,9 +198,16 @@ List of supported values for parameter `data_type`:
 - `ip4`: IPv4 address (passed as dotted-decimal string)
 - `ip6`: IPv6 address (passed as string in short or full format)
 - `mac`: MAC address (passed as string)
+- `json`: Any JSON object can be stored, all processing is handled by user's code. This is here for special cases which can't be mapped to any other data type.
+
+#### Composite types
+
+- `category<data_type; category1, category2, ...>`: Categorical values. Use only when a fixed set of values should be allowed, which should be specified in the second part of the type definition. The first part of the type definition describes the data_type of the category.
+- `array<data_type>`: An array of values of specified data type (which must be one of the primitive types above), e.g. `array<int>`
+- `set<data_type>`: Same as array, but values can't repeat and order is irrelevant.
+- `dict<keys>`: Dictionary (object) containing multiple values as subkeys. keys should contain a comma-separated list of key names and types separated by colon, e.g. `dict<port:int, protocol:string, tag?:string>`. Whitespace is allowed after colons. By default, all fields are mandatory (i.e. a data-point missing some subkey will be refused), to mark a field as optional, put `?` after its name. Only the primitive data types can be used here, multi-level dicts are not supported.
+
+#### Relationships
+
 - `link<entity_type>`: Link to a record of the specified type, e.g. `link<ip>`
 - `link<entity_type,data_type>`: Link to a record of the specified type, carrying additional data, e.g. `link<ip,int>` 
-- `array<data_type>`: An array of values of specified data type (which must be one of the types above), e.g. `array<int>`
-- `set<data_type>`: Same as array, but values can't repeat and order is irrelevant.
-- `dict<keys>`: Dictionary (object) containing multiple values as subkeys. keys should contain a comma-separated list of key names and types separated by colon, e.g. `dict<port:int,protocol:string,tag?:string>`. By default, all fields are mandatory (i.e. a data-point missing some subkey will be refused), to mark a field as optional, put `?` after its name. Only the following data types can be used here: `binary,category,string,int,float,time,ip4,ip6,mac`. Multi-level dicts are not supported.
-- `json`: Any JSON object can be stored, all processing is handled by user's code. This is here for special cases which can't be mapped to any data type above.

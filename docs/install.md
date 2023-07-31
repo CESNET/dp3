@@ -1,11 +1,11 @@
 # Installing DP³ platform
 
 When talking about installing the DP³ platform, a distinction must be made between installing
-for **platform development**, installing for application development (i.e. platform usage) 
-and installing for **application** and platform **deployment**. 
+for [**platform development**](#platform-development), installing for [**application development**](#application-development) (i.e. platform usage) 
+and installing for [**application deployment**](#application-deployment) using supervisor. 
 We will cover all three cases separately.
 
-## Installing for application development
+## Application development
 
 Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
 
@@ -81,7 +81,7 @@ This produces the following directory structure:
 
 ### Running the Application
 
-To run the application, we first need to setup the other services the platform depends on,
+To run the application, we first need to set up the other services the platform depends on,
 such as the MongoDB database, the RabbitMQ message distribution and the Redis database.
 This can be done using the supplied `docker-compose.yml` file. Simply run:
 
@@ -173,12 +173,12 @@ You are now ready to start developing your application!
 
 ---
 
-## Supervisor deployment guide
+## Application deployment
 
 The application development installation above is not suitable for production use.
-For production use, we recommend using the [supervisor](http://supervisord.org/) process manager,
-which greatly simplifies having multiple worker processes. We recommend gunicorn as the API server, 
-hidden behind nginx as a reverse proxy.
+For production use, we recommend using the [`supervisor`](http://supervisord.org/) process manager,
+which greatly simplifies having multiple worker processes. We recommend [`gunicorn`](https://gunicorn.org/) as the API server, 
+hidden behind [`nginx`](https://www.nginx.com/) as a reverse proxy.
 
 To start, install the pre-requisites and explicitly dependent packages:
 
@@ -186,7 +186,7 @@ To start, install the pre-requisites and explicitly dependent packages:
 sudo dnf install git wget nginx supervisor redis
 ```
 
-Inside your virtualenv, install DP3 with the `deploy` extras, which includes the gunicorn server:
+Inside your virtualenv, install DP3 with the `deploy` extras, which includes the `gunicorn` server:
 
 ```shell
 pip install "git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3[deploy]"
@@ -196,6 +196,7 @@ We will assume that you have the python environment activated for the rest of th
 
 We want to run your app under a special user, where the username should be the same as the name of your app. 
 Create the user and group:
+
 ```
 sudo useradd <APP_NAME>
 sudo groupadd <APP_NAME>
@@ -218,10 +219,49 @@ sudo systemctl enable redis
 
 If you already have an existing MongoDB instance with credentials matching your configuration, you can skip this step.
 
-!!! warning "This part is under construction"
-      
-      A base mongo install with a user and password should be sufficient.
-      Use a container install if it fails for now.
+To install, please follow the official guide for your platform from [MongoDB's webpage](https://www.mongodb.com/docs/manual/administration/install-community/).
+This is a quick rundown of the [installation instructions](https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-red-hat/#install-mongodb-community-edition) for an RPM-based Linux (Oracle Linux 9).
+
+First, add the MongoDB repository:
+
+```shell
+cat > /etc/yum.repos.d/mongodb-org-6.0.repo <<EOF
+[mongodb-org-6.0]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/6.0/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-6.0.asc
+EOF
+```
+
+Then install the MongoDB packages:
+
+```shell
+sudo dnf -y install mongodb-org mongodb-mongosh
+```
+
+Start and enable the service:
+
+```shell
+sudo systemctl daemon-reload
+sudo systemctl start mongod
+sudo systemctl enable mongod
+```
+
+Your DP3 app will need a user with the correct permissions to access the database,
+so we will create a new user for this purpose using `mongosh`:
+
+```js
+use admin
+db.createUser(
+ {
+  user: "<USER>",
+  pwd: "<PASSWORD>",
+  roles:["readWrite", "dbAdmin"]
+ }
+);
+```
 
 Now the API should start OK.
 
@@ -229,7 +269,7 @@ Now the API should start OK.
 
 This is the most painful part of the installation, so do not get discouraged, it gets only easier from here.
 For the most up-to date instructions, pick and follow an installation guide for your platform from [RabbitMQ's webpage](https://www.rabbitmq.com/download.html). 
-In this section we will just briefly go through the [installation process on a RPM-based Linux](https://www.rabbitmq.com/install-rpm.html) (Oracle Linux 9).
+In this section we will just briefly go through the [installation process on an RPM-based Linux](https://www.rabbitmq.com/install-rpm.html) (Oracle Linux 9).
 
 As we will be adding RabbitMQ's and Erlang repositories,
 which have individual signing keys for their packages, we first need to add these keys:
@@ -372,7 +412,7 @@ You can view the generated configuration in `/etc/<APP_NAME>` and the full logs 
 
 ---
 
-## Installing for platform development
+## Platform development
 
 Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
 

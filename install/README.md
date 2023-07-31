@@ -1,6 +1,6 @@
 # Install
 
-**TODO: Add some installation scripts or at least instructions to install and configure everything.**
+Please follow the supervisor deployment guide in the official [DP3 documentation](https://cesnet.github.io/dp3/install).
 
 ## Supervisord
 

@@ -393,7 +393,7 @@ sudo systemctl start <APP_NAME>
 ```
 
 Now a new executable should be on your path, `<APPNAME>ctl`, which you can use to control the app.
-It is a shortcut for `supervisorctl -c <CONFIG_DIR>/supervisord.conf`, 
+It is a shortcut for `supervisorctl -c /etc/APP_NAME/supervisord.conf`, 
 so you can use it to start the app:
 
 ```shell

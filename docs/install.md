@@ -344,7 +344,7 @@ To get the configuration, run:
 ```shell
 sudo $(which dp3) config nginx \
   --hostname <SERVER_HOSTNAME> \ # (1)! 
-  --appname <APP_NAME> \ 
+  --app-name <APP_NAME> \ 
   --www-root <DIRECTORY> # (2)! 
 ```
 

@@ -38,9 +38,12 @@ class DataPoint(BaseModel):
             assert t1 <= v, "'t2' is before 't1'"
         return v
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def validate_against_attribute(cls, values):
         # Try to convert API datapoint to DP3 datapoint
-        api_to_dp3_datapoint(values)
+        try:
+            api_to_dp3_datapoint(values)
+        except KeyError as e:
+            raise ValueError(f"Missing key: {e}") from e
 
         return values

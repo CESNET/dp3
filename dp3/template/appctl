@@ -1,0 +1,2 @@
+#!/bin/sh
+supervisorctl -c "/etc/{{DP3_APP}}/supervisord.conf" $@

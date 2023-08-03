@@ -12,16 +12,13 @@ services:
       DP3_APP_NAME: test
       DP3_WORKER_NUM: 1
 
-  postgres:
-    container_name: "postgres"
-    image: "dp3_postgres"
-    build: "docker/postgres"
+  mongo:
+    image: mongo:latest
     ports:
-      - "5432:5432"
+      - "27017:27017"
     environment:
-      POSTGRES_PASSWORD: test
-      POSTGRES_USER: test
-      POSTGRES_DB: test
+      MONGO_INITDB_ROOT_USERNAME: test
+      MONGO_INITDB_ROOT_PASSWORD: test
 
   redis:
     container_name: "redis"
@@ -31,7 +28,7 @@ services:
     command: [ "redis-server", "--appendonly", "yes" ]
 
   receiver_api:
-    container_name: "dp3_receiver_api"
+    container_name: "dp3_api"
     image: "dp3_interpreter"
     build:
       context: .
@@ -39,9 +36,12 @@ services:
       target: "base"
     ports:
       - "5000:5000"
+    working_dir: "/dp3/dp3/api"
     environment:
       HOST: "0.0.0.0"
-    command: [ "python", "api/receiver.py", "test", "./tests/test_config" ]
+      APP_NAME: "test"
+      CONF_DIR: "/dp3/tests/test_config"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000" ]
 
   worker:
     container_name: "dp3_worker"
@@ -50,7 +50,11 @@ services:
       context: .
       dockerfile: "docker/python/Dockerfile"
       target: "base"
-    command: [ "bin/worker", "test", "./tests/test_config", "0", "-v" ]
+
+    working_dir: "/dp3/"
+    command: [ "dp3", "worker", "test", "/dp3/tests/test_config", "0", "-v" ]
+
     depends_on:
       - rabbitmq
-      - postgres
+      - mongo
+      - redis

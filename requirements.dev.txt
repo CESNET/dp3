@@ -1,0 +1,8 @@
+mkdocs>=1.0.3
+mkdocs-gen-files>=0.4
+mkdocs-literate-nav>=0.6
+mkdocs-material>=9.0
+mkdocs-section-index>=0.3
+mkdocstrings>=0.19
+mkdocstrings-python>=0.8
+pre-commit~=3.0

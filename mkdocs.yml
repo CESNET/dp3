@@ -1,0 +1,109 @@
+site_name: DP3
+site_url: https://cesnet.github.io/dp3/
+site_description: Dynamic Profile Processing Platform
+
+repo_name: CESNET/dp3
+repo_url: https://github.com/CESNET/dp3
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  features:
+    # Copy code blocks
+    - content.code.copy
+    # Code annotations
+    - content.code.annotate
+
+extra_css:
+  - stylesheets/slate.css
+
+nav:
+  - Overview: index.md
+  - Install: install.md
+  - Architecture: architecture.md
+  - Data model: data_model.md
+  - API: api.md
+  - Modules: modules.md
+  - Configuration:
+    - General: configuration/index.md
+    - Database: configuration/database.md
+    - Database entities: configuration/db_entities.md
+    - Event logging: configuration/event_logging.md
+    - History manager: configuration/history_manager.md
+    - Modules: configuration/modules.md
+    - Processing core: configuration/processing_core.md
+    - Snapshots: configuration/snapshots.md
+  - Code Reference: reference/
+  - Extending Documentation: extending.md
+
+markdown_extensions:
+  # Adds option to create permalinks to headings
+  - toc:
+      permalink: True
+  # Code blocks
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  # Markdown checkboxes
+  - pymdownx.tasklist:
+  # Admonitions
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  # Additional attribute lists (used e.g. for image size)
+  - attr_list
+  - md_in_html
+
+plugins:
+  # Default search bar
+  - search
+  # Automatically link across pages
+  - autorefs
+  # Generating code reference
+  - gen-files:
+      scripts:
+        - docs/gen_ref_pages.py
+  # Specify navigation in Markown instead of YAML
+  - literate-nav:
+      nav_file: SUMMARY.md
+  # Clickable sections that lead to index pages
+  - section-index
+  # Docstring parsing to fill code reference
+  - mkdocstrings:
+      handlers:
+        python:
+          import:
+            - https://docs.python.org/3/objects.inv
+            - https://mkdocstrings.github.io/objects.inv
+            - https://mkdocstrings.github.io/griffe/objects.inv
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: true
+            members_order: source
+            docstring_section_style: table
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+
+watch:
+  - dp3

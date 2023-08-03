@@ -1,0 +1,34 @@
+version: "3.4"
+# This Compose file runs the worker and API from endpoints installed with the DP3 package.
+# Useful for testing DP3 modules that are specific to the application and require no changes of DP3,
+# or testing other smaller changes (attribute configuration changes etc.).
+
+services:
+  api:
+    container_name: "{{DP3_APP}}_api"
+    image: "__dp3_app___interpreter"
+    build:
+      context: .
+      dockerfile: "docker/python/Dockerfile"
+      target: "base"
+
+    network_mode: "host"
+
+    working_dir: "/{{DP3_APP}}/dp3/api"
+    environment:
+      APP_NAME: "{{DP3_APP}}"
+      CONF_DIR: "/{{DP3_APP}}/config"
+    command: ["dp3", "api"]
+
+  worker:
+    container_name: "{{DP3_APP}}_worker"
+    image: "__dp3_app___interpreter"
+    build:
+      context: .
+      dockerfile: "docker/python/Dockerfile"
+      target: "base"
+
+    network_mode: "host"
+
+    working_dir: "/{{DP3_APP}}/"
+    command: [ "dp3", "worker", "{{DP3_APP}}", "config", "0", "-v" ]

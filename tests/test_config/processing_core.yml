@@ -24,8 +24,11 @@ worker_threads: 16
 
 # Path to directory with plug-in modules
 # (Relative path is evaluated relative to location of this configuration file)
-modules_dir: "../../modules"
+modules_dir: "/dp3/tests/modules"
 
 # List of plug-in modules which should be enabled in processing pipeline. Name of module filename without '.py'
 # extension must be used!
-enabled_modules: []
+enabled_modules: [
+  test_module,
+#  thread_module,
+]

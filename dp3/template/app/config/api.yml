@@ -1,0 +1,9 @@
+# Datapoint logger configuration
+datapoint_logger:
+  # Path of file for logging of good datapoints
+  # Set to `false` to disable.
+  good_log: false
+
+  # Path of file for logging of bad (incorrect) datapoints
+  # Set to `false` to disable.
+  bad_log: false

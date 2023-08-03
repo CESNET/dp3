@@ -1,32 +1,35 @@
 name: Tests
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "new_dp3" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "new_dp3" ]
 
 jobs:
   api-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Setup running platform stack
-        run: docker-compose up --build -d
+        run: docker compose up --build -d
 
       - name: Integration tests - API
-        run: docker run --network container:dp3_receiver_api dp3_interpreter python -m unittest discover -s tests/test_api -v
+        run: docker run 
+          --env CONF_DIR=/dp3/tests/test_config 
+          --network container:dp3_api 
+          dp3_interpreter python -m unittest discover -s tests/test_api -v
 
-      - name: Get API logs
-        run: docker-compose logs receiver_api
+      - name: Teardown platform stack
+        run: docker compose down
 
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Build Test
         run: docker build -f docker/python/Dockerfile --target base -t dp3_interpreter .
 
       - name: Test
-        run: docker run dp3_interpreter python -m unittest tests/test_common/test_config.py
+        run: docker run dp3_interpreter python -m unittest discover -s tests/test_common

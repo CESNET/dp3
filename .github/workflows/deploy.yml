@@ -1,0 +1,22 @@
+name: Publish Docs
+on:
+  push:
+    branches: [ "new_dp3" ]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - uses: actions/cache@v2
+        with:
+          key: ${{ github.ref }}
+          path: .cache
+      - run: pip install -r requirements.dev.txt
+      - run: mkdocs gh-deploy --force

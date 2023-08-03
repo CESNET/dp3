@@ -6,13 +6,13 @@ Based on APScheduler package
 """
 
 import logging
-from typing import Callable, Optional
+from typing import Callable, Union
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 
-class Scheduler():
+class Scheduler:
     """
     Allows modules to register functions (callables) to be run
     at specified times or intervals (like cron does).
@@ -34,28 +34,58 @@ class Scheduler():
         self.log.debug("Scheduler stop")
         self.sched.shutdown()
 
-    def register(self, func: Callable, year: None = None, month: None = None, day: None = None, week: None = None,
-                 day_of_week: None = None, hour: None = None, minute: Optional[str] = None,
-                 second: Optional[str] = None, timezone: str = "UTC",
-                 args: None = None, kwargs: None = None) -> int:
+    def register(
+        self,
+        func: Callable,
+        func_args: Union[list, tuple] = None,
+        func_kwargs: dict = None,
+        year: Union[int, str] = None,
+        month: Union[int, str] = None,
+        day: Union[int, str] = None,
+        week: Union[int, str] = None,
+        day_of_week: Union[int, str] = None,
+        hour: Union[int, str] = None,
+        minute: Union[int, str] = None,
+        second: Union[int, str] = None,
+        timezone: str = "UTC",
+    ) -> int:
         """
         Register a function to be run at specified times.
 
-        func - function or method to be called
-        year,month,day,week,day_of_week,hour,minute,second -
-           cron-like specification of when the function should be called,
-           see docs of apscheduler.triggers.cron for details
-           https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html
-        timezone - Timezone for time specification (default is UTC).
-        args, kwargs - arguments passed to func
+        Pass cron-like specification of when the function should be called,
+        see [docs](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html)
+        of apscheduler.triggers.cron for details.
 
-        Return job ID (integer).
+        Args:
+            func: function or method to be called
+            func_args: list of positional arguments to call func with
+            func_kwargs: dict of keyword arguments to call func with
+            year: 4-digit year
+            month: month (1-12)
+            day: day of month (1-31)
+            week: ISO week (1-53)
+            day_of_week: number or name of weekday (0-6 or mon,tue,wed,thu,fri,sat,sun)
+            hour: hour (0-23)
+            minute: minute (0-59)
+            second: second (0-59)
+            timezone: Timezone for time specification (default is UTC).
+        Returns:
+             job ID
         """
         self.last_job_id += 1
-        trigger = CronTrigger(year, month, day, week, day_of_week, hour, minute,
-                              second, timezone=timezone)
-        self.sched.add_job(func, trigger, args, kwargs, coalesce=True, max_instances=1, id=str(self.last_job_id))
-        self.log.debug("Registered function {0} to be called at {1}".format(func.__qualname__, trigger))
+        trigger = CronTrigger(
+            year, month, day, week, day_of_week, hour, minute, second, timezone=timezone
+        )
+        self.sched.add_job(
+            func,
+            trigger,
+            func_args,
+            func_kwargs,
+            coalesce=True,
+            max_instances=1,
+            id=str(self.last_job_id),
+        )
+        self.log.debug(f"Registered function {func.__qualname__} to be called at {trigger}")
         return self.last_job_id
 
     def pause_job(self, id):
@@ -65,4 +95,3 @@ class Scheduler():
     def resume_job(self, id):
         """Resume previously paused job with given ID"""
         self.sched.resume_job(str(id))
-

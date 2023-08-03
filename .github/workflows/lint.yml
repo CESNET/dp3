@@ -3,7 +3,7 @@ on:
   push:
     branches: [ "new_dp3" ]
   pull_request:
-    branches: [ "new_dp3" ]
+    branches: [ "master", "new_dp3" ]
 
 jobs:
   black:

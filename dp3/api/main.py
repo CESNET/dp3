@@ -15,7 +15,7 @@ app = FastAPI(root_path=ROOT_PATH)
 # Redefine Pydantic validation error handler to log all bad datapoints
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    if request.url.path == DATAPOINTS_INGESTION_URL_PATH:
+    if request.url.path.replace(ROOT_PATH, "") == DATAPOINTS_INGESTION_URL_PATH:
         # Convert body to readable form
         if type(exc.body) is dict or type(exc.body) is list:
             body = json.dumps(exc.body)

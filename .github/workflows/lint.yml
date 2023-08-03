@@ -1,9 +1,9 @@
 name: Linters
 on:
   push:
-    branches: [ "new_dp3" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "master", "new_dp3" ]
+    branches: [ "master" ]
 
 jobs:
   black:

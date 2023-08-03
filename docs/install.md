@@ -15,7 +15,7 @@ Create a virtualenv and install the DP³ platform using:
 python3 -m venv venv  # (1)!
 source venv/bin/activate  # (2)!
 pip install --upgrade pip  # (3)!
-pip install git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
+pip install git+https://github.com/CESNET/dp3.git#egg=dp3
 ```
 
 1. We recommend using virtual environment. If you are not familiar with it, please read 
@@ -189,7 +189,7 @@ sudo dnf install git wget nginx supervisor redis
 Inside your virtualenv, install DP3 with the `deploy` extras, which includes the `gunicorn` server:
 
 ```shell
-pip install "git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3[deploy]"
+pip install "git+https://github.com/CESNET/dp3.git#egg=dp3[deploy]"
 ```
 
 We will assume that you have the python environment activated for the rest of the installation.
@@ -325,7 +325,7 @@ sudo mv rabbitmqadmin /usr/bin/
 
 Finally, we have to configure the appropriate queues and exchanges, 
 which is done using a provided `rmq_reconfigure.sh` script,
-which can be downloaded from [our repository](https://github.com/CESNET/dp3/blob/new_dp3/scripts/rmq_reconfigure.sh).
+which can be downloaded from [our repository](https://github.com/CESNET/dp3/blob/master/scripts/rmq_reconfigure.sh).
 With it, simply run:
 
 ```shell
@@ -419,7 +419,7 @@ Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`
 Pull the repository and install using:
 
 ```shell
-git clone --branch new_dp3 git@github.com:CESNET/dp3.git dp3 
+git clone git@github.com:CESNET/dp3.git dp3 
 cd dp3
 python3 -m venv venv  # (1)!
 source venv/bin/activate  # (2)!

@@ -35,7 +35,7 @@ Create a virtualenv and install the DP³ platform using:
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install --upgrade pip
-pip install git+https://github.com/CESNET/dp3.git@new_dp3#egg=dp3
+pip install git+https://github.com/CESNET/dp3.git#egg=dp3
 ```
 
 #### Creating a DP³ application
@@ -118,7 +118,7 @@ Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`
 Pull the repository and install using:
 
 ```shell
-git clone --branch new_dp3 git@github.com:CESNET/dp3.git dp3 
+git clone --branch master git@github.com:CESNET/dp3.git dp3 
 cd dp3
 python3 -m venv venv
 source venv/bin/activate  

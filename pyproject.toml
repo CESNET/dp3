@@ -2,12 +2,12 @@
 build-backend = "setuptools.build_meta"
 requires = [
     "setuptools >= 61",
+    "setuptools_scm[toml] >= 6.2",
     "wheel"
 ]
 
 [project]
-name = "dp3"
-version = "0.3.0"
+name = "dp-cubed"
 authors = [
     { name = "Vaclav Bartos" },
     { email = "bartos@cesnet.cz" },
@@ -27,7 +27,10 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 requires-python = ">=3.9"
-dynamic = ["dependencies", "optional-dependencies"]
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[tool.setuptools_scm]
+version_scheme = "python-simplified-semver"
 
 [project.scripts]
 api = "dp3.bin.api:run"

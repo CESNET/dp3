@@ -1,5 +1,7 @@
 # Dynamic Profile Processing Platform (DP³)
 
+[![PyPI version](https://badge.fury.io/py/dp-cubed.svg)](https://pypi.org/project/dp-cubed/)
+
 DP³ is a platform helps to keep a database of information (attributes) about individual
 entities (designed for IP addresses and other network identifiers, but may be anything),
 when the data constantly changes in time.

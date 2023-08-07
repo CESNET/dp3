@@ -1,0 +1,65 @@
+name: Run tests and publish to PyPI.org
+on:
+  release:
+    types: [published]
+jobs:
+  # Linting
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: psf/black@stable
+        with:
+          options: "--check --verbose --diff --color"
+
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: jpetrucciani/ruff-check@main
+
+  # Tests
+  api-tests:
+    needs: [black, ruff]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup running platform stack
+        run: docker compose up --build -d
+
+      - name: Integration tests - API
+        run: docker run
+          --env CONF_DIR=/dp3/tests/test_config
+          --network container:dp3_api
+          dp3_interpreter python -m unittest discover -s tests/test_api -v
+
+      - name: Teardown platform stack
+        run: docker compose down
+
+  unit-tests:
+    needs: [black, ruff]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build Test
+        run: docker build -f docker/python/Dockerfile --target base -t dp3_interpreter .
+
+      - name: Test
+        run: docker run dp3_interpreter python -m unittest discover -s tests/test_common
+
+  # Publish to PyPI
+  pypi:
+    needs: [black, ruff, api-tests, unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - run: python3 -m pip install --upgrade build && python3 -m build
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

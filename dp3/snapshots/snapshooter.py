@@ -19,10 +19,10 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import pymongo.errors
-from pydantic import BaseModel, Extra, Field
+from pydantic import BaseModel
 from pymongo import ReplaceOne
 
 from dp3.common.attrspec import (
@@ -30,7 +30,7 @@ from dp3.common.attrspec import (
     AttrType,
     ObservationsHistoryParams,
 )
-from dp3.common.config import PlatformConfig
+from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointBase
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType
@@ -43,36 +43,6 @@ from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
 DB_SEND_CHUNK = 100
-
-
-class CronExpression(BaseModel, extra=Extra.forbid):
-    """
-    Cron expression used for scheduling.
-
-    Attributes:
-        year: 4-digit year
-        month: month (1-12)
-        day: day of month (1-31)
-        week: ISO week (1-53)
-        day_of_week: number or name of weekday (0-6 or mon,tue,wed,thu,fri,sat,sun)
-        hour: hour (0-23)
-        minute: minute (0-59)
-        second: second (0-59)
-        timezone: Timezone for time specification (default is UTC).
-    """
-
-    second: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
-    minute: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
-    hour: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
-
-    day: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
-    day_of_week: Optional[str] = Field(default=None, regex=r"^(\d|mon|tue|wed|thu|fri|sat|sun)$")
-
-    week: Optional[int] = Field(default=None, ge=1, le=53)
-    month: Optional[int] = Field(default=None, ge=1, le=12)
-    year: Optional[str] = Field(default=None, regex=r"^\d{4}$")
-
-    timezone: str = "UTC"
 
 
 class SnapShooterConfig(BaseModel):

@@ -2,9 +2,10 @@
 Platform config file reader and config model.
 """
 import os
+from typing import Optional
 
 import yaml
-from pydantic import BaseModel, NonNegativeInt, PositiveInt, root_validator, validator
+from pydantic import BaseModel, Extra, Field, NonNegativeInt, PositiveInt, root_validator, validator
 
 from dp3.common.attrspec import AttrSpec, AttrSpecClassic, AttrSpecGeneric, AttrSpecType
 from dp3.common.base_attrs import BASE_ATTRIBS
@@ -128,6 +129,36 @@ def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
         # place configuration files into another dictionary level named by config dictionary name
         config[config_filename] = loaded_config
     return config
+
+
+class CronExpression(BaseModel, extra=Extra.forbid):
+    """
+    Cron expression used for scheduling.
+
+    Attributes:
+        year: 4-digit year
+        month: month (1-12)
+        day: day of month (1-31)
+        week: ISO week (1-53)
+        day_of_week: number or name of weekday (0-6 or mon,tue,wed,thu,fri,sat,sun)
+        hour: hour (0-23)
+        minute: minute (0-59)
+        second: second (0-59)
+        timezone: Timezone for time specification (default is UTC).
+    """
+
+    second: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+    minute: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+    hour: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+
+    day: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+    day_of_week: Optional[str] = Field(default=None, regex=r"^(\d|mon|tue|wed|thu|fri|sat|sun)$")
+
+    week: Optional[int] = Field(default=None, ge=1, le=53)
+    month: Optional[int] = Field(default=None, ge=1, le=12)
+    year: Optional[str] = Field(default=None, regex=r"^\d{4}$")
+
+    timezone: str = "UTC"
 
 
 class EntitySpecDict(BaseModel):

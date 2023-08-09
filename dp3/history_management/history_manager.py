@@ -7,9 +7,12 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Optional
 
+from pydantic import BaseModel, Extra, validator
+
 from dp3.common.attrspec import AttrSpecType, AttrType, ObservationsHistoryParams
 from dp3.common.callback_registrar import CallbackRegistrar
-from dp3.common.config import PlatformConfig
+from dp3.common.config import CronExpression, PlatformConfig
+from dp3.common.utils import parse_time_duration
 from dp3.database.database import DatabaseError, EntityDatabase
 
 DB_SEND_CHUNK = 100
@@ -24,6 +27,56 @@ class DatetimeEncoder(JSONEncoder):
         return super().default(o)
 
 
+class SnapshotCleaningConfig(BaseModel):
+    """Configuration for snapshot cleaning.
+
+    Attributes:
+        schedule: Schedule for snapshot cleaning.
+        older_than: Snapshots older than this will be deleted.
+    """
+
+    schedule: CronExpression
+    older_than: timedelta
+
+    @validator("older_than", pre=True)
+    def parse_timedelta(cls, v):
+        return parse_time_duration(v)
+
+
+class DPArchivationConfig(BaseModel):
+    """Configuration for datapoint archivation.
+
+    Attributes:
+        schedule: Schedule for datapoint archivation.
+        older_than: Datapoints older than this will be archived.
+        archive_dir: Directory where to archive datapoints. Can be `None` to only delete them.
+    """
+
+    schedule: CronExpression
+    older_than: timedelta
+    archive_dir: Optional[str] = None
+
+    @validator("older_than", pre=True)
+    def parse_timedelta(cls, v):
+        return parse_time_duration(v)
+
+
+class HistoryManagerConfig(BaseModel, extra=Extra.forbid):
+    """Configuration for history manager.
+
+    Attributes:
+        aggregation_schedule: Schedule for master document aggregation.
+        datapoint_cleaning_schedule: Schedule for datapoint cleaning.
+        snapshot_cleaning: Configuration for snapshot cleaning.
+        datapoint_archivation: Configuration for datapoint archivation.
+    """
+
+    aggregation_schedule: CronExpression
+    datapoint_cleaning_schedule: CronExpression
+    snapshot_cleaning: SnapshotCleaningConfig
+    datapoint_archivation: DPArchivationConfig
+
+
 class HistoryManager:
     def __init__(
         self, db: EntityDatabase, platform_config: PlatformConfig, registrar: CallbackRegistrar
@@ -34,10 +87,12 @@ class HistoryManager:
         self.model_spec = platform_config.model_spec
         self.worker_index = platform_config.process_index
         self.num_workers = platform_config.num_processes
-        self.config = platform_config.config.get("history_manager")
+        self.config = HistoryManagerConfig.parse_obj(platform_config.config.get("history_manager"))
 
         # Schedule master document aggregation
-        registrar.scheduler_register(self.aggregate_master_docs, minute="*/10")
+        registrar.scheduler_register(
+            self.aggregate_master_docs, **self.config.aggregation_schedule.dict()
+        )
 
         if platform_config.process_index != 0:
             self.log.debug(
@@ -46,17 +101,19 @@ class HistoryManager:
             return
 
         # Schedule datapoints cleaning
-        datapoint_cleaning_period = self.config["datapoint_cleaning"]["tick_rate"]
-        registrar.scheduler_register(self.delete_old_dps, minute=f"*/{datapoint_cleaning_period}")
+        datapoint_cleaning_schedule = self.config.datapoint_cleaning_schedule
+        registrar.scheduler_register(self.delete_old_dps, **datapoint_cleaning_schedule.dict())
 
-        snapshot_cleaning_cron = self.config["snapshot_cleaning"]["cron_schedule"]
-        self.keep_snapshot_delta = timedelta(days=self.config["snapshot_cleaning"]["days_to_keep"])
-        registrar.scheduler_register(self.delete_old_snapshots, **snapshot_cleaning_cron)
+        snapshot_cleaning_schedule = self.config.snapshot_cleaning.schedule
+        self.keep_snapshot_delta = self.config.snapshot_cleaning.older_than
+        registrar.scheduler_register(self.delete_old_snapshots, **snapshot_cleaning_schedule.dict())
 
         # Schedule datapoint archivation
-        self.keep_raw_delta = timedelta(days=self.config["datapoint_archivation"]["days_to_keep"])
-        self.log_dir = self._ensure_log_dir(self.config["datapoint_archivation"]["archive_dir"])
-        registrar.scheduler_register(self.archive_old_dps, minute=0, hour=2)  # Every day at 2 AM
+        archive_config = self.config.datapoint_archivation
+        self.keep_raw_delta = archive_config.older_than
+        # TODO: Handle None as valid archive dir (simply delete datapoints)
+        self.log_dir = self._ensure_log_dir(archive_config.archive_dir)
+        registrar.scheduler_register(self.archive_old_dps, **archive_config.schedule.dict())
 
     def delete_old_dps(self):
         """Deletes old data points from master collection."""
@@ -100,6 +157,9 @@ class HistoryManager:
         Archives old data points from raw collection.
 
         Updates already saved archive files, if present.
+
+        TODO: FIX archive file naming and generalize for shorter archivation windows
+          Currently will overwrite existing archive files if run more than once a day.
         """
 
         t_old = datetime.utcnow() - self.keep_raw_delta

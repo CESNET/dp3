@@ -1,24 +1,23 @@
 # Configuration of HistoryManager system, responsible for
-# - updating values in entity tables to keep them up to date
-# - deleting old datapoints
+# - aggregating datapoints in master records
+# - deleting old datapoints from master records
+# - deleting old snapshots
+# - archiving old datapoints form raw collections
 
-# Updating entity tables
-entity_management:
-# Tick rate - period in minutes for running the function
-  tick_rate: 10
-
-# Deleting old datapoints from master records
-datapoint_cleaning:
-# Tick rate - period in minutes for running the function
-  tick_rate: 30
+# Aggregation - merging identical value datapoints in master records
+aggregation_schedule:
+  minute: "*/10"
 
 # Deleting old datapoints from master records
+datapoint_cleaning_schedule:
+  minute: "*/30"
+
+# Deleting old snapshots
 snapshot_cleaning:
-# Tick rate - period in minutes for running the function
-  cron_schedule: {"minute": "15,45"}
-  days_to_keep: 7
+  schedule: {minute: "15,45"}
+  older_than: 7d
 
 # Archiving old datapoints form raw log collection
 datapoint_archivation:
-  days_to_keep: 7
-  archive_dir: "data/datapoints/"
+  schedule: {hour: 2, minute: 0}
+  older_than: 7d

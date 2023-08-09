@@ -517,7 +517,7 @@ class SnapShooter:
             if (entity_type, attr) not in self.model_spec.relations:
                 continue
             attr_spec = self.model_spec.relations[entity_type, attr]
-            if attr_spec.multi_value:
+            if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
                 related_entity_ids.update((attr_spec.relation_to, v["eid"]) for v in val)
             else:
                 related_entity_ids.add((attr_spec.relation_to, val["eid"]))
@@ -530,7 +530,7 @@ class SnapShooter:
                 if (entity_type, attr) not in self.model_spec.relations:
                     continue
                 attr_spec = self.model_spec.relations[entity_type, attr]
-                if attr_spec.multi_value:
+                if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
                     entity[attr] = [
                         {
                             **v,

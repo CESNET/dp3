@@ -100,7 +100,7 @@ class DataType(BaseModel):
         """
         data_type = None
 
-        if type(str_type) is not str:
+        if not isinstance(str_type, str):
             raise TypeError(f"Data type {str_type} is not string")
 
         if str_type in primitive_data_types:

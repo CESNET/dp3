@@ -133,7 +133,11 @@ def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
 
 class CronExpression(BaseModel, extra=Extra.forbid):
     """
-    Cron expression used for scheduling.
+    Cron expression used for scheduling. Also support standard cron expressions, such as
+
+    - "*/15" (every 15 units)
+    - "1,2,3" (1, 2 and 3)
+    - "1-3" (1, 2 and 3)
 
     Attributes:
         year: 4-digit year

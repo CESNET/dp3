@@ -194,7 +194,7 @@ v -> some_embedded_dict_field
 
 ## List entities
 
-List latest snapshots of all ids present in database under entity.
+List latest snapshots of all ids present in database under entity type.
 
 Contains only latest snapshot.
 
@@ -224,7 +224,7 @@ Uses pagination.
 
 ## Get Eid data
 
-Get data of entity's eid.
+Get data of entity type's eid.
 
 Contains all snapshots and master record. Snapshots are ordered by ascending creation time.
 
@@ -315,9 +315,9 @@ This endpoint is meant for `editable` plain attributes -- for direct user edit o
 
 ## Entities
 
-List entities
+List entity types
 
-Returns dictionary containing all entities configured -- their simplified configuration and current state information.
+Returns dictionary containing all entity types configured -- their simplified configuration and current state information.
 
 ### Request
 

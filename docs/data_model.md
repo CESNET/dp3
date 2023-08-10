@@ -1,8 +1,8 @@
 # DP³ data model
 
-Basic elements of the DP³ data model are *entities* (or objects), each entity
-record (object instance) has a set of *attributes*.
-Each attribute has some value (associated to a particular entity),
+Basic elements of the DP³ data model are *entity types* (like classes), each
+*entity* (or class instance) has a set of *attributes*.
+Each attribute has some value (associated to a particular entity type),
 timestamp (history of previous values can be stored)
 and optionally confidence value.
 
@@ -121,10 +121,10 @@ Very useful for:
 - any kind of relationship between entities
 - linkning dynamic entities to entities with static data
 
-> As our example so far contains only one entity, we currently have no need for relationships.
+> As our example so far contains only one entity type, we currently have no need for relationships.
 > However, if we wanted to track the different **bus drivers** driving individual buses, 
 > relationships would come in quite handy. 
-> The bus driver is a separate entity, and can drive multiple buses during the day.
+> The bus driver is a separate entity type, and can drive multiple buses during the day.
 > The current bus driver will be represented as an observation link between the bus and the driver,
 > as can be seen in the [resulting configuration](../configuration/db_entities/).
 

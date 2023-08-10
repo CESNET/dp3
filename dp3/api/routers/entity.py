@@ -73,9 +73,12 @@ async def get_eid_data(
     if "#hash" in master_record:
         del master_record["#hash"]
 
+    entity_attribs = MODEL_SPEC.attribs(entity)
+
     # Get filtered timeseries data
     for attr in master_record:
-        if MODEL_SPEC.attr(entity, attr).t == AttrType.TIMESERIES:
+        # Check for no longer existing attributes
+        if attr in entity_attribs and entity_attribs[attr].t == AttrType.TIMESERIES:
             master_record[attr] = DB.get_timeseries_history(
                 entity, attr, eid, t1=date_from, t2=date_to
             )

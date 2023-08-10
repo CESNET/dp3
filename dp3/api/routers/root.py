@@ -64,21 +64,21 @@ async def insert_datapoints(dps: list[DataPoint], request: Request) -> SuccessRe
 
 
 @router.get("/entities", tags=["Entity"])
-async def list_entities() -> dict[str, EntityState]:
-    """List entities
+async def list_entity_types() -> dict[str, EntityState]:
+    """List entity types
 
-    Returns dictionary containing all entities configured -- their simplified configuration
+    Returns dictionary containing all entity types configured -- their simplified configuration
     and current state information.
     """
     entities = {}
 
-    for e_id in MODEL_SPEC.entities:
-        entity_spec = MODEL_SPEC.entity(e_id)
-        entities[e_id] = {
-            "id": e_id,
+    for etype in MODEL_SPEC.entities:
+        entity_spec = MODEL_SPEC.entity(etype)
+        entities[etype] = {
+            "id": etype,
             "name": entity_spec.name,
-            "attribs": MODEL_SPEC.attribs(e_id),
-            "eid_estimate_count": DB.estimate_count_eids(e_id),
+            "attribs": MODEL_SPEC.attribs(etype),
+            "eid_estimate_count": DB.estimate_count_eids(etype),
         }
 
     return entities

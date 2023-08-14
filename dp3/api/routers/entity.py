@@ -32,15 +32,17 @@ router = APIRouter(dependencies=[Depends(check_etype)])
 
 @router.get("/{etype}")
 async def list_entity_type_eids(
-    etype: str, skip: NonNegativeInt = 0, limit: PositiveInt = 20
+    etype: str, eid_filter: str = "", skip: NonNegativeInt = 0, limit: PositiveInt = 20
 ) -> EntityEidList:
     """List latest snapshots of all `id`s present in database under `etype`.
 
     Contains only latest snapshot.
 
     Uses pagination.
+
+    If `eid_filter` is not empty, returns only `id`s containing substring `eid_filter`.
     """
-    cursor = DB.get_latest_snapshots(etype).skip(skip).limit(limit)
+    cursor = DB.get_latest_snapshots(etype, eid_filter).skip(skip).limit(limit)
 
     time_created = None
 

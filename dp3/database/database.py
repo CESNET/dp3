@@ -329,10 +329,12 @@ class EntityDatabase:
         snapshot_col = self._snapshots_col_name(etype)
         return self._db[snapshot_col].find_one({"eid": eid}, sort=[("_id", -1)]) or {}
 
-    def get_latest_snapshots(self, etype: str) -> pymongo.cursor.Cursor:
+    def get_latest_snapshots(self, etype: str, eid_filter: str = "") -> pymongo.cursor.Cursor:
         """Get latest snapshots of given `etype`.
 
         This method is useful for displaying data on web.
+
+        If `eid_filter` is not empty, returns only `eid`s containing substring `eid_filter`.
         """
         # Check `etype`
         self._assert_etype_exists(etype)
@@ -343,7 +345,11 @@ class EntityDatabase:
             return self._db[snapshot_col].find()
 
         latest_snapshot_date = latest_snapshot["_time_created"]
-        return self._db[snapshot_col].find({"_time_created": latest_snapshot_date})
+        query = {"_time_created": latest_snapshot_date}
+        if eid_filter != "":
+            query["eid"] = {"$regex": eid_filter}
+
+        return self._db[snapshot_col].find(query)
 
     def get_snapshots(
         self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None

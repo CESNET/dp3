@@ -390,7 +390,10 @@ class SnapShooter:
             for attr, value in record.items():
                 if (rtype, attr) not in self.model_spec.relations:
                     continue
-                if self.model_spec.relations[rtype, attr].multi_value:
+                if (
+                    self.model_spec.relations[rtype, attr].t == AttrType.OBSERVATIONS
+                    and self.model_spec.relations[rtype, attr].multi_value
+                ):
                     record[attr] = [
                         {k: v for k, v in link_dict.items() if k != "record"} for link_dict in value
                     ]

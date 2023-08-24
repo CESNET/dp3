@@ -93,7 +93,7 @@ class TaskEntityHooksContainer:
                 hook_new_tasks = hook(eid, task)
 
                 # Append new tasks to process
-                if type(hook_new_tasks) is list:
+                if isinstance(hook_new_tasks, list):
                     new_tasks += hook_new_tasks
             except Exception as e:
                 self.elog.log("module_error")
@@ -154,7 +154,7 @@ class TaskAttrHooksContainer:
                 hook_new_tasks = hook(eid, dp)
 
                 # Append new tasks to process
-                if type(hook_new_tasks) is list:
+                if isinstance(hook_new_tasks, list):
                     new_tasks += hook_new_tasks
             except Exception as e:
                 self.elog.log("module_error")

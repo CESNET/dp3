@@ -42,18 +42,21 @@ async def list_entity_type_eids(
 
     If `eid_filter` is not empty, returns only `id`s containing substring `eid_filter`.
     """
-    cursor = DB.get_latest_snapshots(etype, eid_filter).skip(skip).limit(limit)
+    cursor, total_count = DB.get_latest_snapshots(etype, eid_filter)
+    cursor_page = cursor.skip(skip).limit(limit)
 
     time_created = None
 
     # Remove _id field
-    result = list(cursor)
+    result = list(cursor_page)
     for r in result:
         time_created = r["_time_created"]
         del r["_time_created"]
         del r["_id"]
 
-    return EntityEidList(time_created=time_created, data=result)
+    return EntityEidList(
+        time_created=time_created, count=len(result), total_count=total_count, data=result
+    )
 
 
 @router.get("/{etype}/{eid}")

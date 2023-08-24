@@ -22,12 +22,15 @@ class EntityState(BaseModel):
 class EntityEidList(BaseModel):
     """List of entity eids and their data based on latest snapshot
 
-    Includes timestamp of latest snapshot creation.
+    Includes timestamp of latest snapshot creation, count of returned documents
+    and total count of documents available under specified filter.
 
     Data does not include history of observations attributes and timeseries.
     """
 
     time_created: Optional[datetime]
+    count: int
+    total_count: int
     data: list[dict]
 
 

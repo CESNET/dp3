@@ -8,6 +8,7 @@ from typing import Literal, Optional, Union
 import pymongo
 from pydantic import BaseModel, Field, validator
 from pymongo import ReplaceOne
+from pymongo.errors import OperationFailure
 
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
@@ -339,6 +340,8 @@ class EntityDatabase:
         If `eid_filter` is not empty, returns only `eid`s containing substring `eid_filter`.
 
         Also returns total document count (after filtering).
+
+        May raise `DatabaseError` if query is invalid.
         """
         # Check `etype`
         self._assert_etype_exists(etype)
@@ -353,7 +356,10 @@ class EntityDatabase:
         if eid_filter != "":
             query["eid"] = {"$regex": eid_filter}
 
-        return self._db[snapshot_col].find(query), self._db[snapshot_col].count_documents(query)
+        try:
+            return self._db[snapshot_col].find(query), self._db[snapshot_col].count_documents(query)
+        except OperationFailure as e:
+            raise DatabaseError("Invalid query") from e
 
     def get_snapshots(
         self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None

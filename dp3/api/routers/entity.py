@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import NonNegativeInt, PositiveInt, ValidationError
 
 from dp3.api.internal.config import DB, MODEL_SPEC, TASK_WRITER
@@ -15,9 +15,10 @@ from dp3.api.internal.helpers import api_to_dp3_datapoint
 from dp3.api.internal.models import (
     DataPoint,
 )
-from dp3.api.internal.response_models import RequestValidationError, SuccessResponse
+from dp3.api.internal.response_models import ErrorResponse, RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
 from dp3.common.task import DataPointTask
+from dp3.database.database import DatabaseError
 
 
 async def check_etype(etype: str):
@@ -30,7 +31,9 @@ async def check_etype(etype: str):
 router = APIRouter(dependencies=[Depends(check_etype)])
 
 
-@router.get("/{etype}")
+@router.get(
+    "/{etype}", responses={400: {"description": "Query can't be processed", "model": ErrorResponse}}
+)
 async def list_entity_type_eids(
     etype: str, eid_filter: str = "", skip: NonNegativeInt = 0, limit: PositiveInt = 20
 ) -> EntityEidList:
@@ -42,8 +45,11 @@ async def list_entity_type_eids(
 
     If `eid_filter` is not empty, returns only `id`s containing substring `eid_filter`.
     """
-    cursor, total_count = DB.get_latest_snapshots(etype, eid_filter)
-    cursor_page = cursor.skip(skip).limit(limit)
+    try:
+        cursor, total_count = DB.get_latest_snapshots(etype, eid_filter)
+        cursor_page = cursor.skip(skip).limit(limit)
+    except DatabaseError as e:
+        raise HTTPException(status_code=400, detail="Query is invalid") from e
 
     time_created = None
 

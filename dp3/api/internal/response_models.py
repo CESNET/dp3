@@ -14,6 +14,12 @@ class SuccessResponse(BaseModel):
     detail: str = "OK"
 
 
+class ErrorResponse(BaseModel):
+    """Generic error response"""
+
+    detail: str
+
+
 class RequestValidationError(HTTPException):
     """HTTP exception wrapper to simplify path and query validation"""
 

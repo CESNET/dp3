@@ -671,14 +671,30 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Raw collection {raw_col_name} fetch failed: {e}") from e
 
-    def get_raw(self, etype: str, after: datetime, before: datetime) -> pymongo.cursor:
-        raw_col_name = self._raw_col_name(etype)
-        return self._db[raw_col_name].find({"t1": {"$gte": after, "$lt": before}})
+    def get_raw(
+        self, etype: str, after: datetime, before: datetime, plain: bool = True
+    ) -> pymongo.cursor:
+        """Get raw datapoints where `t1` is in <`after`, `before`).
 
-    def delete_old_raw_dps(self, etype: str, before: datetime):
+        If `plain` is `True`, then all plain datapoints will be returned (default).
+        """
         raw_col_name = self._raw_col_name(etype)
+        query_filter = {"$or": [{"t1": {"$gte": after, "$lt": before}}]}
+        if plain:
+            query_filter["$or"].append({"t1": {"$exists": False}})
+        return self._db[raw_col_name].find(query_filter)
+
+    def delete_old_raw_dps(self, etype: str, before: datetime, plain: bool = True):
+        """Delete raw datapoints older than `before`.
+
+        Deletes all plain datapoints if `plain` is `True` (default).
+        """
+        raw_col_name = self._raw_col_name(etype)
+        query_filter = {"$or": [{"t1": {"$lt": before}}]}
+        if plain:
+            query_filter["$or"].append({"t1": {"$exists": False}})
         try:
-            return self._db[raw_col_name].delete_many({"t1": {"$lt": before}})
+            return self._db[raw_col_name].delete_many(query_filter)
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 

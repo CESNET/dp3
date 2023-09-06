@@ -189,7 +189,7 @@ class HistoryManager:
                 first = True
 
                 for etype in self.model_spec.entities:
-                    result_cursor = self.db.get_raw(etype, after=min_date, before=t_old)
+                    result_cursor = self.db.get_raw(etype, after=min_date, before=t_old, plain=True)
                     for dp in result_cursor:
                         if first:
                             logfile.write(
@@ -209,7 +209,7 @@ class HistoryManager:
 
         deleted_count = 0
         for etype in self.model_spec.entities:
-            deleted_res = self.db.delete_old_raw_dps(etype, before=t_old)
+            deleted_res = self.db.delete_old_raw_dps(etype, before=t_old, plain=True)
             deleted_count += deleted_res.deleted_count
         self.log.info("Deleted %s datapoints", deleted_count)
 

@@ -259,7 +259,7 @@ class EntityDatabase:
             raise DatabaseError(f"Update of master record failed: {e}\n{dps}") from e
 
     def update_master_records(self, etype: str, eids: list[str], records: list[dict]) -> None:
-        """Replace master record of `etype`:`eid` with the provided `record`.
+        """Replace master records of `etype`:`eid` with the provided `records`.
 
         Raises DatabaseError when update fails.
         """

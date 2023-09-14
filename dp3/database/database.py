@@ -332,7 +332,7 @@ class EntityDatabase:
 
     def get_latest_snapshots(
         self, etype: str, eid_filter: str = ""
-    ) -> (pymongo.cursor.Cursor, int):
+    ) -> tuple[pymongo.cursor.Cursor, int]:
         """Get latest snapshots of given `etype`.
 
         This method is useful for displaying data on web.

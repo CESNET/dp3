@@ -15,7 +15,7 @@ Create a virtualenv and install the DP³ platform using:
 python3 -m venv venv  # (1)!
 source venv/bin/activate  # (2)!
 pip install --upgrade pip  # (3)!
-pip install git+https://github.com/CESNET/dp3.git#egg=dp3
+pip install git+https://github.com/CESNET/dp3.git#egg=dp-cubed
 ```
 
 1. We recommend using virtual environment. If you are not familiar with it, please read 
@@ -180,16 +180,33 @@ For production use, we recommend using the [`supervisor`](http://supervisord.org
 which greatly simplifies having multiple worker processes. We recommend [`gunicorn`](https://gunicorn.org/) as the API server, 
 hidden behind [`nginx`](https://www.nginx.com/) as a reverse proxy.
 
+We will assume that you have a prototype of your application available on the server you will be deploying on, 
+if not, you can use `dp3 setup` to create the application skeleton after installing the DP3 package,
+as described in [the previous section](#creating-a-dp3-application).
+
 To start, install the pre-requisites and explicitly dependent packages:
 
 ```shell
 sudo dnf install git wget nginx supervisor redis
 ```
 
+!!! warning "Application placement"
+      
+      We highly recommend using a virtualenv for you python environment
+      which can be created using the command:
+      
+      ```sh
+      python3 -m venv <path>
+      ```
+
+      We recommend placing your application, as well as the virtualenv,
+      outside you home directory, for example in `/opt/<APP_NAME>`.
+      This will greatly simplify the permissions management.
+
 Inside your virtualenv, install DP3 with the `deploy` extras, which includes the `gunicorn` server:
 
 ```shell
-pip install "git+https://github.com/CESNET/dp3.git#egg=dp3[deploy]"
+pip install "git+https://github.com/CESNET/dp3.git#egg=dp-cubed[deploy]"
 ```
 
 We will assume that you have the python environment activated for the rest of the installation.

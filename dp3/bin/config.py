@@ -94,12 +94,6 @@ def config_supervisor(app_name, config_dir):
     shutil.chown(supervisor_dir, user=app_name, group=app_name)
     supervisor_dir.chmod(0o775)
 
-    # Ensure a log directory exists.
-    log_dir = Path(f"/var/log/{app_name}/")
-    log_dir.mkdir(exist_ok=True, parents=True)
-    shutil.chown(log_dir, user=app_name, group=app_name)
-    log_dir.chmod(0o775)
-
     # Copy the template files to the project directory.
     shutil.copytree(package_dir / "template" / "supervisor", supervisor_dir, dirs_exist_ok=True)
 

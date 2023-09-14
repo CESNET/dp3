@@ -399,7 +399,7 @@ We will set up a supervisor configuration for your DP3 app in `/etc/APPNAME`.
 For the base configuration, run:
 
 ```shell
-sudo $(which dp3) config supervisor --config <CONFIG_DIR> --appname <APP_NAME>
+sudo $(which dp3) config supervisor --config <CONFIG_DIR> --app-name <APP_NAME>
 ```
 
 Enable the service:

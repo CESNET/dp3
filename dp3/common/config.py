@@ -8,7 +8,6 @@ import yaml
 from pydantic import BaseModel, Extra, Field, NonNegativeInt, PositiveInt, root_validator, validator
 
 from dp3.common.attrspec import AttrSpec, AttrSpecClassic, AttrSpecGeneric, AttrSpecType
-from dp3.common.base_attrs import BASE_ATTRIBS
 from dp3.common.entityspec import EntitySpec
 
 
@@ -192,12 +191,6 @@ class EntitySpecDict(BaseModel):
             attr_id: AttrSpec(attr_id, spec) if not isinstance(spec, AttrSpecGeneric) else spec
             for attr_id, spec in v.items()
         }
-
-    @validator("attribs")
-    def _add_base_attributes(cls, v, values):
-        """Add base attributes - attributes that every entity_type should have"""
-        v.update(BASE_ATTRIBS)
-        return v
 
 
 class ModelSpec(BaseModel):

@@ -349,7 +349,7 @@ class EntityDatabase:
         snapshot_col = self._snapshots_col_name(etype)
         latest_snapshot = self._db[snapshot_col].find_one({}, sort=[("_id", -1)])
         if latest_snapshot is None:
-            return self._db[snapshot_col].find()
+            return self._db[snapshot_col].find(), self._db[snapshot_col].count_documents({})
 
         latest_snapshot_date = latest_snapshot["_time_created"]
         query = {"_time_created": latest_snapshot_date}

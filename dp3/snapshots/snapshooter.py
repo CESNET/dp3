@@ -43,6 +43,7 @@ from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
 DB_SEND_CHUNK = 100
+RETRY_COUNT = 3
 
 
 class SnapShooterConfig(BaseModel):
@@ -326,29 +327,48 @@ class SnapShooter:
                 etype,
                 no_cursor_timeout=True,
             )
-            try:
-                snapshots = []
-                for master_record in records_cursor:
-                    if (etype, master_record["_id"]) in have_links:
-                        continue
-                    entity_cnt += 1
-                    snapshots.append(self.make_linkless_snapshot(etype, master_record, task.time))
-
-                    if len(snapshots) >= DB_SEND_CHUNK:
-                        self.db.save_snapshots(etype, snapshots, task.time)
-                        snapshots.clear()
-
-                if snapshots:
-                    self.db.save_snapshots(etype, snapshots, task.time)
-                    snapshots.clear()
-            finally:
-                records_cursor.close()
+            for attempt in range(RETRY_COUNT):
+                try:
+                    entity_cnt += self.make_linkless_snapshots(
+                        etype, records_cursor, task.time, have_links
+                    )
+                except Exception as err:
+                    self.log.exception("Uncaught exception while creating snapshots: %s", err)
+                    if attempt < RETRY_COUNT - 1:
+                        self.log.info("Retrying snapshot creation for '%s' due to errors.", etype)
+                    continue
+                finally:
+                    records_cursor.close()
+                break
+            else:
+                self.log.error(
+                    "Failed to create snapshots for '%s' after %s attempts.", etype, attempt + 1
+                )
         self.db.update_metadata(
             task.time,
             metadata={},
             increase={"entities": entity_cnt, "components": entity_cnt},
         )
         self.log.debug("Worker snapshot creation done.")
+
+    def make_linkless_snapshots(
+        self, etype: str, records_cursor, time: datetime, have_links: set
+    ) -> int:
+        entity_cnt = 0
+        snapshots = []
+        for master_record in records_cursor:
+            if (etype, master_record["_id"]) in have_links:
+                continue
+            entity_cnt += 1
+            snapshots.append(self.make_linkless_snapshot(etype, master_record, time))
+            if len(snapshots) >= DB_SEND_CHUNK:
+                self.db.save_snapshots(etype, snapshots, time)
+                snapshots.clear()
+
+        if snapshots:
+            self.db.save_snapshots(etype, snapshots, time)
+            snapshots.clear()
+        return entity_cnt
 
     def make_linkless_snapshot(self, entity_type: str, master_record: dict, time: datetime):
         """

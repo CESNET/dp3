@@ -538,7 +538,10 @@ class TaskQueueReader(RobustAMQPConnection):
                 continue
 
             # Pass message to user's callback function
-            self.callback(tag, task)
+            try:
+                self.callback(tag, task)
+            except Exception as e:
+                self.log.exception("Error in user callback function. %s: %s", type(e), str(e))
 
     def _stop_consuming_thread(self) -> None:
         if self._consuming_thread:

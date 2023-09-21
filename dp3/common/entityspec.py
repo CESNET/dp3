@@ -1,5 +1,3 @@
-from typing import Union
-
 from pydantic import BaseModel
 
 
@@ -13,5 +11,4 @@ class EntitySpec(BaseModel):
     name: str
     snapshot: bool
 
-    def __init__(self, id: str, spec: dict[str, Union[str, bool]]):
-        super().__init__(id=id, name=spec.get("name"), snapshot=spec.get("snapshot"))
+    description: str = ""

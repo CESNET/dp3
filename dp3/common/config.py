@@ -182,7 +182,7 @@ class EntitySpecDict(BaseModel):
     def _parse_entity_spec(cls, v, values):
         if isinstance(v, EntitySpec):
             return v
-        return EntitySpec(v["id"], v)
+        return EntitySpec.parse_obj(v)
 
     @validator("attribs", pre=True)
     def _parse_attr_spec(cls, v, values):

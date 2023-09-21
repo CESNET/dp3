@@ -1,0 +1,23 @@
+# Configuration of HistoryManager system, responsible for
+# - aggregating datapoints in master records
+# - deleting old datapoints from master records
+# - deleting old snapshots
+# - archiving old datapoints form raw collections
+
+# Aggregation - merging identical value datapoints in master records
+aggregation_schedule:
+  minute: "*/10"
+
+# Deleting old datapoints from master records
+datapoint_cleaning_schedule:
+  minute: "*/30"
+
+# Deleting old snapshots
+snapshot_cleaning:
+  schedule: {minute: "15,45"}
+  older_than: 7d
+
+# Archiving old datapoints form raw log collection
+datapoint_archivation:
+  schedule: {hour: 2, minute: 0}
+  older_than: 7d

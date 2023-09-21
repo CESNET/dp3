@@ -1,0 +1,79 @@
+version: "3.4"
+
+services:
+  rabbitmq:
+    container_name: "rabbitmq"
+    image: "dp3_rabbitmq"
+    build: "docker/rabbitmq"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      DP3_APP_NAME: test
+      DP3_WORKER_NUM: 1
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: test
+      MONGO_INITDB_ROOT_PASSWORD: test
+
+  redis:
+    container_name: "redis"
+    image: redis
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+
+  receiver_api:
+    container_name: "dp3_api"
+    image: "dp3_interpreter"
+    build:
+      context: .
+      dockerfile: "docker/python/Dockerfile"
+      target: "base"
+    ports:
+      - "5000:5000"
+    working_dir: "/dp3/dp3/api"
+    environment:
+      HOST: "0.0.0.0"
+      APP_NAME: "test"
+      CONF_DIR: "/dp3/tests/test_example/config"
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000" ]
+
+  worker:
+    container_name: "dp3_worker"
+    image: "dp3_interpreter"
+    build:
+      context: .
+      dockerfile: "docker/python/Dockerfile"
+      target: "base"
+
+    working_dir: "/dp3/"
+    command: [ "dp3", "worker", "test", "/dp3/tests/test_example/config", "0", "-v" ]
+
+    depends_on:
+      - rabbitmq
+      - mongo
+      - redis
+
+  insert_datapoints:
+    container_name: "dp3_datapoints_inserter"
+    image: "dp3_interpreter"
+    build:
+      context: .
+      dockerfile: "docker/python/Dockerfile"
+      target: "base"
+    working_dir: "/dp3"
+    network_mode: "host"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        sleep 10
+        python scripts/dummy_sender.py tests/test_example/dps.json all
+    depends_on:
+      - receiver_api
+      - worker

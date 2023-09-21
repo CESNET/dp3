@@ -1,0 +1,11 @@
+# MongoDB Connection configuration
+db_name: "test"
+username: "test"
+password: "test"
+
+# Standalone - single host, just specify the connection
+connection:
+  mode: "standalone"
+  host:
+    address: "mongo"
+    port: 27017

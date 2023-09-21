@@ -1,0 +1,27 @@
+# Configuration of a EventCountLogger system, which allows to count arbitrary events across multiple processes
+# (using shared counters in Redis) and in various time intervals.
+redis:
+  host: redis
+  port: 6379
+  db: 1 # Index of Redis DB used for the counters (it shouldn't be used for anything else)
+
+# Each "group" specifies a set of "events" which are handled together.
+groups:
+  # Main events of Task execution
+  te:
+    events:
+      - task_processed
+      - record_removed
+      - record_created
+      - module_error # an exception was raised within a handler function
+      - task_processing_error # any other error in task processing
+    # Two intervals - 5 min and 2 hours for longer-term history in Munin/Icinga
+    intervals: ["5m", "2h"]
+    # Cache counts locally, push to Redis every second
+    sync-interval: 1
+  # Number of processed tasks by their "src" attribute
+  tasks_by_src:
+    events: []
+    auto_declare_events: true
+    intervals: ["5m", "2h"]
+    sync-interval: 1

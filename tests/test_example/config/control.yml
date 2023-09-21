@@ -1,0 +1,4 @@
+# Configuration of Control module
+# Select the actions that should be allowed based on the deployment setting
+allowed_actions:
+  - make_snapshots # Makes an out-of-order snapshot of all entities

@@ -11,7 +11,6 @@ from pydantic import (
     create_model,
     validator,
 )
-from pydantic.color import Color
 
 from dp3.common.datapoint import (
     DataPointBase,
@@ -122,7 +121,6 @@ class AttrSpecGeneric(SpecModel, use_enum_values=True):
     id: constr(regex=ID_REGEX)
     name: str
     description: str = ""
-    color: Color = None
 
     _dp_model = PrivateAttr()
 

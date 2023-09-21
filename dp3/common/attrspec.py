@@ -4,6 +4,7 @@ from typing import Any, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
+    Field,
     PositiveInt,
     PrivateAttr,
     constr,
@@ -151,6 +152,7 @@ class AttrSpecPlain(AttrSpecClassic):
     """Plain attribute specification"""
 
     t = AttrType.PLAIN
+    type: Literal["plain"] = Field(..., repr=False)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -166,6 +168,8 @@ class AttrSpecObservations(AttrSpecClassic):
     """Observations attribute specification"""
 
     t = AttrType.OBSERVATIONS
+    type: Literal["observations"] = Field(..., repr=False)
+
     confidence: bool = False
     multi_value: bool = False
     history_params: ObservationsHistoryParams
@@ -187,6 +191,8 @@ class AttrSpecTimeseries(AttrSpecGeneric):
     """Timeseries attribute specification"""
 
     t = AttrType.TIMESERIES
+    type: Literal["timeseries"] = Field(..., repr=False)
+
     timeseries_type: Literal["regular", "irregular", "irregular_intervals"]
     series: dict[constr(regex=ID_REGEX), TimeseriesSeries] = {}
     timeseries_params: TimeseriesTSParams

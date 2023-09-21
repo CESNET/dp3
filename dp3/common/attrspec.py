@@ -24,6 +24,7 @@ from dp3.common.datapoint import (
     dp_ts_v_validator,
 )
 from dp3.common.datatype import DataType
+from dp3.common.entityspec import SpecModel
 from dp3.common.utils import parse_time_duration
 
 # Regex of attribute and series id's
@@ -112,7 +113,7 @@ class TimeseriesSeries(BaseModel):
         return v
 
 
-class AttrSpecGeneric(BaseModel, use_enum_values=True):
+class AttrSpecGeneric(SpecModel, use_enum_values=True):
     """Base of attribute specification
 
     Parent of other `AttrSpec` classes.

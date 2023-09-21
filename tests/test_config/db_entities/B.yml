@@ -1,9 +1,8 @@
 entity:
   id: B
   name: test entity B
-  key_data_type: string
-  auto_create_record: true
   snapshot: true
+
 attribs:
   data1:
     name: data1

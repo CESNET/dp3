@@ -102,7 +102,6 @@ attribs:
     name: probability_attr
     type: plain
     data_type: json
-    probability: true
 
   link_attr:
     name: link_attr

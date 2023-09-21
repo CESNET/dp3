@@ -1,9 +1,8 @@
 entity:
   id: test_entity_type
   name: test entity type
-  key_data_type: string
-  auto_create_record: true
   snapshot: true
+
 attribs:
   test_attr_tag:
     name: test_attr_tag
@@ -86,7 +85,6 @@ attribs:
     name: test_attr_probability
     type: plain
     data_type: json
-    probability: true
   test_attr_link:
     name: test_attr_link
     type: plain

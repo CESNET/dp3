@@ -11,7 +11,7 @@ TODO:
 import argparse
 import json
 import sys
-from typing import Optional, get_args, get_origin, get_type_hints
+from typing import get_args, get_origin, get_type_hints
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -33,26 +33,22 @@ def stringify_source(source) -> str:
     return source_str
 
 
-def handle_attribs_error(data: dict, error: dict):
-    locations = locate_attribs_error(data, error["msg"])
-    path = list(error["loc"])
+def get_all_attribs_errors(data: dict, error: dict) -> tuple[list[tuple[str]], list]:
+    paths, sources = locate_attribs_error(data, error["msg"])
 
-    for attr_name, source_data in locations:
-        if len(path) > 3:
-            loc_path = path[:3] + [attr_name] + path[3:]
-            source = stringify_source(source_data)
-        else:
-            loc_path = path + [attr_name]
-            source = stringify_source(source_data)
+    path: list[str] = list(error["loc"])
+    paths = [tuple(path[:3] + list(p)) for p in paths]
 
-        print(" -> ".join(loc_path))
-        print(source)
-
-    print(f'{error["msg"]} (type={error["type"]})\n')
+    return paths, sources
 
 
-def locate_attribs_error(data: dict, sought_err: str) -> list[tuple[str, dict]]:
-    locations = []
+def locate_attribs_error(data: dict, sought_err: str) -> tuple[list[tuple], list[dict]]:
+    """
+    Locate source of an error in a dict of AttrSpecs.
+    Returns all sources of the same kind of error.
+    """
+    paths = []
+    sources = []
 
     for attr, attr_spec in data.items():
         try:
@@ -60,12 +56,14 @@ def locate_attribs_error(data: dict, sought_err: str) -> list[tuple[str, dict]]:
         except ValidationError as exception:
             for err_dict in exception.errors():
                 if err_dict["msg"] == sought_err:
-                    locations.append((attr, attr_spec))
+                    paths.append((attr, *err_dict["loc"]))
+                    sources.append(attr_spec)
         except ValueError as exception:
             if exception.args[0] == sought_err:
-                locations.append((attr, attr_spec))
+                paths.append((attr,))
+                sources.append(attr_spec)
 
-    return locations
+    return paths, sources
 
 
 def locate_basemodel_error(data: list[dict], model: BaseModel) -> list[dict]:
@@ -79,7 +77,7 @@ def locate_basemodel_error(data: list[dict], model: BaseModel) -> list[dict]:
     return locations
 
 
-def get_source_or_handle_error_path(data: dict, error: dict) -> Optional[list]:
+def get_error_sources(data: dict, error: dict) -> tuple[list, list]:
     """Locate source of an error in validated data using Pydantic error path."""
     err_path = error["loc"]
 
@@ -90,9 +88,10 @@ def get_source_or_handle_error_path(data: dict, error: dict) -> Optional[list]:
 
     for key in err_path[1:]:
         if curr_model_origin != dict and curr_model_origin is not None:
-            return data
+            return [err_path], [data]
 
         if key in data:
+            prev_data = data
             data = data[key]
 
             if (curr_model, key) in special_model_cases:
@@ -101,38 +100,41 @@ def get_source_or_handle_error_path(data: dict, error: dict) -> Optional[list]:
                 curr_model_origin = get_origin(curr_model_dict)
 
                 if curr_model == AttrSpec:
-                    return handle_attribs_error(data, error)
+                    return get_all_attribs_errors(data, error)
                 continue
 
             if isinstance(curr_model_dict, dict):
-                curr_model = curr_model_dict[key]
+                if key in curr_model_dict:
+                    curr_model = curr_model_dict[key]
+                else:
+                    return [err_path], [prev_data]
 
             curr_model_dict = get_type_hints(curr_model)
             curr_model_origin = get_origin(curr_model_dict)
             if curr_model_origin == dict:
                 curr_model = get_args(curr_model_dict)[1]
         else:
-            return data
+            return [err_path], [data]
 
     if curr_model == AttrSpec:
-        return handle_attribs_error(data, error)
-    return locate_basemodel_error(data, curr_model)
+        return get_all_attribs_errors(data, error)
+
+    return [], locate_basemodel_error(data, curr_model)
 
 
 def locate_errors(exc: ValidationError, data: dict):
-    """Locate errors in a ValidationError object"""
+    """Locate errors (i.e.: get the paths and sources) in a ValidationError object."""
     paths = []
     sources = []
     errors = []
 
     for error in exc.errors():
-        path = error["loc"]
         message = f'{error["msg"]} (type={error["type"]})'
-        source = get_source_or_handle_error_path(data, error)
-        if source:
-            sources.append(source)
-            paths.append(path)
-            errors.append(message)
+        e_paths, e_sources = get_error_sources(data, error)
+
+        paths.extend(e_paths)
+        sources.extend(e_sources)
+        errors.extend(message for _ in range(len(e_paths)))
 
     return paths, sources, errors
 
@@ -188,10 +190,24 @@ def main(args):
     except ValidationError as exc:
         print("Invalid model specification (check entity config):")
         paths, sources, errors = locate_errors(exc, db_config)
+
+        # Print each source only once
+        unique_sources = []
+        source_paths_and_errors = []
+
         for path, source, err in zip(paths, sources, errors):
-            print(" -> ".join(path))
-            print(stringify_source(source))
-            print(err, "\n")
+            if source in unique_sources:
+                i = unique_sources.index(source)
+                source_paths_and_errors[i].add((path, err))
+            else:
+                unique_sources.append(source)
+                source_paths_and_errors.append({(path, err)})
+
+        for source, paths_and_errors in zip(unique_sources, source_paths_and_errors):
+            for path, err in paths_and_errors:
+                print(" -> ".join(path))
+                print("  ", err)
+            print(stringify_source(source), "\n")
         sys.exit(1)
 
     if args.verbose:

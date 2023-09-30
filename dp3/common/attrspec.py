@@ -133,7 +133,6 @@ class AttrSpecClassic(AttrSpecGeneric):
     """Parent of non-timeseries `AttrSpec` classes."""
 
     data_type: DataType
-    categories: list[str] = None
     editable: bool = False
 
     @property

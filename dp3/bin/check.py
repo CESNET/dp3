@@ -9,9 +9,12 @@ TODO:
 """
 
 import argparse
+import enum
 import json
 import sys
-from typing import get_args, get_origin, get_type_hints
+from datetime import datetime
+from json import JSONEncoder
+from typing import Any, get_args, get_origin, get_type_hints
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -22,6 +25,19 @@ from dp3.common.config import EntitySpecDict, ModelSpec, read_config_dir
 special_model_cases = {
     (EntitySpecDict, "attribs"): AttrSpec,
 }
+
+
+class ConfigEncoder(JSONEncoder):
+    """JSONEncoder to encode parsed configuration."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, BaseModel):
+            return o.dict(exclude_none=True)
+        if isinstance(o, enum.Enum):
+            return o.value
+        if isinstance(o, datetime):
+            return o.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+        return str(o)
 
 
 def stringify_source(source) -> str:
@@ -186,7 +202,7 @@ def main(args):
 
     db_config = config.get("db_entities")
     try:
-        ModelSpec(db_config)
+        parsed_config = ModelSpec(db_config)
     except ValidationError as exc:
         print("Invalid model specification (check entity config):")
         paths, sources, errors = locate_errors(exc, db_config)
@@ -212,7 +228,7 @@ def main(args):
 
     if args.verbose:
         # Print parsed config as JSON (print unserializable objects using str())
-        print(json.dumps(config, indent=4, default=str))
+        print(json.dumps(parsed_config.config, indent=4, cls=ConfigEncoder))
     sys.exit(0)
 
 

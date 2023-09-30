@@ -171,7 +171,7 @@ class AttrSpecObservations(AttrSpecClassic):
 
     confidence: bool = False
     multi_value: bool = False
-    history_params: ObservationsHistoryParams
+    history_params: ObservationsHistoryParams = Field(default_factory=ObservationsHistoryParams)
     history_force_graph: bool = False
 
     def __init__(self, **data):

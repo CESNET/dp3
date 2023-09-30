@@ -66,11 +66,9 @@ The application-specific components, shown in yellow-orange, are as following:
   deriving additional data based on incoming data-points or performing data correlation on entity snapshots.
   For primary module implementation, the [API documentation](../api/#insert-datapoints) may be useful, 
   also feel free to check out the dummy_sender script in `/scripts/dummy_sender.py`.
-  A comprehensive secondary module API documentation is under construction, for the time being, 
+  Feel free to check out the [secondary module API documentation](modules.md), or you can also 
   refer to the [CallbackRegistrar code reference][dp3.common.callback_registrar.CallbackRegistrar] or 
   check out the test modules in `/modules/` or `/tests/modules/`.
-
-[//]: # (TODO: A comprehensive secondary module API documentation, change above to link)
 
 - The final remaining component is the **web interface**, which is ultimately application-specific.
   A generic web interface, or a set of generic components is a planned part of DP³, but is yet to be implemented.

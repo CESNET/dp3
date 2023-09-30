@@ -14,6 +14,7 @@ but the platform itself is general and should be usable for any kind of data.
 For an introduction about how it works, see please check out the 
 [architecture](architecture.md), [data-model](data_model.md) 
 and [database config](configuration/db_entities.md) pages.
+The mechanics of how the platform handles history of data is described in the [history management](history_management.md) page.
 
 Then you should be able to create a DP³ app using the provided setup utility as described in the [install](install.md) page and start tinkering!
 

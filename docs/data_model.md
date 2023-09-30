@@ -71,6 +71,7 @@ Very useful for data where both current value and history is needed.
 > The same applies to **speed**. It can also be derived from location.
 
 Detailed information about **observations** attribute configuration can be found in [DB configuration](configuration/db_entities.md#observations-specific-parameters).
+The [History mangement](history_management.md) page describes how DP³ handles history.
 
 ### Timeseries
 

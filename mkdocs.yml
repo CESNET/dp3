@@ -40,6 +40,7 @@ nav:
   - Install: install.md
   - Architecture: architecture.md
   - Data model: data_model.md
+  - History Management: history_management.md
   - API: api.md
   - Modules: modules.md
   - Configuration:

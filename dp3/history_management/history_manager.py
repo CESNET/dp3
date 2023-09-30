@@ -304,6 +304,10 @@ def aggregate_multivalue_dp_history_on_equal(history: list[dict], spec: AttrSpec
     Avergages the confidence.
     Will keep a pool of "active" datapoints and merge them with the next datapoint
     if they have the same value and overlapping time validity.
+
+    FIXME:
+      The average calculation only works for the current iteration,
+      but for the next call of the algorithm, the count of aggregated datapoints is lost.
     """
     history = sorted(history, key=lambda x: x["t1"])
     aggregated_history = []
@@ -372,6 +376,10 @@ def aggregate_dp_history_on_equal(history: list[dict], spec: ObservationsHistory
     Merge datapoints in the history with equal values and overlapping time validity.
 
     Avergages the confidence.
+
+    FIXME:
+      The average calculation only works for the current iteration,
+      but for the next call of the algorithm, the count of aggregated datapoints is lost.
     """
     history = sorted(history, key=lambda x: x["t1"])
     aggregated_history = []

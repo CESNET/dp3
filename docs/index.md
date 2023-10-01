@@ -1,5 +1,9 @@
 # Dynamic Profile Processing Platform (DP³)
 
+<figure markdown>
+  ![DP3 logo](img/dp3-logo-min.svg){ width="300" }
+</figure>
+
 DP³ is a platform helps to keep a database of information (attributes) about individual
 entities (designed for IP addresses and other network identifiers, but may be anything),
 when the data constantly changes in time.

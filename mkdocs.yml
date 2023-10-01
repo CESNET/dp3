@@ -7,6 +7,8 @@ repo_url: https://github.com/CESNET/dp3
 
 theme:
   name: material
+  logo: img/dp3-logo-min.svg
+  favicon: img/dp3-favicon.png
   palette:
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"

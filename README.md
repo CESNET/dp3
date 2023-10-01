@@ -1,6 +1,11 @@
 # Dynamic Profile Processing Platform (DP³)
 
-[![PyPI version](https://badge.fury.io/py/dp-cubed.svg)](https://pypi.org/project/dp-cubed/)
+<p align="center">
+  <a href="https://cesnet.github.io/dp3/"><img src="https://cesnet.github.io/dp3/img/dp3-logo-min.svg" alt="DP3"></a>
+</p>
+<p align="center">
+  <a href="https://pypi.org/project/dp-cubed/"><img src="https://badge.fury.io/py/dp-cubed.svg" alt="PyPI version" height="20"></a>
+</p>
 
 DP³ is a platform helps to keep a database of information (attributes) about individual
 entities (designed for IP addresses and other network identifiers, but may be anything),

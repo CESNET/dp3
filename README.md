@@ -42,7 +42,7 @@ Create a virtualenv and install the DP³ platform using:
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install --upgrade pip
-pip install git+https://github.com/CESNET/dp3.git#egg=dp3
+pip install git+https://github.com/CESNET/dp3.git#egg=dp-cubed
 ```
 
 #### Creating a DP³ application

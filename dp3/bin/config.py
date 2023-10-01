@@ -72,15 +72,41 @@ def config_nginx(app_name, server_hostname, www_root):
     www_root_dir.chmod(0o775)
 
 
+def get_python_directories() -> tuple[Path, Path]:
+    """
+    Get the directory where the DP3 executable is located and where the DP3 library is installed.
+
+    There are two cases we need to consider:
+
+    - The package is installed in a normal way, be it in virtual environment,
+      in `~/.local` or in `/usr/local`. The path will allways look something like
+      `/path/to/python/lib/python3.X/{site|dist}-packages/dp3`.
+      The path to the executable will be `/path/to/python/bin/dp3`.
+    - The package is installed in editable mode, in which case the path of the
+      package depends on the location of the repo. The path to the executable relates
+      in no way to the path of the package, we cannot be sure.
+      We therefore give it our best guess, which is the path of the python executable.
+      This will be correct only in the case of a virtual environment, but it is the best
+      we can do.
+    """
+    package_path = Path(__file__).parent.parent.absolute()
+    packages_path = package_path.parent
+    lib_python_path = packages_path.parent
+
+    if "-packages" in packages_path.name and "python3" in lib_python_path.name:
+        binary_path = package_path.parent.parent.parent.parent / "bin"
+    else:  # This is a development install.
+        binary_path = Path(sys.executable).parent.absolute()
+    return binary_path, package_path
+
+
 def config_supervisor(app_name, config_dir):
     """
     Configure supervisor for process management.
     Replaces templates: DP3_EXE, DP3_APP, CONFIG_DIR, DP3_BIN, DP3_LIB
     """
     # Get the current package location and other relative directories.
-    package_dir = Path(__file__).parent.parent
-    python_bin_dir = Path(sys.executable).parent.absolute()
-    python_lib_dir = python_bin_dir.parent / "lib"
+    python_bin_dir, package_dir = get_python_directories()
     dp3_executable_path = str(python_bin_dir / "dp3")
     abs_config_dir = Path(config_dir).absolute()
 
@@ -101,7 +127,7 @@ def config_supervisor(app_name, config_dir):
     replace_template(supervisor_dir, "{{CONFIG_DIR}}", str(abs_config_dir))
     replace_template(supervisor_dir, "{{DP3_BIN}}", str(python_bin_dir))
     replace_template(supervisor_dir, "{{DP3_EXE}}", dp3_executable_path)
-    replace_template(supervisor_dir, "{{DP3_LIB}}", str(python_lib_dir))
+    replace_template(supervisor_dir, "{{DP3_PACKAGE_DIR}}", str(package_dir))
     replace_template(supervisor_dir, "{{WORKER_COUNT}}", str(worker_count))
 
     # Set up the systemd service to start supervisor.

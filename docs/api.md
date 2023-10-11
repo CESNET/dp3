@@ -11,7 +11,7 @@ There are several API endpoints:
 - [`GET /entity/<entity_type>/<entity_id>`](#get-eid-data): get data of entity with given entity id
 - [`GET /entity/<entity_type>/<entity_id>/get/<attr_id>`](#get-attr-value): get attribute value
 - [`GET /entity/<entity_type>/<entity_id>/set/<attr_id>`](#set-attr-value): set attribute value
-- [`DELETE /entity/<entity_type>/<entity_id>`](#delete-eid-master-record): delete master record of entity with given id
+- [`DELETE /entity/<entity_type>/<entity_id>`](#delete-eid-data): delete entity data for given id
 - [`GET /entities`](#entities): list entity configuration
 - [`GET /control/<action>`](#control): send a pre-defined action into execution queue.
 
@@ -314,11 +314,11 @@ This endpoint is meant for `editable` plain attributes -- for direct user edit o
 
 ---
 
-## Delete Eid master record
+## Delete Eid data
 
-Delete master record with the specified `etype` and `eid`.
+Delete master record and snapshots with the specified `etype` and `eid`.
 
-Snapshots and raw datapoints are not deleted,
+Raw datapoints are not deleted,
 and the entity can be restored by sending new datapoints with the same `etype` and `eid`.
 
 ### Request

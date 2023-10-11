@@ -172,7 +172,7 @@ async def set_eid_attr_value(
 
 @router.delete("/{etype}/{eid}")
 async def delete_eid_record(etype: str, eid: str) -> SuccessResponse:
-    """Delete the master record of the specified entity.
+    """Delete the master record and snapshots of the specified entity.
 
     Notice that this does not delete any raw datapoints,
     or block the re-creation of the entity if new datapoints are received.

@@ -184,8 +184,8 @@ class TaskExecutor:
             )
             return False, []
         try:
-            self.log.debug("Task %s/%s: Deleting master record.", task.etype, task.eid)
-            self.db.delete_master_record(task.etype, task.eid)
+            self.log.debug("Task %s/%s: Deleting entity.", task.etype, task.eid)
+            self.db.delete_eid(task.etype, task.eid)
             self.elog.log("record_removed")
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")

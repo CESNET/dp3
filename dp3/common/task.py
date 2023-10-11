@@ -42,6 +42,7 @@ class DataPointTask(Task):
         data_points: List of DataPoints to process
         tags: List of tags
         ttl_token: ...
+        delete: If True, delete entity
     """
 
     # Model specification just for internal validation. Discarded after that.
@@ -52,6 +53,7 @@ class DataPointTask(Task):
     data_points: list[DataPointBase] = []
     tags: list[Any] = []
     ttl_token: Optional[datetime] = None
+    delete: bool = False
 
     def routing_key(self):
         return f"{self.etype}:{self.eid}"

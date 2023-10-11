@@ -275,6 +275,15 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
 
+    def delete_master_record(self, etype: str, eid: str):
+        """Delete master record of `etype`:`eid`."""
+        master_col = self._master_col_name(etype)
+        try:
+            self._db[master_col].delete_one({"_id": eid})
+            self.log.debug("Deleted master record of %s.", eid)
+        except Exception as e:
+            raise DatabaseError(f"Delete of master record failed: {e}\n{eid}") from e
+
     def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> None:
         """Delete old datapoints from master collection.
 

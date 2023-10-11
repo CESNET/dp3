@@ -132,6 +132,10 @@ class TaskExecutor:
             return False, new_tasks
 
         new_entity = not ekey_exists
+
+        if task.delete:
+            return self._process_delete(task, new_entity)
+
         if new_entity:
             # Run allow_entity_creation hook
             if not self._task_entity_hooks[task.etype].run_allow_creation(task.eid, task):
@@ -167,3 +171,23 @@ class TaskExecutor:
         self.log.debug(f"Secondary modules created {len(new_tasks)} new tasks.")
 
         return new_entity, new_tasks
+
+    def _process_delete(
+        self, task: DataPointTask, new_entity: bool
+    ) -> tuple[bool, list[DataPointTask]]:
+        """Helper function to `process_task` for processing delete tasks."""
+        if new_entity:
+            self.log.debug(
+                "Task %s/%s: Master record doesn't exist, nothing to delete.",
+                task.etype,
+                task.eid,
+            )
+            return False, []
+        try:
+            self.log.debug("Task %s/%s: Deleting master record.", task.etype, task.eid)
+            self.db.delete_master_record(task.etype, task.eid)
+            self.elog.log("record_removed")
+        except DatabaseError as e:
+            self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")
+            self.elog.log("task_processing_error")
+        return False, []

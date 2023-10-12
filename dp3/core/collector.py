@@ -90,21 +90,27 @@ class GarbageCollector:
         for attr, attr_spec in self.model_spec.entity_attributes[entity].items():
             if attr_spec.t == AttrType.TIMESERIES:
                 if mirror_data and attr_spec.timeseries_params.max_age is not None:
-                    ttl = max(attr_spec.ttl, attr_spec.timeseries_params.max_age)
+                    if attr_spec.ttl:
+                        ttl = max(attr_spec.ttl, attr_spec.timeseries_params.max_age)
+                    else:
+                        ttl = attr_spec.timeseries_params.max_age
                 else:
                     ttl = attr_spec.ttl
                 if not ttl:
                     continue
 
                 registrar.register_attr_hook(
-                    "on_new_timeseries",
+                    "on_new_ts_chunk",
                     partial(self.extend_timeseries_ttl, extend_by=ttl),
                     entity,
                     attr,
                 )
             elif attr_spec.t == AttrType.OBSERVATIONS:
                 if mirror_data and attr_spec.history_params.max_age is not None:
-                    ttl = max(attr_spec.ttl, attr_spec.history_params.max_age)
+                    if attr_spec.ttl:
+                        ttl = max(attr_spec.ttl, attr_spec.history_params.max_age)
+                    else:
+                        ttl = attr_spec.history_params.max_age
                 else:
                     ttl = attr_spec.ttl
                 if not ttl:

@@ -8,14 +8,16 @@ from functools import partial
 from pydantic import BaseModel
 
 from dp3.common.attrspec import AttrType
-from dp3.common.base_module import BaseModule
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.task import DataPointTask
+from dp3.database.database import EntityDatabase
+
+DB_SEND_CHUNK = 1000
 
 
-class CollectorConfig(BaseModel):
+class GarbageCollectorConfig(BaseModel):
     """The configuration of the Collector module.
 
     Attributes:
@@ -25,14 +27,24 @@ class CollectorConfig(BaseModel):
     collection_rate: CronExpression = CronExpression(hour="3", minute="0", second="0")
 
 
-class Collector(BaseModule):
+class GarbageCollector:
     """Collector module manages the lifetimes of entities based on specified policy."""
 
     def __init__(
-        self, platform_config: PlatformConfig, module_config: dict, registrar: CallbackRegistrar
+        self,
+        db: EntityDatabase,
+        platform_config: PlatformConfig,
+        registrar: CallbackRegistrar,
     ):
-        self.log = logging.getLogger("Collector")
+        self.log = logging.getLogger("GarbageCollector")
         self.model_spec = platform_config.model_spec
+        self.config = GarbageCollectorConfig.parse_obj(
+            platform_config.config.get("garbage_collector", {})
+        )
+        self.db = db
+
+        self.worker_index = platform_config.process_index
+        self.num_workers = platform_config.num_processes
 
         for entity, entity_config in self.model_spec.entities.items():
             lifetime = entity_config.lifetime
@@ -47,24 +59,23 @@ class Collector(BaseModule):
 
                 self._register_ttl_extensions(entity, registrar, lifetime.mirror_data)
 
-                # TODO register collection
-
+                registrar.scheduler_register(
+                    self.collect_ttl,
+                    func_args=[entity],
+                    **self.config.collection_rate.dict(),
+                )
             elif lifetime.type == "weak":
                 pass  # TODO
             else:
                 raise ValueError(f"Unknown lifetime type: {lifetime.type}")
 
-        registrar.register_attr_hook(
-            "on_new_observation",
-            partial(self.extend_observations_ttl, extend_by=timedelta(days=1)),
-            "test_entity_type",
-            "test_attr_type",
-        )
-
     def extend_ttl_on_create(
         self, eid: str, task: DataPointTask, base_ttl: timedelta
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
+        if not task.data_points:
+            return []
+
         task = DataPointTask(
             model_spec=self.model_spec,
             etype=task.etype,
@@ -117,6 +128,70 @@ class Collector(BaseModule):
                 )
             else:
                 raise ValueError(f"Unknown attribute type: {attr_spec.t}")
+
+    def collect_ttl(self, etype: str):
+        """Deletes entities after their TTL lifetime has expired."""
+        self.log.debug("Starting removal of '%s' entities by TTL", etype)
+        start = datetime.now()
+        utc_now = datetime.utcnow()
+        entities = 0
+        deleted = 0
+
+        to_delete = []
+        expired_ttls = {}
+
+        if self.worker_index == 0:
+            self.db.save_metadata(
+                start, {"entities": 0, "deleted": 0, "ttl_collect_start": start, "entity": etype}
+            )
+
+        records_cursor = self.db.get_worker_master_records(
+            self.worker_index, self.num_workers, etype, no_cursor_timeout=True
+        )
+        try:
+            for master_document in records_cursor:
+                entities += 1
+                if "#ttl" not in master_document:
+                    continue  # TTL not set, ignore for now
+
+                if all(ttl < utc_now for ttl in master_document["#ttl"].values()):
+                    deleted += 1
+                    to_delete.append(master_document["_id"])
+                else:
+                    eid_expired_ttls = [
+                        name for name, ttl in master_document["#ttl"].items() if ttl < start
+                    ]
+                    if eid_expired_ttls:
+                        expired_ttls[master_document["_id"]] = eid_expired_ttls
+
+                if len(to_delete) >= DB_SEND_CHUNK:
+                    self.db.delete_eids(etype, to_delete)
+                    to_delete.clear()
+                if len(expired_ttls) >= DB_SEND_CHUNK:
+                    self.db.remove_expired_ttls(etype, expired_ttls)
+                    expired_ttls.clear()
+
+            if to_delete:
+                self.db.delete_eids(etype, to_delete)
+                to_delete.clear()
+            if expired_ttls:
+                self.db.remove_expired_ttls(etype, expired_ttls)
+                expired_ttls.clear()
+
+        finally:
+            records_cursor.close()
+
+        self.db.update_metadata(
+            start,
+            metadata={"ttl_collect_start": datetime.now()},
+            increase={"entities": entities, "deleted": deleted},
+        )
+        self.log.info(
+            "Removal of '%s' entities by TTL done - %s processed, %s deleted",
+            etype,
+            entities,
+            deleted,
+        )
 
     def extend_plain_ttl(
         self, eid: str, dp: DataPointBase, extend_by: timedelta

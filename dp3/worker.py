@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.common.control import Control, ControlAction
+from dp3.core.collector import GarbageCollector
 from dp3.history_management.telemetry import Telemetry
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -166,6 +167,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     HistoryManager(db, platform_config, registrar)
     Telemetry(db, platform_config, registrar)
+    GarbageCollector(db, platform_config, registrar)
 
     # Lock used to control when the program stops.
     daemon_stop_lock = threading.Lock()

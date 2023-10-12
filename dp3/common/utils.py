@@ -9,6 +9,13 @@ from typing import Union
 ipv4_re = re.compile(r"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$")
 
 
+def entity_expired(utcnow: datetime, master_document: dict):
+    """Check if entity is expired (all TTLs are in the past)"""
+    if "#ttl" not in master_document:
+        return False
+    return all(ttl < utcnow for ttl in master_document["#ttl"].values())
+
+
 def ipstr2int(s):
     res = ipv4_re.match(s)
     if res is None:

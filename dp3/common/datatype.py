@@ -193,7 +193,7 @@ class DataType(BaseModel):
     def link_to(self) -> str:
         return self._link_to
 
-    def get_linked_entity(self) -> id:
+    def get_linked_entity(self) -> str:
         """Returns linked entity id. Raises ValueError if DataType is not a link."""
         try:
             return self._link_to

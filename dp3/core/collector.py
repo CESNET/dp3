@@ -2,6 +2,7 @@
 Core module performing deletion of entities based on specified policy.
 """
 import logging
+from collections import defaultdict
 from datetime import datetime, timedelta
 from functools import partial
 
@@ -46,6 +47,12 @@ class GarbageCollector:
         self.worker_index = platform_config.process_index
         self.num_workers = platform_config.num_processes
 
+        self.cache = self.db.get_module_cache()
+        self._setup_cache_indexes()
+        self.inverse_relations = self._get_inverse_relations()
+        self.max_date = datetime.max.replace(tzinfo=None)
+        print(self.inverse_relations)
+
         for entity, entity_config in self.model_spec.entities.items():
             lifetime = entity_config.lifetime
             if lifetime.type == "immortal":
@@ -65,9 +72,41 @@ class GarbageCollector:
                     **self.config.collection_rate.dict(),
                 )
             elif lifetime.type == "weak":
-                pass  # TODO
+                if self.inverse_relations[entity]:
+                    for link_entity, link_attr in self.inverse_relations[entity]:
+                        attr_spec = self.model_spec.attributes[link_entity, link_attr]
+                        if attr_spec.t == AttrType.PLAIN:
+                            registrar.register_attr_hook(
+                                "on_new_plain",
+                                partial(self.add_plain_to_link_cache, entity),
+                                link_entity,
+                                link_attr,
+                            )
+                        elif attr_spec.t == AttrType.OBSERVATIONS:
+                            registrar.register_attr_hook(
+                                "on_new_observation",
+                                partial(
+                                    self.add_observation_to_link_cache,
+                                    entity,
+                                    attr_spec.history_params.post_validity,
+                                ),
+                                link_entity,
+                                link_attr,
+                            )
+                else:
+                    raise ValueError(
+                        f"Entity {entity} has weak lifetime "
+                        f"but is not referenced by any other entities."
+                    )
+
             else:
                 raise ValueError(f"Unknown lifetime type: {lifetime.type}")
+
+    def _get_inverse_relations(self) -> dict[str, set[tuple[str, str]]]:
+        inverse_relations = defaultdict(set)
+        for entity_attr, attr_spec in self.model_spec.relations.items():
+            inverse_relations[attr_spec.relation_to].add(entity_attr)
+        return inverse_relations
 
     def extend_ttl_on_create(
         self, eid: str, task: DataPointTask, base_ttl: timedelta
@@ -235,3 +274,35 @@ class GarbageCollector:
             ttl_tokens={"data": dp.t2 + extend_by},
         )
         return [task]
+
+    def _setup_cache_indexes(self):
+        """Sets up indexes for the cache collection.
+
+        In the collection, all fields are covered by an index:
+
+        * The `to` field is used to count the number of references a given entity has
+        * The `from` field is used when removing links of deleted entities, so it also has an index
+        * The `ttl` field serves as a MongoDB expiring collection index
+        """
+        self.cache.create_index("to", background=True)
+        self.cache.create_index("from", background=True)
+        self.cache.create_index("ttl", expireAfterSeconds=0, background=True)
+
+    def add_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
+        self.cache.update_one(
+            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}"},
+            {"$max": {"ttl": self.max_date}},
+            upsert=True,
+        )
+
+    def add_observation_to_link_cache(
+        self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
+    ):
+        self.cache.update_one(
+            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}"},
+            {"$max": {"ttl": dp.t2 + post_validity}},
+            upsert=True,
+        )
+
+    def remove_link_cache_of_deleted(self, entity: str, eid: str):
+        self.cache.delete_many({"from": f"{entity}#{eid}"})

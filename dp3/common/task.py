@@ -126,11 +126,13 @@ class Snapshot(Task):
     Attributes:
         entities: List of (entity_type, entity_id)
         time: timestamp for snapshot creation
+        final: If True, this is the last linked snapshot for the given time
     """
 
     entities: list[tuple[str, str]]
     time: datetime
     type: SnapshotMessageType
+    final: bool = False
 
     def routing_key(self):
         return "-".join(f"{etype}:{eid}" for etype, eid in self.entities)

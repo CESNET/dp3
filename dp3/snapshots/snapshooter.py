@@ -224,6 +224,16 @@ class SnapShooter:
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
         time = datetime.now()
+        self.db.save_metadata(
+            time,
+            {
+                "task_creation_start": time,
+                "entities": 0,
+                "components": 0,
+                "workers_finished": 0,
+                "linked_finished": False,
+            },
+        )
 
         # distribute list of possibly linked entities to all workers
         cached = self.get_cached_link_entity_ids()
@@ -234,22 +244,28 @@ class SnapShooter:
 
         # Load links only for a reduced set of entities
         self.log.debug("Loading linked entities.")
-        self.db.save_metadata(time, {"task_creation_start": time, "entities": 0, "components": 0})
+
         times = {}
         counts = {"entities": 0, "components": 0}
         try:
             linked_entities = self.get_linked_entities(time, cached)
             times["components_loaded"] = datetime.now()
 
-            for linked_entities_component in linked_entities:
+            for i, linked_entities_component in enumerate(linked_entities):
                 counts["entities"] += len(linked_entities_component)
                 counts["components"] += 1
 
                 self.snapshot_queue_writer.put_task(
                     task=Snapshot(
-                        entities=linked_entities_component, time=time, type=SnapshotMessageType.task
+                        entities=linked_entities_component,
+                        time=time,
+                        type=SnapshotMessageType.task,
+                        final=(i + 1 == len(linked_entities)),
                     )
                 )
+
+            if len(linked_entities) == 0:
+                self.db.update_metadata(time, metadata={"linked_finished": True})
         except pymongo.errors.CursorNotFound as err:
             self.log.exception(err)
         finally:
@@ -347,7 +363,7 @@ class SnapShooter:
         self.db.update_metadata(
             task.time,
             metadata={},
-            increase={"entities": entity_cnt, "components": entity_cnt},
+            increase={"entities": entity_cnt, "components": entity_cnt, "workers_finished": 1},
         )
         self.log.debug("Worker snapshot creation done.")
 
@@ -422,6 +438,9 @@ class SnapShooter:
 
         for rtype_rid, record in entity_values.items():
             self.db.save_snapshot(rtype_rid[0], record, task.time)
+
+        if task.final:
+            self.db.update_metadata(task.time, metadata={"linked_finished": True})
 
     def run_timeseries_processing(self, entity_type, master_record):
         """

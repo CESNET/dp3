@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from functools import partial
 
 from pydantic import BaseModel
+from pymongo import DeleteMany
 
 from dp3.common.attrspec import AttrType
 from dp3.common.callback_registrar import CallbackRegistrar
@@ -49,9 +50,11 @@ class GarbageCollector:
 
         self.cache = self.db.get_module_cache()
         self._setup_cache_indexes()
+        self.db.register_on_entity_delete(
+            self.remove_link_cache_of_deleted, self.remove_link_cache_of_deleted_many
+        )
         self.inverse_relations = self._get_inverse_relations()
         self.max_date = datetime.max.replace(tzinfo=None)
-        print(self.inverse_relations)
 
         for entity, entity_config in self.model_spec.entities.items():
             lifetime = entity_config.lifetime
@@ -93,6 +96,11 @@ class GarbageCollector:
                                 link_entity,
                                 link_attr,
                             )
+                    registrar.scheduler_register(
+                        self.collect_weak,
+                        func_args=[entity],
+                        **self.config.collection_rate.dict(),
+                    )
                 else:
                     raise ValueError(
                         f"Entity {entity} has weak lifetime "
@@ -174,6 +182,62 @@ class GarbageCollector:
             else:
                 raise ValueError(f"Unknown attribute type: {attr_spec.t}")
 
+    def collect_weak(self, etype: str):
+        """Deletes weak entities when their last reference has expired."""
+        self.log.debug("Starting removal of '%s' weak entities", etype)
+        start = datetime.now()
+        entities = 0
+        deleted = 0
+
+        if self.worker_index == 0:
+            self.db.save_metadata(
+                start,
+                {"entities": 0, "deleted": 0, "weak_collect_start": start, "entity": etype},
+            )
+
+        # Aggregate the cache entities by their "to" field, which contains the entity
+        aggregated = self.cache.aggregate(
+            [
+                {"$match": {"to": {"$regex": f"^{etype}#"}}},
+                {"$group": {"_id": "$to_eid"}},
+            ]
+        )
+        have_references = [doc["_id"] for doc in aggregated]
+        entities += len(have_references)
+
+        to_delete = []
+        records_cursor = self.db.get_worker_master_records(
+            self.worker_index, self.num_workers, etype, fiter={"_id": {"$nin": have_references}}
+        )
+        try:
+            for master_document in records_cursor:
+                entities += 1
+                deleted += 1
+                to_delete.append(master_document["_id"])
+
+                if len(to_delete) >= DB_SEND_CHUNK:
+                    self.db.delete_eids(etype, to_delete)
+                    to_delete.clear()
+
+            if to_delete:
+                self.db.delete_eids(etype, to_delete)
+                to_delete.clear()
+
+        finally:
+            records_cursor.close()
+
+        self.db.update_metadata(
+            start,
+            metadata={"weak_collect_end": datetime.now()},
+            increase={"entities": entities, "deleted": deleted},
+        )
+        self.log.info(
+            "Removal of '%s' entities by TTL done - %s processed, %s deleted",
+            etype,
+            entities,
+            deleted,
+        )
+
     def collect_ttl(self, etype: str):
         """Deletes entities after their TTL lifetime has expired."""
         self.log.debug("Starting removal of '%s' entities by TTL", etype)
@@ -228,7 +292,7 @@ class GarbageCollector:
 
         self.db.update_metadata(
             start,
-            metadata={"ttl_collect_start": datetime.now()},
+            metadata={"ttl_collect_end": datetime.now()},
             increase={"entities": entities, "deleted": deleted},
         )
         self.log.info(
@@ -290,7 +354,7 @@ class GarbageCollector:
 
     def add_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
         self.cache.update_one(
-            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}"},
+            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}", "to_eid": dp.v.eid},
             {"$max": {"ttl": self.max_date}},
             upsert=True,
         )
@@ -299,10 +363,13 @@ class GarbageCollector:
         self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
     ):
         self.cache.update_one(
-            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}"},
+            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}", "to_eid": dp.v.eid},
             {"$max": {"ttl": dp.t2 + post_validity}},
             upsert=True,
         )
 
     def remove_link_cache_of_deleted(self, entity: str, eid: str):
         self.cache.delete_many({"from": f"{entity}#{eid}"})
+
+    def remove_link_cache_of_deleted_many(self, entity: str, eids: list[str]):
+        self.cache.bulk_write([DeleteMany({"from": f"{entity}#{eid}"}) for eid in eids])

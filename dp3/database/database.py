@@ -3,7 +3,7 @@ import logging
 import time
 import urllib
 from datetime import datetime
-from typing import Literal, Optional, Union
+from typing import Callable, Literal, Optional, Union
 
 import pymongo
 from pydantic import BaseModel, Field, validator
@@ -114,6 +114,9 @@ class EntityDatabase:
         self._db = self._db[config.db_name]
         self._init_database_schema(config.db_name)
 
+        self._on_entity_delete_one = []
+        self._on_entity_delete_many = []
+
         self.log.info("Database successfully initialized!")
 
     @staticmethod
@@ -139,6 +142,13 @@ class EntityDatabase:
             )
         else:
             raise NotImplementedError()
+
+    def register_on_entity_delete(
+        self, f_one: Callable[[str, str], None], f_many: Callable[[str, list[str]], None]
+    ):
+        """Registers function to be called when entity is forcibly deleted."""
+        self._on_entity_delete_one.append(f_one)
+        self._on_entity_delete_many.append(f_many)
 
     @staticmethod
     def _master_col_name(entity: str) -> str:
@@ -330,6 +340,11 @@ class EntityDatabase:
             self.log.debug("Deleted %s snapshots of %s (%s).", res.deleted_count, etype, len(eids))
         except Exception as e:
             raise DatabaseError(f"Delete of snapshots failed: {e}\n{eids}") from e
+        for f in self._on_entity_delete_many:
+            try:
+                f(etype, eids)
+            except Exception as e:
+                self.log.exception("Error in on_entity_delete_many callback %s: %s", f, e)
 
     def delete_eid(self, etype: str, eid: str):
         """Delete master record and all snapshots of `etype`:`eid`."""
@@ -345,6 +360,11 @@ class EntityDatabase:
             self.log.debug("deleted %s snapshots of %s/%s.", res.deleted_count, etype, eid)
         except Exception as e:
             raise DatabaseError(f"Delete of snapshots failed: {e}\n{eid}") from e
+        for f in self._on_entity_delete_one:
+            try:
+                f(etype, eid)
+            except Exception as e:
+                self.log.exception("Error in on_entity_delete_one callback %s: %s", f, e)
 
     def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> None:
         """Delete old datapoints from master collection.
@@ -381,14 +401,17 @@ class EntityDatabase:
         return self._db[master_col].find({}, **kwargs)
 
     def get_worker_master_records(
-        self, worker_index: int, worker_cnt: int, etype: str, **kwargs
+        self, worker_index: int, worker_cnt: int, etype: str, fiter: dict = None, **kwargs
     ) -> pymongo.cursor.Cursor:
         """Get cursor to current master records of etype."""
         if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
+        fiter = {} if fiter is None else fiter
         master_col = self._master_col_name(etype)
-        return self._db[master_col].find({"#hash": {"$mod": [worker_cnt, worker_index]}}, **kwargs)
+        return self._db[master_col].find(
+            {"#hash": {"$mod": [worker_cnt, worker_index]}, **fiter}, **kwargs
+        )
 
     def get_latest_snapshot(self, etype: str, eid: str) -> dict:
         """Get latest snapshot of given etype/eid.

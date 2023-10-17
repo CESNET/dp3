@@ -151,7 +151,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Create instances of core components
     log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
-    db = EntityDatabase(config.get("database"), model_spec)
+    db = EntityDatabase(config.get("database"), model_spec, num_processes)
 
     global_scheduler = scheduler.Scheduler()
     task_executor = TaskExecutor(db, platform_config)

@@ -81,9 +81,7 @@ class EntityDatabase:
     """
 
     def __init__(
-        self,
-        db_conf: HierarchicalDict,
-        model_spec: ModelSpec,
+        self, db_conf: HierarchicalDict, model_spec: ModelSpec, num_processes: int
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
 
@@ -109,6 +107,7 @@ class EntityDatabase:
                     time.sleep(delay)
 
         self._db_schema_config = model_spec
+        self._num_processes = num_processes
 
         # Init and switch to correct database
         self._db = self._db[config.db_name]
@@ -362,11 +361,22 @@ class EntityDatabase:
         self._assert_etype_exists(etype)
 
         snapshot_col = self._snapshots_col_name(etype)
-        latest_snapshot = self._db[snapshot_col].find_one({}, sort=[("_id", -1)])
-        if latest_snapshot is None:
+
+        # Find newest fully completed snapshot set
+        latest_fully_completed_snapshot_metadata = self._db["#metadata"].find_one(
+            {
+                "#module": "SnapShooter",
+                "workers_finished": self._num_processes,
+                "linked_finished": True,
+            },
+            sort=[("#time_created", -1)],
+        )
+
+        if latest_fully_completed_snapshot_metadata is None:
             return self._db[snapshot_col].find(), self._db[snapshot_col].count_documents({})
 
-        latest_snapshot_date = latest_snapshot["_time_created"]
+        # Extract date and query using it
+        latest_snapshot_date = latest_fully_completed_snapshot_metadata["#time_created"]
         query = {"_time_created": latest_snapshot_date}
         if eid_filter != "":
             query["eid"] = {"$regex": eid_filter}

@@ -57,7 +57,9 @@ except ValidationError as e:
 # Load configuration, entity and attribute specification and connect to DP3 message broker.
 CONFIG = read_config_dir(conf_env.CONF_DIR, recursive=True)
 MODEL_SPEC = ModelSpec(CONFIG.get("db_entities"))
-DB = EntityDatabase(CONFIG.get("database"), MODEL_SPEC)
+DB = EntityDatabase(
+    CONFIG.get("database"), MODEL_SPEC, CONFIG.get("processing_core.worker_processes")
+)
 TASK_WRITER = TaskQueueWriter(
     conf_env.APP_NAME,
     CONFIG.get("processing_core.worker_processes"),

@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Hashable
 from dataclasses import dataclass, field
 from itertools import combinations
-from typing import Callable
+from typing import Callable, Union
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
@@ -85,7 +85,7 @@ class SnapshotCorrelationHookContainer:
 
     def register(
         self,
-        hook: Callable[[str, dict], None],
+        hook: Callable[[str, dict], Union[None, list[DataPointTask]]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
@@ -99,7 +99,8 @@ class SnapshotCorrelationHookContainer:
         and ValueError is raised on failure.
         Args:
             hook: `hook` callable should expect entity type as str
-                and its current values, including linked entities, as dict
+                and its current values, including linked entities, as dict.
+                Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on
                 in the form of a path from the specified entity_type to individual attributes
@@ -252,7 +253,7 @@ class SnapshotCorrelationHookContainer:
     def _embed_base_entity(base_entity: str, paths: list[list[str]]):
         return ["->".join([base_entity] + path) for path in paths]
 
-    def run(self, entities: dict):
+    def run(self, entities: dict) -> list[DataPointTask]:
         """Runs registered hooks."""
         entity_types = {etype for etype, _ in entities}
         hook_subset = [
@@ -263,15 +264,21 @@ class SnapshotCorrelationHookContainer:
         entities_by_etype = {
             etype_eid[0]: {etype_eid[1]: entity} for etype_eid, entity in entities.items()
         }
+        created_tasks = []
 
         for hook_id, hook, etype in hook_subset:
             for eid, entity_values in entities_by_etype[etype].items():
                 self.log.debug("Running hook %s on entity %s", hook_id, eid)
                 try:
-                    hook(etype, entity_values)
+                    tasks = hook(etype, entity_values)
+                    if tasks is not None and tasks:
+                        created_tasks.extend(tasks)
                 except Exception as e:
                     self.elog.log("module_error")
                     self.log.error(f"Error during running hook {hook_id}: {e}")
+                    self.log.exception(e)
+
+        return created_tasks
 
     def _restore_hook_order(self, hooks: list[tuple[str, Callable]]):
         topological_order = self._dependency_graph.topological_sort()

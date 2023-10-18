@@ -322,10 +322,7 @@ class SnapShooter:
         entity_cnt = 0
         for etype in self.snapshot_entities:
             records_cursor = self.db.get_worker_master_records(
-                self.worker_index,
-                self.worker_cnt,
-                etype,
-                no_cursor_timeout=True,
+                self.worker_index, self.worker_cnt, etype, no_cursor_timeout=True
             )
             for attempt in range(RETRY_COUNT):
                 try:
@@ -381,7 +378,9 @@ class SnapShooter:
         values = self.get_values_at_time(entity_type, master_record, time)
         entity_values = {(entity_type, master_record["_id"]): values}
 
-        self._correlation_hooks.run(entity_values)
+        tasks = self._correlation_hooks.run(entity_values)
+        for task in tasks:
+            self.task_queue_writer.put_task(task)
 
         assert len(entity_values) == 1, "Expected a single entity."
         for record in entity_values.values():
@@ -402,7 +401,9 @@ class SnapShooter:
             entity_values[entity_type, entity_id] = values
 
         self.link_loaded_entities(entity_values)
-        self._correlation_hooks.run(entity_values)
+        created_tasks = self._correlation_hooks.run(entity_values)
+        for created_task in created_tasks:
+            self.task_queue_writer.put_task(created_task)
 
         # unlink entities again
         for rtype_rid, record in entity_values.items():

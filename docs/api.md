@@ -12,6 +12,7 @@ There are several API endpoints:
 - [`GET /entity/<entity_type>/<entity_id>/get/<attr_id>`](#get-attr-value): get attribute value
 - [`GET /entity/<entity_type>/<entity_id>/set/<attr_id>`](#set-attr-value): set attribute value
 - [`DELETE /entity/<entity_type>/<entity_id>`](#delete-eid-data): delete entity data for given id
+- [`POST /entity/<entity_type>/<entity_id>/ttl`](#extend-ttls): extend TTLs of the specified entity
 - [`GET /entities`](#entities): list entity configuration
 - [`GET /control/<action>`](#control): send a pre-defined action into execution queue.
 
@@ -324,6 +325,39 @@ and the entity can be restored by sending new datapoints with the same `etype` a
 ### Request
 
 `DELETE /entity/<entity_type>/<entity_id>`
+
+### Response
+
+```json
+{
+  "detail": "OK"
+}
+```
+
+---
+
+## Extend TTLs
+
+Extend TTLs of the specified entity.
+
+Raw datapoints are not deleted,
+and the entity can be restored by sending new datapoints with the same `etype` and `eid`.
+
+### Request
+
+`POST /entity/<entity_type>/<entity_id>/ttl`
+
+The request body must be a dictionary of TTLs to extend, with string keys to identify the type of TTL.
+The values must be **UTC timestamps**, for example:
+
+```json
+{
+  "user_interaction": "2024-10-01T12:03:00",
+  "api_dependency": "2024-10-08T12:00:00"
+}
+```
+
+TTLs of the same name will be extended, and you add as many TTL names as you want.
 
 ### Response
 

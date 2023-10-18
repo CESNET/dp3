@@ -133,7 +133,7 @@ class SnapshotCorrelationHookContainer:
         self._hooks[entity_type].append((hook_id, hook))
         self._restore_hook_order(self._hooks[entity_type])
 
-        self.log.debug(f"Added hook: '{hook_id}'")
+        self.log.info(f"Added hook: '{hook_id}'")
         return hook_id
 
     def _validate_attr_paths(self, base_entity: str, paths: list[list[str]]):
@@ -261,9 +261,10 @@ class SnapshotCorrelationHookContainer:
         ]
         topological_order = self._dependency_graph.topological_order
         hook_subset.sort(key=lambda x: topological_order.index(x[0]))
-        entities_by_etype = {
-            etype_eid[0]: {etype_eid[1]: entity} for etype_eid, entity in entities.items()
-        }
+        entities_by_etype = defaultdict(dict)
+        for (etype, eid), values in entities.items():
+            entities_by_etype[etype][eid] = values
+
         created_tasks = []
 
         for hook_id, hook, etype in hook_subset:

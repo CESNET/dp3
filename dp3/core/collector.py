@@ -232,7 +232,7 @@ class GarbageCollector:
             increase={"entities": entities, "deleted": deleted},
         )
         self.log.info(
-            "Removal of '%s' entities by TTL done - %s processed, %s deleted",
+            "Removal of '%s' entities by TTL done - %s tracked, %s processed & deleted",
             etype,
             entities,
             deleted,

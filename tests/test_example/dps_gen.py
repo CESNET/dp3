@@ -4,7 +4,20 @@ import datetime
 import json
 import random
 
-time = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+
+class TimeContainer:
+    def __init__(self):
+        self.time = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+
+    def add_minutes(self, minutes: int):
+        self.time += datetime.timedelta(minutes=minutes)
+        return self.time
+
+    def add_minutes_no_modify(self, minutes: int):
+        return self.time + datetime.timedelta(minutes=minutes)
+
+
+time = TimeContainer()
 
 
 def random_initial_location():
@@ -20,12 +33,11 @@ def do_random_location_increment(current_location):
 
 
 def random_t1(pseudo_current_time):
-    pseudo_current_time += datetime.timedelta(minutes=random.randint(0, 60))
-    return pseudo_current_time
+    return pseudo_current_time.add_minutes(random.randint(0, 60))
 
 
 def random_t2(pseudo_current_time):
-    return pseudo_current_time + datetime.timedelta(minutes=random.randint(5, 15))
+    return pseudo_current_time.add_minutes_no_modify(random.randint(5, 15))
 
 
 def random_passenger_counts_3():

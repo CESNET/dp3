@@ -19,7 +19,7 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import pymongo.errors
 from pydantic import BaseModel
@@ -178,7 +178,7 @@ class SnapShooter:
 
     def register_correlation_hook(
         self,
-        hook: Callable[[str, dict], None],
+        hook: Callable[[str, dict], Union[None, list[DataPointTask]]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
@@ -193,6 +193,7 @@ class SnapShooter:
         Args:
             hook: `hook` callable should expect entity type as str
                 and its current values, including linked entities, as dict
+                Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on
                 in the form of a path from the specified entity_type to individual attributes

@@ -48,6 +48,7 @@ RETRY_COUNT = 3
 
 class SnapShooterConfig(BaseModel):
     creation_rate: CronExpression = CronExpression(minute="*/30")
+    keep_empty: bool = True
 
 
 class SnapShooter:
@@ -422,6 +423,8 @@ class SnapShooter:
                     record[attr] = {k: v for k, v in value.items() if k != "record"}
 
         for rtype_rid, record in entity_values.items():
+            if len(record) == 1 and not self.config.keep_empty:
+                continue
             self.db.save_snapshot(rtype_rid[0], record, task.time)
 
     def run_timeseries_processing(self, entity_type, master_record):

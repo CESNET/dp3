@@ -401,16 +401,16 @@ class EntityDatabase:
         return self._db[master_col].find({}, **kwargs)
 
     def get_worker_master_records(
-        self, worker_index: int, worker_cnt: int, etype: str, fiter: dict = None, **kwargs
+        self, worker_index: int, worker_cnt: int, etype: str, query_filter: dict = None, **kwargs
     ) -> pymongo.cursor.Cursor:
         """Get cursor to current master records of etype."""
         if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
-        fiter = {} if fiter is None else fiter
+        query_filter = {} if query_filter is None else query_filter
         master_col = self._master_col_name(etype)
         return self._db[master_col].find(
-            {"#hash": {"$mod": [worker_cnt, worker_index]}, **fiter}, **kwargs
+            {"#hash": {"$mod": [worker_cnt, worker_index]}, **query_filter}, **kwargs
         )
 
     def get_latest_snapshot(self, etype: str, eid: str) -> dict:

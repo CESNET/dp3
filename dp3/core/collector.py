@@ -207,7 +207,10 @@ class GarbageCollector:
 
         to_delete = []
         records_cursor = self.db.get_worker_master_records(
-            self.worker_index, self.num_workers, etype, fiter={"_id": {"$nin": have_references}}
+            self.worker_index,
+            self.num_workers,
+            etype,
+            query_filter={"_id": {"$nin": have_references}},
         )
         try:
             for master_document in records_cursor:
@@ -369,7 +372,12 @@ class GarbageCollector:
         )
 
     def remove_link_cache_of_deleted(self, entity: str, eid: str):
-        self.cache.delete_many({"from": f"{entity}#{eid}"})
+        self.cache.bulk_write(
+            [DeleteMany({"from": f"{entity}#{eid}"}), DeleteMany({"to": f"{entity}#{eid}"})]
+        )
 
     def remove_link_cache_of_deleted_many(self, entity: str, eids: list[str]):
-        self.cache.bulk_write([DeleteMany({"from": f"{entity}#{eid}"}) for eid in eids])
+        self.cache.bulk_write(
+            [DeleteMany({"from": f"{entity}#{eid}"}) for eid in eids]
+            + [DeleteMany({"to": f"{entity}#{eid}"}) for eid in eids]
+        )

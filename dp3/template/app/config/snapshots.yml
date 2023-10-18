@@ -4,3 +4,6 @@
 # Creating snapshots - cron schedule
 creation_rate:
   minute: "*/30"
+
+# Keep or discard empty snapshots
+keep_empty: true

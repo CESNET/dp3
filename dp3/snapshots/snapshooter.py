@@ -19,7 +19,7 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import pymongo.errors
 from pydantic import BaseModel
@@ -48,6 +48,7 @@ RETRY_COUNT = 3
 
 class SnapShooterConfig(BaseModel):
     creation_rate: CronExpression = CronExpression(minute="*/30")
+    keep_empty: bool = True
 
 
 class SnapShooter:
@@ -108,6 +109,10 @@ class SnapShooter:
                 task_executor.register_attr_hook(
                     "on_new_observation", self.add_to_link_cache, entity, attr
                 )
+        # Register snapshot cache cleanup
+        self.db.register_on_entity_delete(
+            self.remove_link_cache_of_deleted, self.remove_link_cache_of_many_deleted
+        )
 
         if platform_config.process_index != 0:
             self.log.debug(
@@ -173,7 +178,7 @@ class SnapShooter:
 
     def register_correlation_hook(
         self,
-        hook: Callable[[str, dict], None],
+        hook: Callable[[str, dict], Union[None, list[DataPointTask]]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
@@ -188,6 +193,7 @@ class SnapShooter:
         Args:
             hook: `hook` callable should expect entity type as str
                 and its current values, including linked entities, as dict
+                Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on
                 in the form of a path from the specified entity_type to individual attributes
@@ -220,6 +226,14 @@ class SnapShooter:
         ]
         res = cache.bulk_write([ReplaceOne({"_id": x["_id"]}, x, upsert=True) for x in to_insert])
         self.log.debug("Cached %s linked entities: %s", len(to_insert), res.bulk_api_result)
+
+    def remove_link_cache_of_deleted(self, etype: str, eid: str):
+        cache = self.db.get_module_cache()
+        cache.delete_many({"_id": f"{etype}#{eid}"})
+
+    def remove_link_cache_of_many_deleted(self, etype: str, eids: list[str]):
+        cache = self.db.get_module_cache()
+        cache.delete_many({"_id": {"$in": [f"{etype}#{eid}" for eid in eids]}})
 
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
@@ -338,10 +352,7 @@ class SnapShooter:
         entity_cnt = 0
         for etype in self.snapshot_entities:
             records_cursor = self.db.get_worker_master_records(
-                self.worker_index,
-                self.worker_cnt,
-                etype,
-                no_cursor_timeout=True,
+                self.worker_index, self.worker_cnt, etype, no_cursor_timeout=True
             )
             for attempt in range(RETRY_COUNT):
                 try:
@@ -397,7 +408,9 @@ class SnapShooter:
         values = self.get_values_at_time(entity_type, master_record, time)
         entity_values = {(entity_type, master_record["_id"]): values}
 
-        self._correlation_hooks.run(entity_values)
+        tasks = self._correlation_hooks.run(entity_values)
+        for task in tasks:
+            self.task_queue_writer.put_task(task)
 
         assert len(entity_values) == 1, "Expected a single entity."
         for record in entity_values.values():
@@ -418,7 +431,9 @@ class SnapShooter:
             entity_values[entity_type, entity_id] = values
 
         self.link_loaded_entities(entity_values)
-        self._correlation_hooks.run(entity_values)
+        created_tasks = self._correlation_hooks.run(entity_values)
+        for created_task in created_tasks:
+            self.task_queue_writer.put_task(created_task)
 
         # unlink entities again
         for rtype_rid, record in entity_values.items():
@@ -437,6 +452,8 @@ class SnapShooter:
                     record[attr] = {k: v for k, v in value.items() if k != "record"}
 
         for rtype_rid, record in entity_values.items():
+            if len(record) == 1 and not self.config.keep_empty:
+                continue
             self.db.save_snapshot(rtype_rid[0], record, task.time)
 
         if task.final:

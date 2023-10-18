@@ -4,6 +4,7 @@ import logging
 import os
 import unittest
 from functools import partial, update_wrapper
+from typing import Callable
 
 from event_count_logger import DummyEventGroup
 
@@ -119,6 +120,11 @@ class MockDB:
                 if key in projection and projection[key]
             }
         return self.db_content[etype][eid] or {}
+
+    def register_on_entity_delete(
+        self, f_one: Callable[[str, str], None], f_many: Callable[[str, list[str]], None]
+    ):
+        ...
 
     def get_module_cache(self):
         return self.module_cache

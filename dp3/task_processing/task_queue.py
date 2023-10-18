@@ -263,7 +263,8 @@ class TaskQueueWriter(RobustAMQPConnection):
         if not self.channel:
             self.connect()
 
-        self.log.debug(f"Received new broadcast task: {task}")
+        task_str = str(task) if len(str(task)) < 500 else f"{str(task)[:500]}...(truncated)"
+        self.log.debug(f"Received new broadcast task: {task_str}")
 
         body = task.as_message()
         exchange = self.exchange_pri if priority else self.exchange
@@ -283,7 +284,8 @@ class TaskQueueWriter(RobustAMQPConnection):
         if not self.channel:
             self.connect()
 
-        self.log.debug(f"Received new task: {task}")
+        task_str = str(task) if len(str(task)) < 500 else f"{str(task)[:500]}...(truncated)"
+        self.log.debug(f"Received new task: {task_str}")
 
         # Prepare routing key
         body = task.as_message()
@@ -522,7 +524,11 @@ class TaskQueueReader(RobustAMQPConnection):
             tag = msg.delivery_tag
 
             self.log.debug(
-                "Received {}message: {} (tag: {})".format("priority " if pri else "", body, tag)
+                "Received {}message: {} (tag: {})".format(
+                    "priority " if pri else "",
+                    body if len(body) < 500 else f"{body[:500]}...(truncated)",
+                    tag,
+                )
             )
 
             # Parse and check validity of received message
@@ -542,6 +548,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 self.callback(tag, task)
             except Exception as e:
                 self.log.exception("Error in user callback function. %s: %s", type(e), str(e))
+                self.log.error("Original message: %s", body)
 
     def _stop_consuming_thread(self) -> None:
         if self._consuming_thread:

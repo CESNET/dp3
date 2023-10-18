@@ -49,6 +49,7 @@ nav:
     - General: configuration/index.md
     - Database: configuration/database.md
     - Database entities: configuration/db_entities.md
+    - Entity Lifetimes: configuration/lifetimes.md
     - Event logging: configuration/event_logging.md
     - History manager: configuration/history_manager.md
     - Modules: configuration/modules.md

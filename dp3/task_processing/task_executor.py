@@ -147,6 +147,10 @@ class TaskExecutor:
             # Run on_entity_creation hook
             new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.eid, task)
 
+        # Extend TTL
+        if task.ttl_tokens:
+            self.db.extend_ttl(task.etype, task.eid, task.ttl_tokens)
+
         # Insert into database
         try:
             self.db.insert_datapoints(task.etype, task.eid, task.data_points, new_entity=new_entity)

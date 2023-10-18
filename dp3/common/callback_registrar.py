@@ -120,7 +120,7 @@ class CallbackRegistrar:
 
     def register_correlation_hook(
         self,
-        hook: Callable[[str, dict], None],
+        hook: Callable[[str, dict], Union[None, list[DataPointTask]]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
@@ -134,7 +134,8 @@ class CallbackRegistrar:
 
         Args:
             hook: `hook` callable should expect entity type as str
-                and its current values, including linked entities, as dict
+                and its current values, including linked entities, as dict.
+                Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on
                 in the form of a path from the specified entity_type to individual attributes

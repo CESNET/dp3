@@ -241,8 +241,9 @@ on the data of the snapshot.
 
 The [`register_correlation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
 method expects a callable with the following signature: 
-`Callable[[str, dict], None]`, where the first argument is the entity type, and the second is a dict
+`Callable[[str, dict], Union[None, list[DataPointTask]]]`, where the first argument is the entity type, and the second is a dict
 containing the current values of the entity and its linked entities.
+The method can optionally return a list of DataPointTask objects to be inserted into the system.
 
 As correlation hooks can depend on each other, the hook inputs and outputs must be specified
 using the depends_on and may_change arguments. Both arguments are lists of lists of strings,

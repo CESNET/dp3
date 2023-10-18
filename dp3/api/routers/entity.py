@@ -170,6 +170,18 @@ async def set_eid_attr_value(
     return SuccessResponse()
 
 
+@router.post("/{etype}/{eid}/ttl")
+async def extend_eid_ttls(etype: str, eid: str, body: dict[str, datetime]) -> SuccessResponse:
+    """Extend TTLs of the specified entity"""
+    # Construct task
+    task = DataPointTask(model_spec=MODEL_SPEC, etype=etype, eid=eid, ttl_tokens=body)
+
+    # Push tasks to task queue
+    TASK_WRITER.put_task(task, False)
+
+    return SuccessResponse()
+
+
 @router.delete("/{etype}/{eid}")
 async def delete_eid_record(etype: str, eid: str) -> SuccessResponse:
     """Delete the master record and snapshots of the specified entity.

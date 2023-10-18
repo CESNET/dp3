@@ -81,11 +81,12 @@ attribs:
 
 Entity is described simply by:
 
-| Parameter  | Data-type           | Default value | Description                                                                                                                               |
-|------------|---------------------|---------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| **`id`**   | string (identifier) | *(mandatory)* | Short string identifying the entity type, it's machine name (must match regex `[a-zA-Z_][a-zA-Z0-9_-]*`). Lower-case only is recommended. |
-| **`name`** | string              | *(mandatory)* | Attribute name for humans. May contain any symbols.                                                                                       |
-| `snapshot` | bool                | *(mandatory)* | Whether to create snapshots of the entity. See [Architecture](../architecture.md#data-flow) for more details.                             |
+| Parameter      | Data-type           | Default value       | Description                                                                                                                               |
+|----------------|---------------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| **`id`**       | string (identifier) | *(mandatory)*       | Short string identifying the entity type, it's machine name (must match regex `[a-zA-Z_][a-zA-Z0-9_-]*`). Lower-case only is recommended. |
+| **`name`**     | string              | *(mandatory)*       | Attribute name for humans. May contain any symbols.                                                                                       |
+| **`snapshot`** | bool                | *(mandatory)*       | Whether to create snapshots of the entity. See [Architecture](../architecture.md#data-flow) for more details.                             |
+| `lifetime`     | `Lifetime Spec`     | `Immortal Lifetime` | Defines the lifetime of the entitiy, entities are never deleted by default. See the [Entity Lifetimes](lifetimes.md) for details.         |
 
 
 ## Attributes
@@ -97,12 +98,13 @@ Each attribute is specified by the following set of parameters:
 
 These apply to all types of attributes (plain, observations and timeseries).
 
-| Parameter     | Data-type           | Default value | Description                                                                                                                                  |
-|---------------|---------------------|---------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| **`id`**      | string (identifier) | *(mandatory)* | Short string identifying the attribute, it's machine name (must match this regex `[a-zA-Z_][a-zA-Z0-9_-]*`). Lower-case only is recommended. |
-| **`type`**    | string              | *(mandatory)* | Type of attribute. Can be either `plain`, `observations` or `timeseries`.                                                                    |
-| **`name`**    | string              | *(mandatory)* | Attribute name for humans. May contain any symbols.                                                                                          |
-| `description` | string              | `""`          | Longer description of the attribute, if needed.                                                                                              |
+| Parameter     | Data-type           | Default value | Description                                                                                                                                                                                                                                       |
+|---------------|---------------------|---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`id`**      | string (identifier) | *(mandatory)* | Short string identifying the attribute, it's machine name (must match this regex `[a-zA-Z_][a-zA-Z0-9_-]*`). Lower-case only is recommended.                                                                                                      |
+| **`type`**    | string              | *(mandatory)* | Type of attribute. Can be either `plain`, `observations` or `timeseries`.                                                                                                                                                                         |
+| **`name`**    | string              | *(mandatory)* | Attribute name for humans. May contain any symbols.                                                                                                                                                                                               |
+| `ttl`         | timedelta           | `0`           | Optional extension of TTL of the entity, will be ignored if the [lifetime type](lifetimes.md#time-to-live-tokens) does not match. The time extension is calculated from `t2` if possible, otherwise from the current time (for plain attributes). |
+| `description` | string              | `""`          | Longer description of the attribute, if needed.                                                                                                                                                                                                   |
 
 
 ### Plain-specific parameters

@@ -17,7 +17,7 @@ from dp3.common.attrspec import (
 )
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
-from dp3.common.utils import parse_time_duration
+from dp3.common.utils import entity_expired, parse_time_duration
 from dp3.database.database import DatabaseError, EntityDatabase
 
 DB_SEND_CHUNK = 100
@@ -246,6 +246,7 @@ class HistoryManager:
     def aggregate_master_docs(self):
         self.log.debug("Starting master documents aggregation.")
         start = datetime.now()
+        utcnow = datetime.utcnow()
         entities = 0
         if self.worker_index == 0:
             self.db.save_metadata(start, {"entities": 0, "aggregation_start": start})
@@ -259,6 +260,9 @@ class HistoryManager:
             )
             try:
                 for master_document in records_cursor:
+                    if entity_expired(utcnow, master_document):
+                        continue  # Avoid expired entities to avoid conflict with garbage collector
+
                     entities += 1
                     self.aggregate_master_doc(entity_attr_specs, master_document)
                     eids.append(master_document["_id"])

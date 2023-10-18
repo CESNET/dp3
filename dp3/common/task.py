@@ -41,7 +41,7 @@ class DataPointTask(Task):
         eid: Entity id / key
         data_points: List of DataPoints to process
         tags: List of tags
-        ttl_token: ...
+        ttl_tokens: Dictionary of TTL tokens.
         delete: If True, delete entity
     """
 
@@ -52,7 +52,7 @@ class DataPointTask(Task):
     eid: str
     data_points: list[DataPointBase] = []
     tags: list[Any] = []
-    ttl_token: Optional[datetime] = None
+    ttl_tokens: Optional[dict[str, datetime]] = None
     delete: bool = False
 
     def routing_key(self):

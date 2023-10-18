@@ -116,17 +116,29 @@ class AttrSpecGeneric(SpecModel, use_enum_values=True):
     """Base of attribute specification
 
     Parent of other `AttrSpec` classes.
+
+    Attributes:
+        ttl: Optional extension of TTL of the entity
+            - will be ignored if lifetime setting does not match.
     """
 
     id: constr(regex=ID_REGEX)
     name: str
     description: str = ""
+    ttl: Optional[timedelta] = None
 
     _dp_model = PrivateAttr()
 
     @property
     def dp_model(self) -> DataPointBase:
         return self._dp_model
+
+    @validator("ttl", pre=True)
+    def parse_timedelta(cls, v):
+        if v:
+            return parse_time_duration(v)
+        else:
+            return timedelta()
 
 
 class AttrSpecClassic(AttrSpecGeneric):

@@ -1,0 +1,383 @@
+"""
+Core module performing deletion of entities based on specified policy.
+"""
+import logging
+from collections import defaultdict
+from datetime import datetime, timedelta
+from functools import partial
+
+from pydantic import BaseModel
+from pymongo import DeleteMany
+
+from dp3.common.attrspec import AttrType
+from dp3.common.callback_registrar import CallbackRegistrar
+from dp3.common.config import CronExpression, PlatformConfig
+from dp3.common.datapoint import DataPointBase, DataPointObservationsBase, DataPointTimeseriesBase
+from dp3.common.task import DataPointTask
+from dp3.database.database import EntityDatabase
+
+DB_SEND_CHUNK = 1000
+
+
+class GarbageCollectorConfig(BaseModel):
+    """The configuration of the Collector module.
+
+    Attributes:
+        collection_rate: The rate at which the collector module runs. Default is 3:00 AM every day.
+    """
+
+    collection_rate: CronExpression = CronExpression(hour="3", minute="0", second="0")
+
+
+class GarbageCollector:
+    """Collector module manages the lifetimes of entities based on specified policy."""
+
+    def __init__(
+        self,
+        db: EntityDatabase,
+        platform_config: PlatformConfig,
+        registrar: CallbackRegistrar,
+    ):
+        self.log = logging.getLogger("GarbageCollector")
+        self.model_spec = platform_config.model_spec
+        self.config = GarbageCollectorConfig.parse_obj(
+            platform_config.config.get("garbage_collector", {})
+        )
+        self.db = db
+
+        self.worker_index = platform_config.process_index
+        self.num_workers = platform_config.num_processes
+
+        self.cache = self.db.get_module_cache()
+        self._setup_cache_indexes()
+        self.db.register_on_entity_delete(
+            self.remove_link_cache_of_deleted, self.remove_link_cache_of_deleted_many
+        )
+        self.inverse_relations = self._get_inverse_relations()
+        self.max_date = datetime.max.replace(tzinfo=None)
+
+        for entity, entity_config in self.model_spec.entities.items():
+            lifetime = entity_config.lifetime
+            if lifetime.type == "immortal":
+                pass
+            elif lifetime.type == "ttl":
+                registrar.register_entity_hook(
+                    "on_entity_creation",
+                    partial(self.extend_ttl_on_create, base_ttl=lifetime.on_create),
+                    entity,
+                )
+
+                self._register_ttl_extensions(entity, registrar, lifetime.mirror_data)
+
+                registrar.scheduler_register(
+                    self.collect_ttl,
+                    func_args=[entity],
+                    **self.config.collection_rate.dict(),
+                )
+            elif lifetime.type == "weak":
+                if self.inverse_relations[entity]:
+                    for link_entity, link_attr in self.inverse_relations[entity]:
+                        attr_spec = self.model_spec.attributes[link_entity, link_attr]
+                        if attr_spec.t == AttrType.PLAIN:
+                            registrar.register_attr_hook(
+                                "on_new_plain",
+                                partial(self.add_plain_to_link_cache, entity),
+                                link_entity,
+                                link_attr,
+                            )
+                        elif attr_spec.t == AttrType.OBSERVATIONS:
+                            registrar.register_attr_hook(
+                                "on_new_observation",
+                                partial(
+                                    self.add_observation_to_link_cache,
+                                    entity,
+                                    attr_spec.history_params.post_validity,
+                                ),
+                                link_entity,
+                                link_attr,
+                            )
+                    registrar.scheduler_register(
+                        self.collect_weak,
+                        func_args=[entity],
+                        **self.config.collection_rate.dict(),
+                    )
+                else:
+                    raise ValueError(
+                        f"Entity {entity} has weak lifetime "
+                        f"but is not referenced by any other entities."
+                    )
+
+            else:
+                raise ValueError(f"Unknown lifetime type: {lifetime.type}")
+
+    def _get_inverse_relations(self) -> dict[str, set[tuple[str, str]]]:
+        inverse_relations = defaultdict(set)
+        for entity_attr, attr_spec in self.model_spec.relations.items():
+            inverse_relations[attr_spec.relation_to].add(entity_attr)
+        return inverse_relations
+
+    def extend_ttl_on_create(
+        self, eid: str, task: DataPointTask, base_ttl: timedelta
+    ) -> list[DataPointTask]:
+        """Extends the TTL of the entity by the specified timedelta."""
+        if not task.data_points:
+            return []
+
+        task = DataPointTask(
+            model_spec=self.model_spec,
+            etype=task.etype,
+            eid=eid,
+            ttl_tokens={"base": datetime.utcnow() + base_ttl},
+        )
+        return [task]
+
+    def _register_ttl_extensions(
+        self, entity: str, registrar: CallbackRegistrar, mirror_data: bool
+    ):
+        for attr, attr_spec in self.model_spec.entity_attributes[entity].items():
+            if attr_spec.t == AttrType.TIMESERIES:
+                if mirror_data and attr_spec.timeseries_params.max_age is not None:
+                    if attr_spec.ttl:
+                        ttl = max(attr_spec.ttl, attr_spec.timeseries_params.max_age)
+                    else:
+                        ttl = attr_spec.timeseries_params.max_age
+                else:
+                    ttl = attr_spec.ttl
+                if not ttl:
+                    continue
+
+                registrar.register_attr_hook(
+                    "on_new_ts_chunk",
+                    partial(self.extend_timeseries_ttl, extend_by=ttl),
+                    entity,
+                    attr,
+                )
+            elif attr_spec.t == AttrType.OBSERVATIONS:
+                if mirror_data and attr_spec.history_params.max_age is not None:
+                    if attr_spec.ttl:
+                        ttl = max(attr_spec.ttl, attr_spec.history_params.max_age)
+                    else:
+                        ttl = attr_spec.history_params.max_age
+                else:
+                    ttl = attr_spec.ttl
+                if not ttl:
+                    continue
+
+                registrar.register_attr_hook(
+                    "on_new_observation",
+                    partial(self.extend_observations_ttl, extend_by=ttl),
+                    entity,
+                    attr,
+                )
+            elif attr_spec.t == AttrType.PLAIN:
+                if not attr_spec.ttl:
+                    continue
+
+                registrar.register_attr_hook(
+                    "on_new_plain",
+                    partial(self.extend_plain_ttl, extend_by=attr_spec.ttl),
+                    entity,
+                    attr,
+                )
+            else:
+                raise ValueError(f"Unknown attribute type: {attr_spec.t}")
+
+    def collect_weak(self, etype: str):
+        """Deletes weak entities when their last reference has expired."""
+        self.log.debug("Starting removal of '%s' weak entities", etype)
+        start = datetime.now()
+        entities = 0
+        deleted = 0
+
+        if self.worker_index == 0:
+            self.db.save_metadata(
+                start,
+                {"entities": 0, "deleted": 0, "weak_collect_start": start, "entity": etype},
+            )
+
+        # Aggregate the cache entities by their "to" field, which contains the entity
+        aggregated = self.cache.aggregate(
+            [
+                {"$match": {"to": {"$regex": f"^{etype}#"}}},
+                {"$group": {"_id": "$to_eid"}},
+            ]
+        )
+        have_references = [doc["_id"] for doc in aggregated]
+        entities += len(have_references)
+
+        to_delete = []
+        records_cursor = self.db.get_worker_master_records(
+            self.worker_index,
+            self.num_workers,
+            etype,
+            query_filter={"_id": {"$nin": have_references}},
+        )
+        try:
+            for master_document in records_cursor:
+                entities += 1
+                deleted += 1
+                to_delete.append(master_document["_id"])
+
+                if len(to_delete) >= DB_SEND_CHUNK:
+                    self.db.delete_eids(etype, to_delete)
+                    to_delete.clear()
+
+            if to_delete:
+                self.db.delete_eids(etype, to_delete)
+                to_delete.clear()
+
+        finally:
+            records_cursor.close()
+
+        self.db.update_metadata(
+            start,
+            metadata={"weak_collect_end": datetime.now()},
+            increase={"entities": entities, "deleted": deleted},
+        )
+        self.log.info(
+            "Removal of '%s' entities by TTL done - %s tracked, %s processed & deleted",
+            etype,
+            entities,
+            deleted,
+        )
+
+    def collect_ttl(self, etype: str):
+        """Deletes entities after their TTL lifetime has expired."""
+        self.log.debug("Starting removal of '%s' entities by TTL", etype)
+        start = datetime.now()
+        utc_now = datetime.utcnow()
+        entities = 0
+        deleted = 0
+
+        to_delete = []
+        expired_ttls = {}
+
+        if self.worker_index == 0:
+            self.db.save_metadata(
+                start, {"entities": 0, "deleted": 0, "ttl_collect_start": start, "entity": etype}
+            )
+
+        records_cursor = self.db.get_worker_master_records(
+            self.worker_index, self.num_workers, etype, no_cursor_timeout=True
+        )
+        try:
+            for master_document in records_cursor:
+                entities += 1
+                if "#ttl" not in master_document:
+                    continue  # TTL not set, ignore for now
+
+                if all(ttl < utc_now for ttl in master_document["#ttl"].values()):
+                    deleted += 1
+                    to_delete.append(master_document["_id"])
+                else:
+                    eid_expired_ttls = [
+                        name for name, ttl in master_document["#ttl"].items() if ttl < start
+                    ]
+                    if eid_expired_ttls:
+                        expired_ttls[master_document["_id"]] = eid_expired_ttls
+
+                if len(to_delete) >= DB_SEND_CHUNK:
+                    self.db.delete_eids(etype, to_delete)
+                    to_delete.clear()
+                if len(expired_ttls) >= DB_SEND_CHUNK:
+                    self.db.remove_expired_ttls(etype, expired_ttls)
+                    expired_ttls.clear()
+
+            if to_delete:
+                self.db.delete_eids(etype, to_delete)
+                to_delete.clear()
+            if expired_ttls:
+                self.db.remove_expired_ttls(etype, expired_ttls)
+                expired_ttls.clear()
+
+        finally:
+            records_cursor.close()
+
+        self.db.update_metadata(
+            start,
+            metadata={"ttl_collect_end": datetime.now()},
+            increase={"entities": entities, "deleted": deleted},
+        )
+        self.log.info(
+            "Removal of '%s' entities by TTL done - %s processed, %s deleted",
+            etype,
+            entities,
+            deleted,
+        )
+
+    def extend_plain_ttl(
+        self, eid: str, dp: DataPointBase, extend_by: timedelta
+    ) -> list[DataPointTask]:
+        """Extends the TTL of the entity by the specified timedelta."""
+        now = datetime.utcnow()
+        task = DataPointTask(
+            model_spec=self.model_spec,
+            etype=dp.etype,
+            eid=eid,
+            ttl_tokens={"data": now + extend_by},
+        )
+        return [task]
+
+    def extend_observations_ttl(
+        self, eid: str, dp: DataPointObservationsBase, extend_by: timedelta
+    ) -> list[DataPointTask]:
+        """Extends the TTL of the entity by the specified timedelta."""
+        task = DataPointTask(
+            model_spec=self.model_spec,
+            etype=dp.etype,
+            eid=eid,
+            ttl_tokens={"data": dp.t2 + extend_by},
+        )
+        return [task]
+
+    def extend_timeseries_ttl(
+        self, eid: str, dp: DataPointTimeseriesBase, extend_by: timedelta
+    ) -> list[DataPointTask]:
+        """Extends the TTL of the entity by the specified timedelta."""
+        task = DataPointTask(
+            model_spec=self.model_spec,
+            etype=dp.etype,
+            eid=eid,
+            ttl_tokens={"data": dp.t2 + extend_by},
+        )
+        return [task]
+
+    def _setup_cache_indexes(self):
+        """Sets up indexes for the cache collection.
+
+        In the collection, all fields are covered by an index:
+
+        * The `to` field is used to count the number of references a given entity has
+        * The `from` field is used when removing links of deleted entities, so it also has an index
+        * The `ttl` field serves as a MongoDB expiring collection index
+        """
+        self.cache.create_index("to", background=True)
+        self.cache.create_index("from", background=True)
+        self.cache.create_index("ttl", expireAfterSeconds=0, background=True)
+
+    def add_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
+        self.cache.update_one(
+            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}", "to_eid": dp.v.eid},
+            {"$max": {"ttl": self.max_date}},
+            upsert=True,
+        )
+
+    def add_observation_to_link_cache(
+        self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
+    ):
+        self.cache.update_one(
+            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}", "to_eid": dp.v.eid},
+            {"$max": {"ttl": dp.t2 + post_validity}},
+            upsert=True,
+        )
+
+    def remove_link_cache_of_deleted(self, entity: str, eid: str):
+        self.cache.bulk_write(
+            [DeleteMany({"from": f"{entity}#{eid}"}), DeleteMany({"to": f"{entity}#{eid}"})]
+        )
+
+    def remove_link_cache_of_deleted_many(self, entity: str, eids: list[str]):
+        self.cache.bulk_write(
+            [DeleteMany({"from": f"{entity}#{eid}"}) for eid in eids]
+            + [DeleteMany({"to": f"{entity}#{eid}"}) for eid in eids]
+        )

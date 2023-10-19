@@ -546,6 +546,10 @@ class TaskQueueReader(RobustAMQPConnection):
             # Pass message to user's callback function
             try:
                 self.callback(tag, task)
+            except amqpstorm.AMQPChannelError as e:
+                self.log.error("Channel error while processing message, will try to reconnect.")
+                self.log.exception(e)
+                self.connect()
             except Exception as e:
                 self.log.exception("Error in user callback function. %s: %s", type(e), str(e))
                 self.log.error("Original message: %s", body)

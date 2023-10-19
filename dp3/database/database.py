@@ -452,7 +452,9 @@ class EntityDatabase:
         )
 
         if latest_fully_completed_snapshot_metadata is None:
-            return self._db[snapshot_col].find(), self._db[snapshot_col].count_documents({})
+            return self._db[snapshot_col].find().sort([("eid", pymongo.ASCENDING)]), self._db[
+                snapshot_col
+            ].count_documents({})
 
         # Extract date and query using it
         latest_snapshot_date = latest_fully_completed_snapshot_metadata["#time_created"]
@@ -461,7 +463,9 @@ class EntityDatabase:
             query["eid"] = {"$regex": eid_filter}
 
         try:
-            return self._db[snapshot_col].find(query), self._db[snapshot_col].count_documents(query)
+            return self._db[snapshot_col].find(query).sort([("eid", pymongo.ASCENDING)]), self._db[
+                snapshot_col
+            ].count_documents(query)
         except OperationFailure as e:
             raise DatabaseError("Invalid query") from e
 

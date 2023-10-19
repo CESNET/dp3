@@ -304,6 +304,10 @@ class SnapShooter:
             master_record = self.db.get_master_record(
                 etype, eid, projection=self.entity_relation_attrs[etype]
             ) or {"_id": eid}
+
+            if not self.config.keep_empty and len(master_record) == 1:
+                continue
+
             if (etype, master_record["_id"]) not in visited_entities:
                 # Get entities linked by current entity
                 current_values = self.get_values_at_time(etype, master_record, time)
@@ -426,6 +430,9 @@ class SnapShooter:
         entity_values = {}
         for entity_type, entity_id in task.entities:
             record = self.db.get_master_record(entity_type, entity_id) or {"_id": entity_id}
+            if not self.config.keep_empty and len(record) == 1:
+                continue
+
             self.run_timeseries_processing(entity_type, record)
             values = self.get_values_at_time(entity_type, record, task.time)
             entity_values[entity_type, entity_id] = values
@@ -568,8 +575,13 @@ class SnapShooter:
                             ),
                         }
                         for v in val
+                        if loaded_entities.get((attr_spec.relation_to, v["eid"])) is not None
+                        or self.config.keep_empty
                     ]
-                else:
+                elif (
+                    loaded_entities.get((attr_spec.relation_to, val["eid"])) is not None
+                    or self.config.keep_empty
+                ):
                     entity[attr] = {
                         **val,
                         "record": loaded_entities.get(

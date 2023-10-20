@@ -55,6 +55,7 @@ nav:
     - Modules: configuration/modules.md
     - Processing core: configuration/processing_core.md
     - Snapshots: configuration/snapshots.md
+    - Garbage Collector: configuration/garbage_collector.md
   - Code Reference: reference/
   - Extending Documentation: extending.md
 

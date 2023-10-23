@@ -27,6 +27,7 @@ from pymongo import ReplaceOne
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
+    AttrSpecType,
     AttrType,
     ObservationsHistoryParams,
 )
@@ -560,34 +561,37 @@ class SnapShooter:
         return related_entity_ids
 
     def link_loaded_entities(self, loaded_entities: dict):
-        for identifiers, entity in loaded_entities.items():
-            entity_type, entity_id = identifiers
+        for (entity_type, _entity_id), entity in loaded_entities.items():
             for attr, val in entity.items():
                 if (entity_type, attr) not in self.model_spec.relations:
                     continue
                 attr_spec = self.model_spec.relations[entity_type, attr]
                 if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
-                    entity[attr] = [
-                        {
-                            **v,
-                            "record": loaded_entities.get(
+                    entity[attr] = []
+                    val_conf = entity[f"{attr}#c"]
+                    pruned_conf = []
+                    for v, conf in zip(val, val_conf):
+                        if self._keep_link(loaded_entities, attr_spec, v):
+                            v["record"] = loaded_entities.get(
                                 (attr_spec.relation_to, v["eid"]), {"eid": v["eid"]}
-                            ),
-                        }
-                        for v in val
-                        if loaded_entities.get((attr_spec.relation_to, v["eid"])) is not None
-                        or self.config.keep_empty
-                    ]
-                elif (
-                    loaded_entities.get((attr_spec.relation_to, val["eid"])) is not None
-                    or self.config.keep_empty
-                ):
-                    entity[attr] = {
-                        **val,
-                        "record": loaded_entities.get(
-                            (attr_spec.relation_to, val["eid"]), {"eid": val["eid"]}
-                        ),
-                    }
+                            )
+                            entity[attr].append(v)
+                            pruned_conf.append(conf)
+                    entity[f"{attr}#c"] = pruned_conf
+                elif self._keep_link(loaded_entities, attr_spec, val):
+                    val["record"] = loaded_entities.get(
+                        (attr_spec.relation_to, val["eid"]), {"eid": val["eid"]}
+                    )
+                    entity[attr] = val
+                else:  # The linked entity does not exist, and we do not want to keep empty
+                    del entity[attr]
+                    del entity[f"{attr}#c"]
+
+    def _keep_link(self, loaded_entities: dict, attr_spec: AttrSpecType, val: dict) -> bool:
+        return (
+            loaded_entities.get((attr_spec.relation_to, val["eid"])) is not None
+            or self.config.keep_empty
+        )
 
     def get_value_at_time(
         self, attr_spec: AttrSpecObservations, attr_history, time: datetime

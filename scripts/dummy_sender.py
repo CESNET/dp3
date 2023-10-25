@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import time
 from argparse import ArgumentParser
 from datetime import datetime
 from itertools import islice
@@ -34,7 +35,7 @@ def get_shifted_datapoint_from_row(row):
 
 
 def batched(iterable, n):
-    "Batch data into tuples of length n. The last batch may be shorter."
+    """Batch data into tuples of length n. The last batch may be shorter."""
     # batched('ABCDEFG', 3) --> ABC DEF G
     if n < 1:
         raise ValueError("n must be at least one")
@@ -127,23 +128,59 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Invalid mode selected: {args.mode}")
 
+    request_time = 0
+    dps_sent = 0
+
     # Send them
     datapoints_url = f"{args.endpoint_url}/datapoints"
     for batch in batched(dps, args.chunk):
         payload = json.dumps(batch)
         log.debug(payload)
         try:
+            t_sent = time.time()
             response = requests.post(url=datapoints_url, json=batch)
+            t_received = time.time()
             if response.status_code == requests.codes.ok:
                 attributes = {dp["attr"] for dp in batch}
-                log.info("%s datapoints of attribute(s) %s OK", len(batch), ", ".join(attributes))
+                log.info(
+                    "(%.3fs) %s datapoints of attribute(s) %s OK",
+                    t_received - t_sent,
+                    len(batch),
+                    ", ".join(attributes),
+                )
             else:
                 log.error("Payload: %s", payload)
                 log.error(
                     "Request failed: %s: %s", response.reason, response.content.decode("utf-8")
                 )
+
+            dps_sent += len(batch)
+            request_time += t_received - t_sent
+
         except requests.exceptions.ConnectionError as err:
-            log.exception(err)
+            t_error = time.time()
+            request_time += t_error - t_sent
+
+            attributes = {dp["attr"] for dp in batch}
+            log.error(
+                "(%.3f s) %s - %s datapoints of attribute(s) %s",
+                t_error - t_sent,
+                err,
+                len(batch),
+                ", ".join(attributes),
+            )
         except requests.exceptions.InvalidJSONError as err:
             log.exception(err)
             log.error(batch)
+        except KeyboardInterrupt:
+            log.info("Received user interrupt, exiting.")
+            break
+
+    t_end = time.time()
+    log.info(
+        "Sent %s datapoints in %.3fs (throughput: %.3f DPs/s; %.3f s/DP)",
+        dps_sent,
+        request_time,
+        dps_sent / request_time,
+        request_time / dps_sent,
+    )

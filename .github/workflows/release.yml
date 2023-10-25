@@ -53,6 +53,9 @@ jobs:
   pypi:
     needs: [black, ruff, api-tests, unit-tests]
     runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write  # Mandatory for trusted publishing
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -61,5 +64,3 @@ jobs:
       - run: python3 -m pip install --upgrade build && python3 -m build
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}

@@ -56,6 +56,7 @@ class DPLogger:
         logger = logging.getLogger(name)
         logger.addHandler(log_handler)
         logger.setLevel(logging.INFO)
+        logger.propagate = False
 
         return logger
 

@@ -1,7 +1,7 @@
 #  History management
 
 Here we explain several concepts that are used to manage data of attributes with history,
-meaning they are [observations](data_model.md#observations).
+meaning they are [observations](data_model.md#observations). The configuration is described in the [History Manager](configuration/history_manager.md) configuration.
 
 DP³ bases its work with these attributes around the idea of the **current value** of the attribute at a given time.
 This is how all values are accessible in the [correlation hook API](modules.md#correlation-callbacks) -

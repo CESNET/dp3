@@ -46,7 +46,9 @@ nav:
   - API: api.md
   - Modules: modules.md
   - Configuration:
-    - General: configuration/index.md
+    - configuration/index.md
+    - API: configuration/api.md
+    - Control: configuration/control.md
     - Database: configuration/database.md
     - Database entities: configuration/db_entities.md
     - Entity Lifetimes: configuration/lifetimes.md

@@ -6,6 +6,9 @@ There are currently three supported types of lifetimes:
 * **Time-to-live tokens** - The platform will keep a list of TTL tokens for each entity, and will remove the entity when all tokens expire.
 * **Weak entities** - These entities are removed when they are no longer referenced by any other entity.
 
+When the lifetime of an entity ends, the entity is removed from the database, and all its data is deleted.
+How often this happens is configured in the [Garbage Collector](garbage_collector.md) configuration.
+
 Let us examine the options in detail.
 
 ## Immortal entities
@@ -128,3 +131,8 @@ entity:
           max_age: 14d
           aggregate: false
     ```
+
+## Continue to
+
+When the lifetime of an entity ends, the entity is removed from the database, and all its data is deleted.
+How often this happens is configured in the [Garbage Collector](garbage_collector.md) configuration.

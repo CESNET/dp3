@@ -398,7 +398,7 @@ Returns dictionary containing all entity types configured -- their simplified co
 
 Execute Action - Sends the given action into execution queue.
 
-You can see the enabled actions in `/config/control.yml`, available are:
+You can see the enabled actions in [`/config/control.yml`](configuration/control.md), available are:
 
 - `make_snapshots` - Makes an out-of-order snapshot of all entities
 

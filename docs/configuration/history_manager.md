@@ -1,6 +1,6 @@
 # History manager
 
-History manager is reponsible for:
+The concepts of history management in DP3 are described [here](../history_management.md). History manager is responsible for:
 
 - Datapoint aggregation - merging identical value datapoints in master records
 - Deleting old datapoints from master records

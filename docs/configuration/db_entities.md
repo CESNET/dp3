@@ -117,14 +117,14 @@ These apply to all types of attributes (plain, observations and timeseries).
 
 ### Observations-specific parameters
 
-| Parameter             | Data-type         | Default value | Description                                                                                                                                                                                                                                                                                        |
-|-----------------------|-------------------|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`data_type`**       | string            | *(mandatory)* | Data type of attribute value, see [Supported data types](#supported-data-types).                                                                                                                                                                                                                   |
-| `editable`            | bool              | `false`       | Whether value of this attribute is editable via web interface.                                                                                                                                                                                                                                     |
-| `confidence`          | bool              | `false`       | Whether a confidence value should be stored along with data value or not. [More details](../history_management.md#confidence).                                                                                                                                                                     |
-| `multi_value`         | bool              | `false`       | Whether multiple values can be set at the same time. [More details](../history_management.md#multi-value-data-points).                                                                                                                                                                             |
-| **`history_params`**  | object, see below | *(mandatory)* | History and time aggregation parameters. A subobject with fields described in the table below.                                                                                                                                                                                                     |
-| `history_force_graph` | bool              | `false`       | By default, if data type of attribute is array, we show it's history on web interface as table. This option can force tag-like graph with comma-joined values of that array as tags.                                                                                                               |
+| Parameter             | Data-type         | Default value | Description                                                                                                                                                                                   |
+|-----------------------|-------------------|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`data_type`**       | string            | *(mandatory)* | Data type of attribute value, see [Supported data types](#supported-data-types).                                                                                                              |
+| `editable`            | bool              | `false`       | Whether value of this attribute is editable via web interface.                                                                                                                                |
+| `confidence`          | bool              | `false`       | Whether a confidence value should be stored along with data value or not. [More details](../history_management.md#confidence).                                                                |
+| `multi_value`         | bool              | `false`       | Whether multiple values can be set at the same time. [More details](../history_management.md#multi-value-data-points), [Arrays vs Multi-value attributes](#arrays-vs-multi-value-attributes). |
+| **`history_params`**  | object, see below | *(mandatory)* | History and time aggregation parameters. A subobject with fields described in the table below.                                                                                                |
+| `history_force_graph` | bool              | `false`       | By default, if data type of attribute is array, we show it's history on web interface as table. This option can force tag-like graph with comma-joined values of that array as tags.          |
 
 #### History params
 
@@ -202,7 +202,7 @@ List of supported values for parameter `data_type`:
 #### Composite types
 
 - `category<data_type; category1, category2, ...>`: Categorical values. Use only when a fixed set of values should be allowed, which should be specified in the second part of the type definition. The first part of the type definition describes the data_type of the category.
-- `array<data_type>`: An array of values of specified data type (which must be one of the primitive types above), e.g. `array<int>`
+- `array<data_type>`: An array of values of specified data type (which must be one of the primitive types above), e.g. `array<int>`. Deciding whether to use array or multi-value attribute is not always trivial, see [Arrays vs Multi-value attributes](#arrays-vs-multi-value-attributes).
 - `set<data_type>`: Same as array, but values can't repeat and order is irrelevant.
 - `dict<keys>`: Dictionary (object) containing multiple values as subkeys. keys should contain a comma-separated list of key names and types separated by colon, e.g. `dict<port:int, protocol:string, tag?:string>`. Whitespace is allowed after colons. By default, all fields are mandatory (i.e. a data-point missing some subkey will be refused), to mark a field as optional, put `?` after its name. Only the primitive data types can be used here, multi-level dicts are not supported.
 
@@ -210,3 +210,32 @@ List of supported values for parameter `data_type`:
 
 - `link<entity_type>`: Link to a record of the specified type, e.g. `link<ip>`
 - `link<entity_type,data_type>`: Link to a record of the specified type, carrying additional data, e.g. `link<ip,int>` 
+
+## FAQ
+
+### Arrays vs Multi-value attributes
+
+Let's say you have data in an array, and are unsure how to model it into DP³ attributes.
+
+Choose [`data_type: array<...>`](#composite-types) when:
+
+* You're working with **numerical data**,
+* The list is **ordered**, and the order is important (or you're modelling a **tuple**),
+* The individual values in the list generally do not repeat between different datapoints, and 
+  does not make sense to aggregate them.
+
+In that case, you should set `multi_value` to `false`, and DP³ will handle the data as a single value.
+You are responsible for not sending overlapping datapoints, where a datapoint contains **the whole array**.
+The aggregation of this attribute will be limited, but that is usually desirable.
+
+Choose [`multi_value: true`](#observations-specific-parameters) when:
+
+* You're working with elements of **categorical** data or data that has a **composite type** (i.e. a struct or dictionary),
+* The list is **unordered** or the order is not important,
+* The individual values in the list generally repeat between different datapoints,
+  represent some state of the entity, and it makes sense to aggregate them.
+
+Then you should set the `data_type` to the element type.
+Your datapoints should contain **a single value**, but DP³ will handle the data as a list of values,
+and you can send overlapping datapoints. 
+Value aggregation will be done on a per-element basis.

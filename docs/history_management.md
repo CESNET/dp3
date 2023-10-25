@@ -151,6 +151,11 @@ but no exact criteria is defined.
 Generally speaking, if `multi_value: false` is set, your input modules are responsible for not sending overlapping datapoints,
 otherwise the exact behavior is undefined.
 
+!!! question "Arrays vs Multi-value"
+  
+    Are you unsure how to model your vector of data into a DP³ attribute? Check out [Arrays vs Multi-value attributes](configuration/db_entities.md#arrays-vs-multi-value-attributes).
+      
+
 ## Data point merging
 
 To save disk space, DP³ merges ***consecutive*** data points with the same value and overlapping validity intervals.

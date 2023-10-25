@@ -178,7 +178,7 @@ if __name__ == "__main__":
 
     t_end = time.time()
     log.info(
-        "Sent %s datapoints in %.3fs (throughput: %.3f DPs/s; %.3f s/DP)",
+        "Sent %s datapoints in %.3fs (throughput: %.3f DPs/s; %.4f s/DP)",
         dps_sent,
         request_time,
         dps_sent / request_time,

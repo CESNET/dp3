@@ -73,7 +73,7 @@ services:
       - -c
       - |
         sleep 10
-        python scripts/dummy_sender.py tests/test_example/dps.json all
+        python tests/test_example/dps_gen_realtime.py
     depends_on:
       - receiver_api
       - worker

@@ -1,6 +1,7 @@
 import logging
+from datetime import datetime
 
-from pymongo import UpdateOne
+from pymongo import ASCENDING, UpdateOne
 
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
@@ -48,3 +49,22 @@ class Telemetry:
             len(updates),
             res.modified_count,
         )
+
+
+class TelemetryReader:
+    """Reader of telemetry data
+
+    Used by API.
+    Not contained inside `Telemetry` class due to usage of `CallbackRegistrar`
+    and all of it's requirements (doesn't make sense for API).
+    """
+
+    def __init__(self, db: EntityDatabase) -> None:
+        self.db = db
+
+    def get_sources_validity(self) -> dict[str, datetime]:
+        """Return timestamps (datetimes) of current validity of all sources."""
+        cache_col = self.db.get_module_cache("Telemetry")
+        src_data = cache_col.find({}).sort([("_id", ASCENDING)])
+
+        return {src["_id"]: src["src_t"] for src in src_data}

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ValidationError, validator
 from dp3.api.internal.dp_logger import DPLogger
 from dp3.common.config import ModelSpec, read_config_dir
 from dp3.database.database import EntityDatabase
+from dp3.history_management.telemetry import TelemetryReader
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 DATAPOINTS_INGESTION_URL_PATH = "/datapoints"
@@ -73,3 +74,4 @@ CONTROL_WRITER = TaskQueueWriter(
 )
 DP_LOGGER = DPLogger(CONFIG.get("api.datapoint_logger"))
 ROOT_PATH = conf_env.ROOT_PATH
+TELEMETRY_READER = TelemetryReader(DB)

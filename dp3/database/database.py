@@ -817,8 +817,11 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of olds snapshots failed: {e}") from e
 
-    def get_module_cache(self):
-        """Return a persistent cache collection for given module name."""
-        module = get_caller_id()
+    def get_module_cache(self, override_called_id: Optional[str] = None):
+        """Return a persistent cache collection for given module name.
+
+        Module name is determined automatically, but you can override it.
+        """
+        module = override_called_id or get_caller_id()
         self.log.debug("Module %s is accessing its cache collection", module)
         return self._db[f"#cache#{module}"]

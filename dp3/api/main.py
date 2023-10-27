@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from dp3.api.internal.config import CONFIG, DATAPOINTS_INGESTION_URL_PATH, DP_LOGGER, ROOT_PATH
-from dp3.api.routers import control, entity, root
+from dp3.api.routers import control, entity, root, telemetry
 
 uvicorn_logger = logging.getLogger("uvicorn")
 uvicorn_access_logger = logging.getLogger("uvicorn.access")
@@ -47,4 +47,5 @@ app.add_middleware(
 # Register routers
 app.include_router(entity.router, prefix="/entity", tags=["Entity"])
 app.include_router(control.router, prefix="/control", tags=["Control"])
+app.include_router(telemetry.router, prefix="/telemetry", tags=["Telemetry"])
 app.include_router(root.router)

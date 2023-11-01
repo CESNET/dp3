@@ -30,7 +30,7 @@ class TaskGenericHooksContainer:
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
 
-        self.log.debug(f"Added '{hook_type}' hook")
+        self.log.debug(f"Added '{hook_type}' hook: {hook}")
 
     def run_on_start(self, task: DataPointTask):
         for hook in self._on_start:
@@ -68,7 +68,7 @@ class TaskEntityHooksContainer:
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
 
-        self.log.debug(f"Added '{hook_type}' hook")
+        self.log.debug(f"Added '{hook_type}' hook: {hook}")
 
     def run_allow_creation(self, eid: str, task: DataPointTask):
         for hook in self._allow_creation:
@@ -143,7 +143,7 @@ class TaskAttrHooksContainer:
                 f"Hook type '{hook_type}' doesn't exist for {self.entity}/{self.attr}."
             )
 
-        self.log.debug(f"Added '{hook_type}' hook")
+        self.log.debug(f"Added '{hook_type}' hook: {hook}")
 
     def run_on_new(self, eid: str, dp: DataPointBase):
         new_tasks = []

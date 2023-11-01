@@ -120,9 +120,6 @@ class GarbageCollector:
         self, eid: str, task: DataPointTask, base_ttl: timedelta
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
-        if not task.data_points:
-            return []
-
         task = DataPointTask(
             model_spec=self.model_spec,
             etype=task.etype,

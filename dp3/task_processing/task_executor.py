@@ -176,6 +176,30 @@ class TaskExecutor:
 
         return new_entity, new_tasks
 
+    def refresh_on_entity_creation(
+        self, etype: str, worker_id: int, worker_cnt: int
+    ) -> list[DataPointTask]:
+        """Runs the `on_entity_creation` hook for all entities of given type.
+
+        Returns:
+            List of new tasks created by hooks
+        """
+        if etype not in self.entity_types:
+            self.log.error(f"Refresh {etype} on_entity_creation: Unknown entity type!")
+            self.elog.log("task_processing_error")
+
+        new_tasks = []
+
+        projection = {"_id": True}
+        for master_record in self.db.get_worker_master_records(
+            worker_id, worker_cnt, etype, projection=projection
+        ):
+            task = DataPointTask(model_spec=self.model_spec, etype=etype, eid=master_record["_id"])
+            self.log.debug(f"Refreshing {etype}/{task.eid}")
+            new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.eid, task)
+
+        return new_tasks
+
     def _process_delete(
         self, task: DataPointTask, new_entity: bool
     ) -> tuple[bool, list[DataPointTask]]:

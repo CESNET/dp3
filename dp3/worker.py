@@ -9,13 +9,14 @@ import os
 import signal
 import sys
 import threading
+from functools import partial
 from importlib import import_module
 
 from pydantic import ValidationError
 
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
-from dp3.common.control import Control, ControlAction
+from dp3.common.control import Control, ControlAction, refresh_on_entity_creation
 from dp3.core.collector import GarbageCollector
 from dp3.history_management.telemetry import Telemetry
 from dp3.task_processing.task_queue import TaskQueueWriter
@@ -190,6 +191,10 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     control = Control(platform_config)
     control.set_action_handler(ControlAction.make_snapshots, snap_shooter.make_snapshots)
+    control.set_action_handler(
+        ControlAction.refresh_on_entity_creation,
+        partial(refresh_on_entity_creation, task_distributor, task_executor),
+    )
 
     ##############################################
     # Load all plug-in modules

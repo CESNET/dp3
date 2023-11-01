@@ -59,10 +59,8 @@ do
   rabbitmqadmin declare queue "name=${APPNAME}-worker-$i-pri" durable=true
 
   rabbitmqadmin declare queue "name=${APPNAME}-worker-$i-snapshots" durable=true
+  rabbitmqadmin declare queue "name=${APPNAME}-worker-$i-control" durable=true
 done
-
-# Declare control queue
-rabbitmqadmin declare queue "name=${APPNAME}-control" durable=true
 
 # Bind queues to exchanges
 for i in $(seq 0 $((N-1)))
@@ -71,8 +69,8 @@ do
   rabbitmqadmin declare binding "source=${APPNAME}-priority-task-exchange" "destination=${APPNAME}-worker-$i-pri" routing_key=$i
 
   rabbitmqadmin declare binding "source=${APPNAME}-main-snapshot-exchange" "destination=${APPNAME}-worker-$i-snapshots" routing_key=$i
+  rabbitmqadmin declare binding "source=${APPNAME}-control-exchange" "destination=${APPNAME}-worker-$i-control" routing_key=$i
 done
-rabbitmqadmin declare binding "source=${APPNAME}-control-exchange" "destination=${APPNAME}-control" routing_key=0
 
 # bring rabbitmq-server process to foreground
 fg

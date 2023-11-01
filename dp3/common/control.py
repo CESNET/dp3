@@ -9,11 +9,14 @@ from pydantic import BaseModel
 
 from dp3.common.config import PlatformConfig
 from dp3.common.task import Task
+from dp3.task_processing.task_distributor import TaskDistributor
+from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_queue import TaskQueueReader
 
 
 class ControlAction(Enum):
     make_snapshots = "make_snapshots"
+    refresh_on_entity_creation = "refresh_on_entity_creation"
 
 
 class ControlConfig(BaseModel):
@@ -22,6 +25,7 @@ class ControlConfig(BaseModel):
 
 class ControlMessage(Task):
     action: ControlAction
+    kwargs: dict = {}
 
     def routing_key(self):
         return ""
@@ -39,18 +43,12 @@ class Control:
     ) -> None:
         self.log = logging.getLogger("Control")
         self.action_handlers: dict[ControlAction, Callable] = {}
-        self.enabled = False
 
-        if platform_config.process_index != 0:
-            self.log.debug("Control will be disabled in this worker to avoid race conditions.")
-            return
-
-        self.enabled = True
         self.config = ControlConfig.parse_obj(platform_config.config.get("control"))
         self.allowed_actions = set(self.config.allowed_actions)
         self.log.debug("Allowed actions: %s", self.allowed_actions)
 
-        queue = f"{platform_config.app_name}-control"
+        queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-control"
         self.control_queue = TaskQueueReader(
             callback=self.process_control_task,
             parse_task=ControlMessage.parse_raw,
@@ -64,9 +62,6 @@ class Control:
 
     def start(self):
         """Connect to RabbitMQ and start consuming from TaskQueue."""
-        if not self.enabled:
-            return
-
         unconfigured_handlers = self.allowed_actions - set(self.action_handlers)
         if unconfigured_handlers:
             raise ValueError(
@@ -82,9 +77,6 @@ class Control:
 
     def stop(self):
         """Stop consuming from TaskQueue, disconnect from RabbitMQ."""
-        if not self.enabled:
-            return
-
         self.control_queue.stop()
         self.control_queue.disconnect()
 
@@ -102,6 +94,19 @@ class Control:
         self.control_queue.ack(msg_id)
         if task.action in self.allowed_actions:
             self.log.info("Executing action: %s", task.action)
-            self.action_handlers[task.action]()
+            self.action_handlers[task.action](**task.kwargs)
+            self.log.info("Action finished: %s", task.action)
         else:
             self.log.error("Action not allowed: %s", task.action)
+
+
+def refresh_on_entity_creation(
+    task_distributor: TaskDistributor, task_executor: TaskExecutor, etype: str
+):
+    """Refreshes hooks called on new entity creation for all entities in DB."""
+    tasks = task_executor.refresh_on_entity_creation(
+        etype=etype,
+        worker_id=task_distributor.process_index,
+        worker_cnt=task_distributor.num_processes,
+    )
+    task_distributor.push_new_tasks(tasks)

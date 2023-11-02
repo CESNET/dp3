@@ -59,6 +59,7 @@ nav:
     - Snapshots: configuration/snapshots.md
     - Garbage Collector: configuration/garbage_collector.md
   - Code Reference: reference/
+  - Grafana plugin: grafana_plugin.md
   - Extending Documentation: extending.md
 
 markdown_extensions:

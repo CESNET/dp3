@@ -25,6 +25,6 @@ grafana-cli plugins install cesnet-dp3-app
 ## Details
 
 For more details, please follow README in Grafana plugin catalog:
-**https://grafana.com/grafana/plugins/cesnet-dp3-app/**
+**[https://grafana.com/grafana/plugins/cesnet-dp3-app/](https://grafana.com/grafana/plugins/cesnet-dp3-app/)**
 
-Source code is available at: https://github.com/CESNET/dp3-grafana/
+Source code is available at: [https://github.com/CESNET/dp3-grafana/](https://github.com/CESNET/dp3-grafana/)

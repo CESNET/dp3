@@ -44,7 +44,7 @@ The DP³ architecture as shown in the figure above consists of several component
 where the DP³ provided components are shown in blue:
 
 - The **HTTP API** (built with Fast API) validates incoming data-points and sends them 
-  for processing to the task distribution queues. 
+  for processing to the task distribution queues.
   It also provides access to the database for web or scripts.
 - The **task distribution** is done using RabbitMQ queues, which distribute tasks between workers.
 - The main code of the platform runs in parallel **worker processes**. 
@@ -53,6 +53,13 @@ where the DP³ provided components are shown in blue:
   application-specific **secondary modules** when appropriate.
 - Both the HTTP API and worker processes use the **database API** to access the entity database,
   currently implemented in MongoDB.
+- The **generic web interface**, or a set of generic components has been implemented as
+  [Grafana plugin](grafana_plugin.md).
+  It's primary use-case is to help quickly and intuitively visualize data while retaining
+  genericity.
+  Ultimately, web interface is application-specific. However, we wanted to provide a quick start
+  alternative.
+  Implementation as Grafana plugin also implies option to combine DP³ with other data sources.
 
 The application-specific components, shown in yellow-orange, are as following:
 
@@ -69,12 +76,6 @@ The application-specific components, shown in yellow-orange, are as following:
   Feel free to check out the [secondary module API documentation](modules.md), or you can also 
   refer to the [CallbackRegistrar code reference][dp3.common.callback_registrar.CallbackRegistrar] or 
   check out the test modules in `/modules/` or `/tests/modules/`.
-
-- The final remaining component is the **web interface**, which is ultimately application-specific.
-  A generic web interface, or a set of generic components is a planned part of DP³, but is yet to be implemented.
-  The API provides a variety of endpoints which should enable you to create any view of the data you may require.
-
-[//]: # (TODO: generic web interface)
 
 ## Data flow
 

@@ -585,7 +585,8 @@ class SnapShooter:
                     entity[attr] = val
                 else:  # The linked entity does not exist, and we do not want to keep empty
                     del entity[attr]
-                    del entity[f"{attr}#c"]
+                    if f"{attr}#c" in entity:
+                        del entity[f"{attr}#c"]
 
     def _keep_link(self, loaded_entities: dict, attr_spec: AttrSpecType, val: dict) -> bool:
         return (

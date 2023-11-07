@@ -280,7 +280,7 @@ class EntityDatabase:
                     for eid, record in zip(eids, records)
                 ]
             )
-            self.log.debug("Updated master records of %s: %s.", etype, eids)
+            self.log.debug("Updated master records of %s (%s).", etype, len(eids))
         except Exception as e:
             raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
 

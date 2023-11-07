@@ -150,6 +150,11 @@ class MockTaskQueueReader:
         ...
 
 
+class MockCollection(dict):
+    def create_index(self, *args, **kwargs):
+        ...
+
+
 class MockTaskExecutor:
     elog = DummyEventGroup()
 
@@ -185,7 +190,7 @@ class TestSnapshotOperation(unittest.TestCase):
                 }
             },
         }
-        self.module_cache = {}
+        self.module_cache = MockCollection()
         self.db = MockDB(content=self.entities, module_cache=self.module_cache)
 
         self.snapshooter = SnapShooter(

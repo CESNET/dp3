@@ -82,6 +82,7 @@ class SnapshotCorrelationHookContainer:
         self._hooks: defaultdict[str, list[tuple[str, Callable]]] = defaultdict(list)
 
         self._dependency_graph = DependencyGraph(self.log)
+        self.used_links = set()
 
     def register(
         self,
@@ -114,8 +115,8 @@ class SnapshotCorrelationHookContainer:
         if entity_type not in self.model_spec.entities:
             raise ValueError(f"Entity '{entity_type}' does not exist.")
 
-        self._validate_attr_paths(entity_type, depends_on)
-        self._validate_attr_paths(entity_type, may_change)
+        self.used_links |= self._validate_attr_paths(entity_type, depends_on)
+        self.used_links |= self._validate_attr_paths(entity_type, may_change)
 
         depends_on = self._expand_path_backlinks(entity_type, depends_on)
         may_change = self._expand_path_backlinks(entity_type, may_change)
@@ -136,10 +137,18 @@ class SnapshotCorrelationHookContainer:
         self.log.info(f"Added hook: '{hook_id}'")
         return hook_id
 
-    def _validate_attr_paths(self, base_entity: str, paths: list[list[str]]):
-        """Validates paths of links between entity attributes"""
+    def _validate_attr_paths(
+        self, base_entity: str, paths: list[list[str]]
+    ) -> set[tuple[str, str]]:
+        """
+        Validates paths of links between entity attributes
+
+        Returns: The set of used links.
+        """
         entity_attributes = self.model_spec.entity_attributes
+        used_links = set()
         for path in paths:
+            curr_entity = base_entity
             position = entity_attributes[base_entity]
             for step in path:
                 if step not in position:
@@ -148,8 +157,11 @@ class SnapshotCorrelationHookContainer:
                     )
                 position = position[step]
                 if position.is_relation:
+                    used_links.add((curr_entity, step))
+                    curr_entity = position.relation_to
                     position = entity_attributes[position.relation_to]
             assert isinstance(position, (AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries))
+        return used_links
 
     def _expand_path_backlinks(self, base_entity: str, paths: list[list[str]]):
         """

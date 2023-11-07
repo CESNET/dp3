@@ -144,6 +144,8 @@ class SnapShooter:
             self.snapshot_queue_writer.check()  # check presence of needed exchanges
 
         self.snapshot_queue_reader.start()
+        self.log.info("Following used links detected: %s", self._correlation_hooks.used_links)
+        self.log.info("SnapShooter started.")
 
     def stop(self):
         """Stop consuming from TaskQueue, disconnect from RabbitMQ."""
@@ -551,7 +553,7 @@ class SnapShooter:
         """
         related_entity_ids = set()
         for attr, val in current_values.items():
-            if (entity_type, attr) not in self.model_spec.relations:
+            if (entity_type, attr) not in self._correlation_hooks.used_links:
                 continue
             attr_spec = self.model_spec.relations[entity_type, attr]
             if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
@@ -564,7 +566,7 @@ class SnapShooter:
         for (entity_type, _entity_id), entity in loaded_entities.items():
             del_keys = []
             for attr, val in entity.items():
-                if (entity_type, attr) not in self.model_spec.relations:
+                if (entity_type, attr) not in self._correlation_hooks.used_links:
                     continue
                 attr_spec = self.model_spec.relations[entity_type, attr]
                 if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:

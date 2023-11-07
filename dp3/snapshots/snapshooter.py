@@ -562,6 +562,7 @@ class SnapShooter:
 
     def link_loaded_entities(self, loaded_entities: dict):
         for (entity_type, _entity_id), entity in loaded_entities.items():
+            del_keys = []
             for attr, val in entity.items():
                 if (entity_type, attr) not in self.model_spec.relations:
                     continue
@@ -584,9 +585,12 @@ class SnapShooter:
                     )
                     entity[attr] = val
                 else:  # The linked entity does not exist, and we do not want to keep empty
-                    del entity[attr]
+                    del_keys.append(attr)
                     if f"{attr}#c" in entity:
-                        del entity[f"{attr}#c"]
+                        del_keys.append(f"{attr}#c")
+
+            for key in del_keys:
+                del entity[key]
 
     def _keep_link(self, loaded_entities: dict, attr_spec: AttrSpecType, val: dict) -> bool:
         return (

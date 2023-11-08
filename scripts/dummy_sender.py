@@ -30,6 +30,9 @@ def get_shifted_datapoint_from_row(row):
     dp = dict(row.items())
     duration = dp["t2"] - dp["t1"]
     dp["t1"] = (datetime.utcnow()).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+    if pd.isna(duration):
+        del dp["t2"]
+        return dp
     dp["t2"] = (datetime.utcnow() + duration).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
     return dp
 

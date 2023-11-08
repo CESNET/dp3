@@ -7,6 +7,8 @@ import time
 from argparse import ArgumentParser
 from datetime import datetime
 from itertools import islice
+from queue import Queue
+from threading import Event, Thread
 
 import pandas as pd
 import requests
@@ -68,6 +70,68 @@ def send_all(datapoints, dp_factory, *_):
         yield dp_factory(dp)
 
 
+def send_dps(args, stop_event: Event, datapoints, queue: Queue):
+    log.debug("Starting")
+
+    if args.mode == "cherry-pick":
+        dps = cherry_pick_send(datapoints, dp_factory, log, args)
+    elif args.mode == "all":
+        dps = send_all(datapoints, dp_factory, log, args)
+    else:
+        raise ValueError(f"Invalid mode selected: {args.mode}")
+
+    request_time = 0
+    dps_sent = 0
+
+    datapoints_url = f"{args.endpoint_url}/datapoints"
+    for batch in batched(dps, args.chunk):
+        if stop_event.is_set():
+            log.info("Received stop event, exiting.")
+            break
+        payload = json.dumps(batch)
+        log.debug(payload)
+        try:
+            t_sent = time.time()
+            response = requests.post(url=datapoints_url, json=batch)
+            t_received = time.time()
+            if response.status_code == requests.codes.ok:
+                attributes = {dp["attr"] for dp in batch}
+                log.info(
+                    "(%.3fs) %s datapoints of attribute(s) %s OK",
+                    t_received - t_sent,
+                    len(batch),
+                    ", ".join(attributes),
+                )
+            else:
+                log.error("Payload: %s", payload)
+                log.error(
+                    "Request failed: %s: %s", response.reason, response.content.decode("utf-8")
+                )
+
+            dps_sent += len(batch)
+            request_time += t_received - t_sent
+
+        except requests.exceptions.ConnectionError as err:
+            t_error = time.time()
+            attributes = {dp["attr"] for dp in batch}
+            log.error(
+                "%(%.3f s) %s - %s datapoints of attribute(s) %s",
+                t_error - t_sent,
+                err,
+                len(batch),
+                ", ".join(attributes),
+            )
+        except requests.exceptions.InvalidJSONError as err:
+            log.exception(err)
+            log.error(batch)
+        except KeyboardInterrupt:
+            log.info("Received user interrupt, exiting.")
+            break
+
+    log.info("Sent %s datapoints in %.3fs", dps_sent, request_time)
+    queue.put((dps_sent, request_time))
+
+
 if __name__ == "__main__":
     parser = ArgumentParser("Simple datapoint sender script for testing local DP3 instance.")
     parser.add_argument(
@@ -110,11 +174,22 @@ if __name__ == "__main__":
         action="store_true",
         dest="shift_time",
     )
+    parser.add_argument(
+        "--workers",
+        "-w",
+        help="number of workers to use, default=1",
+        default=1,
+        type=int,
+    )
     args = parser.parse_args()
     if args.chunk is None:
         args.chunk = args.count
     dp_factory = get_shifted_datapoint_from_row if args.shift_time else get_datapoint_from_row
-    logging.basicConfig(level=logging.INFO, format="%(name)s [%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)-15s,%(threadName)s,[%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
     log = logging.getLogger("DataPointSender")
 
     datapoints = pd.read_json(
@@ -124,66 +199,49 @@ if __name__ == "__main__":
     ).fillna(value={"c": 1.0})
     log.info("Input file contains %s DataPoints", datapoints.shape[0])
 
-    if args.mode == "cherry-pick":
-        dps = cherry_pick_send(datapoints, dp_factory, log, args)
-    elif args.mode == "all":
-        dps = send_all(datapoints, dp_factory, log, args)
-    else:
-        raise ValueError(f"Invalid mode selected: {args.mode}")
-
-    request_time = 0
-    dps_sent = 0
+    prev = 0
+    step = datapoints.shape[0] // args.workers
+    chunked = (datapoints.iloc[i : i + step, :] for i in range(0, datapoints.shape[0], step))
+    queue = Queue()
 
     # Send them
-    datapoints_url = f"{args.endpoint_url}/datapoints"
-    for batch in batched(dps, args.chunk):
-        payload = json.dumps(batch)
-        log.debug(payload)
-        try:
-            t_sent = time.time()
-            response = requests.post(url=datapoints_url, json=batch)
-            t_received = time.time()
-            if response.status_code == requests.codes.ok:
-                attributes = {dp["attr"] for dp in batch}
-                log.info(
-                    "(%.3fs) %s datapoints of attribute(s) %s OK",
-                    t_received - t_sent,
-                    len(batch),
-                    ", ".join(attributes),
-                )
-            else:
-                log.error("Payload: %s", payload)
-                log.error(
-                    "Request failed: %s: %s", response.reason, response.content.decode("utf-8")
-                )
+    stop = Event()
+    workers = [
+        Thread(
+            target=send_dps,
+            args=(args, stop, chunk, queue),
+        )
+        for i, chunk in enumerate(chunked)
+        if i < args.workers
+    ]
+    try:
+        if args.workers == 1:
+            send_dps(args, stop, datapoints, queue)
+        else:
+            log.info("Starting %s workers", len(workers))
+            [w.start() for w in workers]
+            log.debug("Avaiting result")
+            [w.join() for w in workers]
+    except KeyboardInterrupt:
+        log.info("Received user interrupt, exiting.")
+        stop.set()
+        if args.workers > 1:
+            [w.join() for w in workers]
 
-            dps_sent += len(batch)
-            request_time += t_received - t_sent
+    dps_sent, request_time = 0, 0
 
-        except requests.exceptions.ConnectionError as err:
-            t_error = time.time()
-            request_time += t_error - t_sent
+    while not queue.empty():
+        dps_sent_, request_time_ = queue.get()
+        dps_sent += dps_sent_
+        request_time = max(request_time, request_time_)
 
-            attributes = {dp["attr"] for dp in batch}
-            log.error(
-                "(%.3f s) %s - %s datapoints of attribute(s) %s",
-                t_error - t_sent,
-                err,
-                len(batch),
-                ", ".join(attributes),
-            )
-        except requests.exceptions.InvalidJSONError as err:
-            log.exception(err)
-            log.error(batch)
-        except KeyboardInterrupt:
-            log.info("Received user interrupt, exiting.")
-            break
-
-    t_end = time.time()
-    log.info(
-        "Sent %s datapoints in %.3fs (throughput: %.3f DPs/s; %.4f s/DP)",
-        dps_sent,
-        request_time,
-        dps_sent / request_time,
-        request_time / dps_sent,
-    )
+    if dps_sent != 0:
+        log.info(
+            "Total: Sent %s datapoints in %.3fs (throughput: %.3f DPs/s; %.4f s/DP)",
+            dps_sent,
+            request_time,
+            dps_sent / request_time,
+            request_time / dps_sent,
+        )
+    else:
+        log.info("No datapoints were sent.")

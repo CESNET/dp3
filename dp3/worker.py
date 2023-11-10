@@ -18,6 +18,7 @@ from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.common.control import Control, ControlAction, refresh_on_entity_creation
 from dp3.core.collector import GarbageCollector
+from dp3.core.link_manager import LinkManager
 from dp3.history_management.telemetry import Telemetry
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -166,6 +167,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     )
     registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter)
 
+    LinkManager(db, platform_config, registrar)
     HistoryManager(db, platform_config, registrar)
     Telemetry(db, platform_config, registrar)
     GarbageCollector(db, platform_config, registrar)

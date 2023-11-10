@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from functools import partial
 
 from pydantic import BaseModel
-from pymongo import DeleteMany
 
 from dp3.common.attrspec import AttrType
 from dp3.common.callback_registrar import CallbackRegistrar
@@ -48,13 +47,9 @@ class GarbageCollector:
         self.worker_index = platform_config.process_index
         self.num_workers = platform_config.num_processes
 
-        self.cache = self.db.get_module_cache()
-        self._setup_cache_indexes()
-        self.db.register_on_entity_delete(
-            self.remove_link_cache_of_deleted, self.remove_link_cache_of_deleted_many
-        )
+        # Get link cache
+        self.cache = self.db.get_module_cache("Link")
         self.inverse_relations = self._get_inverse_relations()
-        self.max_date = datetime.max.replace(tzinfo=None)
 
         for entity, entity_config in self.model_spec.entities.items():
             lifetime = entity_config.lifetime
@@ -76,26 +71,6 @@ class GarbageCollector:
                 )
             elif lifetime.type == "weak":
                 if self.inverse_relations[entity]:
-                    for link_entity, link_attr in self.inverse_relations[entity]:
-                        attr_spec = self.model_spec.attributes[link_entity, link_attr]
-                        if attr_spec.t == AttrType.PLAIN:
-                            registrar.register_attr_hook(
-                                "on_new_plain",
-                                partial(self.add_plain_to_link_cache, entity),
-                                link_entity,
-                                link_attr,
-                            )
-                        elif attr_spec.t == AttrType.OBSERVATIONS:
-                            registrar.register_attr_hook(
-                                "on_new_observation",
-                                partial(
-                                    self.add_observation_to_link_cache,
-                                    entity,
-                                    attr_spec.history_params.post_validity,
-                                ),
-                                link_entity,
-                                link_attr,
-                            )
                     registrar.scheduler_register(
                         self.collect_weak,
                         func_args=[entity],
@@ -196,10 +171,10 @@ class GarbageCollector:
         aggregated = self.cache.aggregate(
             [
                 {"$match": {"to": {"$regex": f"^{etype}#"}}},
-                {"$group": {"_id": "$to_eid"}},
+                {"$group": {"_id": "$to"}},
             ]
         )
-        have_references = [doc["_id"] for doc in aggregated]
+        have_references = [doc["_id"].split("#", maxsplit=1)[1] for doc in aggregated]
         entities += len(have_references)
 
         to_delete = []
@@ -338,43 +313,3 @@ class GarbageCollector:
             ttl_tokens={"data": dp.t2 + extend_by},
         )
         return [task]
-
-    def _setup_cache_indexes(self):
-        """Sets up indexes for the cache collection.
-
-        In the collection, all fields are covered by an index:
-
-        * The `to` field is used to count the number of references a given entity has
-        * The `from` field is used when removing links of deleted entities, so it also has an index
-        * The `ttl` field serves as a MongoDB expiring collection index
-        """
-        self.cache.create_index("to", background=True)
-        self.cache.create_index("from", background=True)
-        self.cache.create_index("ttl", expireAfterSeconds=0, background=True)
-
-    def add_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
-        self.cache.update_one(
-            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}", "to_eid": dp.v.eid},
-            {"$max": {"ttl": self.max_date}},
-            upsert=True,
-        )
-
-    def add_observation_to_link_cache(
-        self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
-    ):
-        self.cache.update_one(
-            {"to": f"{etype_to}#{dp.v.eid}", "from": f"{dp.etype}#{eid}", "to_eid": dp.v.eid},
-            {"$max": {"ttl": dp.t2 + post_validity}},
-            upsert=True,
-        )
-
-    def remove_link_cache_of_deleted(self, entity: str, eid: str):
-        self.cache.bulk_write(
-            [DeleteMany({"from": f"{entity}#{eid}"}), DeleteMany({"to": f"{entity}#{eid}"})]
-        )
-
-    def remove_link_cache_of_deleted_many(self, entity: str, eids: list[str]):
-        self.cache.bulk_write(
-            [DeleteMany({"from": f"{entity}#{eid}"}) for eid in eids]
-            + [DeleteMany({"to": f"{entity}#{eid}"}) for eid in eids]
-        )

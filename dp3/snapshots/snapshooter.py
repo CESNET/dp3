@@ -18,13 +18,11 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 """
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
-from functools import partial
+from datetime import datetime
 from typing import Any, Callable, Union
 
 import pymongo.errors
 from pydantic import BaseModel
-from pymongo import DeleteMany
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
@@ -33,7 +31,6 @@ from dp3.common.attrspec import (
     ObservationsHistoryParams,
 )
 from dp3.common.config import CronExpression, PlatformConfig
-from dp3.common.datapoint import DataPointBase, DataPointObservationsBase
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType
 from dp3.database.database import EntityDatabase
@@ -101,33 +98,8 @@ class SnapShooter:
         ]
         self.log.info("Snapshots will be created for entities: %s", self.snapshot_entities)
 
-        # Register snapshot cache
-        self.cache = self.db.get_module_cache()
-        self.max_date = datetime.max.replace(tzinfo=None)
-        self._setup_cache_indexes()
-        for (entity, attr), spec in self.model_spec.relations.items():
-            if spec.t == AttrType.PLAIN:
-                task_executor.register_attr_hook(
-                    "on_new_plain",
-                    partial(self.add_plain_to_link_cache, spec.relation_to),
-                    entity,
-                    attr,
-                )
-            elif spec.t == AttrType.OBSERVATIONS:
-                task_executor.register_attr_hook(
-                    "on_new_observation",
-                    partial(
-                        self.add_observation_to_link_cache,
-                        spec.relation_to,
-                        spec.history_params.post_validity,
-                    ),
-                    entity,
-                    attr,
-                )
-        # Register snapshot cache cleanup
-        self.db.register_on_entity_delete(
-            self.remove_link_cache_of_deleted, self.remove_link_cache_of_many_deleted
-        )
+        # Get link cache
+        self.cache = self.db.get_module_cache("Link")
 
         if platform_config.process_index != 0:
             self.log.debug(
@@ -222,41 +194,6 @@ class SnapShooter:
             ValueError: On failure of specification validation.
         """
         self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
-
-    def add_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
-        self.cache.update_one(
-            {
-                "to": f"{etype_to}#{dp.v.eid}",
-                "from": f"{dp.etype}#{eid}",
-                "using_attr": f"{dp.etype}#{dp.attr}",
-            },
-            {"$max": {"ttl": self.max_date}},
-            upsert=True,
-        )
-
-    def add_observation_to_link_cache(
-        self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
-    ):
-        self.cache.update_one(
-            {
-                "to": f"{etype_to}#{dp.v.eid}",
-                "from": f"{dp.etype}#{eid}",
-                "using_attr": f"{dp.etype}#{dp.attr}",
-            },
-            {"$max": {"ttl": dp.t2 + post_validity}},
-            upsert=True,
-        )
-
-    def remove_link_cache_of_deleted(self, etype: str, eid: str):
-        self.cache.bulk_write(
-            [DeleteMany({"from": f"{etype}#{eid}"}), DeleteMany({"to": f"{etype}#{eid}"})]
-        )
-
-    def remove_link_cache_of_many_deleted(self, etype: str, eids: list[str]):
-        self.cache.bulk_write(
-            [DeleteMany({"from": f"{etype}#{eid}"}) for eid in eids]
-            + [DeleteMany({"to": f"{etype}#{eid}"}) for eid in eids]
-        )
 
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
@@ -685,18 +622,3 @@ class SnapShooter:
         if time >= t2 + history_params.post_validity:
             return 0.0
         return base_confidence * (1 - (time - t2) / history_params.post_validity)
-
-    def _setup_cache_indexes(self):
-        """Sets up indexes for the cache collection.
-
-        In the collection, these fields are covered by an index:
-
-        * The `to` and `from` fields are used when loading linked entities,
-          as well as when removing links of deleted entities
-        * The `using_attr` field is used to filter which link attributes are used
-        * The `ttl` field serves as a MongoDB expiring collection index
-        """
-        self.cache.create_index("to", background=True)
-        self.cache.create_index("from", background=True)
-        self.cache.create_index("using_attr", background=True)
-        self.cache.create_index("ttl", expireAfterSeconds=0, background=True)

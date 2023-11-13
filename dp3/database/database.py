@@ -7,7 +7,7 @@ from typing import Callable, Literal, Optional, Union
 
 import pymongo
 from pydantic import BaseModel, Field, validator
-from pymongo import ReplaceOne, UpdateOne
+from pymongo import ReplaceOne, UpdateMany, UpdateOne
 from pymongo.errors import OperationFailure
 
 from dp3.common.attrspec import AttrType, timeseries_types
@@ -375,6 +375,59 @@ class EntityDatabase:
             self._db[master_col].update_many({}, {"$pull": {attr_name: {"t2": {"$lt": t_old}}}})
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
+
+    def delete_link_dps(
+        self, etype: str, affected_eids: list[str], attr_name: str, eid_to: str
+    ) -> None:
+        """Delete link datapoints from master collection.
+
+        Called from LinkManager for deleted entities.
+        """
+        master_col = self._master_col_name(etype)
+        attr_type = self._db_schema_config.attr(etype, attr_name).t
+        filter_cond = {"_id": {"$in": affected_eids}}
+        try:
+            if attr_type == AttrType.OBSERVATIONS:
+                update_pull = {"$pull": {attr_name: {"v.eid": eid_to}}}
+                self._db[master_col].update_many(filter_cond, update_pull)
+            elif attr_type == AttrType.PLAIN:
+                update_unset = {"$unset": {attr_name: ""}}
+                self._db[master_col].update_many(filter_cond, update_unset)
+            else:
+                raise ValueError(f"Unsupported attribute type: {attr_type}")
+        except Exception as e:
+            raise DatabaseError(f"Delete of link datapoints failed: {e}") from e
+
+    def delete_many_link_dps(
+        self,
+        etypes: list[str],
+        affected_eids: list[list[str]],
+        attr_names: list[str],
+        eids_to: list[list[str]],
+    ) -> None:
+        """Delete link datapoints from master collection.
+
+        Called from LinkManager for deleted entities, when deleting multiple entities.
+        """
+        try:
+            updates = []
+            for etype, affected_eid_list, attr_name, eid_to_list in zip(
+                etypes, affected_eids, attr_names, eids_to
+            ):
+                master_col = self._master_col_name(etype)
+                attr_type = self._db_schema_config.attr(etype, attr_name).t
+                filter_cond = {"_id": {"$in": affected_eid_list}}
+                if attr_type == AttrType.OBSERVATIONS:
+                    update_pull = {"$pull": {attr_name: {"v.eid": {"$in": eid_to_list}}}}
+                    updates.append(UpdateMany(filter_cond, update_pull))
+                elif attr_type == AttrType.PLAIN:
+                    update_unset = {"$unset": {attr_name: ""}}
+                    updates.append(UpdateMany(filter_cond, update_unset))
+                else:
+                    raise ValueError(f"Unsupported attribute type: {attr_type}")
+                self._db[master_col].bulk_write(updates)
+        except Exception as e:
+            raise DatabaseError(f"Delete of link datapoints failed: {e}") from e
 
     def get_master_record(self, etype: str, eid: str, **kwargs) -> dict:
         """Get current master record for etype/eid.

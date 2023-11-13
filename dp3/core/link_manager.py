@@ -93,11 +93,56 @@ class LinkManager:
         )
 
     def remove_link_cache_of_deleted(self, etype: str, eid: str):
+        # Delete from master records
+        # Get all links to the deleted entity grouped by attribute
+        links = self.cache.aggregate(
+            [
+                {"$match": {"to": f"{etype}#{eid}"}},
+                {"$group": {"_id": "$using_attr", "eids_from": {"$push": "$from"}}},
+            ]
+        )
+        # Delete the retrieved references
+        for link in links:
+            etype_from, attr = link["_id"].split("#", maxsplit=1)
+            eids_from = [l_eid.split("#", maxsplit=1)[1] for l_eid in link["eids_from"]]
+            self.db.delete_link_dps(etype_from, eids_from, attr, eid)
+
+        # Delete from cache
         self.cache.bulk_write(
             [DeleteMany({"from": f"{etype}#{eid}"}), DeleteMany({"to": f"{etype}#{eid}"})]
         )
 
     def remove_link_cache_of_many_deleted(self, etype: str, eids: list[str]):
+        # Delete from master records
+        # Get all links to the deleted entities grouped by attribute
+        links = self.cache.aggregate(
+            [
+                # Match links to the deleted entities
+                {"$match": {"to": {"$in": [f"{etype}#{eid}" for eid in eids]}}},
+                # Group the links by attribute (which includes the etype_from)
+                {
+                    "$group": {
+                        "_id": "$using_attr",
+                        "eids_to": {"$push": "$to"},
+                        "eids_from": {"$push": "$from"},
+                    }
+                },
+            ]
+        )
+
+        etypes_from = []
+        attrs = []
+        affected_eids = []
+        eids_to = []
+        for link in links:
+            etype_from, attr = link["_id"].split("#", maxsplit=1)
+            etypes_from.append(etype_from)
+            attrs.append(attr)
+            affected_eids.append([l_eid.split("#", maxsplit=1)[1] for l_eid in link["eids_from"]])
+            eids_to.append([l_eid.split("#", maxsplit=1)[1] for l_eid in link["eids_to"]])
+
+        self.db.delete_many_link_dps(etypes_from, affected_eids, attrs, eids_to)
+
         self.cache.bulk_write(
             [DeleteMany({"from": f"{etype}#{eid}"}) for eid in eids]
             + [DeleteMany({"to": f"{etype}#{eid}"}) for eid in eids]

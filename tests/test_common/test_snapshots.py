@@ -4,7 +4,7 @@ import logging
 import os
 import unittest
 from functools import partial, update_wrapper
-from typing import Callable
+from typing import Callable, Optional
 
 from event_count_logger import DummyEventGroup
 
@@ -126,7 +126,7 @@ class MockDB:
     ):
         ...
 
-    def get_module_cache(self):
+    def get_module_cache(self, override_called_id: Optional[str] = None):
         return self.module_cache
 
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):

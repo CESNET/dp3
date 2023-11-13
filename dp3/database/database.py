@@ -637,7 +637,7 @@ class EntityDatabase:
     def save_metadata(self, time: datetime, metadata: dict):
         """Saves snapshot to specified entity of current master document."""
         module = get_caller_id()
-        metadata["_id"] = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+        metadata["_id"] = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         metadata["#module"] = module
         metadata["#time_created"] = time
         metadata["#last_update"] = datetime.now()
@@ -649,7 +649,7 @@ class EntityDatabase:
 
     def update_metadata(self, time: datetime, metadata: dict, increase: dict = None):
         module = get_caller_id()
-        metadata_id = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+        metadata_id = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         metadata["#last_update"] = datetime.now()
 
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}

@@ -157,6 +157,21 @@ class AttrSpecClassic(AttrSpecGeneric):
         """Returns linked entity id. Raises ValueError if attribute is not a link."""
         return self.data_type.get_linked_entity()
 
+    @property
+    def is_mirrored(self) -> bool:
+        """Returns whether specified attribute is a mirrored link."""
+        return self.data_type.mirror_link
+
+    @property
+    def mirror_as(self) -> str:
+        """
+        Returns:
+             name of the mirrored attribute.
+        Raises:
+            ValueError if attribute is not a mirrored link.
+        """
+        return self.data_type.mirror_as
+
 
 class AttrSpecPlain(AttrSpecClassic):
     """Plain attribute specification"""

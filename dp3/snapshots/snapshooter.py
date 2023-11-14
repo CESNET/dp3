@@ -97,6 +97,11 @@ class SnapShooter:
             entity for entity, spec in self.model_spec.entities.items() if spec.snapshot
         ]
         self.log.info("Snapshots will be created for entities: %s", self.snapshot_entities)
+        self.link_mirrors = defaultdict(dict)
+        for (entity, attr), spec in self.model_spec.relations.items():
+            if spec.is_relation and spec.is_mirrored:
+                self.link_mirrors[spec.relation_to][spec.mirror_as] = (entity, attr)
+        self.log.info("Link mirrors: %s", self.link_mirrors)
 
         # Get link cache
         self.cache = self.db.get_module_cache("Link")
@@ -377,6 +382,7 @@ class SnapShooter:
         """
         self.run_timeseries_processing(entity_type, master_record)
         values = self.get_values_at_time(entity_type, master_record, time)
+        self.add_mirrored_links(entity_type, values)
         entity_values = {(entity_type, master_record["_id"]): values}
 
         tasks = self._correlation_hooks.run(entity_values)
@@ -386,6 +392,29 @@ class SnapShooter:
         assert len(entity_values) == 1, "Expected a single entity."
         for record in entity_values.values():
             return record
+
+    def add_mirrored_links(self, entity_type: str, values: dict):
+        """
+        This function adds mirrored links to the dict with current values of an entity.
+
+        The links are added in the same format as normal links, i.e. as a list of dicts.
+        """
+        if entity_type in self.link_mirrors:
+            for mirror_name, (etype, attr) in self.link_mirrors[entity_type].items():
+                link_sources = self.cache.aggregate(
+                    [
+                        {
+                            "$match": {
+                                "to": f"{entity_type}#{values['eid']}",
+                                "using_attr": f"{etype}#{attr}",
+                            }
+                        },
+                        {"$project": {"from": 1}},
+                    ]
+                )
+                values[mirror_name] = [
+                    {"eid": source["from"].split("#", maxsplit=1)[1]} for source in link_sources
+                ]
 
     def make_snapshot(self, task: Snapshot):
         """
@@ -402,6 +431,7 @@ class SnapShooter:
 
             self.run_timeseries_processing(entity_type, record)
             values = self.get_values_at_time(entity_type, record, task.time)
+            self.add_mirrored_links(entity_type, values)
             entity_values[entity_type, entity_id] = values
 
         self.link_loaded_entities(entity_values)

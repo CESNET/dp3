@@ -9,7 +9,9 @@ from pydantic import BaseModel, Extra, Json, PrivateAttr, constr, create_model
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(\w+)>$")
 re_set = re.compile(r"^set<(\w+)>$")
-re_link = re.compile(r"^link\s*<\s*(?P<etype>\w+)\s*(?:,\s*(?P<data>\S+)\s*)?>$")
+re_link = re.compile(
+    r"^link\s*<\s*(?P<etype>\w+)\s*(?:,\s*(?P<data>\S+)\s*)?(?:;\s*mirror=(?P<mirror>\S+)\s*)?>$"
+)
 re_dict = re.compile(r"^dict\s*<(\s*(\w+\??:\w+,\s*)*(\w+\??:\w+\s*))>$")
 re_category = re.compile(
     r"^category<\s*(?P<type>\w+)\s*;\s*(?P<vals>(?:\s*\w+,\s*)*(?:\s*\w+\s*))>$"
@@ -67,6 +69,8 @@ class DataType(BaseModel):
         hashable: whether contained data is hashable
         is_link: whether this data type is link
         link_to: if `is_link` is True, what is linked target
+        mirror_link: if `is_link` is True, whether this link is mirrored
+        mirror_as: if `mirror_link` is True, what is the name of the mirrored attribute
     """
 
     __root__: str
@@ -74,6 +78,8 @@ class DataType(BaseModel):
     _hashable = PrivateAttr(True)
     _is_link = PrivateAttr(False)
     _link_to = PrivateAttr()
+    _mirror_link = PrivateAttr(False)
+    _mirror_as = PrivateAttr()
     _link_data = PrivateAttr()
 
     def __init__(self, **data):
@@ -123,10 +129,12 @@ class DataType(BaseModel):
 
         elif m := re.match(re_link, str_type):
             # Link
-            etype, data = m.group("etype"), m.group("data")
+            etype, data, mirrored = m.group("etype"), m.group("data"), m.group("mirror")
             self._link_to = etype
             self._is_link = True
             self._link_data = bool(data)
+            self._mirror_link = bool(mirrored)
+            self._mirror_as = mirrored if mirrored else None
 
             if etype and data:
                 value_type = DataType(__root__=data)
@@ -188,6 +196,14 @@ class DataType(BaseModel):
     @property
     def is_link(self) -> bool:
         return self._is_link
+
+    @property
+    def mirror_link(self) -> bool:
+        return self._mirror_link
+
+    @property
+    def mirror_as(self) -> Union[str, None]:
+        return self._mirror_as
 
     @property
     def link_to(self) -> str:

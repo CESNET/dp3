@@ -40,7 +40,7 @@ eid_filter_query_param = Query(default="", deprecated=True)
 async def list_entity_type_eids(
     etype: str,
     eid_filter: str = eid_filter_query_param,
-    fulltext_filters: Json = "{}",
+    fulltext_filters: Json = None,
     skip: NonNegativeInt = 0,
     limit: PositiveInt = 20,
 ) -> EntityEidList:
@@ -61,7 +61,9 @@ async def list_entity_type_eids(
     If you need to filter EIDs, use attribute `eid` (`eid_filter` is deprecated and you should
     migrate to `fulltext_filters["eid"]`).
     """
-    # `eid_filter` is deprecated - to be removed in the future
+    if not fulltext_filters:
+        fulltext_filters = {}
+
     if type(fulltext_filters) is not dict:
         raise HTTPException(status_code=400, detail="Fulltext filter is invalid")
 
@@ -70,6 +72,7 @@ async def list_entity_type_eids(
         if not isinstance(ftr, str):
             raise HTTPException(status_code=400, detail=f"Filter '{ftr}' is not string")
 
+    # `eid_filter` is deprecated - to be removed in the future
     if eid_filter:
         fulltext_filters["eid"] = eid_filter
 

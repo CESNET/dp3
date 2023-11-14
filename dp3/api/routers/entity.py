@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import NonNegativeInt, PositiveInt, ValidationError
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import Json, NonNegativeInt, PositiveInt, ValidationError
 
 from dp3.api.internal.config import DB, MODEL_SPEC, TASK_WRITER
 from dp3.api.internal.entity_response_models import (
@@ -30,12 +30,19 @@ async def check_etype(etype: str):
 
 router = APIRouter(dependencies=[Depends(check_etype)])
 
+# As variable, because otherwise generates ruff B008 error
+eid_filter_query_param = Query(default="", deprecated=True)
+
 
 @router.get(
     "/{etype}", responses={400: {"description": "Query can't be processed", "model": ErrorResponse}}
 )
 async def list_entity_type_eids(
-    etype: str, eid_filter: str = "", skip: NonNegativeInt = 0, limit: PositiveInt = 20
+    etype: str,
+    eid_filter: str = eid_filter_query_param,
+    fulltext_filters: Json = "{}",
+    skip: NonNegativeInt = 0,
+    limit: PositiveInt = 20,
 ) -> EntityEidList:
     """List latest snapshots of all `id`s present in database under `etype`.
 
@@ -43,10 +50,31 @@ async def list_entity_type_eids(
 
     Uses pagination.
 
-    If `eid_filter` is not empty, returns only `id`s containing substring `eid_filter`.
+    Returns only documents matching `fulltext_filters`
+    (JSON object in format: attribute - fulltext filter).
+    These filters are interpreted as regular expressions.
+    Only string values may be filtered this way. There's no validation that queried attribute
+    can be fulltext filtered.
+    Only plain and observation attributes with string-based data types can be queried.
+    Array and set data types are supported as well as long as they are not multi value
+    at the same time.
+    If you need to filter EIDs, use attribute `eid` (`eid_filter` is deprecated and you should
+    migrate to `fulltext_filters["eid"]`).
     """
+    # `eid_filter` is deprecated - to be removed in the future
+    if type(fulltext_filters) is not dict:
+        raise HTTPException(status_code=400, detail="Fulltext filter is invalid")
+
+    for attr in fulltext_filters:
+        ftr = fulltext_filters[attr]
+        if not isinstance(ftr, str):
+            raise HTTPException(status_code=400, detail=f"Filter '{ftr}' is not string")
+
+    if eid_filter:
+        fulltext_filters["eid"] = eid_filter
+
     try:
-        cursor, total_count = DB.get_latest_snapshots(etype, eid_filter)
+        cursor, total_count = DB.get_latest_snapshots(etype, fulltext_filters)
         cursor_page = cursor.skip(skip).limit(limit)
     except DatabaseError as e:
         raise HTTPException(status_code=400, detail="Query is invalid") from e

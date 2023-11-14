@@ -477,13 +477,21 @@ class EntityDatabase:
         return self._db[snapshot_col].find_one({"eid": eid}, sort=[("_id", -1)]) or {}
 
     def get_latest_snapshots(
-        self, etype: str, eid_filter: str = ""
+        self, etype: str, fulltext_filters: Optional[dict[str, str]] = None
     ) -> tuple[pymongo.cursor.Cursor, int]:
         """Get latest snapshots of given `etype`.
 
         This method is useful for displaying data on web.
 
-        If `eid_filter` is not empty, returns only `eid`s containing substring `eid_filter`.
+        Returns only documents matching `fulltext_filters`
+        (dictionary attribute - fulltext filter).
+        These filters are interpreted as regular expressions.
+        Only string values may be filtered this way. There's no validation that queried attribute
+        can be fulltext filtered.
+        Only plain and observation attributes with string-based data types can be queried.
+        Array and set data types are supported as well as long as they are not multi value
+        at the same time.
+        If you need to filter EIDs, use attribute `eid`.
 
         Also returns total document count (after filtering).
 
@@ -512,8 +520,22 @@ class EntityDatabase:
         # Extract date and query using it
         latest_snapshot_date = latest_fully_completed_snapshot_metadata["#time_created"]
         query = {"_time_created": latest_snapshot_date}
-        if eid_filter != "":
-            query["eid"] = {"$regex": eid_filter}
+
+        if not fulltext_filters:
+            fulltext_filters = {}
+
+        # Process fulltext filters
+        for attr in fulltext_filters:
+            # EID filter
+            if attr == "eid":
+                query[attr] = {"$regex": fulltext_filters[attr]}
+                continue
+
+            # Check if attribute exists
+            if attr not in self._db_schema_config.attribs(etype):
+                raise DatabaseError(f"Attribute '{attr}' in fulltext filter doesn't exist")
+
+            query[attr] = {"$regex": fulltext_filters[attr]}
 
         try:
             return self._db[snapshot_col].find(query).sort([("eid", pymongo.ASCENDING)]), self._db[

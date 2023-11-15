@@ -8,12 +8,7 @@ from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Callable, Union
 
-from dp3.common.attrspec import (
-    AttrSpecObservations,
-    AttrSpecPlain,
-    AttrSpecTimeseries,
-    AttrType,
-)
+from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.task import DataPointTask
 from dp3.task_processing.task_hooks import EventGroupType
@@ -150,17 +145,17 @@ class SnapshotCorrelationHookContainer:
         for path in paths:
             curr_entity = base_entity
             position = entity_attributes[base_entity]
-            for step in path:
+            for i, step in enumerate(path):
                 if step not in position:
                     raise ValueError(
                         f"Invalid path '{'->'.join([base_entity] + path)}', failed on '{step}'"
                     )
                 position = position[step]
                 if position.is_relation:
-                    used_links.add((curr_entity, step))
+                    if i != len(path) - 1:
+                        used_links.add((curr_entity, step))
                     curr_entity = position.relation_to
                     position = entity_attributes[position.relation_to]
-            assert isinstance(position, (AttrSpecPlain, AttrSpecObservations, AttrSpecTimeseries))
         return used_links
 
     def _expand_path_backlinks(self, base_entity: str, paths: list[list[str]]):

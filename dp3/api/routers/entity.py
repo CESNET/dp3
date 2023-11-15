@@ -64,7 +64,7 @@ async def list_entity_type_eids(
     if not fulltext_filters:
         fulltext_filters = {}
 
-    if isinstance(fulltext_filters, dict):
+    if not isinstance(fulltext_filters, dict):
         raise HTTPException(status_code=400, detail="Fulltext filter is invalid")
 
     for attr in fulltext_filters:

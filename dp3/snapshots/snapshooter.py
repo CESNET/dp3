@@ -440,28 +440,33 @@ class SnapShooter:
             self.task_queue_writer.put_task(created_task)
 
         # unlink entities again
-        for rtype_rid, record in entity_values.items():
-            rtype, rid = rtype_rid
+        for (rtype, _rid), record in entity_values.items():
             for attr, value in record.items():
                 if (rtype, attr) not in self.model_spec.relations:
                     continue
-                if (
-                    self.model_spec.relations[rtype, attr].t == AttrType.OBSERVATIONS
-                    and self.model_spec.relations[rtype, attr].multi_value
-                ):
-                    record[attr] = [
-                        {k: v for k, v in link_dict.items() if k != "record"} for link_dict in value
-                    ]
+                spec = self.model_spec.relations[rtype, attr]
+                if spec.t == AttrType.OBSERVATIONS and spec.multi_value:
+                    for val in value:
+                        self._remove_record_from_value(spec, val)
                 else:
-                    record[attr] = {k: v for k, v in value.items() if k != "record"}
+                    self._remove_record_from_value(spec, value)
 
-        for rtype_rid, record in entity_values.items():
+        for (rtype, _rid), record in entity_values.items():
             if len(record) == 1 and not self.config.keep_empty:
                 continue
-            self.db.save_snapshot(rtype_rid[0], record, task.time)
+            self.db.save_snapshot(rtype, record, task.time)
 
         if task.final:
             self.db.update_metadata(task.time, metadata={"linked_finished": True})
+
+    @staticmethod
+    def _remove_record_from_value(spec: AttrSpecType, value: Union[dict, list[dict]]):
+        if spec.is_iterable:
+            for link_dict in value:
+                if "record" in link_dict:
+                    del link_dict["record"]
+        elif "record" in value:
+            del value["record"]
 
     def run_timeseries_processing(self, entity_type, master_record):
         """
@@ -551,10 +556,19 @@ class SnapShooter:
                 continue
             attr_spec = self.model_spec.relations[entity_type, attr]
             if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
-                related_entity_ids.update((attr_spec.relation_to, v["eid"]) for v in val)
+                for v in val:
+                    related_entity_ids.update(self._get_link_entity_ids(attr_spec, v))
             else:
-                related_entity_ids.add((attr_spec.relation_to, val["eid"]))
+                related_entity_ids.update(self._get_link_entity_ids(attr_spec, val))
         return related_entity_ids
+
+    @staticmethod
+    def _get_link_entity_ids(
+        spec: AttrSpecType, link_value: Union[list[dict], dict]
+    ) -> set[tuple[str, str]]:
+        if spec.is_iterable:
+            return {(spec.relation_to, v["eid"]) for v in link_value}
+        return {(spec.relation_to, link_value["eid"])}
 
     def link_loaded_entities(self, loaded_entities: dict):
         for (entity_type, _entity_id), entity in loaded_entities.items():
@@ -569,16 +583,12 @@ class SnapShooter:
                     pruned_conf = []
                     for v, conf in zip(val, val_conf):
                         if self._keep_link(loaded_entities, attr_spec, v):
-                            v["record"] = loaded_entities.get(
-                                (attr_spec.relation_to, v["eid"]), {"eid": v["eid"]}
-                            )
+                            self._link_record(loaded_entities, attr_spec, v)
                             entity[attr].append(v)
                             pruned_conf.append(conf)
                     entity[f"{attr}#c"] = pruned_conf
                 elif self._keep_link(loaded_entities, attr_spec, val):
-                    val["record"] = loaded_entities.get(
-                        (attr_spec.relation_to, val["eid"]), {"eid": val["eid"]}
-                    )
+                    self._link_record(loaded_entities, attr_spec, val)
                     entity[attr] = val
                 else:  # The linked entity does not exist, and we do not want to keep empty
                     del_keys.append(attr)
@@ -588,11 +598,28 @@ class SnapShooter:
             for key in del_keys:
                 del entity[key]
 
-    def _keep_link(self, loaded_entities: dict, attr_spec: AttrSpecType, val: dict) -> bool:
-        return (
-            loaded_entities.get((attr_spec.relation_to, val["eid"])) is not None
-            or self.config.keep_empty
-        )
+    def _keep_link(
+        self, loaded_entities: dict, attr_spec: AttrSpecType, val: Union[dict, list[dict]]
+    ) -> bool:
+        if self.config.keep_empty:
+            return True
+        if attr_spec.is_iterable:
+            return any(
+                loaded_entities.get((attr_spec.relation_to, v["eid"])) is not None for v in val
+            )
+        return loaded_entities.get((attr_spec.relation_to, val["eid"])) is not None
+
+    @staticmethod
+    def _link_record(loaded_entities: dict, attr_spec: AttrSpecType, val: Union[dict, list[dict]]):
+        if attr_spec.is_iterable:
+            for link_dict in val:
+                link_dict["record"] = loaded_entities.get(
+                    (attr_spec.relation_to, link_dict["eid"]), {"eid": link_dict["eid"]}
+                )
+        else:
+            val["record"] = loaded_entities.get(
+                (attr_spec.relation_to, val["eid"]), {"eid": val["eid"]}
+            )
 
     def get_value_at_time(
         self, attr_spec: AttrSpecObservations, attr_history, time: datetime

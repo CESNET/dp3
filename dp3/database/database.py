@@ -223,7 +223,10 @@ class EntityDatabase:
         for dp in dps:
             attr_spec = self._db_schema_config.attr(etype, dp.attr)
 
-            v = dp.v.dict() if isinstance(dp.v, BaseModel) else dp.v
+            if attr_spec.is_iterable:
+                v = [elem.dict() if isinstance(elem, BaseModel) else elem for elem in dp.v]
+            else:
+                v = dp.v.dict() if isinstance(dp.v, BaseModel) else dp.v
 
             # Rewrite value of plain attribute
             if attr_spec.t == AttrType.PLAIN:

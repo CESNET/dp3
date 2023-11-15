@@ -35,20 +35,21 @@ class LinkManager:
         self.max_date = datetime.max.replace(tzinfo=None)
         for (entity, attr), spec in self.model_spec.relations.items():
             if spec.t == AttrType.PLAIN:
+                if spec.is_iterable:
+                    func = self.add_iterable_plain_to_link_cache
+                else:
+                    func = self.add_plain_to_link_cache
                 registrar.register_attr_hook(
-                    "on_new_plain",
-                    partial(self.add_plain_to_link_cache, spec.relation_to),
-                    entity,
-                    attr,
+                    "on_new_plain", partial(func, spec.relation_to), entity, attr
                 )
             elif spec.t == AttrType.OBSERVATIONS:
+                if spec.is_iterable:
+                    func = self.add_iterable_observation_to_link_cache
+                else:
+                    func = self.add_observation_to_link_cache
                 registrar.register_attr_hook(
                     "on_new_observation",
-                    partial(
-                        self.add_observation_to_link_cache,
-                        spec.relation_to,
-                        spec.history_params.post_validity,
-                    ),
+                    partial(func, spec.relation_to, spec.history_params.post_validity),
                     entity,
                     attr,
                 )
@@ -79,12 +80,38 @@ class LinkManager:
             upsert=True,
         )
 
+    def add_iterable_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
+        linked_eids = [v.eid for v in dp.v]
+        self.cache.update_many(
+            {
+                "to": {"$in": [f"{etype_to}#{eid_}" for eid_ in linked_eids]},
+                "from": f"{dp.etype}#{eid}",
+                "using_attr": f"{dp.etype}#{dp.attr}",
+            },
+            {"$max": {"ttl": self.max_date}},
+            upsert=True,
+        )
+
     def add_observation_to_link_cache(
         self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
     ):
         self.cache.update_one(
             {
                 "to": f"{etype_to}#{dp.v.eid}",
+                "from": f"{dp.etype}#{eid}",
+                "using_attr": f"{dp.etype}#{dp.attr}",
+            },
+            {"$max": {"ttl": dp.t2 + post_validity}},
+            upsert=True,
+        )
+
+    def add_iterable_observation_to_link_cache(
+        self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
+    ):
+        linked_eids = [v.eid for v in dp.v]
+        self.cache.update_many(
+            {
+                "to": {"$in": [f"{etype_to}#{eid_}" for eid_ in linked_eids]},
                 "from": f"{dp.etype}#{eid}",
                 "using_attr": f"{dp.etype}#{dp.attr}",
             },

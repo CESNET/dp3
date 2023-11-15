@@ -148,18 +148,34 @@ class AttrSpecClassic(AttrSpecGeneric):
     editable: bool = False
 
     @property
+    def is_iterable(self) -> bool:
+        """Returns whether specified attribute is iterable."""
+        return self.data_type.iterable
+
+    @property
+    def element_type(self) -> DataType:
+        """Returns the element type for iterable data types."""
+        return self.data_type.elem_type
+
+    @property
     def is_relation(self) -> bool:
         """Returns whether specified attribute is a link."""
-        return self.data_type.is_link
+        return self.data_type.is_link or (
+            self.data_type.iterable and self.data_type.elem_type.is_link
+        )
 
     @property
     def relation_to(self) -> str:
         """Returns linked entity id. Raises ValueError if attribute is not a link."""
+        if self.data_type.iterable:
+            return self.element_type.get_linked_entity()
         return self.data_type.get_linked_entity()
 
     @property
     def is_mirrored(self) -> bool:
         """Returns whether specified attribute is a mirrored link."""
+        if self.data_type.iterable:
+            return self.element_type.mirror_link
         return self.data_type.mirror_link
 
     @property
@@ -170,6 +186,8 @@ class AttrSpecClassic(AttrSpecGeneric):
         Raises:
             ValueError if attribute is not a mirrored link.
         """
+        if self.data_type.iterable:
+            return self.element_type.mirror_as
         return self.data_type.mirror_as
 
 

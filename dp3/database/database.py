@@ -526,16 +526,24 @@ class EntityDatabase:
 
         # Process fulltext filters
         for attr in fulltext_filters:
+            fulltext_filter = {"$regex": fulltext_filters[attr], "$options": "i"}
+
             # EID filter
             if attr == "eid":
-                query[attr] = {"$regex": fulltext_filters[attr]}
+                query[attr] = fulltext_filter
                 continue
 
             # Check if attribute exists
-            if attr not in self._db_schema_config.attribs(etype):
-                raise DatabaseError(f"Attribute '{attr}' in fulltext filter doesn't exist")
+            try:
+                attr_spec = self._db_schema_config.attr(etype, attr)
+            except KeyError as e:
+                raise DatabaseError(f"Attribute '{attr}' in fulltext filter doesn't exist") from e
 
-            query[attr] = {"$regex": fulltext_filters[attr]}
+            # Correctly handle link<...> data type
+            if attr_spec.t in AttrType.PLAIN | AttrType.OBSERVATIONS and attr_spec.is_relation:
+                query[attr + ".eid"] = fulltext_filter
+            else:
+                query[attr] = fulltext_filter
 
         try:
             return self._db[snapshot_col].find(query).sort([("eid", pymongo.ASCENDING)]), self._db[

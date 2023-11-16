@@ -184,7 +184,7 @@ class AttrSpecClassic(AttrSpecGeneric):
         Returns:
              name of the mirrored attribute.
         Raises:
-            ValueError if attribute is not a mirrored link.
+            ValueError: If attribute is not a mirrored link.
         """
         if self.data_type.iterable:
             return self.element_type.mirror_as

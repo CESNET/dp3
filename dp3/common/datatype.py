@@ -75,6 +75,7 @@ class DataType(BaseModel):
 
     __root__: str
     _data_type = PrivateAttr(None)
+    _type_info = PrivateAttr(None)
     _hashable = PrivateAttr(True)
 
     _iterable = PrivateAttr(False)
@@ -111,6 +112,8 @@ class DataType(BaseModel):
         if not isinstance(str_type, str):
             raise TypeError(f"Data type {str_type} is not string")
 
+        self._type_info = None
+
         if str_type in primitive_data_types:
             # Primitive type
             data_type = primitive_data_types[str_type]
@@ -143,6 +146,7 @@ class DataType(BaseModel):
             self._link_data = bool(data)
             self._mirror_link = bool(mirrored)
             self._mirror_as = mirrored if mirrored else None
+            self._type_info = f"link<{etype},{data}>"
 
             if etype and data:
                 value_type = DataType(__root__=data)
@@ -176,6 +180,9 @@ class DataType(BaseModel):
 
             # Create model for this dict
             data_type = create_model(f"{str_type}__inner", **dict_spec)
+            self._type_info = (
+                "dict<" + ",".join(f"{k}:{v}" for k, v in sorted(dict_spec.items())) + ">"
+            )
 
         elif m := re.match(re_category, str_type):
             # Category
@@ -192,10 +199,17 @@ class DataType(BaseModel):
 
         # Set data type
         self._data_type = data_type
+        # Set default type info
+        if self._type_info is None:
+            self._type_info = str(data_type)
 
     @property
     def data_type(self) -> str:
         return self._data_type
+
+    @property
+    def type_info(self) -> str:
+        return self._type_info
 
     @property
     def hashable(self) -> bool:

@@ -2,6 +2,7 @@ import inspect
 import logging
 import time
 import urllib
+from collections import defaultdict
 from datetime import datetime
 from typing import Callable, Literal, Optional, Union
 
@@ -69,6 +70,8 @@ def get_caller_id():
 
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
+# current database schema version
+SCHEMA_VERSION = 1
 
 
 class EntityDatabase:
@@ -193,6 +196,152 @@ class EntityDatabase:
         """
         if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
+
+    def update_schema_if_necessary(self):
+        """
+        Checks whether schema saved in database is up-to-date and updates it if necessary.
+
+        Will perform changes in master collections where required based on schema changes.
+        As this method modifies the schema collection, it should be called only by the main worker.
+
+        The schema collection format is as follows:
+
+        ```py
+            {
+                "_id": 0,
+                "schema": { ... }, # (1)!
+                "version": 1
+            }
+        ```
+
+        1. see [schema construction][dp3.database.database.EntityDatabase.construct_schema_document]
+        """
+        schemas = self.get_module_cache("Schema")
+
+        schema_doc = schemas.find_one({}, sort=[("_id", pymongo.DESCENDING)])
+        if schema_doc is None:
+            schema = self._infer_current_schema()
+            schema_doc = {"_id": 0, "schema": schema, "version": SCHEMA_VERSION}
+            schemas.insert_one(schema_doc)
+            self.log.info("Created initial schema")
+
+        current_schema = self.construct_schema_document()
+        if schema_doc["schema"] != current_schema:
+            new_schema = {
+                "_id": schema_doc["_id"] + 1,
+                "schema": current_schema,
+                "version": SCHEMA_VERSION,
+            }
+            if schema_doc["version"] != SCHEMA_VERSION:
+                self.log.info("Schema version changed, updating without changes.")
+                schemas.insert_one(new_schema)
+                return
+
+            for entity, attributes in schema_doc["schema"].items():
+                updates = defaultdict(dict)
+                current_attributes = current_schema[entity]
+
+                # Unset deleted attributes
+                deleted = set(attributes) - set(current_attributes)
+                if deleted:
+                    updates["$unset"] |= {attr: "" for attr in deleted}
+
+                for attr, spec in attributes.items():
+                    if attr in deleted:
+                        continue
+
+                    # Unset current values on type change
+                    if spec["t"] != current_attributes[attr]["t"]:
+                        updates["$unset"][attr] = ""
+
+                    # Unset current values on data_type change
+                    if spec["data_type"] != current_attributes[attr]["data_type"]:
+                        updates["$unset"][attr] = ""
+
+                if not updates:
+                    continue
+
+                try:
+                    self.log.debug(
+                        "Performing %s master collection update: %s", entity, dict(updates)
+                    )
+                    master_name = self._master_col_name(entity)
+                    res = self._db[master_name].update_many({}, updates)
+                    self.log.debug("Updated %s %s master records.", res.modified_count, entity)
+                except Exception as e:
+                    raise DatabaseError(f"Schema update failed: {e}") from e
+
+            schemas.insert_one(new_schema)
+            self.log.info("Updated schema, OK now!")
+        else:
+            self.log.info("Schema OK!")
+
+    def _infer_current_schema(self):
+        ...
+        return {}
+
+    def construct_schema_document(self):
+        """
+        Constructs schema document from current schema configuration.
+
+        The schema document format is as follows:
+
+        ```json
+            {
+                "entity_type": {
+                    "attribute": {
+                        "t": 1 | 2 | 4,
+                        "data_type": <data_type.__root__>
+                    }
+                }
+            }
+        ```
+
+        where `t` is [attribute type][dp3.common.attrspec.AttrType],
+        and `data_type` is the data type string.
+        """
+        return {
+            entity_type: {
+                attr: {
+                    "t": spec.t.value,
+                    "data_type": spec.data_type.type_info,
+                }
+                for attr, spec in attributes.items()
+            }
+            for entity_type, attributes in self._db_schema_config.entity_attributes.items()
+        }
+
+    def await_current_schema(self):
+        """
+        Checks whether schema saved in database is up-to-date and awaits its update
+        by the main worker on mismatch.
+        """
+        schemas = self.get_module_cache("Schema")
+
+        self.log.debug("Fetching current schema")
+        schema_doc = schemas.find_one(sort=[("_id", pymongo.DESCENDING)])
+        for delay in RECONNECT_DELAYS:
+            if schema_doc is not None:
+                break
+            self.log.debug("Schema not found, will retry in %s seconds", delay)
+            time.sleep(delay)
+            schema_doc = schemas.find_one(sort=[("_id", pymongo.DESCENDING)])
+
+        if schema_doc is None:
+            raise DatabaseError("Unable to establish schema")
+
+        configured_schema = self.construct_schema_document()
+        for delay in RECONNECT_DELAYS:
+            if schema_doc["schema"] == configured_schema:
+                break
+            self.log.info("Schema mismatch, will await update by main worker in %s seconds", delay)
+            time.sleep(delay)
+            schema_doc = schemas.find_one(sort=[("_id", pymongo.DESCENDING)])
+
+        if schema_doc["schema"] != configured_schema:
+            raise DatabaseError("Unable to establish matching schema")
+
+        self.log.info("Schema OK!")
 
     def insert_datapoints(
         self, etype: str, eid: str, dps: list[DataPointBase], new_entity: bool = False
@@ -909,5 +1058,5 @@ class EntityDatabase:
         Module name is determined automatically, but you can override it.
         """
         module = override_called_id or get_caller_id()
-        self.log.debug("Module %s is accessing its cache collection", module)
+        self.log.debug("Cache collection access: %s", module)
         return self._db[f"#cache#{module}"]

@@ -155,6 +155,10 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
     db = EntityDatabase(config.get("database"), model_spec, num_processes)
+    if process_index == 0:
+        db.update_schema_if_necessary()
+    else:
+        db.await_current_schema()
 
     global_scheduler = scheduler.Scheduler()
     task_executor = TaskExecutor(db, platform_config)

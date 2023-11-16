@@ -77,9 +77,12 @@ class SnapShooter:
         self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
 
         elog = task_executor.elog
+        self.elog = elog
 
         self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec, elog)
         self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec, elog)
+        self._init_hooks: list[Callable[[], list[DataPointTask]]] = []
+        self._finalize_hooks: list[Callable[[], list[DataPointTask]]] = []
 
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
         self.snapshot_queue_reader = TaskQueueReader(
@@ -200,6 +203,26 @@ class SnapShooter:
         """
         self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
 
+    def register_run_init_hook(self, hook: Callable[[], list[DataPointTask]]):
+        """
+        Registers passed hook to be called before a run of  snapshot creation begins.
+
+        Args:
+            hook: `hook` callable should expect no arguments and
+                return a list of DataPointTask objects to perform.
+        """
+        self._init_hooks.append(hook)
+
+    def register_run_finalize_hook(self, hook: Callable[[], list[DataPointTask]]):
+        """
+        Registers passed hook to be called after a run of  snapshot creation ends.
+
+        Args:
+            hook: `hook` callable should expect no arguments and
+                return a list of DataPointTask objects to perform.
+        """
+        self._finalize_hooks.append(hook)
+
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
         time = datetime.now()
@@ -212,6 +235,10 @@ class SnapShooter:
                 "workers_finished": 0,
                 "linked_finished": False,
             },
+        )
+        # Broadcast run start
+        self.snapshot_queue_writer.broadcast_task(
+            task=Snapshot(type=SnapshotMessageType.run_start, time=time)
         )
 
         # distribute list of possibly linked entities to all workers
@@ -254,6 +281,11 @@ class SnapShooter:
                 metadata=times,
                 increase=counts,
             )
+
+        # Broadcast run end
+        self.snapshot_queue_writer.broadcast_task(
+            task=Snapshot(type=SnapshotMessageType.run_end, time=time)
+        )
 
     def get_cached_link_entity_ids(self):
         used = [f"{etype}#{attr}" for etype, attr in self._correlation_hooks.used_links]
@@ -316,8 +348,28 @@ class SnapShooter:
             self.make_snapshot(task)
         elif task.type == SnapshotMessageType.linked_entities:
             self.make_snapshots_by_hash(task)
+        elif task.type == SnapshotMessageType.run_start:
+            self.log.debug("Run start, running init hooks")
+            self._run_hooks(self._init_hooks)
+        elif task.type == SnapshotMessageType.run_end:
+            self.log.debug("Run end, running finalize hooks")
+            self._run_hooks(self._finalize_hooks)
         else:
             raise ValueError("Unknown SnapshotMessageType.")
+
+    def _run_hooks(self, hooks: list[Callable[[], list[DataPointTask]]]):
+        tasks = []
+        for hook in hooks:
+            self.log.debug("Running hook: '%s'", hook.__qualname__)
+            try:
+                new_tasks = hook()
+                tasks.extend(new_tasks)
+            except Exception as e:
+                self.elog.log("module_error")
+                self.log.error(f"Error during running hook {hook}: {e}")
+
+        for task in tasks:
+            self.task_queue_writer.put_task(task)
 
     def make_snapshots_by_hash(self, task: Snapshot):
         """

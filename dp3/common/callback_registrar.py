@@ -147,3 +147,23 @@ class CallbackRegistrar:
             ValueError: On failure of specification validation.
         """
         self._snap_shooter.register_correlation_hook(hook, entity_type, depends_on, may_change)
+
+    def register_snapshot_init_hook(self, hook: Callable[[], list[DataPointTask]]):
+        """
+        Registers passed hook to be called before a run of snapshot creation begins.
+
+        Args:
+            hook: `hook` callable should expect no arguments and
+                return a list of DataPointTask objects to perform.
+        """
+        self._snap_shooter.register_run_init_hook(hook)
+
+    def register_snapshot_finalize_hook(self, hook: Callable[[], list[DataPointTask]]):
+        """
+        Registers passed hook to be called after a run of snapshot creation ends.
+
+        Args:
+            hook: `hook` callable should expect no arguments and
+                return a list of DataPointTask objects to perform.
+        """
+        self._snap_shooter.register_run_finalize_hook(hook)

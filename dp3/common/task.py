@@ -113,6 +113,8 @@ class DataPointTask(Task):
 class SnapshotMessageType(Enum):
     task = "task"
     linked_entities = "linked_entities"
+    run_start = "run_start"
+    run_end = "run_end"
 
 
 class Snapshot(Task):
@@ -129,7 +131,7 @@ class Snapshot(Task):
         final: If True, this is the last linked snapshot for the given time
     """
 
-    entities: list[tuple[str, str]]
+    entities: list[tuple[str, str]] = []
     time: datetime
     type: SnapshotMessageType
     final: bool = False

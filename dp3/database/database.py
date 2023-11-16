@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, validator
 from pymongo import ReplaceOne, UpdateMany, UpdateOne
 from pymongo.errors import OperationFailure
 
-from dp3.common.attrspec import AttrType, timeseries_types
+from dp3.common.attrspec import ID_REGEX, AttrSpecType, AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase
 from dp3.task_processing.task_queue import HASH
@@ -220,10 +220,9 @@ class EntityDatabase:
 
         schema_doc = schemas.find_one({}, sort=[("_id", pymongo.DESCENDING)])
         if schema_doc is None:
+            self.log.info("No schema found, inferring initial schema from database")
             schema = self._infer_current_schema()
             schema_doc = {"_id": 0, "schema": schema, "version": SCHEMA_VERSION}
-            schemas.insert_one(schema_doc)
-            self.log.info("Created initial schema")
 
         current_schema = self.construct_schema_document()
         if schema_doc["schema"] != current_schema:
@@ -249,25 +248,32 @@ class EntityDatabase:
                 for attr, spec in attributes.items():
                     if attr in deleted:
                         continue
+                    model = current_attributes[attr]
 
-                    # Unset current values on type change
-                    if spec["t"] != current_attributes[attr]["t"]:
-                        updates["$unset"][attr] = ""
-
-                    # Unset current values on data_type change
-                    if spec["data_type"] != current_attributes[attr]["data_type"]:
-                        updates["$unset"][attr] = ""
+                    for key, val in spec.items():
+                        ref = model[key]
+                        if ref != val:
+                            self.log.info(
+                                "'%s' of %s.%s changed: %s -> %s",
+                                key,
+                                entity,
+                                attr,
+                                spec[key],
+                                model[key],
+                            )
+                            updates["$unset"][attr] = ""
 
                 if not updates:
+                    self.log.debug("%s: No changes required", entity)
                     continue
 
                 try:
-                    self.log.debug(
-                        "Performing %s master collection update: %s", entity, dict(updates)
+                    self.log.info(
+                        "%s: Performing master collection update: %s", entity, dict(updates)
                     )
                     master_name = self._master_col_name(entity)
                     res = self._db[master_name].update_many({}, updates)
-                    self.log.debug("Updated %s %s master records.", res.modified_count, entity)
+                    self.log.debug("%s: Updated %s master records.", entity, res.modified_count)
                 except Exception as e:
                     raise DatabaseError(f"Schema update failed: {e}") from e
 
@@ -277,8 +283,105 @@ class EntityDatabase:
             self.log.info("Schema OK!")
 
     def _infer_current_schema(self):
-        ...
-        return {}
+        cols = self._db.list_collections(filter={"name": {"$regex": r"^[^#]+#master$"}})
+        col_names = [col["name"] for col in cols]
+
+        entities = defaultdict(dict)
+        for name in col_names:
+            entity = name.split("#", maxsplit=1)[0]
+            self.log.debug("Inferring schema for '%s':", entity)
+            self.log.debug("%s: Testing attributes for history", entity)
+            res = self._db[name].aggregate(
+                [
+                    # Get each attribute as a separate document
+                    {"$project": {"items": {"$objectToArray": "$$ROOT"}}},
+                    {"$unwind": "$items"},
+                    # Check if attribute has history
+                    {"$set": {"array": {"$isArray": "$items.v"}}},
+                    # Group by attribute name
+                    {"$group": {"_id": "$items.k", "array": {"$addToSet": "$array"}}},
+                    # Filter out non-attribute properties
+                    {"$match": {"_id": {"$regex": ID_REGEX}}},
+                    {"$match": {"_id": {"$regex": r"^(?!_id$)"}}},
+                ]
+            )
+            attributes = entities[entity]
+            undecided = []
+            for doc in res:
+                if doc["array"] == [False]:
+                    attributes[doc["_id"]] = {"t": AttrType.PLAIN.value}
+                elif doc["array"] == [True]:
+                    attributes[doc["_id"]] = {
+                        "t": AttrType.TIMESERIES.value | AttrType.OBSERVATIONS.value
+                    }
+                    undecided.append(doc["_id"])
+                else:
+                    self.log.error("Unknown attribute type: %s.%s", entity, doc["_id"])
+
+            if not undecided:
+                continue
+
+            self.log.debug("%s: Testing observations", entity)
+            res = self._db[name].aggregate(
+                [
+                    # Get each attribute as a separate document
+                    {"$project": {"items": {"$objectToArray": "$$ROOT"}}},
+                    {"$unwind": "$items"},
+                    # Check if attribute has confidence (i.e. is observation)
+                    {"$match": {"items.k": {"$in": undecided}, "items.v.c": {"$exists": True}}},
+                    # Group by attribute name
+                    {"$group": {"_id": "$items.k"}},
+                ]
+            )
+            for doc in res:
+                attributes[doc["_id"]]["t"] = AttrType.OBSERVATIONS.value
+                undecided.remove(doc["_id"])
+
+            if not undecided:
+                continue
+
+            self.log.debug("%s: Testing timeseries", entity)
+            res = self._db[name].aggregate(
+                [
+                    # Get each attribute as a separate document
+                    {"$project": {"items": {"$objectToArray": "$$ROOT"}}},
+                    {"$unwind": "$items"},
+                    # Check if attribute has no confidence (i.e. is timeseries)
+                    {
+                        "$match": {
+                            "items.k": {"$in": undecided},
+                            "items.v.c": {"$exists": False},
+                            "items.v.0": {"$exists": True},
+                        }
+                    },
+                    # Group by attribute name
+                    {"$group": {"_id": "$items.k"}},
+                ]
+            )
+            for doc in res:
+                attributes[doc["_id"]]["t"] = AttrType.TIMESERIES.value
+                undecided.remove(doc["_id"])
+
+            if not undecided:
+                continue
+
+            self.log.debug("Resolving undecided attributes: %s", undecided)
+            for attr, spec in attributes.items():
+                if attr in undecided and (entity, attr) in self._db_schema_config.attributes:
+                    config_spec = self._db_schema_config.attr(entity, attr)
+                    self.log.debug("Assuming configuration type correct for %s.%s", entity, attr)
+                    spec["t"] = config_spec.t.value
+
+        for entity, attributes in entities.items():
+            for attr, spec in attributes.items():
+                if (entity, attr) in self._db_schema_config.attributes:
+                    config_spec = self._db_schema_config.attr(entity, attr)
+                    config_dict = self._construct_spec_dict(config_spec)
+                    config_dict.update(spec)
+                    spec.update(config_dict)
+                self.log.info("Inferred schema for %s.%s: %s", entity, attr, spec)
+
+        return dict(entities)
 
     def construct_schema_document(self):
         """
@@ -291,7 +394,9 @@ class EntityDatabase:
                 "entity_type": {
                     "attribute": {
                         "t": 1 | 2 | 4,
-                        "data_type": <data_type.__root__>
+                        "data_type": <data_type.type_info> | None
+                        "timeseries_type": <timeseries_type> | None
+                        "series": dict[str, <data_type.type_info>] | None
                     }
                 }
             }
@@ -302,14 +407,20 @@ class EntityDatabase:
         """
         return {
             entity_type: {
-                attr: {
-                    "t": spec.t.value,
-                    "data_type": spec.data_type.type_info,
-                }
-                for attr, spec in attributes.items()
+                attr: self._construct_spec_dict(spec) for attr, spec in attributes.items()
             }
             for entity_type, attributes in self._db_schema_config.entity_attributes.items()
         }
+
+    @staticmethod
+    def _construct_spec_dict(spec: AttrSpecType):
+        res = {"t": spec.t.value, "data_type": None, "timeseries_type": None, "series": None}
+        if spec.t in AttrType.PLAIN | AttrType.OBSERVATIONS:
+            res["data_type"] = spec.data_type.type_info
+        elif spec.t == AttrType.TIMESERIES:
+            res["timeseries_type"] = spec.timeseries_type
+            res["series"] = {s: sspec.data_type.type_info for s, sspec in spec.series.items()}
+        return res
 
     def await_current_schema(self):
         """

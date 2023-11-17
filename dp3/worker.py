@@ -156,9 +156,9 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     db = EntityDatabase(config.get("database"), model_spec, num_processes)
     if process_index == 0:
-        db.update_schema_if_necessary()
+        db.update_schema()
     else:
-        db.await_current_schema()
+        db.await_updated_schema()
 
     global_scheduler = scheduler.Scheduler()
     task_executor = TaskExecutor(db, platform_config)

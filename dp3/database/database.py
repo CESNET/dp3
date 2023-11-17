@@ -246,7 +246,7 @@ class EntityDatabase:
         for dp in dps:
             attr_spec = self._db_schema_config.attr(etype, dp.attr)
 
-            if attr_spec.is_iterable:
+            if attr_spec.t in AttrType.PLAIN | AttrType.OBSERVATIONS and attr_spec.is_iterable:
                 v = [elem.dict() if isinstance(elem, BaseModel) else elem for elem in dp.v]
             else:
                 v = dp.v.dict() if isinstance(dp.v, BaseModel) else dp.v

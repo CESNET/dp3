@@ -208,9 +208,9 @@ class EntityDatabase:
 
         ```py
             {
-                "_id": 0,
+                "_id": int,
                 "schema": { ... }, # (1)!
-                "version": 1
+                "version": int
             }
         ```
 
@@ -389,7 +389,7 @@ class EntityDatabase:
 
         The schema document format is as follows:
 
-        ```json
+        ```py
             {
                 "entity_type": {
                     "attribute": {
@@ -404,6 +404,11 @@ class EntityDatabase:
 
         where `t` is [attribute type][dp3.common.attrspec.AttrType],
         and `data_type` is the data type string.
+        `timeseries_type` is one of `regular`, `irregular` or `irregular_intervals`.
+        `series` is a dictionary of series names and their data types.
+
+        `timeseries_type` and `series` are present only for timeseries attributes,
+        `data_type` is present only for plain and observations attributes.
         """
         return {
             entity_type: {

@@ -314,6 +314,9 @@ class ModelSpec(BaseModel):
     def __setitem__(self, key, value):
         self.config[key] = value
 
+    def __repr__(self):
+        return f"ModelSpec({','.join(self.config.keys())})"
+
 
 class PlatformConfig(BaseModel):
     """
@@ -346,3 +349,16 @@ class PlatformConfig(BaseModel):
             v < values["num_processes"]
         ), "Process index must be less than total number of processes"
         return v
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return (
+            f"PlatformConfig({self.app_name},"
+            f" {self.config_base_path}, "
+            # f" {repr(self.config)}, "
+            f" {repr(self.model_spec)}, "
+            f"num_processes={self.num_processes}, "
+            f"process_index={self.process_index})"
+        )

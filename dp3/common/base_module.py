@@ -19,7 +19,7 @@ class BaseModule:
                 equivalent of `platform_config.config.get("modules.<module_name>")`
             registrar: A callback / hook registration interface
         """
-        self.refresh = SharedFlag(True, banner=f"Refresh {self.__class__.__name__}")
+        self.refresh = SharedFlag(False, banner=f"Refresh {self.__class__.__name__}")
 
     def start(self) -> None:
         """

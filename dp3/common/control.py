@@ -17,6 +17,7 @@ from dp3.task_processing.task_queue import TaskQueueReader
 class ControlAction(Enum):
     make_snapshots = "make_snapshots"
     refresh_on_entity_creation = "refresh_on_entity_creation"
+    refresh_module_config = "refresh_module_config"
 
 
 class ControlConfig(BaseModel):

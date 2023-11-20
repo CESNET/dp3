@@ -14,7 +14,7 @@ from importlib import import_module
 
 from pydantic import ValidationError
 
-from dp3.common.callback_registrar import CallbackRegistrar
+from dp3.common.callback_registrar import CallbackRegistrar, reload_module_config
 from dp3.common.config import PlatformConfig
 from dp3.common.control import Control, ControlAction, refresh_on_entity_creation
 from dp3.core.collector import GarbageCollector
@@ -38,11 +38,11 @@ from .task_processing.task_executor import TaskExecutor
 
 def load_modules(
     modules_dir: str,
-    enabled_modules: dict,
+    enabled_modules: str,
     log: logging.Logger,
     registrar: CallbackRegistrar,
     platform_config: PlatformConfig,
-) -> list:
+) -> dict[str, BaseModule]:
     """Load plug-in modules
 
     Import Python modules with names in 'enabled_modules' from 'modules_dir' directory
@@ -83,14 +83,14 @@ def load_modules(
     ]
     del sys.path[0]
 
-    # Final list will contain main classes from all desired modules,
+    # Loaded modules dict will contain main classes from all desired modules,
     # which has BaseModule as parent
-    modules_main_objects = []
+    modules_main_objects = {}
     for module_name, _, obj in imported_modules:
         # Append instance of module class (obj is class --> obj() is instance)
         # --> call init, which registers handler
         module_config = platform_config.config.get(f"modules.{module_name}", {})
-        modules_main_objects.append(obj(platform_config, module_config, registrar))
+        modules_main_objects[module_name] = obj(platform_config, module_config, registrar)
         log.info(f"Module loaded: {module_name}:{obj.__name__}")
 
     return modules_main_objects
@@ -201,21 +201,26 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         ControlAction.refresh_on_entity_creation,
         partial(refresh_on_entity_creation, task_distributor, task_executor),
     )
+    modules = {}
+    control.set_action_handler(
+        ControlAction.refresh_module_config,
+        partial(reload_module_config, log, platform_config, modules),
+    )
 
     ##############################################
     # Load all plug-in modules
 
-    os.path.dirname(__file__)
-    custom_modules_dir = config.get("processing_core.modules_dir")
-    custom_modules_dir = os.path.abspath(os.path.join(config_base_path, custom_modules_dir))
+    module_dir = config.get("processing_core.modules_dir")
+    module_dir = os.path.abspath(os.path.join(config_base_path, module_dir))
 
-    module_list = load_modules(
-        custom_modules_dir,
+    loaded_modules = load_modules(
+        module_dir,
         config.get("processing_core.enabled_modules"),
         log,
         registrar,
         platform_config,
     )
+    modules.update(loaded_modules)
 
     ################################################
     # Initialization completed, run ...
@@ -225,7 +230,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     # Run modules that have their own threads (TODO: there are no such modules, should be kept?)
     # (if they don't, the start() should do nothing)
-    for module in module_list:
+    for module in loaded_modules.values():
         module.start()
 
     # start TaskDistributor (which starts TaskExecutors in several worker threads)
@@ -263,7 +268,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     snap_shooter.stop()
     global_scheduler.stop()
     task_distributor.stop()
-    for module in module_list:
+    for module in loaded_modules.values():
         module.stop()
 
     log.info("***** Finished, main thread exiting. *****")

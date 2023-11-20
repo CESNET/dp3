@@ -134,5 +134,13 @@ def get_func_name(func_or_method):
     try:
         fname = func_or_method.__func__.__qualname__
     except AttributeError:
-        fname = func_or_method.__name__
-    return func_or_method.__module__ + "." + fname
+        try:
+            fname = func_or_method.__name__
+        except AttributeError:
+            fname = str(func_or_method)
+
+    try:
+        module = func_or_method.__module__
+    except AttributeError:
+        return fname
+    return f"{module}.{fname}"

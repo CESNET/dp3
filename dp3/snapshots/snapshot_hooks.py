@@ -11,6 +11,7 @@ from typing import Callable, Union
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.task import DataPointTask
+from dp3.common.utils import get_func_name
 from dp3.task_processing.task_hooks import EventGroupType
 
 
@@ -120,7 +121,7 @@ class SnapshotCorrelationHookContainer:
         may_change = self._embed_base_entity(entity_type, may_change)
 
         hook_id = (
-            f"{hook.__qualname__}("
+            f"{get_func_name(hook)}("
             f"{entity_type}, [{','.join(depends_on)}], [{','.join(may_change)}]"
             f")"
         )

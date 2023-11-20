@@ -1,9 +1,82 @@
+from functools import partial
+from logging import Logger
 from typing import Callable, Union
 
+from pydantic import BaseModel
+
+from dp3.common.attrspec import AttrType
+from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
 from dp3.common.scheduler import Scheduler
+from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.task_processing.task_executor import TaskExecutor
+
+
+def write_datapoints_into_record(model_spec: ModelSpec, tasks: list[DataPointTask], record: dict):
+    eid = record["eid"]
+    for task in tasks:
+        if task.eid != eid:
+            continue
+        for dp in task.data_points:
+            attr_spec = model_spec.attributes[dp.etype, dp.attr]
+            if attr_spec.t == AttrType.PLAIN:
+                if attr_spec.t in AttrType.PLAIN | AttrType.OBSERVATIONS and attr_spec.is_iterable:
+                    v = [elem.dict() if isinstance(elem, BaseModel) else elem for elem in dp.v]
+                else:
+                    v = dp.v.dict() if isinstance(dp.v, BaseModel) else dp.v
+
+                record[dp.attr] = v
+
+
+def on_entity_creation_in_snapshots(
+    model_spec: ModelSpec,
+    run_flag: SharedFlag,
+    original_hook: Callable[[str, DataPointTask], list[DataPointTask]],
+    etype: str,
+    record: dict,
+) -> list[DataPointTask]:
+    """Wrapper for on_entity_creation hooks to enable running as a snapshot callback."""
+    if not run_flag.isset():
+        return []
+    eid = record["eid"]
+    mock_task = DataPointTask(model_spec=model_spec, etype=etype, eid=eid, data_points=[])
+    tasks = original_hook(eid, mock_task)
+    write_datapoints_into_record(model_spec, tasks, record)
+    return tasks
+
+
+def unset_flag(flag: SharedFlag) -> list:
+    flag.unset()
+    return []
+
+
+def reload_module_config(
+    log: Logger, platform_config: PlatformConfig, modules: dict, module: str
+) -> None:
+    """
+    Reloads configuration of a module.
+
+    Args:
+        log: log to write messages to
+        platform_config: Platform configuration
+        modules: Dictionary of loaded modules by their names
+        module: Name of the module to reload
+
+    Returns:
+        Module's configuration
+    """
+    log.debug(f"Reloading config of module '{module}'")
+
+    if module not in modules:
+        log.warning(f"Could not find module '{module}', cannot reload config. Is it loaded?")
+        return
+
+    config = read_config_dir(platform_config.config_base_path, recursive=True)
+    module_config = config.get(f"modules.{module}", {})
+    modules[module].load_config(platform_config, module_config)
+    modules[module].refresh.set()
+    log.info(f"Config of module '{module}' reloaded successfully.")
 
 
 class CallbackRegistrar:
@@ -77,6 +150,46 @@ class CallbackRegistrar:
         in `task_hooks.py`
         """
         self._task_executor.register_task_hook(hook_type, hook)
+
+    def register_on_entity_creation_hook(
+        self,
+        hook: Callable[[str, DataPointTask], list[DataPointTask]],
+        entity: str,
+        refresh: SharedFlag = None,
+        may_change: list[list[str]] = None,
+    ):
+        """
+        Registers passed hook to be called on entity creation.
+
+        Binds hook to specified entity (though same hook can be bound multiple times).
+
+        Allows registration of refreshing on configuration changes, if `refresh` is specified.
+        In that case, `may_change` must be specified.
+
+        Args:
+            hook: `hook` callable should expect eid and Task as arguments and
+                return a list of DataPointTask objects to perform.
+            entity: specifies entity type
+            refresh: if specified, registered hook will be called on configuration changes
+            may_change: each item should specify an attribute that `hook` may change,
+                for specification format see `register_correlation_hook`
+        """
+        self._task_executor.register_entity_hook("on_entity_creation", hook, entity)
+        if refresh is not None:
+            if may_change is None:
+                raise ValueError("'may_change' must be specified if 'refresh' is specified")
+            self._snap_shooter.register_correlation_hook(
+                partial(
+                    on_entity_creation_in_snapshots,
+                    self._task_executor.model_spec,
+                    refresh,
+                    hook,
+                ),
+                entity,
+                [],
+                may_change,
+            )
+            self._snap_shooter.register_run_finalize_hook(partial(unset_flag, refresh))
 
     def register_entity_hook(self, hook_type: str, hook: Callable, entity: str):
         """Registers one of available task entity hooks

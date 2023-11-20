@@ -33,6 +33,7 @@ from dp3.common.attrspec import (
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType
+from dp3.common.utils import get_func_name
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
@@ -360,7 +361,7 @@ class SnapShooter:
     def _run_hooks(self, hooks: list[Callable[[], list[DataPointTask]]]):
         tasks = []
         for hook in hooks:
-            self.log.debug("Running hook: '%s'", hook.__qualname__)
+            self.log.debug("Running hook: '%s'", get_func_name(hook))
             try:
                 new_tasks = hook()
                 tasks.extend(new_tasks)

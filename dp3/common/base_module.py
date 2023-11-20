@@ -1,16 +1,14 @@
-from abc import ABC, abstractmethod
-
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
+from dp3.common.state import SharedFlag
 
 
-class BaseModule(ABC):
+class BaseModule:
     """
     Abstract class for platform modules.
     Every module must inherit this abstract class for automatic loading of module!
     """
 
-    @abstractmethod
     def __init__(
         self, platform_config: PlatformConfig, module_config: dict, registrar: CallbackRegistrar
     ):
@@ -21,6 +19,7 @@ class BaseModule(ABC):
                 equivalent of `platform_config.config.get("modules.<module_name>")`
             registrar: A callback / hook registration interface
         """
+        self.refresh = SharedFlag(True, banner=f"Refresh {self.__class__.__name__}")
 
     def start(self) -> None:
         """
@@ -39,3 +38,6 @@ class BaseModule(ABC):
         separate thread if it is used. Do nothing unless overridden.
         """
         return None
+
+    def load_config(self, config: PlatformConfig, module_config: dict) -> None:
+        """Load module configuration"""

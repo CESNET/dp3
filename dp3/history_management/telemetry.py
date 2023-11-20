@@ -19,12 +19,12 @@ class Telemetry:
         self.db = db
         self.model_spec = platform_config.model_spec
         # self.config = platform_config.config.get("telemetry")  # No config for now
+        self.cache_col = self.db.get_module_cache("Telemetry")
 
         # Schedule master document aggregation
         registrar.register_task_hook("on_task_start", self.note_latest_src_timestamp)
 
     def note_latest_src_timestamp(self, task: DataPointTask):
-        cache_col = self.db.get_module_cache()
         updates = []
         for dp in task.data_points:
             has_timestamp = isinstance(dp, (DataPointObservationsBase, DataPointTimeseriesBase))
@@ -43,7 +43,7 @@ class Telemetry:
         if not updates:
             return
 
-        res = cache_col.bulk_write(updates)
+        res = self.cache_col.bulk_write(updates)
         self.log.debug(
             "Updating %s src_timestamp records: %s modified",
             len(updates),
@@ -61,10 +61,10 @@ class TelemetryReader:
 
     def __init__(self, db: EntityDatabase) -> None:
         self.db = db
+        self.cache_col = self.db.get_module_cache("Telemetry")
 
     def get_sources_validity(self) -> dict[str, datetime]:
         """Return timestamps (datetimes) of current validity of all sources."""
-        cache_col = self.db.get_module_cache("Telemetry")
-        src_data = cache_col.find({}).sort([("_id", ASCENDING)])
+        src_data = self.cache_col.find({}).sort([("_id", ASCENDING)])
 
         return {src["_id"]: src["src_t"] for src in src_data}

@@ -7,7 +7,13 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel, Extra, Field, NonNegativeInt, PositiveInt, root_validator, validator
 
-from dp3.common.attrspec import AttrSpec, AttrSpecClassic, AttrSpecGeneric, AttrSpecType
+from dp3.common.attrspec import (
+    AttrSpec,
+    AttrSpecClassic,
+    AttrSpecGeneric,
+    AttrSpecReadOnly,
+    AttrSpecType,
+)
 from dp3.common.entityspec import EntitySpec
 
 
@@ -288,6 +294,37 @@ class ModelSpec(BaseModel):
                 raise ValueError(
                     f"'{attr_spec.relation_to}', linked by '{attr}' is not a valid entity."
                 )
+        return values
+
+    @root_validator
+    def _fill_and_validate_mirrors(cls, values):
+        """Validate that relation mirrors do not reference existing attributes and create them."""
+        for (entity, attr), attr_spec in values["relations"].items():
+            if not attr_spec.is_mirrored:
+                continue
+
+            linked_entity = attr_spec.relation_to
+            linked_attr = attr_spec.mirror_as
+
+            if (linked_entity, linked_attr) in values["attributes"]:
+                raise ValueError(
+                    f"'{linked_entity}.{linked_attr}' is a mirrored attribute, "
+                    "but already exists in configuration. "
+                    "Mirrored attributes are defined implicitly, remove the definition."
+                )
+
+            mirror_attr = AttrSpecReadOnly(
+                id=linked_attr,
+                name=linked_attr,
+                data_type=f"set<link<{entity}>>",
+                type="plain",
+                description=f"Read-only mirror attribute of {entity}.{attr}",
+            )
+
+            values["config"][linked_entity]["attribs"][linked_attr] = mirror_attr
+            values["attributes"][linked_entity, linked_attr] = mirror_attr
+            values["entity_attributes"][linked_entity][linked_attr] = mirror_attr
+
         return values
 
     def attr(self, entity_type: str, attr: str) -> AttrSpecType:

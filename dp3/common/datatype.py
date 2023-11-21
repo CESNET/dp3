@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Union
 
-from pydantic import BaseModel, Extra, Json, PrivateAttr, constr, create_model
+from pydantic import BaseModel, Extra, Json, PrivateAttr, constr, create_model, root_validator
 
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(.+)>$")
@@ -30,6 +30,14 @@ primitive_data_types = {
     "special": Any,
     "json": Union[Json[Any], dict, list],
 }
+
+
+class ReadOnly(BaseModel):
+    """The ReadOnly data_type is used to avoid datapoint insertion for an attribute."""
+
+    @root_validator(pre=True)
+    def fail(cls, values):
+        raise ValueError("Cannot instantiate a read-only attribute datapoint.")
 
 
 class Link(BaseModel, extra=Extra.forbid):

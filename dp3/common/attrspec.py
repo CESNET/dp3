@@ -22,7 +22,7 @@ from dp3.common.datapoint import (
     dp_ts_root_validator_regular_wrapper,
     dp_ts_v_validator,
 )
-from dp3.common.datatype import DataType
+from dp3.common.datatype import DataType, ReadOnly
 from dp3.common.entityspec import SpecModel
 from dp3.common.utils import parse_time_duration
 
@@ -204,6 +204,19 @@ class AttrSpecPlain(AttrSpecClassic):
             f"DataPointPlain_{self.id}",
             __base__=DataPointPlainBase,
             v=(self.data_type.data_type, ...),
+        )
+
+
+class AttrSpecReadOnly(AttrSpecPlain):
+    """Read-only plain attribute specification. Used for internal attributes."""
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        self._dp_model = create_model(
+            f"DataPointReadOnly_{self.id}",
+            __base__=DataPointPlainBase,
+            v=(ReadOnly, ...),
         )
 
 

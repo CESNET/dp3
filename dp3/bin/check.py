@@ -41,6 +41,9 @@ class ConfigEncoder(JSONEncoder):
 
 
 def stringify_source(source) -> str:
+    if source is None:
+        return ""
+
     if isinstance(source, dict):
         source_str: str = yaml.dump(source, default_flow_style=False, width=1000)
         source_str = "```\n  " + source_str.replace("\n", "\n  ")[:-2] + "```"
@@ -145,6 +148,12 @@ def locate_errors(exc: ValidationError, data: dict):
     errors = []
 
     for error in exc.errors():
+        if error["loc"] == ("__root__",):
+            paths.append(("__root__",))
+            sources.append(None)
+            errors.append(error["msg"])
+            continue
+
         message = f'{error["msg"]} (type={error["type"]})'
         e_paths, e_sources = get_error_sources(data, error)
 

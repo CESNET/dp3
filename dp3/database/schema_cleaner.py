@@ -39,11 +39,28 @@ class SchemaCleaner:
         self._model_spec = model_spec
         self.schemas = schema_col
 
-    def update_schema(self):
+    def get_current_schema_doc(self, infer=False) -> dict:
+        """
+        Args:
+            infer: Whether to infer the schema if it is not found in the database.
+        Returns:
+            Current schema
+        """
+        schema_doc = self.schemas.find_one({}, sort=[("_id", pymongo.DESCENDING)])
+        if schema_doc is None and infer:
+            self.log.info("No schema found, inferring initial schema from database")
+            schema = self.infer_current_schema()
+            schema_doc = {"_id": 0, "schema": schema, "version": SCHEMA_VERSION}
+        return schema_doc
+
+    def safe_update_schema(self):
         """
         Checks whether schema saved in database is up-to-date and updates it if necessary.
 
-        Will perform changes in master collections where required based on schema changes.
+        Will NOT perform any changes in master collections on conflicting model changes,
+        but will raise an exception instead.
+        Any such changes must be performed via the CLI.
+
         As this method modifies the schema collection, it should be called only by the main worker.
 
         The schema collection format is as follows:
@@ -57,70 +74,115 @@ class SchemaCleaner:
         ```
 
         1. see [schema construction][dp3.database.schema_cleaner.SchemaCleaner.construct_schema_doc]
+
+        Raises:
+            ValueError: If conflicting changes are detected.
         """
-        schema_doc = self.schemas.find_one({}, sort=[("_id", pymongo.DESCENDING)])
-        if schema_doc is None:
-            self.log.info("No schema found, inferring initial schema from database")
-            schema = self.infer_current_schema()
-            schema_doc = {"_id": 0, "schema": schema, "version": SCHEMA_VERSION}
+        db_schema, config_schema, updates = self.get_schema_status()
+        if db_schema["schema"] == config_schema["schema"]:
+            self.log.info("Schema OK!")
+            return
+
+        if not updates:
+            self.schemas.insert_one(config_schema)
+            self.log.info("Updated schema, OK now!")
+            return
+
+        self.log.warning("Schema update that cannot be performed automatically is required.")
+        self.log.warning("Please run `dp3 schema-update` to make the changes.")
+        raise ValueError("Schema update failed: Conflicting changes detected.")
+
+    def get_schema_status(self) -> tuple[dict, dict, dict]:
+        """
+        Gets the current schema status.
+        `database_schema` is the schema document from the database.
+        `configuration_schema` is the schema document constructed from the current configuration.
+        `updates` is a dictionary of required updates to each entity.
+
+        Returns:
+            Tuple of (`database_schema`, `configuration_schema`, `updates`).
+        """
+        schema_doc = self.get_current_schema_doc(infer=True)
 
         current_schema = self.construct_schema_doc()
-        if schema_doc["schema"] != current_schema:
-            new_schema = {
-                "_id": schema_doc["_id"] + 1,
-                "schema": current_schema,
-                "version": SCHEMA_VERSION,
-            }
-            if schema_doc["version"] != SCHEMA_VERSION:
-                self.log.info("Schema version changed, updating without changes.")
-                self.schemas.insert_one(new_schema)
-                return
 
-            for entity, attributes in schema_doc["schema"].items():
-                updates = defaultdict(dict)
-                current_attributes = current_schema[entity]
+        if schema_doc["schema"] == current_schema:
+            return schema_doc, schema_doc, {}
 
-                # Unset deleted attributes
-                deleted = set(attributes) - set(current_attributes)
-                if deleted:
-                    updates["$unset"] |= {attr: "" for attr in deleted}
+        new_schema = {
+            "_id": schema_doc["_id"] + 1,
+            "schema": current_schema,
+            "version": SCHEMA_VERSION,
+        }
+        updates = self.detect_changes(schema_doc, current_schema)
+        return schema_doc, new_schema, updates
 
-                for attr, spec in attributes.items():
-                    if attr in deleted:
-                        continue
-                    model = current_attributes[attr]
+    def detect_changes(
+        self, db_schema_doc: dict, current_schema: dict
+    ) -> dict[str, dict[str, dict[str, str]]]:
+        """
+        Detects changes between configured schema and the one saved in the database.
 
-                    for key, val in spec.items():
-                        ref = model[key]
-                        if ref != val:
-                            self.log.info(
-                                "'%s' of %s.%s changed: %s -> %s",
-                                key,
-                                entity,
-                                attr,
-                                spec[key],
-                                model[key],
-                            )
-                            updates["$unset"][attr] = ""
+        Args:
+            db_schema_doc: Schema document from the database.
+            current_schema: Schema from the configuration.
 
-                if not updates:
-                    self.log.debug("%s: No changes required", entity)
+        Returns:
+            Required updates to each entity.
+        """
+        if db_schema_doc["schema"] == current_schema:
+            return {}
+
+        if db_schema_doc["version"] != SCHEMA_VERSION:
+            self.log.info("Schema version changed, skipping detecting changes.")
+            return {}
+
+        updates = {}
+        for entity, attributes in db_schema_doc["schema"].items():
+            entity_updates = defaultdict(dict)
+            current_attributes = current_schema[entity]
+
+            # Unset deleted attributes
+            deleted = set(attributes) - set(current_attributes)
+            for attr in deleted:
+                self.log.info("Schema breaking change: Attribute %s.%s was deleted", entity, attr)
+                entity_updates["$unset"][attr] = ""
+
+            for attr, spec in attributes.items():
+                if attr in deleted:
                     continue
+                model = current_attributes[attr]
 
-                try:
+                for key, val in spec.items():
+                    ref = model[key]
+                    if ref == val:
+                        continue
+
                     self.log.info(
-                        "%s: Performing master collection update: %s", entity, dict(updates)
+                        "Schema breaking change: '%s' of %s.%s changed: %s -> %s",
+                        key,
+                        entity,
+                        attr,
+                        val,
+                        ref,
                     )
-                    master_name = f"{entity}#master"
-                    res = self._db[master_name].update_many({}, updates)
-                    self.log.debug("%s: Updated %s master records.", entity, res.modified_count)
-                except Exception as e:
-                    raise ValueError(f"Schema update failed: {e}") from e
+                    entity_updates["$unset"][attr] = ""
 
-            self.schemas.insert_one(new_schema)
-            self.log.info("Updated schema, OK now!")
-        else:
-            self.log.info("Schema OK!")
+            if entity_updates:
+                updates[entity] = entity_updates
+        return updates
+
+    def execute_updates(self, updates: dict[str, dict[str, dict[str, str]]]):
+        for entity, entity_updates in updates.items():
+            try:
+                self.log.info(
+                    "%s: Performing master collection update: %s", entity, dict(entity_updates)
+                )
+                master_name = f"{entity}#master"
+                res = self._db[master_name].update_many({}, entity_updates)
+                self.log.debug("%s: Updated %s master records.", entity, res.modified_count)
+            except Exception as e:
+                raise ValueError(f"Schema update failed: {e}") from e
 
     def infer_current_schema(self) -> dict:
         """
@@ -285,13 +347,13 @@ class SchemaCleaner:
         by the main worker on mismatch.
         """
         self.log.info("Fetching current schema")
-        schema_doc = self.schemas.find_one(sort=[("_id", pymongo.DESCENDING)])
+        schema_doc = self.get_current_schema_doc()
         for delay in RECONNECT_DELAYS:
             if schema_doc is not None:
                 break
             self.log.info("Schema not found, will retry in %s seconds", delay)
             time.sleep(delay)
-            schema_doc = self.schemas.find_one(sort=[("_id", pymongo.DESCENDING)])
+            schema_doc = self.get_current_schema_doc()
 
         if schema_doc is None:
             raise ValueError("Unable to establish schema")
@@ -302,7 +364,7 @@ class SchemaCleaner:
                 break
             self.log.info("Schema mismatch, will await update by main worker in %s seconds", delay)
             time.sleep(delay)
-            schema_doc = self.schemas.find_one(sort=[("_id", pymongo.DESCENDING)])
+            schema_doc = self.get_current_schema_doc()
 
         if schema_doc["schema"] != configured_schema:
             raise ValueError("Unable to establish matching schema")

@@ -116,7 +116,7 @@ class EntityDatabase:
         self._db = self._db[config.db_name]
         self._init_database_schema(config.db_name)
 
-        self._schema_cleaner = SchemaCleaner(
+        self.schema_cleaner = SchemaCleaner(
             self._db, self.get_module_cache("Schema"), self._db_schema_config, self.log
         )
 
@@ -205,17 +205,22 @@ class EntityDatabase:
         """
         Checks whether schema saved in database is up-to-date and updates it if necessary.
 
-        Will perform changes in master collections where required based on schema changes.
+        Will NOT perform any changes in master collections on conflicting model changes.
+        Any such changes must be performed via the CLI.
+
         As this method modifies the schema collection, it should be called only by the main worker.
         """
-        self._schema_cleaner.update_schema()
+        try:
+            self.schema_cleaner.safe_update_schema()
+        except ValueError as e:
+            raise DatabaseError("Schema update failed. Please run `dp3 schema-update`.") from e
 
     def await_updated_schema(self):
         """
         Checks whether schema saved in database is up-to-date and awaits its update
         by the main worker on mismatch.
         """
-        self._schema_cleaner.await_updated()
+        self.schema_cleaner.await_updated()
 
     def insert_datapoints(
         self, etype: str, eid: str, dps: list[DataPointBase], new_entity: bool = False

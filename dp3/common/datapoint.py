@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel, confloat, root_validator, validator
 
@@ -159,3 +159,6 @@ def dp_ts_root_validator_irregular_intervals(cls, values):
         ), "'time_first[i] <= time_last[i]' isn't true for all 'i'"
 
     return values
+
+
+DataPointType = Union[DataPointPlainBase, DataPointObservationsBase, DataPointTimeseriesBase]

@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 from logging import Logger
 from typing import Callable, Union
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
+from dp3.common.datapoint import DataPointType
 from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask
@@ -43,6 +45,24 @@ def on_entity_creation_in_snapshots(
     mock_task = DataPointTask(model_spec=model_spec, etype=etype, eid=eid, data_points=[])
     tasks = original_hook(eid, mock_task)
     write_datapoints_into_record(model_spec, tasks, record)
+    return tasks
+
+
+def on_attr_change_in_snapshots(
+    model_spec: ModelSpec,
+    run_flag: SharedFlag,
+    original_hook: Callable[[str, DataPointTask], Union[list[DataPointTask], None]],
+    etype: str,
+    record: dict,
+) -> list[DataPointTask]:
+    """Wrapper for on_entity_creation hooks to enable running as a snapshot callback."""
+    if not run_flag.isset():
+        return []
+    eid = record["eid"]
+    mock_task = DataPointTask(model_spec=model_spec, etype=etype, eid=eid, data_points=[])
+    tasks = original_hook(eid, mock_task)
+    if isinstance(tasks, list):
+        write_datapoints_into_record(model_spec, tasks, record)
     return tasks
 
 
@@ -88,6 +108,14 @@ class CallbackRegistrar:
         self._scheduler = scheduler
         self._task_executor = task_executor
         self._snap_shooter = snap_shooter
+
+        self.log = logging.getLogger(self.__class__.__name__)
+        self.model_spec = task_executor.model_spec
+        self.attr_spec_t_to_on_attr = {
+            AttrType.PLAIN: "on_new_plain",
+            AttrType.OBSERVATIONS: "on_new_observation",
+            AttrType.TIMESERIES: "on_new_ts_chunk",
+        }
 
     def scheduler_register(
         self,
@@ -151,6 +179,22 @@ class CallbackRegistrar:
         """
         self._task_executor.register_task_hook(hook_type, hook)
 
+    def register_allow_entity_creation_hook(
+        self,
+        hook: Callable[[str, DataPointTask], bool],
+        entity: str,
+    ):
+        """
+        Registers passed hook to allow entity creation.
+
+        Binds hook to specified entity (though same hook can be bound multiple times).
+
+        Args:
+            hook: `hook` callable should expect eid and Task as arguments and return a bool.
+            entity: specifies entity type
+        """
+        self._task_executor.register_entity_hook("allow_entity_creation", hook, entity)
+
     def register_on_entity_creation_hook(
         self,
         hook: Callable[[str, DataPointTask], list[DataPointTask]],
@@ -170,7 +214,8 @@ class CallbackRegistrar:
             hook: `hook` callable should expect eid and Task as arguments and
                 return a list of DataPointTask objects to perform.
             entity: specifies entity type
-            refresh: if specified, registered hook will be called on configuration changes
+            refresh: If specified, registered hook will be called on configuration changes.
+                Pass `self.refresh` from `BaseModule` subclasses.
             may_change: each item should specify an attribute that `hook` may change,
                 for specification format see `register_correlation_hook`
         """
@@ -179,12 +224,7 @@ class CallbackRegistrar:
             if may_change is None:
                 raise ValueError("'may_change' must be specified if 'refresh' is specified")
             self._snap_shooter.register_correlation_hook(
-                partial(
-                    on_entity_creation_in_snapshots,
-                    self._task_executor.model_spec,
-                    refresh,
-                    hook,
-                ),
+                partial(on_entity_creation_in_snapshots, self.model_spec, refresh, hook),
                 entity,
                 [],
                 may_change,
@@ -194,13 +234,63 @@ class CallbackRegistrar:
     def register_entity_hook(self, hook_type: str, hook: Callable, entity: str):
         """Registers one of available task entity hooks
 
+        Deprecated, use `register_on_entity_creation_hook` or `register_allow_entity_creation_hook`
+        instead.
+
         See: [`TaskEntityHooksContainer`][dp3.task_processing.task_hooks.TaskEntityHooksContainer]
         in `task_hooks.py`
         """
         self._task_executor.register_entity_hook(hook_type, hook, entity)
 
+    def register_on_new_attr_hook(
+        self,
+        hook: Callable[[str, DataPointType], Union[None, list[DataPointTask]]],
+        entity: str,
+        attr: str,
+        refresh: SharedFlag = None,
+        may_change: list[list[str]] = None,
+    ):
+        """
+        Registers passed hook to be called on new attribute datapoint.
+
+        Args:
+            hook: `hook` callable should expect eid, Task and attribute value as arguments.
+                Can optionally return a list of DataPointTasks to perform.
+            entity: specifies entity type
+            attr: specifies attribute name
+            refresh: If specified, registered hook will be called on configuration changes.
+                Pass `self.refresh` from `BaseModule` subclasses.
+            may_change: each item should specify an attribute that `hook` may change,
+
+        Raises:
+            ValueError: If entity and attr do not specify a valid attribute, a ValueError is raised.
+        """
+        try:
+            hook_type = self.attr_spec_t_to_on_attr[self.model_spec.attributes[entity, attr].t]
+        except KeyError as e:
+            raise ValueError(
+                f"Cannot register hook for attribute {entity}/{attr}, are you sure it exists?"
+            ) from e
+        self._task_executor.register_attr_hook(hook_type, hook, entity, attr)
+
+        if refresh is None:
+            return
+        if may_change is None:
+            raise ValueError("'may_change' must be specified if 'refresh' is specified")
+
+        self._snap_shooter.register_correlation_hook(
+            partial(on_attr_change_in_snapshots, self.model_spec, refresh, hook),
+            entity,
+            [[attr]],
+            may_change,
+        )
+        self._snap_shooter.register_run_finalize_hook(partial(unset_flag, refresh))
+
     def register_attr_hook(self, hook_type: str, hook: Callable, entity: str, attr: str):
-        """Registers one of available task attribute hooks
+        """
+        Registers one of available task attribute hooks
+
+        Deprecated, use `register_on_new_attr_hook` instead.
 
         See: [`TaskAttrHooksContainer`][dp3.task_processing.task_hooks.TaskAttrHooksContainer]
         in `task_hooks.py`

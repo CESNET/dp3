@@ -39,7 +39,7 @@ class SchemaCleaner:
         self._model_spec = model_spec
         self.schemas = schema_col
 
-    def get_current_schema_doc(self, infer=False) -> dict:
+    def get_current_schema_doc(self, infer: bool = False) -> dict:
         """
         Args:
             infer: Whether to infer the schema if it is not found in the database.

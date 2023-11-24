@@ -84,7 +84,6 @@ ValidatedDataPoint = Annotated[
     DataPointBase,
     BeforeValidator(instanciate_dps),
     AfterValidator(validate_data_points),
-    # PlainSerializer(serialize_datapoint_json, return_type=str, when_used="json"),
 ]
 
 

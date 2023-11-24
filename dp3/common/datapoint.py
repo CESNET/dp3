@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import Annotated, Any, Optional, Union
 
 from pydantic import BaseModel, Field, PlainSerializer, field_validator, model_validator
-from pydantic_core.core_schema import FieldValidationInfo
+
+from dp3.common.types import T2Datetime
 
 
 def to_str(v):
@@ -48,16 +49,8 @@ class DataPointObservationsBase(DataPointBase):
     """
 
     t1: datetime
-    t2: Optional[datetime] = None
+    t2: Optional[T2Datetime] = None
     c: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
-
-    @field_validator("t2")
-    @classmethod
-    def validate_t2(cls, v, info: FieldValidationInfo):
-        v = v or info.data.get("t1") or datetime.now()
-        if "t1" in info.data:
-            assert info.data["t1"] <= v, "'t2' is before 't1'"
-        return v
 
 
 class DataPointTimeseriesBase(DataPointBase):
@@ -67,14 +60,7 @@ class DataPointTimeseriesBase(DataPointBase):
     """
 
     t1: datetime
-    t2: Optional[datetime] = None
-
-    @field_validator("t2")
-    @classmethod
-    def validate_t2(cls, v, info: FieldValidationInfo):
-        if "t1" in info.data:
-            assert info.data["t1"] <= v, "'t2' is before 't1'"
-        return v
+    t2: Optional[T2Datetime] = None
 
 
 def is_list_ordered(to_check: list):

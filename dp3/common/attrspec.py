@@ -24,7 +24,7 @@ from dp3.common.datapoint import (
 )
 from dp3.common.datatype import DataType, ReadOnly
 from dp3.common.entityspec import SpecModel
-from dp3.common.utils import parse_time_duration, time_duration_pattern
+from dp3.common.types import ParsedTimedelta
 
 # Regex of attribute and series id's
 ID_REGEX = r"^[a-zA-Z_][a-zA-Z0-9_-]*$"
@@ -66,20 +66,13 @@ class AttrType(Flag):
 class ObservationsHistoryParams(BaseModel):
     """History parameters field of observations attribute"""
 
-    max_age: Optional[timedelta] = None
+    max_age: Optional[ParsedTimedelta] = None
     max_items: Optional[PositiveInt] = None
-    expire_time: Optional[timedelta] = None
-    pre_validity: Optional[timedelta] = timedelta()
-    post_validity: Optional[timedelta] = timedelta()
+    expire_time: Optional[ParsedTimedelta] = None
+    pre_validity: Optional[ParsedTimedelta] = timedelta()
+    post_validity: Optional[ParsedTimedelta] = timedelta()
 
     aggregate: bool = True
-
-    @field_validator("max_age", "expire_time", "pre_validity", "post_validity", mode="before")
-    @classmethod
-    def parse_time_duration(cls, v):
-        if v and time_duration_pattern.match(v):
-            return parse_time_duration(v)
-        return v
 
     @field_validator("expire_time", mode="before")
     @classmethod
@@ -90,15 +83,8 @@ class ObservationsHistoryParams(BaseModel):
 class TimeseriesTSParams(BaseModel):
     """Timeseries parameters field of timeseries attribute"""
 
-    max_age: Optional[timedelta] = None
-    time_step: Optional[timedelta] = None
-
-    @field_validator("max_age", "time_step", mode="before")
-    @classmethod
-    def parse_time_duration(cls, v):
-        if v and time_duration_pattern.match(v):
-            return parse_time_duration(v)
-        return v
+    max_age: Optional[ParsedTimedelta] = None
+    time_step: Optional[ParsedTimedelta] = None
 
 
 class TimeseriesSeries(BaseModel):
@@ -131,23 +117,13 @@ class AttrSpecGeneric(SpecModel, use_enum_values=True):
     id: str = Field(pattern=ID_REGEX)
     name: str
     description: str = ""
-    ttl: Optional[timedelta] = None
+    ttl: Optional[ParsedTimedelta] = timedelta()
 
     _dp_model = PrivateAttr()
 
     @property
     def dp_model(self) -> DataPointBase:
         return self._dp_model
-
-    @field_validator("ttl", mode="before")
-    @classmethod
-    def parse_timedelta(cls, v):
-        if v:
-            if time_duration_pattern.match(v):
-                return parse_time_duration(v)
-            return v
-        else:
-            return timedelta()
 
 
 class AttrSpecClassic(AttrSpecGeneric):

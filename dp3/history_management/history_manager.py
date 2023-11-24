@@ -2,12 +2,12 @@ import gzip
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Optional
 
-from pydantic import BaseModel, Extra, field_validator
+from pydantic import BaseModel, Extra
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
@@ -17,7 +17,8 @@ from dp3.common.attrspec import (
 )
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
-from dp3.common.utils import entity_expired, parse_time_duration
+from dp3.common.types import ParsedTimedelta
+from dp3.common.utils import entity_expired
 from dp3.database.database import DatabaseError, EntityDatabase
 
 DB_SEND_CHUNK = 100
@@ -41,12 +42,7 @@ class SnapshotCleaningConfig(BaseModel):
     """
 
     schedule: CronExpression
-    older_than: timedelta
-
-    @field_validator("older_than", mode="before")
-    @classmethod
-    def parse_timedelta(cls, v):
-        return parse_time_duration(v)
+    older_than: ParsedTimedelta
 
 
 class DPArchivationConfig(BaseModel):
@@ -59,13 +55,8 @@ class DPArchivationConfig(BaseModel):
     """
 
     schedule: CronExpression
-    older_than: timedelta
+    older_than: ParsedTimedelta
     archive_dir: Optional[str] = None
-
-    @field_validator("older_than", mode="before")
-    @classmethod
-    def parse_timedelta(cls, v):
-        return parse_time_duration(v)
 
 
 class HistoryManagerConfig(BaseModel, extra=Extra.forbid):

@@ -235,14 +235,6 @@ def main(args):
             print(stringify_source(source), "\n")
         sys.exit(1)
 
-    parsed_config.attributes["test_entity_type", "test_attr_ipv4"].dp_model.model_validate(
-        {
-            "etype": "test_entity_type",
-            "eid": "test_entity_id",
-            "attr": "test_attr_ipv4",
-            "v": "1.2.3.4",
-        }
-    )
     if args.verbose:
         # Print parsed config as JSON (print unserializable objects using str())
         print(json.dumps(parsed_config.config, indent=4, cls=ConfigEncoder))

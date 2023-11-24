@@ -55,6 +55,9 @@ def parse_rfc_time(time_str):
         raise ValueError("Wrong timestamp format")
 
 
+time_duration_pattern = re.compile(r"^\s*(\d+)([smhd])?$")
+
+
 def parse_time_duration(duration_string: Union[str, int, datetime.timedelta]) -> datetime.timedelta:
     """
     Parse duration in format <num><s/m/h/d> (or just "0").

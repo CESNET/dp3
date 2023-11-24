@@ -122,7 +122,7 @@ class APITest(unittest.TestCase):
     def get_entity_data(self, path: str, model: type[Model], **kwargs) -> Model:
         response = self.get_request(path, **kwargs)
         self.assertEqual(response.status_code, 200)
-        return model.parse_raw(response.content)
+        return model.model_validate_json(response.content)
 
     @staticmethod
     def get_request(path, **kwargs) -> requests.Response:

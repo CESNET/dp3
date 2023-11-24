@@ -2,7 +2,7 @@ import os
 import sys
 from enum import Enum
 
-from pydantic import BaseModel, ValidationError, validator
+from pydantic import BaseModel, ValidationError, field_validator
 
 from dp3.api.internal.dp_logger import DPLogger
 from dp3.common.config import ModelSpec, read_config_dir
@@ -20,8 +20,9 @@ class ConfigEnv(BaseModel):
     CONF_DIR: str
     ROOT_PATH: str = ""
 
-    @validator("CONF_DIR")
-    def validate(cls, v, values):
+    @field_validator("CONF_DIR")
+    @classmethod
+    def validate(cls, v):
         # Try to open config
         try:
             config = read_config_dir(v, recursive=True)

@@ -1,10 +1,17 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, root_validator, validator
-from pydantic.error_wrappers import ValidationError
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
+from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
@@ -32,6 +39,55 @@ class Task(BaseModel, ABC):
         """
 
 
+def instanciate_dps(v, info: FieldValidationInfo):
+    if "model_spec" in info.data and info.data["model_spec"]:
+        # Convert `DataPointBase` instances back to dicts
+        if isinstance(v, DataPointBase):
+            v = v.model_dump()
+        if isinstance(v, str):
+            v = DataPointBase.model_validate(v)
+
+        etype = v.get("etype")
+        attr = v.get("attr")
+
+        # Fetch datapoint model
+        try:
+            dp_model = info.data["model_spec"].attr(etype, attr).dp_model
+        except (KeyError, TypeError) as e:
+            raise ValueError(f"Attribute '{attr}' not found in entity '{etype}'") from e
+
+        # Parse datapoint using model from attribute specification
+        try:
+            return dp_model.parse_obj(v)
+        except ValidationError as e:
+            raise ValueError(e) from e
+
+    return v
+
+
+def validate_data_points(v, info: FieldValidationInfo):
+    if "etype" in info.data and "eid" in info.data:
+        assert (
+            v.etype == info.data["etype"]
+        ), f"Task's etype '{info.data['etype']}' doesn't match datapoint's etype '{v.etype}'"
+        assert (
+            v.eid == info.data["eid"]
+        ), f"Task's eid '{info.data['eid']}' doesn't match datapoint's eid '{v.eid}'"
+    return v
+
+
+def serialize_datapoint_json(dp: DataPointBase):
+    return dp.model_dump_json()
+
+
+ValidatedDataPoint = Annotated[
+    DataPointBase,
+    BeforeValidator(instanciate_dps),
+    AfterValidator(validate_data_points),
+    # PlainSerializer(serialize_datapoint_json, return_type=str, when_used="json"),
+]
+
+
 class DataPointTask(Task):
     """DataPointTask
 
@@ -50,7 +106,7 @@ class DataPointTask(Task):
 
     etype: str
     eid: str
-    data_points: list[DataPointBase] = []
+    data_points: list[ValidatedDataPoint] = []
     tags: list[Any] = []
     ttl_tokens: Optional[dict[str, datetime]] = None
     delete: bool = False
@@ -59,55 +115,20 @@ class DataPointTask(Task):
         return f"{self.etype}:{self.eid}"
 
     def as_message(self) -> str:
-        return self.json(exclude={"model_spec"})
+        return self.model_dump_json(exclude={"model_spec"})
 
-    @validator("etype")
-    def validate_etype(cls, v, values):
-        if "model_spec" in values:
-            assert v in values["model_spec"], f"Invalid etype '{v}'"
+    @field_validator("etype")
+    def validate_etype(cls, v, info: FieldValidationInfo):
+        if "model_spec" in info.data:
+            assert v in info.data["model_spec"], f"Invalid etype '{v}'"
         return v
 
-    @validator("data_points", pre=True, each_item=True)
-    def instanciate_dps(cls, v, values):
-        if "model_spec" in values and values["model_spec"]:
-            # Convert `DataPointBase` instances back to dicts
-            if isinstance(v, DataPointBase):
-                v = v.dict()
-
-            etype = v.get("etype")
-            attr = v.get("attr")
-
-            # Fetch datapoint model
-            try:
-                dp_model = values["model_spec"].attr(etype, attr).dp_model
-            except (KeyError, TypeError) as e:
-                raise ValueError(f"Attribute '{attr}' not found in entity '{etype}'") from e
-
-            # Parse datapoint using model from attribute specification
-            try:
-                return dp_model.parse_obj(v)
-            except ValidationError as e:
-                raise ValueError(e) from e
-
-        return v
-
-    @validator("data_points", each_item=True)
-    def validate_data_points(cls, v, values):
-        if "etype" in values and "eid" in values:
-            assert (
-                v.etype == values["etype"]
-            ), f"Task's etype '{values['etype']}' doesn't match datapoint's etype '{v.etype}'"
-            assert (
-                v.eid == values["eid"]
-            ), f"Task's eid '{values['eid']}' doesn't match datapoint's eid '{v.eid}'"
-        return v
-
-    @root_validator
-    def discard_attr_spec(cls, values):
+    @model_validator(mode="after")
+    def discard_attr_spec(self):
         # This is run at the end of validation.
         # Discard attribute specification.
-        del values["model_spec"]
-        return values
+        del self.model_spec
+        return self
 
 
 class SnapshotMessageType(Enum):

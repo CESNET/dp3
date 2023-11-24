@@ -2,10 +2,20 @@
 Platform config file reader and config model.
 """
 import os
-from typing import Optional
+from typing import Annotated, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Extra, Field, NonNegativeInt, PositiveInt, root_validator, validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Extra,
+    Field,
+    NonNegativeInt,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
+from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.attrspec import (
     AttrSpec,
@@ -136,6 +146,11 @@ def read_config_dir(dir_path: str, recursive: bool = False) -> HierarchicalDict:
     return config
 
 
+CRON_EXPR_PATTERN = r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$"
+CronStr = Annotated[str, Field(pattern=CRON_EXPR_PATTERN)]
+TimeInt = Annotated[int, Field(ge=0, le=59)]
+
+
 class CronExpression(BaseModel, extra=Extra.forbid):
     """
     Cron expression used for scheduling. Also support standard cron expressions, such as
@@ -156,16 +171,16 @@ class CronExpression(BaseModel, extra=Extra.forbid):
         timezone: Timezone for time specification (default is UTC).
     """
 
-    second: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
-    minute: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
-    hour: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
+    second: Optional[Union[TimeInt, CronStr]] = None
+    minute: Optional[Union[TimeInt, CronStr]] = None
+    hour: Optional[Union[TimeInt, CronStr]] = None
 
-    day: Optional[str] = Field(default=None, regex=r"^((\d+,)+\d+|(\d+-\d+)|\d+|(\*\/\d+)|\*)$")
-    day_of_week: Optional[str] = Field(default=None, regex=r"^(\d|mon|tue|wed|thu|fri|sat|sun)$")
+    day: Optional[Union[Annotated[int, Field(ge=1, le=31)], CronStr]] = None
+    day_of_week: Optional[Union[Annotated[int, Field(ge=0, le=6)], CronStr]] = None
 
     week: Optional[int] = Field(default=None, ge=1, le=53)
     month: Optional[int] = Field(default=None, ge=1, le=12)
-    year: Optional[str] = Field(default=None, regex=r"^\d{4}$")
+    year: Optional[str] = Field(default=None, pattern=r"^\d{4}$")
 
     timezone: str = "UTC"
 
@@ -184,14 +199,14 @@ class EntitySpecDict(BaseModel):
     def __getitem__(self, item):
         return self.__getattribute__(item)
 
-    @validator("entity", pre=True)
-    def _parse_entity_spec(cls, v, values):
+    @field_validator("entity", mode="before")
+    def _parse_entity_spec(cls, v):
         if isinstance(v, EntitySpec):
             return v
-        return EntitySpec.parse_obj(v)
+        return EntitySpec.model_validate(v)
 
-    @validator("attribs", pre=True)
-    def _parse_attr_spec(cls, v, values):
+    @field_validator("attribs", mode="before")
+    def _parse_attr_spec(cls, v):
         assert isinstance(v, dict), "'attribs' must be a dictionary"
         return {
             attr_id: AttrSpec(attr_id, spec) if not isinstance(spec, AttrSpecGeneric) else spec
@@ -248,65 +263,66 @@ class ModelSpec(BaseModel):
             config=config, entities={}, attributes={}, entity_attributes={}, relations={}
         )
 
-    @validator("entities")
-    def _fill_entities(cls, v, values):
-        if "config" not in values:
+    @field_validator("entities")
+    def _fill_entities(cls, v, info: FieldValidationInfo):
+        if "config" not in info.data:
             return v
         return {
-            entity_id: entity_dict["entity"] for entity_id, entity_dict in values["config"].items()
+            entity_id: entity_dict["entity"]
+            for entity_id, entity_dict in info.data["config"].items()
         }
 
-    @validator("attributes")
-    def _fill_attributes(cls, v, values):
-        if "config" not in values:
+    @field_validator("attributes")
+    def _fill_attributes(cls, v, info: FieldValidationInfo):
+        if "config" not in info.data:
             return v
         return {
             (entity_id, attr_id): attr_spec
-            for entity_id, entity_dict in values["config"].items()
+            for entity_id, entity_dict in info.data["config"].items()
             for attr_id, attr_spec in entity_dict["attribs"].items()
         }
 
-    @validator("entity_attributes")
-    def _fill_entity_attributes(cls, v, values):
-        if "config" not in values:
+    @field_validator("entity_attributes")
+    def _fill_entity_attributes(cls, v, info: FieldValidationInfo):
+        if "config" not in info.data:
             return v
         return {
             entity_id: dict(entity_dict["attribs"].items())
-            for entity_id, entity_dict in values["config"].items()
+            for entity_id, entity_dict in info.data["config"].items()
         }
 
-    @validator("relations")
-    def _fill_relations(cls, v, values):
-        if "attributes" not in values:
+    @field_validator("relations")
+    def _fill_relations(cls, v, info: FieldValidationInfo):
+        if "attributes" not in info.data:
             return v
         return {
             entity_id_attr_id: attr_spec
-            for entity_id_attr_id, attr_spec in values["attributes"].items()
+            for entity_id_attr_id, attr_spec in info.data["attributes"].items()
             if isinstance(attr_spec, AttrSpecClassic) and attr_spec.is_relation
         }
 
-    @root_validator
-    def _validate_relations(cls, values):
+    @model_validator(mode="after")
+    def _validate_relations(self):
         """Validate that relation type attributes link to existing entities."""
-        for entity_attr, attr_spec in values["relations"].items():
-            if attr_spec.relation_to not in values["entities"]:
+        for entity_attr, attr_spec in self.relations.items():
+            if attr_spec.relation_to not in self.entities:
                 entity, attr = entity_attr
                 raise ValueError(
                     f"'{attr_spec.relation_to}', linked by '{attr}' is not a valid entity."
                 )
-        return values
+        return self
 
-    @root_validator
-    def _fill_and_validate_mirrors(cls, values):
+    @model_validator(mode="after")
+    def _fill_and_validate_mirrors(self):
         """Validate that relation mirrors do not reference existing attributes and create them."""
-        for (entity, attr), attr_spec in values["relations"].items():
+        for (entity, attr), attr_spec in self.relations.items():
             if not attr_spec.is_mirrored:
                 continue
 
             linked_entity = attr_spec.relation_to
             linked_attr = attr_spec.mirror_as
 
-            if (linked_entity, linked_attr) in values["attributes"]:
+            if (linked_entity, linked_attr) in self.attributes:
                 raise ValueError(
                     f"'{linked_entity}.{linked_attr}' is a mirrored attribute, "
                     "but already exists in configuration. "
@@ -321,11 +337,11 @@ class ModelSpec(BaseModel):
                 description=f"Read-only mirror attribute of {entity}.{attr}",
             )
 
-            values["config"][linked_entity]["attribs"][linked_attr] = mirror_attr
-            values["attributes"][linked_entity, linked_attr] = mirror_attr
-            values["entity_attributes"][linked_entity][linked_attr] = mirror_attr
+            self.config[linked_entity]["attribs"][linked_attr] = mirror_attr
+            self.attributes[linked_entity, linked_attr] = mirror_attr
+            self.entity_attributes[linked_entity][linked_attr] = mirror_attr
 
-        return values
+        return self
 
     def attr(self, entity_type: str, attr: str) -> AttrSpecType:
         return self.attributes[entity_type, attr]
@@ -369,6 +385,8 @@ class PlatformConfig(BaseModel):
         process_index: Index of current process
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     app_name: str
     config_base_path: str
     config: HierarchicalDict
@@ -377,13 +395,13 @@ class PlatformConfig(BaseModel):
     num_processes: PositiveInt
     process_index: NonNegativeInt
 
-    @validator("process_index")
-    def valid_process_index(cls, v, values):
-        if "num_processes" not in values:
+    @field_validator("process_index")
+    def valid_process_index(cls, v, info: FieldValidationInfo):
+        if "num_processes" not in info.data:
             return v
 
         assert (
-            v < values["num_processes"]
+            v < info.data["num_processes"]
         ), "Process index must be less than total number of processes"
         return v
 

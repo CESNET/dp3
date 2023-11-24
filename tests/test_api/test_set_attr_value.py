@@ -12,7 +12,9 @@ class SetEidAttrValue(common.APITest):
 
     def test_valid_payload(self):
         payload = EntityEidAttrValue(value="Test string val1")
-        response = self.post_request(TESTED_PATH.format(action="set"), data=payload.json())
+        response = self.post_request(
+            TESTED_PATH.format(action="set"), data=payload.model_dump_json()
+        )
         self.assertEqual(response.status_code, 200)
 
         expected = EntityEidAttrValueOrHistory(attr_type=1, current_value="Test string val1")

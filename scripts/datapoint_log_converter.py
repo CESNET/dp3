@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 import pandas as pd
 from dateutil.parser import parse as parsetime
-from pydantic.error_wrappers import ValidationError
+from pydantic import ValidationError
 
 from dp3.common.config import ModelSpec, read_config_dir
 

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Callable, Literal, Optional, Union
 
 import pymongo
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from pymongo import ReplaceOne, UpdateMany, UpdateOne
 from pymongo.errors import OperationFailure
 
@@ -55,7 +55,8 @@ class MongoConfig(BaseModel, extra="forbid"):
     password: str = "dp3"
     connection: Union[MongoStandaloneConfig, MongoReplicaConfig] = Field(..., discriminator="mode")
 
-    @validator("username", "password")
+    @field_validator("username", "password")
+    @classmethod
     def url_safety(cls, v):
         return urllib.parse.quote_plus(v)
 

@@ -2,9 +2,18 @@ import ipaddress
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Any, Union
+from typing import Annotated, Any, Optional, Union
 
-from pydantic import BaseModel, Extra, Json, PrivateAttr, constr, create_model, root_validator
+from pydantic import (
+    BaseModel,
+    Extra,
+    Field,
+    Json,
+    PrivateAttr,
+    RootModel,
+    create_model,
+    model_validator,
+)
 
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(.+)>$")
@@ -24,8 +33,8 @@ primitive_data_types = {
     "int64": int,
     "float": float,
     "ipv4": ipaddress.IPv4Address,
-    "ipv6": ipaddress.IPv6Address,
-    "mac": constr(regex=r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$"),
+    "ipv6": ipaddress.IPv6Network,
+    "mac": Annotated[str, Field(pattern=r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")],
     "time": datetime,
     "special": Any,
     "json": Union[Json[Any], dict, list],
@@ -35,8 +44,9 @@ primitive_data_types = {
 class ReadOnly(BaseModel):
     """The ReadOnly data_type is used to avoid datapoint insertion for an attribute."""
 
-    @root_validator(pre=True)
-    def fail(cls, values):
+    @model_validator(mode="before")
+    @classmethod
+    def fail(cls, data):
         raise ValueError("Cannot instantiate a read-only attribute datapoint.")
 
 
@@ -44,7 +54,7 @@ class Link(BaseModel, extra=Extra.forbid):
     eid: str
 
 
-class DataType(BaseModel):
+class DataType(RootModel):
     """Data type container
 
     Represents one of primitive data types:
@@ -81,7 +91,7 @@ class DataType(BaseModel):
         mirror_as: if `mirror_link` is True, what is the name of the mirrored attribute
     """
 
-    __root__: str
+    root: str
     _data_type = PrivateAttr(None)
     _type_info = PrivateAttr(None)
     _hashable = PrivateAttr(True)
@@ -95,10 +105,14 @@ class DataType(BaseModel):
     _mirror_as = PrivateAttr()
     _link_data = PrivateAttr()
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    @model_validator(mode="after")
+    def determine_value_validator(self):
+        """Determines value validator (inner `data_type`)
 
-        str_type = data["__root__"]
+        This is not implemented inside `@validator`, because it apparently doesn't work with
+        `__root__` models.
+        """
+        str_type = self.root
 
         self._hashable = not (
             "dict" in str_type
@@ -109,18 +123,8 @@ class DataType(BaseModel):
             or "link" in str_type
         )
 
-        self.determine_value_validator(str_type)
-
-    def determine_value_validator(self, str_type: str):
-        """Determines value validator (inner `data_type`)
-
-        This is not implemented inside `@validator`, because it apparently doesn't work with
-        `__root__` models.
-        """
         if not isinstance(str_type, str):
             raise TypeError(f"Data type {str_type} is not string")
-
-        self._type_info = None
 
         if str_type in primitive_data_types:
             # Primitive type
@@ -129,7 +133,7 @@ class DataType(BaseModel):
         elif m := re.match(re_array, str_type):
             # Array
             element_type = m.group(1)
-            value_type = DataType(__root__=element_type)
+            value_type = DataType(root=element_type)
             if not is_primitive_element_type(value_type):
                 raise TypeError(f"Data type {element_type} is not supported as an array element")
             data_type = list[value_type.data_type]
@@ -139,7 +143,7 @@ class DataType(BaseModel):
         elif m := re.match(re_set, str_type):
             # Set
             element_type = m.group(1)
-            value_type = DataType(__root__=element_type)
+            value_type = DataType(root=element_type)
             if not is_primitive_element_type(value_type):
                 raise TypeError(f"Data type {element_type} is not supported as an set element")
             data_type = list[value_type.data_type]  # set is not supported by MongoDB
@@ -157,7 +161,7 @@ class DataType(BaseModel):
             self._type_info = f"link<{etype},{data}>"
 
             if etype and data:
-                value_type = DataType(__root__=data)
+                value_type = DataType(root=data)
                 data_type = create_model(
                     f"Link<{data}>", __base__=Link, data=(value_type.data_type, ...)
                 )
@@ -179,12 +183,12 @@ class DataType(BaseModel):
                 # Optional subattribute
                 k_optional = k[-1] == "?"
 
-                if k_optional:
-                    # Remove question mark from key
-                    k = k[:-1]
-
                 # Set (type, default value) for the key
-                dict_spec[k] = (primitive_data_types[v], None if k_optional else ...)
+                if k_optional:
+                    k = k[:-1]  # Remove question mark from key
+                    dict_spec[k] = (Optional[primitive_data_types[v]], None)
+                else:
+                    dict_spec[k] = (primitive_data_types[v], ...)
 
             # Create model for this dict
             data_type = create_model(f"{str_type}__inner", **dict_spec)
@@ -196,7 +200,7 @@ class DataType(BaseModel):
             # Category
             category_type, category_values = m.group("type"), m.group("vals")
 
-            category_type = DataType(__root__=category_type)
+            category_type = DataType(root=category_type)
             category_values = [
                 category_type._data_type(value.strip()) for value in category_values.split(",")
             ]
@@ -210,6 +214,7 @@ class DataType(BaseModel):
         # Set default type info
         if self._type_info is None:
             self._type_info = str(data_type)
+        return self
 
     @property
     def data_type(self) -> str:
@@ -262,11 +267,11 @@ class DataType(BaseModel):
             raise ValueError(f"DataType '{self}' is not a link.") from None
 
     def __str__(self):
-        return self.__root__
+        return self.root
 
     def __repr__(self):
         return f"'{str(self)}'"
 
 
 def is_primitive_element_type(data_type: DataType) -> bool:
-    return data_type.__root__ in primitive_data_types or data_type.is_link
+    return data_type.root in primitive_data_types or data_type.is_link

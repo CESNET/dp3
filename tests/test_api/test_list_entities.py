@@ -11,5 +11,5 @@ class ListEntities(common.APITest):
         received = response.json()
         self.assertIsInstance(received, dict)
         for key, item in received.items():
-            received[key] = EntityState.parse_obj(item)
+            received[key] = EntityState.model_validate(item)
         self.assertListEqual(list(received.keys()), list(common.MODEL_SPEC.entities.keys()))

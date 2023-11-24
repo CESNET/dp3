@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, NonNegativeInt
+from pydantic import BaseModel, Field, NonNegativeInt
 
 from dp3.common.attrspec import AttrSpecType, AttrType
 
@@ -15,7 +15,7 @@ class EntityState(BaseModel):
 
     id: str
     name: str
-    attribs: dict[str, AttrSpecType]
+    attribs: dict[str, Annotated[AttrSpecType, Field(discriminator="type")]]
     eid_estimate_count: NonNegativeInt
 
 
@@ -28,7 +28,7 @@ class EntityEidList(BaseModel):
     Data does not include history of observations attributes and timeseries.
     """
 
-    time_created: Optional[datetime]
+    time_created: Optional[datetime] = None
     count: int
     total_count: int
     data: list[dict]
@@ -67,4 +67,4 @@ class EntityEidAttrValue(BaseModel):
     The value is fetched from master record.
     """
 
-    value: Any
+    value: Any = None

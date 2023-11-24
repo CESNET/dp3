@@ -7,7 +7,7 @@ from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Optional
 
-from pydantic import BaseModel, Extra, validator
+from pydantic import BaseModel, Extra, field_validator
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
@@ -43,7 +43,8 @@ class SnapshotCleaningConfig(BaseModel):
     schedule: CronExpression
     older_than: timedelta
 
-    @validator("older_than", pre=True)
+    @field_validator("older_than", mode="before")
+    @classmethod
     def parse_timedelta(cls, v):
         return parse_time_duration(v)
 
@@ -61,7 +62,8 @@ class DPArchivationConfig(BaseModel):
     older_than: timedelta
     archive_dir: Optional[str] = None
 
-    @validator("older_than", pre=True)
+    @field_validator("older_than", mode="before")
+    @classmethod
     def parse_timedelta(cls, v):
         return parse_time_duration(v)
 

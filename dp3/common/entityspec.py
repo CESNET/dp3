@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Literal, Union
 
-from pydantic import BaseModel, Extra, Field, validator
+from pydantic import BaseModel, Extra, Field, field_validator
 
 from dp3.common.utils import parse_time_duration
 
@@ -38,7 +38,8 @@ class TimeToLiveLifetime(SpecModel):
     on_create: timedelta
     mirror_data: bool = True
 
-    @validator("on_create", pre=True)
+    @field_validator("on_create", mode="before")
+    @classmethod
     def parse_timedelta(cls, v):
         return parse_time_duration(v)
 

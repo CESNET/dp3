@@ -1,4 +1,5 @@
 from datetime import datetime
+from ipaddress import IPv4Address, IPv6Address
 from typing import Annotated, Any, Optional, Union
 
 from pydantic import BaseModel, Field, PlainSerializer
@@ -6,8 +7,10 @@ from pydantic import BaseModel, Field, PlainSerializer
 from dp3.common.types import T2Datetime
 
 
-def to_str(v):
-    return str(v)
+def to_json_friendly(v):
+    if isinstance(v, (IPv4Address, IPv6Address)):
+        return str(v)
+    return v
 
 
 class DataPointBase(BaseModel, use_enum_values=True):
@@ -26,7 +29,7 @@ class DataPointBase(BaseModel, use_enum_values=True):
     eid: str
     attr: str
     src: Optional[str] = None
-    v: Annotated[Optional[Any], PlainSerializer(to_str, when_used="json")] = None
+    v: Annotated[Optional[Any], PlainSerializer(to_json_friendly, when_used="json")] = None
     c: Optional[Any] = None
     t1: Optional[Any] = None
     t2: Optional[Any] = None

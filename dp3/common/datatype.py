@@ -33,7 +33,7 @@ primitive_data_types = {
     "int64": int,
     "float": float,
     "ipv4": ipaddress.IPv4Address,
-    "ipv6": ipaddress.IPv6Network,
+    "ipv6": ipaddress.IPv6Address,
     "mac": Annotated[str, Field(pattern=r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")],
     "time": datetime,
     "special": Any,

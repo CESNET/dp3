@@ -322,13 +322,6 @@ class ModelSpec(BaseModel):
             linked_entity = attr_spec.relation_to
             linked_attr = attr_spec.mirror_as
 
-            if (linked_entity, linked_attr) in self.attributes:
-                raise ValueError(
-                    f"'{linked_entity}.{linked_attr}' is a mirrored attribute, "
-                    "but already exists in configuration. "
-                    "Mirrored attributes are defined implicitly, remove the definition."
-                )
-
             mirror_attr = AttrSpecReadOnly(
                 id=linked_attr,
                 name=linked_attr,
@@ -336,6 +329,17 @@ class ModelSpec(BaseModel):
                 type="plain",
                 description=f"Read-only mirror attribute of {entity}.{attr}",
             )
+
+            # We will accept correct definitions of mirrored attributes to fix errors when
+            # a `ModelSpec` instance is validated again (e.g. when passed to `PlatformConfig`)
+            # It's not pretty, but better than requiring a context like in `DataPointTask`.
+            configured = self.attributes.get((linked_entity, linked_attr))
+            if configured and configured.model_dump() != mirror_attr.model_dump():
+                raise ValueError(
+                    f"'{linked_entity}.{linked_attr}' is a mirrored attribute, "
+                    "but already exists in configuration. "
+                    "Mirrored attributes are defined implicitly, remove the definition."
+                )
 
             self.config[linked_entity]["attribs"][linked_attr] = mirror_attr
             self.attributes[linked_entity, linked_attr] = mirror_attr

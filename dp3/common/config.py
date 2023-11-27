@@ -385,7 +385,7 @@ class PlatformConfig(BaseModel):
         process_index: Index of current process
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, protected_namespaces=())
 
     app_name: str
     config_base_path: str

@@ -39,7 +39,7 @@ class GarbageCollector:
     ):
         self.log = logging.getLogger("GarbageCollector")
         self.model_spec = platform_config.model_spec
-        self.config = GarbageCollectorConfig.parse_obj(
+        self.config = GarbageCollectorConfig.model_validate(
             platform_config.config.get("garbage_collector", {})
         )
         self.db = db
@@ -96,7 +96,6 @@ class GarbageCollector:
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
         task = DataPointTask(
-            model_spec=self.model_spec,
             etype=task.etype,
             eid=eid,
             ttl_tokens={"base": datetime.utcnow() + base_ttl},
@@ -283,7 +282,6 @@ class GarbageCollector:
         """Extends the TTL of the entity by the specified timedelta."""
         now = datetime.utcnow()
         task = DataPointTask(
-            model_spec=self.model_spec,
             etype=dp.etype,
             eid=eid,
             ttl_tokens={"data": now + extend_by},
@@ -295,7 +293,6 @@ class GarbageCollector:
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
         task = DataPointTask(
-            model_spec=self.model_spec,
             etype=dp.etype,
             eid=eid,
             ttl_tokens={"data": dp.t2 + extend_by},
@@ -307,7 +304,6 @@ class GarbageCollector:
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
         task = DataPointTask(
-            model_spec=self.model_spec,
             etype=dp.etype,
             eid=eid,
             ttl_tokens={"data": dp.t2 + extend_by},

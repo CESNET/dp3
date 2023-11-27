@@ -13,7 +13,7 @@ from dp3.api.internal.entity_response_models import EntityState
 from dp3.api.internal.helpers import api_to_dp3_datapoint
 from dp3.api.internal.models import DataPoint
 from dp3.api.internal.response_models import HealthCheckResponse, SuccessResponse
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, task_context
 
 router = APIRouter()
 
@@ -45,13 +45,12 @@ async def insert_datapoints(dps: list[DataPoint], request: Request) -> SuccessRe
 
     # Create tasks
     tasks = []
-    for k in tasks_dps:
-        etype, eid = k
+    with task_context(MODEL_SPEC):
+        for k in tasks_dps:
+            etype, eid = k
 
-        # This shouldn't fail either
-        tasks.append(
-            DataPointTask(model_spec=MODEL_SPEC, etype=etype, eid=eid, data_points=tasks_dps[k])
-        )
+            # This shouldn't fail either
+            tasks.append(DataPointTask(etype=etype, eid=eid, data_points=tasks_dps[k]))
 
     # Push tasks to task queue
     for task in tasks:

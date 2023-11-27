@@ -3,7 +3,7 @@ from typing import Callable
 
 from event_count_logger import DummyEventGroup, EventCountLogger
 
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, task_context
 from dp3.database.database import DatabaseError, EntityDatabase
 from dp3.task_processing.task_hooks import (
     TaskAttrHooksContainer,
@@ -68,12 +68,14 @@ class TaskExecutor:
         self._task_attr_hooks = {}
 
         for entity in self.model_spec.entities:
-            self._task_entity_hooks[entity] = TaskEntityHooksContainer(entity, self.log, self.elog)
+            self._task_entity_hooks[entity] = TaskEntityHooksContainer(
+                entity, self.model_spec, self.log, self.elog
+            )
 
         for entity, attr in self.model_spec.attributes:
             attr_type = self.model_spec.attributes[entity, attr].t
             self._task_attr_hooks[entity, attr] = TaskAttrHooksContainer(
-                entity, attr, attr_type, self.log, self.elog
+                entity, attr, attr_type, self.model_spec, self.log, self.elog
             )
 
     def register_task_hook(self, hook_type: str, hook: Callable):
@@ -194,9 +196,10 @@ class TaskExecutor:
         for master_record in self.db.get_worker_master_records(
             worker_id, worker_cnt, etype, projection=projection
         ):
-            task = DataPointTask(model_spec=self.model_spec, etype=etype, eid=master_record["_id"])
-            self.log.debug(f"Refreshing {etype}/{task.eid}")
-            new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.eid, task)
+            with task_context(self.model_spec):
+                task = DataPointTask(etype=etype, eid=master_record["_id"])
+                self.log.debug(f"Refreshing {etype}/{task.eid}")
+                new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.eid, task)
 
         return new_tasks
 

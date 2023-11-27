@@ -10,7 +10,7 @@ from typing import Callable, Union
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, task_context
 from dp3.common.utils import get_func_name
 from dp3.task_processing.task_hooks import EventGroupType
 
@@ -57,13 +57,14 @@ class SnapshotTimeseriesHookContainer:
     ) -> list[DataPointTask]:
         """Runs registered hooks."""
         tasks = []
-        for hook in self._hooks[entity_type, attr_type]:
-            try:
-                new_tasks = hook(entity_type, attr_type, attr_history)
-                tasks.extend(new_tasks)
-            except Exception as e:
-                self.elog.log("module_error")
-                self.log.error(f"Error during running hook {hook}: {e}")
+        with task_context(self.model_spec):
+            for hook in self._hooks[entity_type, attr_type]:
+                try:
+                    new_tasks = hook(entity_type, attr_type, attr_history)
+                    tasks.extend(new_tasks)
+                except Exception as e:
+                    self.elog.log("module_error")
+                    self.log.error(f"Error during running hook {hook}: {e}")
         return tasks
 
 
@@ -275,17 +276,18 @@ class SnapshotCorrelationHookContainer:
 
         created_tasks = []
 
-        for hook_id, hook, etype in hook_subset:
-            for eid, entity_values in entities_by_etype[etype].items():
-                self.log.debug("Running hook %s on entity %s", hook_id, eid)
-                try:
-                    tasks = hook(etype, entity_values)
-                    if tasks is not None and tasks:
-                        created_tasks.extend(tasks)
-                except Exception as e:
-                    self.elog.log("module_error")
-                    self.log.error(f"Error during running hook {hook_id}: {e}")
-                    self.log.exception(e)
+        with task_context(self.model_spec):
+            for hook_id, hook, etype in hook_subset:
+                for eid, entity_values in entities_by_etype[etype].items():
+                    self.log.debug("Running hook %s on entity %s", hook_id, eid)
+                    try:
+                        tasks = hook(etype, entity_values)
+                        if tasks is not None and tasks:
+                            created_tasks.extend(tasks)
+                    except Exception as e:
+                        self.elog.log("module_error")
+                        self.log.error(f"Error during running hook {hook_id}: {e}")
+                        self.log.exception(e)
 
         return created_tasks
 

@@ -4,8 +4,9 @@ from typing import Callable, Union
 from event_count_logger import DummyEventGroup, EventGroup
 
 from dp3.common.attrspec import AttrType
+from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, task_context
 
 EventGroupType = Union[EventGroup, DummyEventGroup]
 
@@ -52,10 +53,13 @@ class TaskEntityHooksContainer:
     - `on_entity_creation`: receives eid and Task, may return list of DataPointTasks
     """
 
-    def __init__(self, entity: str, log: logging.Logger, elog: EventGroupType):
+    def __init__(
+        self, entity: str, model_spec: ModelSpec, log: logging.Logger, elog: EventGroupType
+    ):
         self.entity = entity
         self.log = log.getChild(f"entityHooks.{entity}")
         self.elog = elog
+        self.model_spec = model_spec
 
         self._allow_creation = []
         self._on_creation = []
@@ -87,17 +91,18 @@ class TaskEntityHooksContainer:
     def run_on_creation(self, eid: str, task: DataPointTask):
         new_tasks = []
 
-        for hook in self._on_creation:
-            try:
-                # Run hook
-                hook_new_tasks = hook(eid, task)
+        with task_context(self.model_spec):
+            for hook in self._on_creation:
+                try:
+                    # Run hook
+                    hook_new_tasks = hook(eid, task)
 
-                # Append new tasks to process
-                if isinstance(hook_new_tasks, list):
-                    new_tasks += hook_new_tasks
-            except Exception as e:
-                self.elog.log("module_error")
-                self.log.error(f"Error during running hook {hook}: {e}")
+                    # Append new tasks to process
+                    if isinstance(hook_new_tasks, list):
+                        new_tasks += hook_new_tasks
+                except Exception as e:
+                    self.elog.log("module_error")
+                    self.log.error(f"Error during running hook {hook}: {e}")
 
         return new_tasks
 
@@ -116,6 +121,7 @@ class TaskAttrHooksContainer:
         entity: str,
         attr: str,
         attr_type: AttrType,
+        model_spec: ModelSpec,
         log: logging.Logger,
         elog: EventGroupType,
     ):
@@ -123,6 +129,7 @@ class TaskAttrHooksContainer:
         self.attr = attr
         self.log = log.getChild(f"attributeHooks.{entity}.{attr}")
         self.elog = elog
+        self.model_spec = model_spec
 
         if attr_type == AttrType.PLAIN:
             self.on_new_hook_type = "on_new_plain"
@@ -148,16 +155,17 @@ class TaskAttrHooksContainer:
     def run_on_new(self, eid: str, dp: DataPointBase):
         new_tasks = []
 
-        for hook in self._on_new:
-            try:
-                # Run hook
-                hook_new_tasks = hook(eid, dp)
+        with task_context(self.model_spec):
+            for hook in self._on_new:
+                try:
+                    # Run hook
+                    hook_new_tasks = hook(eid, dp)
 
-                # Append new tasks to process
-                if isinstance(hook_new_tasks, list):
-                    new_tasks += hook_new_tasks
-            except Exception as e:
-                self.elog.log("module_error")
-                self.log.error(f"Error during running hook {hook}: {e}")
+                    # Append new tasks to process
+                    if isinstance(hook_new_tasks, list):
+                        new_tasks += hook_new_tasks
+                except Exception as e:
+                    self.elog.log("module_error")
+                    self.log.error(f"Error during running hook {hook}: {e}")
 
         return new_tasks

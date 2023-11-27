@@ -17,7 +17,7 @@ from dp3.api.internal.models import (
 )
 from dp3.api.internal.response_models import ErrorResponse, RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, task_context
 from dp3.database.database import DatabaseError
 
 
@@ -189,7 +189,8 @@ async def set_eid_attr_value(
         raise RequestValidationError(["body", "value"], e.errors()[0]["msg"]) from e
 
     # This shouldn't fail
-    task = DataPointTask(model_spec=MODEL_SPEC, etype=etype, eid=eid, data_points=[dp3_dp])
+    with task_context(MODEL_SPEC):
+        task = DataPointTask(etype=etype, eid=eid, data_points=[dp3_dp])
 
     # Push tasks to task queue
     TASK_WRITER.put_task(task, False)
@@ -205,7 +206,8 @@ async def set_eid_attr_value(
 async def extend_eid_ttls(etype: str, eid: str, body: dict[str, datetime]) -> SuccessResponse:
     """Extend TTLs of the specified entity"""
     # Construct task
-    task = DataPointTask(model_spec=MODEL_SPEC, etype=etype, eid=eid, ttl_tokens=body)
+    with task_context(MODEL_SPEC):
+        task = DataPointTask(etype=etype, eid=eid, ttl_tokens=body)
 
     # Push tasks to task queue
     TASK_WRITER.put_task(task, False)
@@ -221,7 +223,8 @@ async def delete_eid_record(etype: str, eid: str) -> SuccessResponse:
     or block the re-creation of the entity if new datapoints are received.
     """
     # Create a "delete" task and push it to task queue
-    task = DataPointTask(model_spec=MODEL_SPEC, etype=etype, eid=eid, delete=True)
+    with task_context(MODEL_SPEC):
+        task = DataPointTask(etype=etype, eid=eid, delete=True)
     TASK_WRITER.put_task(task, False)
 
     return SuccessResponse()

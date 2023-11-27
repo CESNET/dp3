@@ -54,9 +54,9 @@ class Task(BaseModel, ABC):
 
 
 def instanciate_dps(v, info: FieldValidationInfo):
-    # Convert `DataPointBase` instances back to dicts
+    # If already instantiated, return
     if isinstance(v, DataPointBase):
-        v = v.model_dump()
+        return v
 
     etype = v.get("etype")
     attr = v.get("attr")

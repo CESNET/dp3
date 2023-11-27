@@ -9,6 +9,7 @@ from pydantic import (
     PrivateAttr,
     create_model,
     field_validator,
+    model_validator,
 )
 from pydantic_core.core_schema import FieldValidationInfo
 
@@ -247,20 +248,21 @@ class AttrSpecTimeseries(AttrSpecGeneric):
             data_type = self.series[s].data_type.data_type
             dp_value_typing[s] = ((list[data_type]), ...)
 
-        # Validators
-        dp_validators = {
-            "v_validator": dp_ts_v_validator,
-        }
-
         # Add root validator
         if self.timeseries_type == "regular":
-            dp_validators["root_validator"] = dp_ts_root_validator_regular_wrapper(
-                self.timeseries_params.time_step
-            )
+            root_validator = dp_ts_root_validator_regular_wrapper(self.timeseries_params.time_step)
         elif self.timeseries_type == "irregular":
-            dp_validators["root_validator"] = dp_ts_root_validator_irregular
+            root_validator = dp_ts_root_validator_irregular
         elif self.timeseries_type == "irregular_intervals":
-            dp_validators["root_validator"] = dp_ts_root_validator_irregular_intervals
+            root_validator = dp_ts_root_validator_irregular_intervals
+        else:
+            raise ValueError(f"Unknown timeseries type '{self.timeseries_type}'")
+
+        # Validators
+        dp_validators = {
+            "v_validator": field_validator("v")(dp_ts_v_validator),
+            "root_validator": model_validator(mode="after")(root_validator),
+        }
 
         self._dp_model = create_model(
             f"DataPointTimeseries_{self.id}",

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Any, Optional, Union
 
-from pydantic import BaseModel, Field, PlainSerializer, field_validator, model_validator
+from pydantic import BaseModel, Field, PlainSerializer
 
 from dp3.common.types import T2Datetime
 
@@ -71,23 +71,21 @@ def is_list_ordered(to_check: list):
 # Timeseries validators
 # They are included by child classes of `DataPointTimeseriesBase` in `AttrSpecTimeseries`,
 # where `v` is available
-# I know, this is very dirty, but there's no other way around.
-@field_validator("v")
+# I know, this is a bit dirty, but there's no other way around.
 def dp_ts_v_validator(v):
-    # Check if all value arrays are the same length
-    values_len = [len(v_i) for _, v_i in v.dict().items()]
-    assert len(set(values_len)) == 1, f"Series values have different lengths: {values_len}"
+    """Check if all value arrays are the same length."""
+    values_len = {len(v_i) for _, v_i in v.model_dump().items()}
+    assert len(values_len) == 1, f"Series values have different lengths: {values_len}"
 
     return v
 
 
 def dp_ts_root_validator_regular_wrapper(time_step):
-    @model_validator(mode="after")
     def dp_ts_root_validator_regular(self):
         """Validates or sets t2 of regular timeseries datapoint"""
         # Get length of first value series included in datapoint
-        first_series = list(self.v.dict().keys())[0]
-        series_len = len(self.v.dict()[first_series])
+        first_series = list(self.v.model_dump().keys())[0]
+        series_len = len(self.v.model_dump()[first_series])
         correct_t2 = self.t1 + series_len * time_step
 
         if self.t2:
@@ -102,7 +100,6 @@ def dp_ts_root_validator_regular_wrapper(time_step):
     return dp_ts_root_validator_regular
 
 
-@model_validator(mode="after")
 def dp_ts_root_validator_irregular(self):
     """Validates or sets t2 of irregular timeseries datapoint"""
     first_time = self.v.time[0]
@@ -123,7 +120,6 @@ def dp_ts_root_validator_irregular(self):
     return self
 
 
-@model_validator(mode="after")
 def dp_ts_root_validator_irregular_intervals(self):
     """Validates or sets t2 of irregular intervals timeseries datapoint"""
     first_time = self.v.time_first[0]

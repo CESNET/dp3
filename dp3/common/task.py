@@ -76,10 +76,6 @@ def validate_data_points(v, info: FieldValidationInfo):
     return v
 
 
-def serialize_datapoint_json(dp: DataPointBase):
-    return dp.model_dump_json()
-
-
 ValidatedDataPoint = Annotated[
     DataPointBase,
     BeforeValidator(instanciate_dps),
@@ -114,7 +110,9 @@ class DataPointTask(Task):
         return f"{self.etype}:{self.eid}"
 
     def as_message(self) -> str:
-        return self.model_dump_json(exclude={"model_spec"})
+        return self.model_dump_json(
+            exclude={"model_spec"}, exclude_defaults=True, exclude_unset=True
+        )
 
     @field_validator("etype")
     def validate_etype(cls, v, info: FieldValidationInfo):
@@ -160,4 +158,4 @@ class Snapshot(Task):
         return "-".join(f"{etype}:{eid}" for etype, eid in self.entities)
 
     def as_message(self) -> str:
-        return self.json()
+        return self.model_dump_json()

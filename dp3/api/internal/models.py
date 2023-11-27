@@ -27,7 +27,7 @@ class DataPoint(BaseModel):
     attr: str
     v: Any
     t1: Optional[datetime] = None
-    t2: T2Datetime = Field(None, validate_default=True)
+    t2: Optional[T2Datetime] = Field(None, validate_default=True)
     c: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
     src: Optional[str] = None
 

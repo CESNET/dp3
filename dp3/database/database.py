@@ -240,7 +240,7 @@ class EntityDatabase:
 
         # Insert raw datapoints
         raw_col = self._raw_col_name(etype)
-        dps_dicts = [dp.dict(exclude={"attr_type"}) for dp in dps]
+        dps_dicts = [dp.model_dump(exclude={"attr_type"}) for dp in dps]
         try:
             self._db[raw_col].insert_many(dps_dicts)
             self.log.debug(f"Inserted datapoints to raw collection:\n{dps}")

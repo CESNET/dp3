@@ -25,4 +25,4 @@ def api_to_dp3_datapoint(api_dp_values: dict) -> DataPointBase:
     # Parse using the model
     # This may raise pydantic's ValidationError, but that's intensional (to get
     # a JSON-serializable trace as a response from API).
-    return model.parse_obj(dp3_dp_values)
+    return model.model_validate(dp3_dp_values)

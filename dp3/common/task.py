@@ -57,8 +57,6 @@ def instanciate_dps(v, info: FieldValidationInfo):
     # Convert `DataPointBase` instances back to dicts
     if isinstance(v, DataPointBase):
         v = v.model_dump()
-    if isinstance(v, str):
-        v = DataPointBase.model_validate(v)
 
     etype = v.get("etype")
     attr = v.get("attr")
@@ -73,7 +71,7 @@ def instanciate_dps(v, info: FieldValidationInfo):
 
     # Parse datapoint using model from attribute specification
     try:
-        return dp_model.parse_obj(v)
+        return dp_model.model_validate(v)
     except ValidationError as e:
         raise ValueError(e) from e
 

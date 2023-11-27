@@ -29,10 +29,10 @@ class DataPointBase(BaseModel, use_enum_values=True):
     eid: str
     attr: str
     src: Optional[str] = None
-    v: Annotated[Optional[Any], PlainSerializer(to_json_friendly, when_used="json")] = None
-    c: Optional[Any] = None
-    t1: Optional[Any] = None
-    t2: Optional[Any] = None
+    v: Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")] = None
+    c: Any = None
+    t1: Any = None
+    t2: Any = None
 
 
 class DataPointPlainBase(DataPointBase):
@@ -52,7 +52,7 @@ class DataPointObservationsBase(DataPointBase):
     """
 
     t1: datetime
-    t2: Optional[T2Datetime] = None
+    t2: T2Datetime = Field(None, validate_default=True)
     c: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
 
 
@@ -63,7 +63,7 @@ class DataPointTimeseriesBase(DataPointBase):
     """
 
     t1: datetime
-    t2: Optional[T2Datetime] = None
+    t2: T2Datetime = Field(None, validate_default=True)
 
 
 def is_list_ordered(to_check: list):

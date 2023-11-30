@@ -79,16 +79,6 @@ class DataType(RootModel):
     - set<str_type>
     - dict<keys>
     - category<str_type;category1,category2,...>
-
-    Attributes:
-        data_type: type for incoming value validation
-        hashable: whether contained data is hashable
-        iterable: whether the data type is iterable
-        elem_type: if `iterable`, the element data type
-        is_link: whether this data type is link
-        link_to: if `is_link` is True, what is linked target
-        mirror_link: if `is_link` is True, whether this link is mirrored
-        mirror_as: if `mirror_link` is True, what is the name of the mirrored attribute
     """
 
     root: str
@@ -107,11 +97,7 @@ class DataType(RootModel):
 
     @model_validator(mode="after")
     def determine_value_validator(self):
-        """Determines value validator (inner `data_type`)
-
-        This is not implemented inside `@validator`, because it apparently doesn't work with
-        `__root__` models.
-        """
+        """Determines value validator (inner `data_type`)."""
         str_type = self.root
 
         self._hashable = not (
@@ -216,39 +202,48 @@ class DataType(RootModel):
         return self
 
     @property
-    def data_type(self) -> str:
+    def data_type(self) -> Union[type, BaseModel]:
+        """Type for incoming value validation"""
         return self._data_type
 
     @property
     def type_info(self) -> str:
+        """String representation of the data type, immune to whitespace changes"""
         return self._type_info
 
     @property
     def hashable(self) -> bool:
+        """Whether contained data is hashable"""
         return self._hashable
 
     @property
     def iterable(self) -> bool:
+        """Whether the data type is iterable"""
         return self._iterable
 
     @property
     def elem_type(self) -> "DataType":
+        """if `iterable`, the element data type"""
         return self._elem_type
 
     @property
     def is_link(self) -> bool:
+        """Whether the data type is a link between entities"""
         return self._is_link
 
     @property
     def mirror_link(self) -> bool:
+        """If `is_link`, whether the link is mirrored"""
         return self._mirror_link
 
     @property
     def mirror_as(self) -> Union[str, None]:
+        """If `mirror_link`, what is the name of the mirrored attribute"""
         return self._mirror_as
 
     @property
     def link_to(self) -> str:
+        """If `is_link`, the target linked entity"""
         return self._link_to
 
     def get_linked_entity(self) -> str:

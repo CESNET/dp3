@@ -75,7 +75,7 @@ def locate_attribs_error(data: dict, sought_err: str) -> tuple[list[tuple], list
                 if err_dict["msg"] == sought_err:
                     paths.append((attr, *err_dict["loc"]))
                     sources.append(attr_spec)
-        except ValueError as exception:
+        except (ValueError, AssertionError) as exception:
             if sought_err.endswith(exception.args[0]):
                 paths.append((attr,))
                 sources.append(attr_spec)
@@ -89,7 +89,7 @@ def locate_basemodel_error(data: list[dict], model: BaseModel) -> list[dict]:
         for item in data:
             try:
                 model(item)
-            except (ValidationError, ValueError):
+            except (ValidationError, ValueError, AssertionError):
                 locations.append(item)
     return locations
 

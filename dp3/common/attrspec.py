@@ -295,6 +295,7 @@ AttrSpecType = Union[AttrSpecTimeseries, AttrSpecObservations, AttrSpecPlain]
 def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:
     """Factory for `AttrSpec` classes"""
 
+    assert isinstance(spec, dict), "Attribute specification must be a dict"
     if "type" not in spec:
         raise ValueError("Missing mandatory attribute `type`")
     attr_type = AttrType.from_str(spec.get("type"))

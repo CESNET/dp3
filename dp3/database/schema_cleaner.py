@@ -13,7 +13,7 @@ from dp3.common.config import ModelSpec
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 # current database schema version
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class SchemaCleaner:

@@ -4,8 +4,6 @@ Load and check configuration from given directory, print any errors, and exit.
 TODO:
  - refactor to simplify the code, some error path matching must be done to counteract
    the AttrSpec function magic where Pydantic fails, but otherwise it is not required
- - some errors are printed to stdout, some to stderr - unify
- - integrate code into worker and api to get better errors at startup
 """
 
 import argparse
@@ -78,7 +76,7 @@ def locate_attribs_error(data: dict, sought_err: str) -> tuple[list[tuple], list
                     paths.append((attr, *err_dict["loc"]))
                     sources.append(attr_spec)
         except ValueError as exception:
-            if exception.args[0] == sought_err:
+            if sought_err.endswith(exception.args[0]):
                 paths.append((attr,))
                 sources.append(attr_spec)
 
@@ -148,8 +146,8 @@ def locate_errors(exc: ValidationError, data: dict):
     errors = []
 
     for error in exc.errors():
-        if error["loc"] == ("__root__",):
-            paths.append(("__root__",))
+        if error["loc"] == ():
+            paths.append(())
             sources.append(None)
             errors.append(error["msg"])
             continue

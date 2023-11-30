@@ -123,29 +123,26 @@ class DataType(RootModel):
             or "link" in str_type
         )
 
-        if not isinstance(str_type, str):
-            raise TypeError(f"Data type {str_type} is not string")
-
         if str_type in primitive_data_types:
             # Primitive type
             data_type = primitive_data_types[str_type]
 
         elif m := re.match(re_array, str_type):
             # Array
-            element_type = m.group(1)
+            element_type = m.group(1).strip()
             value_type = DataType(root=element_type)
             if not is_primitive_element_type(value_type):
-                raise TypeError(f"Data type {element_type} is not supported as an array element")
+                raise ValueError(f"Data type {element_type} is not supported as an array element")
             data_type = list[value_type.data_type]
             self._iterable = True
             self._elem_type = value_type
 
         elif m := re.match(re_set, str_type):
             # Set
-            element_type = m.group(1)
+            element_type = m.group(1).strip()
             value_type = DataType(root=element_type)
             if not is_primitive_element_type(value_type):
-                raise TypeError(f"Data type {element_type} is not supported as an set element")
+                raise ValueError(f"Data type {element_type} is not supported as a set element")
             data_type = list[value_type.data_type]  # set is not supported by MongoDB
             self._iterable = True
             self._elem_type = value_type
@@ -178,7 +175,7 @@ class DataType(RootModel):
             # For each dict key
             for k, v in key_spec.items():
                 if v not in primitive_data_types:
-                    raise TypeError(f"Data type {v} of key {k} is not supported as a dict field")
+                    raise ValueError(f"Data type {v} of key {k} is not supported as a dict field")
 
                 # Optional subattribute
                 k_optional = k[-1] == "?"
@@ -205,9 +202,11 @@ class DataType(RootModel):
                 category_type._data_type(value.strip()) for value in category_values.split(",")
             ]
 
-            data_type = Enum(f"Category<{category_type}>", {val: val for val in category_values})
+            data_type = Enum(
+                f"Category<{category_type}>", {str(val): val for val in category_values}
+            )
         else:
-            raise TypeError(f"Data type '{str_type}' is not supported")
+            raise ValueError(f"Data type '{str_type}' is not supported")
 
         # Set data type
         self._data_type = data_type

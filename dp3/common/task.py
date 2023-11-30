@@ -1,13 +1,34 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, root_validator, validator
-from pydantic.error_wrappers import ValidationError
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ValidationError,
+    field_validator,
+)
+from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
+
+_init_context_var = ContextVar("_init_context_var", default=None)
+
+
+@contextmanager
+def task_context(model_spec: ModelSpec) -> Iterator[None]:
+    """Context manager for setting the `model_spec` context variable."""
+    token = _init_context_var.set({"model_spec": model_spec})
+    try:
+        yield
+    finally:
+        _init_context_var.reset(token)
 
 
 class Task(BaseModel, ABC):
@@ -32,6 +53,46 @@ class Task(BaseModel, ABC):
         """
 
 
+def instanciate_dps(v, info: FieldValidationInfo):
+    # If already instantiated, return
+    if isinstance(v, DataPointBase):
+        return v
+
+    etype = v.get("etype")
+    attr = v.get("attr")
+
+    # Fetch datapoint model
+    context = info.context
+    assert context.get("model_spec"), "Missing `model_spec` in context"
+    try:
+        dp_model = context.get("model_spec").attr(etype, attr).dp_model
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"Attribute '{attr}' not found in entity '{etype}'") from e
+
+    # Parse datapoint using model from attribute specification
+    try:
+        return dp_model.model_validate(v)
+    except ValidationError as e:
+        raise ValueError(e) from e
+
+
+def validate_data_points(v, info: FieldValidationInfo):
+    assert (
+        v.etype == info.data["etype"]
+    ), f"Task's etype '{info.data['etype']}' doesn't match datapoint's etype '{v.etype}'"
+    assert (
+        v.eid == info.data["eid"]
+    ), f"Task's eid '{info.data['eid']}' doesn't match datapoint's eid '{v.eid}'"
+    return v
+
+
+ValidatedDataPoint = Annotated[
+    DataPointBase,
+    BeforeValidator(instanciate_dps),
+    AfterValidator(validate_data_points),
+]
+
+
 class DataPointTask(Task):
     """DataPointTask
 
@@ -45,69 +106,43 @@ class DataPointTask(Task):
         delete: If True, delete entity
     """
 
-    # Model specification just for internal validation. Discarded after that.
-    model_spec: ModelSpec
-
     etype: str
     eid: str
-    data_points: list[DataPointBase] = []
+    data_points: list[ValidatedDataPoint] = []
     tags: list[Any] = []
     ttl_tokens: Optional[dict[str, datetime]] = None
     delete: bool = False
+
+    def __init__(__pydantic_self__, **data: Any) -> None:
+        """Set the `model_spec` context variable and initialize the Task.
+
+        See https://docs.pydantic.dev/latest/concepts/validators/#validation-context
+        """
+        __pydantic_self__.__pydantic_validator__.validate_python(
+            data,
+            self_instance=__pydantic_self__,
+            context=_init_context_var.get(),
+        )
 
     def routing_key(self):
         return f"{self.etype}:{self.eid}"
 
     def as_message(self) -> str:
-        return self.json(exclude={"model_spec"})
+        return self.model_dump_json(exclude_defaults=True, exclude_unset=True)
 
-    @validator("etype")
-    def validate_etype(cls, v, values):
-        if "model_spec" in values:
-            assert v in values["model_spec"], f"Invalid etype '{v}'"
+    @field_validator("etype")
+    def validate_etype(cls, v, info: FieldValidationInfo):
+        context = info.context
+        if context and "model_spec" in context:
+            assert v in context["model_spec"], f"Invalid etype '{v}'"
+        else:
+            raise AssertionError("Missing `model_spec` in context")
         return v
 
-    @validator("data_points", pre=True, each_item=True)
-    def instanciate_dps(cls, v, values):
-        if "model_spec" in values and values["model_spec"]:
-            # Convert `DataPointBase` instances back to dicts
-            if isinstance(v, DataPointBase):
-                v = v.dict()
 
-            etype = v.get("etype")
-            attr = v.get("attr")
-
-            # Fetch datapoint model
-            try:
-                dp_model = values["model_spec"].attr(etype, attr).dp_model
-            except (KeyError, TypeError) as e:
-                raise ValueError(f"Attribute '{attr}' not found in entity '{etype}'") from e
-
-            # Parse datapoint using model from attribute specification
-            try:
-                return dp_model.parse_obj(v)
-            except ValidationError as e:
-                raise ValueError(e) from e
-
-        return v
-
-    @validator("data_points", each_item=True)
-    def validate_data_points(cls, v, values):
-        if "etype" in values and "eid" in values:
-            assert (
-                v.etype == values["etype"]
-            ), f"Task's etype '{values['etype']}' doesn't match datapoint's etype '{v.etype}'"
-            assert (
-                v.eid == values["eid"]
-            ), f"Task's eid '{values['eid']}' doesn't match datapoint's eid '{v.eid}'"
-        return v
-
-    @root_validator
-    def discard_attr_spec(cls, values):
-        # This is run at the end of validation.
-        # Discard attribute specification.
-        del values["model_spec"]
-        return values
+def parse_data_point_task(task: str, model_spec: ModelSpec) -> DataPointTask:
+    with task_context(model_spec):
+        return DataPointTask.model_validate_json(task)
 
 
 class SnapshotMessageType(Enum):
@@ -140,4 +175,4 @@ class Snapshot(Task):
         return "-".join(f"{etype}:{eid}" for etype, eid in self.entities)
 
     def as_message(self) -> str:
-        return self.json()
+        return self.model_dump_json()

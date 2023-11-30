@@ -24,9 +24,11 @@ def write_datapoints_into_record(model_spec: ModelSpec, tasks: list[DataPointTas
             attr_spec = model_spec.attributes[dp.etype, dp.attr]
             if attr_spec.t == AttrType.PLAIN:
                 if attr_spec.t in AttrType.PLAIN | AttrType.OBSERVATIONS and attr_spec.is_iterable:
-                    v = [elem.dict() if isinstance(elem, BaseModel) else elem for elem in dp.v]
+                    v = [
+                        elem.model_dump() if isinstance(elem, BaseModel) else elem for elem in dp.v
+                    ]
                 else:
-                    v = dp.v.dict() if isinstance(dp.v, BaseModel) else dp.v
+                    v = dp.v.model_dump() if isinstance(dp.v, BaseModel) else dp.v
 
                 record[dp.attr] = v
 
@@ -42,7 +44,7 @@ def on_entity_creation_in_snapshots(
     if not run_flag.isset():
         return []
     eid = record["eid"]
-    mock_task = DataPointTask(model_spec=model_spec, etype=etype, eid=eid, data_points=[])
+    mock_task = DataPointTask(etype=etype, eid=eid, data_points=[])
     tasks = original_hook(eid, mock_task)
     write_datapoints_into_record(model_spec, tasks, record)
     return tasks
@@ -59,7 +61,7 @@ def on_attr_change_in_snapshots(
     if not run_flag.isset():
         return []
     eid = record["eid"]
-    mock_task = DataPointTask(model_spec=model_spec, etype=etype, eid=eid, data_points=[])
+    mock_task = DataPointTask(etype=etype, eid=eid, data_points=[])
     tasks = original_hook(eid, mock_task)
     if isinstance(tasks, list):
         write_datapoints_into_record(model_spec, tasks, record)

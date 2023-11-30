@@ -1,12 +1,12 @@
-import json
 import logging
 import queue
 import threading
 import time
 from datetime import datetime
+from functools import partial
 
 from dp3.common.config import PlatformConfig
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, parse_data_point_task
 from dp3.task_processing.task_executor import TaskExecutor
 
 from ..common.callback_registrar import CallbackRegistrar
@@ -69,7 +69,7 @@ class TaskDistributor:
         # and distributes them to worker threads
         self._task_queue_reader = TaskQueueReader(
             callback=self._distribute_task,
-            parse_task=lambda body: DataPointTask(model_spec=self.model_spec, **json.loads(body)),
+            parse_task=partial(parse_data_point_task, model_spec=self.model_spec),
             app_name=platform_config.app_name,
             worker_index=self.process_index,
             rabbit_config=self.rabbit_params,

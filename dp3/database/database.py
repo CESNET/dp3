@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Callable, Literal, Optional, Union
 
 import pymongo
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from pymongo import ReplaceOne, UpdateMany, UpdateOne
 from pymongo.errors import OperationFailure
 
@@ -55,7 +55,8 @@ class MongoConfig(BaseModel, extra="forbid"):
     password: str = "dp3"
     connection: Union[MongoStandaloneConfig, MongoReplicaConfig] = Field(..., discriminator="mode")
 
-    @validator("username", "password")
+    @field_validator("username", "password")
+    @classmethod
     def url_safety(cls, v):
         return urllib.parse.quote_plus(v)
 
@@ -239,7 +240,7 @@ class EntityDatabase:
 
         # Insert raw datapoints
         raw_col = self._raw_col_name(etype)
-        dps_dicts = [dp.dict(exclude={"attr_type"}) for dp in dps]
+        dps_dicts = [dp.model_dump(exclude={"attr_type"}) for dp in dps]
         try:
             self._db[raw_col].insert_many(dps_dicts)
             self.log.debug(f"Inserted datapoints to raw collection:\n{dps}")

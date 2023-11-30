@@ -32,7 +32,7 @@ from dp3.common.attrspec import (
 )
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.scheduler import Scheduler
-from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType
+from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType, task_context
 from dp3.common.utils import get_func_name
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
@@ -360,14 +360,15 @@ class SnapShooter:
 
     def _run_hooks(self, hooks: list[Callable[[], list[DataPointTask]]]):
         tasks = []
-        for hook in hooks:
-            self.log.debug("Running hook: '%s'", get_func_name(hook))
-            try:
-                new_tasks = hook()
-                tasks.extend(new_tasks)
-            except Exception as e:
-                self.elog.log("module_error")
-                self.log.error(f"Error during running hook {hook}: {e}")
+        with task_context(self.model_spec):
+            for hook in hooks:
+                self.log.debug("Running hook: '%s'", get_func_name(hook))
+                try:
+                    new_tasks = hook()
+                    tasks.extend(new_tasks)
+                except Exception as e:
+                    self.elog.log("module_error")
+                    self.log.error(f"Error during running hook {hook}: {e}")
 
         for task in tasks:
             self.task_queue_writer.put_task(task)

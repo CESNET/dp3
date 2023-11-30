@@ -1,9 +1,8 @@
-from datetime import timedelta
 from typing import Literal, Union
 
-from pydantic import BaseModel, Extra, Field, validator
+from pydantic import BaseModel, Extra, Field
 
-from dp3.common.utils import parse_time_duration
+from dp3.common.types import ParsedTimedelta
 
 
 class SpecModel(BaseModel, extra=Extra.forbid):
@@ -35,12 +34,8 @@ class TimeToLiveLifetime(SpecModel):
     """
 
     type: Literal["ttl"]
-    on_create: timedelta
+    on_create: ParsedTimedelta
     mirror_data: bool = True
-
-    @validator("on_create", pre=True)
-    def parse_timedelta(cls, v):
-        return parse_time_duration(v)
 
 
 class WeakLifetime(SpecModel):

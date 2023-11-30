@@ -1,16 +1,17 @@
 from datetime import timedelta
 from enum import Flag
-from typing import Any, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
     Field,
     PositiveInt,
     PrivateAttr,
-    constr,
     create_model,
-    validator,
+    field_validator,
+    model_validator,
 )
+from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.datapoint import (
     DataPointBase,
@@ -24,7 +25,7 @@ from dp3.common.datapoint import (
 )
 from dp3.common.datatype import DataType, ReadOnly
 from dp3.common.entityspec import SpecModel
-from dp3.common.utils import parse_time_duration
+from dp3.common.types import ParsedTimedelta
 
 # Regex of attribute and series id's
 ID_REGEX = r"^[a-zA-Z_][a-zA-Z0-9_-]*$"
@@ -66,20 +67,16 @@ class AttrType(Flag):
 class ObservationsHistoryParams(BaseModel):
     """History parameters field of observations attribute"""
 
-    max_age: Optional[timedelta] = None
+    max_age: Optional[ParsedTimedelta] = None
     max_items: Optional[PositiveInt] = None
-    expire_time: Optional[timedelta] = None
-    pre_validity: Optional[timedelta] = timedelta()
-    post_validity: Optional[timedelta] = timedelta()
+    expire_time: Optional[ParsedTimedelta] = None
+    pre_validity: Optional[ParsedTimedelta] = timedelta()
+    post_validity: Optional[ParsedTimedelta] = timedelta()
 
     aggregate: bool = True
 
-    @validator("max_age", "expire_time", "pre_validity", "post_validity", pre=True)
-    def parse_time_duration(cls, v):
-        if v:
-            return parse_time_duration(v)
-
-    @validator("expire_time", pre=True, always=True)
+    @field_validator("expire_time", mode="before")
+    @classmethod
     def expire_time_inf_transform(cls, v):
         return None if v == "inf" else v
 
@@ -87,13 +84,8 @@ class ObservationsHistoryParams(BaseModel):
 class TimeseriesTSParams(BaseModel):
     """Timeseries parameters field of timeseries attribute"""
 
-    max_age: Optional[timedelta] = None
-    time_step: Optional[timedelta] = None
-
-    @validator("max_age", "time_step", pre=True)
-    def parse_time_duration(cls, v):
-        if v:
-            return parse_time_duration(v)
+    max_age: Optional[ParsedTimedelta] = None
+    time_step: Optional[ParsedTimedelta] = None
 
 
 class TimeseriesSeries(BaseModel):
@@ -101,7 +93,8 @@ class TimeseriesSeries(BaseModel):
 
     data_type: DataType
 
-    @validator("data_type")
+    @field_validator("data_type")
+    @classmethod
     def check_series_data_type(cls, v):
         assert str(v) in [
             "int",
@@ -122,23 +115,16 @@ class AttrSpecGeneric(SpecModel, use_enum_values=True):
             - will be ignored if lifetime setting does not match.
     """
 
-    id: constr(regex=ID_REGEX)
+    id: str = Field(pattern=ID_REGEX)
     name: str
     description: str = ""
-    ttl: Optional[timedelta] = None
+    ttl: Optional[ParsedTimedelta] = timedelta()
 
     _dp_model = PrivateAttr()
 
     @property
     def dp_model(self) -> DataPointBase:
         return self._dp_model
-
-    @validator("ttl", pre=True)
-    def parse_timedelta(cls, v):
-        if v:
-            return parse_time_duration(v)
-        else:
-            return timedelta()
 
 
 class AttrSpecClassic(AttrSpecGeneric):
@@ -194,7 +180,7 @@ class AttrSpecClassic(AttrSpecGeneric):
 class AttrSpecPlain(AttrSpecClassic):
     """Plain attribute specification"""
 
-    t = AttrType.PLAIN
+    t: AttrType = AttrType.PLAIN
     type: Literal["plain"] = Field(..., repr=False)
 
     def __init__(self, **data):
@@ -223,7 +209,7 @@ class AttrSpecReadOnly(AttrSpecPlain):
 class AttrSpecObservations(AttrSpecClassic):
     """Observations attribute specification"""
 
-    t = AttrType.OBSERVATIONS
+    t: AttrType = AttrType.OBSERVATIONS
     type: Literal["observations"] = Field(..., repr=False)
 
     confidence: bool = False
@@ -246,11 +232,11 @@ class AttrSpecObservations(AttrSpecClassic):
 class AttrSpecTimeseries(AttrSpecGeneric):
     """Timeseries attribute specification"""
 
-    t = AttrType.TIMESERIES
+    t: AttrType = AttrType.TIMESERIES
     type: Literal["timeseries"] = Field(..., repr=False)
 
     timeseries_type: Literal["regular", "irregular", "irregular_intervals"]
-    series: dict[constr(regex=ID_REGEX), TimeseriesSeries] = {}
+    series: dict[Annotated[str, Field(pattern=ID_REGEX)], TimeseriesSeries] = {}
     timeseries_params: TimeseriesTSParams
 
     def __init__(self, **data):
@@ -262,20 +248,21 @@ class AttrSpecTimeseries(AttrSpecGeneric):
             data_type = self.series[s].data_type.data_type
             dp_value_typing[s] = ((list[data_type]), ...)
 
-        # Validators
-        dp_validators = {
-            "v_validator": dp_ts_v_validator,
-        }
-
         # Add root validator
         if self.timeseries_type == "regular":
-            dp_validators["root_validator"] = dp_ts_root_validator_regular_wrapper(
-                self.timeseries_params.time_step
-            )
+            root_validator = dp_ts_root_validator_regular_wrapper(self.timeseries_params.time_step)
         elif self.timeseries_type == "irregular":
-            dp_validators["root_validator"] = dp_ts_root_validator_irregular
+            root_validator = dp_ts_root_validator_irregular
         elif self.timeseries_type == "irregular_intervals":
-            dp_validators["root_validator"] = dp_ts_root_validator_irregular_intervals
+            root_validator = dp_ts_root_validator_irregular_intervals
+        else:
+            raise ValueError(f"Unknown timeseries type '{self.timeseries_type}'")
+
+        # Validators
+        dp_validators = {
+            "v_validator": field_validator("v")(dp_ts_v_validator),
+            "root_validator": model_validator(mode="after")(root_validator),
+        }
 
         self._dp_model = create_model(
             f"DataPointTimeseries_{self.id}",
@@ -284,9 +271,10 @@ class AttrSpecTimeseries(AttrSpecGeneric):
             v=(create_model(f"DataPointTimeseriesValue_{self.id}", **dp_value_typing), ...),
         )
 
-    @validator("series")
-    def add_default_series(cls, v, values):
-        ts_type = values["timeseries_type"]
+    @field_validator("series")
+    @classmethod
+    def add_default_series(cls, v, info: FieldValidationInfo):
+        ts_type = info.data["timeseries_type"]
         default_series = timeseries_types[ts_type]["default_series"]
 
         for s in default_series:
@@ -307,6 +295,7 @@ AttrSpecType = Union[AttrSpecTimeseries, AttrSpecObservations, AttrSpecPlain]
 def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:
     """Factory for `AttrSpec` classes"""
 
+    assert isinstance(spec, dict), "Attribute specification must be a dict"
     if "type" not in spec:
         raise ValueError("Missing mandatory attribute `type`")
     attr_type = AttrType.from_str(spec.get("type"))

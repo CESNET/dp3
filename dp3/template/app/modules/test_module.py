@@ -1,4 +1,3 @@
-import logging
 from time import time
 
 from dp3.common.base_module import BaseModule
@@ -11,13 +10,7 @@ class TestModule(BaseModule):
     def __init__(
         self, platform_config: PlatformConfig, module_config: dict, registrar: CallbackRegistrar
     ):
-        self.log = logging.getLogger("TestModule")
-        self.log.setLevel("DEBUG")
-        self.model_spec = platform_config.model_spec
-
-        # just for testing purposes - as new value for test_attrib
-        self.counter = module_config.get("init_value", 0)
-        self.msg = module_config.get("msg", "Hello World!")
+        super().__init__(platform_config, module_config, registrar)
 
         registrar.scheduler_register(lambda: self.log.info(self.msg), second="*/10")
 
@@ -39,12 +32,16 @@ class TestModule(BaseModule):
             may_change=[["int_attr"]],
         )
 
+    def load_config(self, config: PlatformConfig, module_config: dict) -> None:
+        # just for testing purposes - as new value for test_attrib
+        self.counter = module_config.get("init_value", 0)
+        self.msg = module_config.get("msg", "Hello World!")
+
     def fill_string_attr(self, eid: str, task: DataPointTask) -> list[DataPointTask]:
         """receives eid and Task, may return new Tasks (including new DataPoints)"""
         return [
             DataPointTask(
-                model_spec=self.model_spec,
-                entity_type="example",
+                etype="example",
                 eid=eid,
                 data_points=[
                     {
@@ -67,7 +64,7 @@ class TestModule(BaseModule):
         Returns:
             new update as Task.
         """
-        print("Hello from TestModule - processing_func_timestamp")
+        self.log.info("Hello from TestModule - processing_func_timestamp")
         current_time = time()
 
         record["time_attr"] = current_time
@@ -81,7 +78,7 @@ class TestModule(BaseModule):
         Returns:
             new update as Task.
         """
-        print("Hello from TestModule - processing_func_attrib")
+        self.log.info("Hello from TestModule - processing_func_attrib")
         self.counter += 1
 
         record["test_attrib"] = self.counter

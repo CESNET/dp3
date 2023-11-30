@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, confloat, root_validator, validator
+from pydantic import BaseModel, Field, model_validator
 
 from dp3.api.internal.helpers import api_to_dp3_datapoint
+from dp3.common.types import T2Datetime
 
 
 class DataPoint(BaseModel):
@@ -26,24 +27,16 @@ class DataPoint(BaseModel):
     attr: str
     v: Any
     t1: Optional[datetime] = None
-    t2: Optional[datetime] = None
-    c: confloat(ge=0.0, le=1.0) = 1.0
+    t2: Optional[T2Datetime] = Field(None, validate_default=True)
+    c: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
     src: Optional[str] = None
 
-    @validator("t2", always=True)
-    def validate_t2(cls, v, values):
-        t1 = values.get("t1") or datetime.now()
-        v = v or t1
-        if "t1" in values:
-            assert t1 <= v, "'t2' is before 't1'"
-        return v
-
-    @root_validator(skip_on_failure=True)
-    def validate_against_attribute(cls, values):
+    @model_validator(mode="after")
+    def validate_against_attribute(self):
         # Try to convert API datapoint to DP3 datapoint
         try:
-            api_to_dp3_datapoint(values)
+            api_to_dp3_datapoint(self.model_dump())
         except KeyError as e:
             raise ValueError(f"Missing key: {e}") from e
 
-        return values
+        return self

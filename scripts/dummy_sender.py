@@ -23,15 +23,28 @@ def get_valid_path(parser, arg):
 
 def get_datapoint_from_row(row):
     dp = dict(row.items())
+    if pd.isna(dp["t1"]):
+        del dp["t1"]
+        del dp["t2"]
+        return dp
     dp["t1"] = dp["t1"].strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+
+    if pd.isna(dp["t2"]):
+        del dp["t2"]
+        return dp
     dp["t2"] = dp["t2"].strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
     return dp
 
 
 def get_shifted_datapoint_from_row(row):
     dp = dict(row.items())
+    if pd.isna(dp["t1"]):
+        del dp["t1"]
+        del dp["t2"]
+        return dp
     duration = dp["t2"] - dp["t1"]
     dp["t1"] = (datetime.utcnow()).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+
     if pd.isna(duration):
         del dp["t2"]
         return dp

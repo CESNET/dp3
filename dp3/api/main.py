@@ -1,4 +1,3 @@
-import json
 import logging
 
 from fastapi import FastAPI
@@ -27,10 +26,14 @@ app = FastAPI(root_path=ROOT_PATH)
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     if request.url.path.replace(ROOT_PATH, "") == DATAPOINTS_INGESTION_URL_PATH:
-        # Convert body to readable form
-        body = json.dumps(exc.body) if isinstance(exc.body, (dict, list)) else str(exc.body)
-
-        DP_LOGGER.log_bad(body, str(exc), src=request.client.host)
+        # Log individual errors or whole exception
+        for err in exc.errors():
+            # Override empty input on json decode error with request data
+            if err["type"] == "json_invalid":
+                err["input"] = str(exc.body)
+            DP_LOGGER.log_bad(str(err), src=request.client.host)
+        if not exc.errors():
+            DP_LOGGER.log_bad(str(exc), src=request.client.host)
 
     # Call default handler
     return await request_validation_exception_handler(request, exc)

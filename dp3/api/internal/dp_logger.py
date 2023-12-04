@@ -67,18 +67,12 @@ class DPLogger:
         Source should be IP address of incomping request.
         """
         for dp in dps:
-            self._good_logger.info(dp.json(), extra={"src": src})
+            self._good_logger.info(dp.model_dump(), extra={"src": src})
 
-    def log_bad(self, request_body: str, validation_error_msg: str, src: str = UNKNOWN_SRC_MSG):
-        """Logs bad datapoints including the validation error message
+    def log_bad(self, validation_error_msg: str, src: str = UNKNOWN_SRC_MSG):
+        """Logs validation error message, which includes bad input datapoints
 
-        Whole request body is logged at once (JSON string is expected).
-        Source should be IP address of incomping request.
+        Should be called for each individual error (JSON string is expected).
+        Source should be IP address of incoming request.
         """
-        # Remove newlines from request body
-        request_body = request_body.replace("\n", " ")
-
-        # Prepend error message with tabs
-        validation_error_msg = validation_error_msg.replace("\n", "\n\t")
-
-        self._bad_logger.info(f"{request_body}\n\t{validation_error_msg}", extra={"src": src})
+        self._bad_logger.info(validation_error_msg, extra={"src": src})

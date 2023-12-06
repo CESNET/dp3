@@ -209,7 +209,13 @@ List of supported values for parameter `data_type`:
 #### Relationships
 
 - `link<entity_type>`: Link to a record of the specified type, e.g. `link<ip>`
-- `link<entity_type,data_type>`: Link to a record of the specified type, carrying additional data, e.g. `link<ip,int>` 
+- `link<entity_type,data_type>`: Link to a record of the specified type, carrying additional data, e.g. `link<ip,int>`
+- `link<...;mirror=attr_name>`: A **mirrored** link - at the end of link specification, 
+  you may enter a `mirror=attr_name` declaration, where `attr_name` is the name of an attribute in the linked entity.
+  This attribute will be automatically defined in the target entity, do not define it in configuration. When a relationship
+  is **mirrored**, the relationship from entity `A` to entity `B` will automatically create a 
+  relationship from entity `B` to entity `A` in snapshots.
+  This is useful if you need to track a relationship in both directions, but managing both directions is not reasonable.
 
 ## FAQ
 

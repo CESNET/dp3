@@ -122,6 +122,10 @@ Very useful for:
 - any kind of relationship between entities
 - linkning dynamic entities to entities with static data
 
+Relationships can also be **mirrored**, meaning that the having the relationship from entity `A` to entity `B`
+will automatically create the relationship from entity `B` to entity `A` in snapshots.
+This is useful if you need to track a relationship in both directions, but managing both directions is not reasonable.
+
 > As our example so far contains only one entity type, we currently have no need for relationships.
 > However, if we wanted to track the different **bus drivers** driving individual buses, 
 > relationships would come in quite handy. 

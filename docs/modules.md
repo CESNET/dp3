@@ -265,6 +265,35 @@ The order of running callbacks is determined automatically, based on the depende
 If there is a cycle in the dependencies, a `ValueError` will be raised at registration.
 Also, if the provided dependency / output paths are invalid, a `ValueError` will be raised.
 
+#### Snapshots Init Hook
+
+This hook is called before each snapshot creation run begins.
+The use case is to enable your module to perform some initialization before the snapshot creation and associated correlation callbacks are executed.
+Your hook will recieve no arguments, and you may return a list of DataPointTask objects to be inserted into the system from this hook.
+
+```python
+def snapshot_init_hook() -> list[DataPointTask]:
+    ...
+    return [] 
+
+registrar.register_snapshot_init_hook(snapshot_init_hook)
+```
+
+#### Snapshots Finalize Hook
+
+This hook is called after each snapshot creation run ends.
+The use case is to enable your module to finish up after the snapshot creation and associated correlation callbacks are executed.
+Your hook will recieve no arguments, and you may again return a list of DataPointTask objects to be inserted into the system from this hook.
+
+```python
+def snapshot_finalize_hook() -> list[DataPointTask]:
+    ...
+    return [] 
+
+registrar.register_snapshot_finalize_hook(snapshot_init_hook)
+```
+
+
 ## Running module code in a separate thread
 
 The module is free to run its own code in separate threads or processes.

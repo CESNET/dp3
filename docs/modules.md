@@ -37,21 +37,33 @@ enabled_modules:
 Here is a basic skeleton for the module file:
 
 ```python
-import logging
-
 from dp3.common.base_module import BaseModule
-from dp3.common.config import PlatformConfig
 from dp3.common.callback_registrar import CallbackRegistrar
-
+from dp3.common.config import PlatformConfig
 
 class MyAwesomeModule(BaseModule):
     def __init__(self,
-        _platform_config: PlatformConfig, 
-        _module_config: dict, 
-        _registrar: CallbackRegistrar
+        platform_config: PlatformConfig, 
+        module_config: dict, 
+        registrar: CallbackRegistrar
     ):
-        self.log = logging.getLogger("MyAwesomeModule")
+        super().__init__(platform_config, module_config, registrar)
+        # (1)!
+
+    def load_config(self, config: PlatformConfig, module_config: dict) -> None:
+        ... # (2)!
 ```
+
+1. After calling the `BaseModule` constructor, the module should and register its [callbacks](#callbacks) in the `__init__` method.
+2. The `load_config` method is called by the `BaseModule`'s `__init__` method, and is used to load the module-specific configuration. It can be also called during system runtime to reload the configuration.
+
+You should place loading of module's configuration inside the `load_config` method. 
+This method is called by the `BaseModule`'s `__init__` method, as you can see bellow.
+It can be also called during system runtime to reload the configuration using the [Control](configuration/control.md) API, 
+which enables you to change the module configuration without restarting the DP³ worker.
+
+The registering of callbacks should be done in the `__init__` method however, 
+as there is currently no support to alter a callback once it has been registered without restarting.
 
 All modules must subclass the [`BaseModule`][dp3.common.base_module.BaseModule] class.
 If a class does not subclass the [`BaseModule`][dp3.common.base_module.BaseModule] class,
@@ -59,17 +71,23 @@ it will not be loaded and activated by the main DP³ worker.
 The declaration of [`BaseModule`][dp3.common.base_module.BaseModule] is as follows:
 
 ```python
-class BaseModule(ABC):
-
-    @abstractmethod
+class BaseModule:
     def __init__(
         self, 
-        platform_config: PlatformConfig, 
-        module_config: dict, 
+        platform_config: PlatformConfig,
+        module_config: dict,
         registrar: CallbackRegistrar
     ):
-        pass
+        self.refresh: SharedFlag = SharedFlag(
+            False, banner=f"Refresh {self.__class__.__name__}"
+        )
+        self.log: logging.Logger = logging.getLogger(self.__class__.__name__)
+
+        self.load_config(platform_config, module_config)
 ```
+
+As you can see, the `BaseModule` class provides a `refresh` flag used internally for refreshing
+and a `log` object for the module to use for logging. 
 
 At initialization, each module receives a [`PlatformConfig`][dp3.common.config.PlatformConfig],
 a `module_config` dictionary and a 
@@ -88,6 +106,8 @@ If you want to create configuration specific to the module itself, create a `.ym
 named as the module itself inside the `modules/` folder,
 as described in the [modules configuration page](configuration/modules.md).
 This configuration will be then loaded into the `module_config` dictionary for convenience.
+Please place code that loads the module configuration into the `load_config` method,
+where you will recieve both the `platform_config` and `module_config` as arguments.
 
 ## Callbacks
 

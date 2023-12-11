@@ -1,6 +1,8 @@
 # DB entities
 
-Files in `db_entities` folder describe *entities* and their *attributes*. You can think of entity as class from object-oriented programming.
+Files in `db_entities` folder describe *entities* and their *attributes*. You can think of entity as class from object-oriented programming. 
+This serves as sort of schema for the database DP³ uses.
+How DP³ deals with changes to the `db_entities` is described in the [schema tracking](#schema-tracking) section.
 
 Below is YAML file (e.g. `db_entities/bus.yml`) corresponding to bus tracking system example from [Data model](../../data_model/#exemplary-system) chapter.
 
@@ -216,6 +218,21 @@ List of supported values for parameter `data_type`:
   is **mirrored**, the relationship from entity `A` to entity `B` will automatically create a 
   relationship from entity `B` to entity `A` in snapshots.
   This is useful if you need to track a relationship in both directions, but managing both directions is not reasonable.
+
+## Schema Tracking
+
+In order to maintain a consistent database state, DP³ tracks changes to the `db_entities` folder.
+The current schema is stored in the database, and is updated automatically on worker start-up
+when the `db_entities` folder is changed.
+
+For additive changes (adding new entities or attributes), the changes are applied automatically,
+as only the schema itself needs to be modified.
+For changes that would require modification to the entity collections
+(e.g. changing the data-type of an attribute or deleting it), 
+the changes are not applied automatically to protect the database contents against accidental deletion.
+The workers will refuse to start, prompting you to run `dp3 schema-update` in their logs.
+You then have to run `dp3 schema-update` manually to confirm the application of the changes.
+Find out more about the `dp3 schema-update` using the `--help` option.
 
 ## FAQ
 

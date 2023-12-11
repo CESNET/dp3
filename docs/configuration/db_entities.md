@@ -202,7 +202,7 @@ List of supported values for parameter `data_type`:
 #### Composite types
 
 - `category<data_type; category1, category2, ...>`: Categorical values. Use only when a fixed set of values should be allowed, which should be specified in the second part of the type definition. The first part of the type definition describes the data_type of the category.
-- `array<data_type>`: An array of values of specified data type (which must be one of the primitive types above), e.g. `array<int>`. Deciding whether to use array or multi-value attribute is not always trivial, see [Arrays vs Multi-value attributes](#arrays-vs-multi-value-attributes).
+- `array<data_type>`: An array of values of specified data type (which must be one of the primitive types above or a [link to another entity](#relationships)), e.g. `array<int>`. Deciding whether to use array or multi-value attribute is not always trivial, see [Arrays vs Multi-value attributes](#arrays-vs-multi-value-attributes).
 - `set<data_type>`: Same as array, but values can't repeat and order is irrelevant.
 - `dict<keys>`: Dictionary (object) containing multiple values as subkeys. keys should contain a comma-separated list of key names and types separated by colon, e.g. `dict<port:int, protocol:string, tag?:string>`. Whitespace is allowed after colons. By default, all fields are mandatory (i.e. a data-point missing some subkey will be refused), to mark a field as optional, put `?` after its name. Only the primitive data types can be used here, multi-level dicts are not supported.
 

@@ -126,6 +126,11 @@ Relationships can also be **mirrored**, meaning that the having the relationship
 will automatically create the relationship from entity `B` to entity `A` in snapshots.
 This is useful if you need to track a relationship in both directions, but managing both directions is not reasonable.
 
+!!! info "Did you know?"
+    
+    Relationships can be placed into arrays and sets, just like any other attribute type.
+    This allows you to model many-to-many relationships without the need for using a multi-value attribute type.
+
 > As our example so far contains only one entity type, we currently have no need for relationships.
 > However, if we wanted to track the different **bus drivers** driving individual buses, 
 > relationships would come in quite handy. 

@@ -2,4 +2,7 @@
 # Select the actions that should be allowed based on the deployment setting
 allowed_actions: [
   make_snapshots, # Makes an out-of-order snapshot of all entities
+  refresh_on_entity_creation, # Re-runs the on_entity_creation callback for selected etype
+  # Re-runs the load_config for selected module and will refresh the values derived by the module
+  refresh_module_config,
 ]

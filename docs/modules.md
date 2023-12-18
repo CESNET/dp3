@@ -109,6 +109,20 @@ This configuration will be then loaded into the `module_config` dictionary for c
 Please place code that loads the module configuration into the `load_config` method,
 where you will recieve both the `platform_config` and `module_config` as arguments.
 
+## Reloading configuration
+
+The module configuration can be reloaded during runtime using the [Control](configuration/control.md) API, specifically the [`refresh_module_config`](configuration/control.md#refresh_module_config) action.
+This will cause the `load_config` method to be called again, with the new configuration.
+For this reason it is recommended to place all configuration loading code into the `load_config` method.
+
+Some callbacks may be called only sparsely in the lifetime of an entity,
+and it may be useful to refresh all the values derived by the module when the configuration changes.
+This is implemented for the [`on_entity_creation`](#entity-on_entity_creation-hook) 
+and [`on_new_attr`](#attribute-hooks) callbacks, 
+and you can enable it by passing the `refresh` keyword argument
+to the callback registration. See the Callbacks section for more details.
+
+
 ## Callbacks
 
 The `registrar:` [`CallbackRegistrar`][dp3.common.callback_registrar.CallbackRegistrar] object

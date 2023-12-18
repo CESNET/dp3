@@ -401,6 +401,10 @@ Execute Action - Sends the given action into execution queue.
 You can see the enabled actions in [`/config/control.yml`](configuration/control.md), available are:
 
 - `make_snapshots` - Makes an out-of-order snapshot of all entities
+- `refresh_on_entity_creation` - Re-runs the `on_entity_creation` callback for selected `etype`
+- `refresh_module_config` - Re-runs the `load_config` for selected module and will refresh the values derived by the module when configured to do so
+
+You can learn more about the actions in the [Actions](configuration/control.md#actions) section of the `Control` configuration documentation.
 
 ### Request
 

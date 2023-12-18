@@ -169,15 +169,15 @@ registrar.register_task_hook("on_task_start", task_hook)
 
 Receives eid and Task, may prevent entity record creation (by returning False).
 The callback is registered using the 
-[`register_entity_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_entity_hook] method.
+[`register_allow_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_allow_entity_creation_hook] method.
 Required signature is `Callable[[str, DataPointTask], bool]`.
 
 ```python
 def entity_creation(eid: str, task: DataPointTask) -> bool:
     return eid.startswith("1")
 
-registrar.register_entity_hook(
-    "allow_entity_creation", entity_creation, "test_entity_type"
+registrar.register_allow_entity_creation_hook(
+    entity_creation, "test_entity_type"
 )
 ```
 
@@ -186,7 +186,7 @@ registrar.register_entity_hook(
 Receives eid and Task, may return new DataPointTasks.
 
 The callback is registered using the 
-[`register_entity_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_entity_hook] method.
+[`register_on_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_entity_creation_hook] method.
 Required signature is `Callable[[str, DataPointTask], list[DataPointTask]]`.
 
 ```python
@@ -205,30 +205,59 @@ def processing_function(eid: str, task: DataPointTask) -> list[DataPointTask]:
         }]
     )]
 
-registrar.register_entity_hook(
-    "on_entity_creation", processing_function, "test_entity_type"
+registrar.register_on_entity_creation_hook(
+    processing_function, "test_entity_type"
+)
+```
+
+The `register_on_entity_creation_hook` method also allows for refreshing of values derived 
+by the registered hook. This can be done using the `refresh` keyword argument, (expecting a [`SharedFlag`][dp3.common.state.SharedFlag] object, which is created by default for all modules)
+and the `may_change` keyword argument, which lists all the attributes that the hook may change.
+For the above example, the registration would look like this:
+
+```python
+registrar.register_on_entity_creation_hook(
+    processing_function, 
+    "test_entity_type", 
+    refresh=self.refresh,
+    may_change=[["derived_on_creation"]]
 )
 ```
 
 #### Attribute hooks
 
-There are register points for all attribute types:
-`on_new_plain`, `on_new_observation`, `on_new_ts_chunk`.
-
 Callbacks are registered using the 
-[`register_attr_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_attr_hook] method.
+[`register_on_new_attr_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_new_attr_hook] method.
 The callback allways receives eid, attribute and Task, and may return new DataPointTasks.
-The required signature is `Callable[[str, DataPointBase], list[DataPointTask]]`.
+The required signature is `Callable[[str, DataPointBase], Union[None, list[DataPointTask]]]`.
 
 ```python
 def attr_hook(eid: str, dp: DataPointBase) -> list[DataPointTask]:
     ...
     return []
 
-registrar.register_attr_hook(
-    "on_new_observation", attr_hook, "test_entity_type", "test_attr_type",
+registrar.register_on_new_attr_hook(
+    attr_hook, "test_entity_type", "test_attr_type",
 )
 ```
+
+This hook can be refreshed on configuration changes if you feel like the attribute value may change too slowly
+to catch up naturally. 
+This can be done using the `refresh` keyword argument, (expecting a [`SharedFlag`][dp3.common.state.SharedFlag] object, which is created by default for all modules)
+and the `may_change` keyword argument, which lists all the attributes that the hook may change.
+For the above example, the registration would look like this:
+
+```python
+registrar.register_on_new_attr_hook(
+    attr_hook, 
+    "test_entity_type", 
+    "test_attr_type", 
+    refresh=self.refresh,
+    may_change=[]  # (1)!
+)
+```
+
+1. If the hook may change the value of any attributes, they must be listed here.
 
 #### Timeseries hook
 

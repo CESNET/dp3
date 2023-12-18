@@ -141,7 +141,7 @@ class CallbackRegistrar:
         Pass cron-like specification of when the function should be called,
         see [docs](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html)
         of apscheduler.triggers.cron for details.
-        `
+
         Args:
             func: function or method to be called
             func_args: list of positional arguments to call func with
@@ -236,8 +236,10 @@ class CallbackRegistrar:
     def register_entity_hook(self, hook_type: str, hook: Callable, entity: str):
         """Registers one of available task entity hooks
 
-        Deprecated, use `register_on_entity_creation_hook` or `register_allow_entity_creation_hook`
-        instead.
+        !!! warning "Deprecated"
+
+            This method is deprecated, use `register_on_entity_creation_hook`
+            or `register_allow_entity_creation_hook` instead.
 
         See: [`TaskEntityHooksContainer`][dp3.task_processing.task_hooks.TaskEntityHooksContainer]
         in `task_hooks.py`
@@ -263,6 +265,7 @@ class CallbackRegistrar:
             refresh: If specified, registered hook will be called on configuration changes.
                 Pass `self.refresh` from `BaseModule` subclasses.
             may_change: each item should specify an attribute that `hook` may change,
+                for specification format see `register_correlation_hook`
 
         Raises:
             ValueError: If entity and attr do not specify a valid attribute, a ValueError is raised.
@@ -292,7 +295,9 @@ class CallbackRegistrar:
         """
         Registers one of available task attribute hooks
 
-        Deprecated, use `register_on_new_attr_hook` instead.
+        !!! warning "Deprecated"
+
+            This method is deprecated, use `register_on_new_attr_hook` instead.
 
         See: [`TaskAttrHooksContainer`][dp3.task_processing.task_hooks.TaskAttrHooksContainer]
         in `task_hooks.py`

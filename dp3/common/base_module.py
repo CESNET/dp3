@@ -21,6 +21,7 @@ class BaseModule:
         """Initialize the module and register callbacks.
 
         `self.load_config()` is called in the base class.
+
         Args:
             platform_config: Platform configuration class
             module_config: Configuration of the module,

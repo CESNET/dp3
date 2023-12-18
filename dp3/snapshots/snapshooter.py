@@ -88,7 +88,7 @@ class SnapShooter:
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
         self.snapshot_queue_reader = TaskQueueReader(
             callback=self.process_snapshot_task,
-            parse_task=Snapshot.parse_raw,
+            parse_task=Snapshot.model_validate_json,
             app_name=platform_config.app_name,
             worker_index=platform_config.process_index,
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),

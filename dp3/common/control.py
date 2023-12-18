@@ -32,7 +32,7 @@ class ControlMessage(Task):
         return ""
 
     def as_message(self) -> str:
-        return self.json()
+        return self.model_dump_json()
 
 
 class Control:
@@ -45,14 +45,14 @@ class Control:
         self.log = logging.getLogger("Control")
         self.action_handlers: dict[ControlAction, Callable] = {}
 
-        self.config = ControlConfig.parse_obj(platform_config.config.get("control"))
+        self.config = ControlConfig.model_validate(platform_config.config.get("control"))
         self.allowed_actions = set(self.config.allowed_actions)
         self.log.debug("Allowed actions: %s", self.allowed_actions)
 
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-control"
         self.control_queue = TaskQueueReader(
             callback=self.process_control_task,
-            parse_task=ControlMessage.parse_raw,
+            parse_task=ControlMessage.model_validate_json,
             app_name=platform_config.app_name,
             worker_index=platform_config.process_index,
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),

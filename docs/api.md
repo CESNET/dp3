@@ -15,6 +15,7 @@ There are several API endpoints:
 - [`POST /entity/<entity_type>/<entity_id>/ttl`](#extend-ttls): extend TTLs of the specified entity
 - [`GET /entities`](#entities): list entity configuration
 - [`GET /control/<action>`](#control): send a pre-defined action into execution queue.
+- [`GET /telemetry/sources_validity`](#telemetry): get information about the validity of the data sources
 
 ---
 
@@ -417,4 +418,21 @@ You can learn more about the actions in the [Actions](configuration/control.md#a
   "detail": "OK"
 }
 ```
+## Telemetry
 
+Returns information about the validity of the data sources, i.e. when the last datapoint was received from each source.
+
+### Request
+
+`GET /telemetry/sources_validity`
+
+### Response
+
+```json
+{
+  "module1@collector1": "2023-10-03T11:59:58.063000",
+  "module2@collector1": "2023-12-06T09:09:37.165000",
+  "module3@collector2": "2023-12-08T15:52:55.282000",
+  ...
+}
+```

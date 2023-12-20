@@ -508,6 +508,31 @@ class EntityDatabase:
         snapshot_col = self._snapshots_col_name(etype)
         return self._db[snapshot_col].find_one({"eid": eid}, sort=[("_id", -1)]) or {}
 
+    def _get_latest_snapshots_date(self) -> Optional[datetime]:
+        """Get date of newest snapshot set.
+
+        Queries snapshots metadata to find latest fully completed set of snapshots
+        and returns it's date.
+        If it doesn't exist, returns `None`.
+
+        Note: This doesn't take into account etypes, so it may be inaccurate for new entity types.
+        """
+        # Get latest fully completed snapshot metadata
+        lfcsm = self._db["#metadata"].find_one(
+            {
+                "#module": "SnapShooter",
+                "workers_finished": self._num_processes,
+                "linked_finished": True,
+            },
+            sort=[("#time_created", -1)],
+        )
+
+        if lfcsm is None:
+            return None
+
+        # Extract date
+        return lfcsm["#time_created"]
+
     def get_latest_snapshots(
         self, etype: str, fulltext_filters: Optional[dict[str, str]] = None
     ) -> tuple[pymongo.cursor.Cursor, int]:
@@ -534,23 +559,16 @@ class EntityDatabase:
 
         snapshot_col = self._snapshots_col_name(etype)
 
-        # Find newest fully completed snapshot set
-        latest_fully_completed_snapshot_metadata = self._db["#metadata"].find_one(
-            {
-                "#module": "SnapShooter",
-                "workers_finished": self._num_processes,
-                "linked_finished": True,
-            },
-            sort=[("#time_created", -1)],
-        )
+        # Find newest fully completed snapshot date
+        latest_snapshot_date = self._get_latest_snapshots_date()
 
-        if latest_fully_completed_snapshot_metadata is None:
+        # There are no fully completed snapshots sets - return all currently existing snapshots
+        if latest_snapshot_date is None:
             return self._db[snapshot_col].find().sort([("eid", pymongo.ASCENDING)]), self._db[
                 snapshot_col
             ].count_documents({})
 
-        # Extract date and query using it
-        latest_snapshot_date = latest_fully_completed_snapshot_metadata["#time_created"]
+        # Create base of query
         query = {"_time_created": latest_snapshot_date}
 
         if not fulltext_filters:

@@ -51,19 +51,25 @@ def main(args):
         config.get("processing_core.worker_processes"),
     )
 
-    prev_schema, config_schema, updates = db.schema_cleaner.get_schema_status()
+    prev_schema, config_schema, updates, deleted_entites = db.schema_cleaner.get_schema_status()
     if prev_schema["schema"] == config_schema["schema"]:
         log.info("Schema is OK!")
         return
 
-    if not updates:
+    if not updates and not deleted_entites:
         db.schema_cleaner.schemas.insert_one(config_schema)
         log.info("Updated schema without any changes to master records, OK now!")
         return
 
-    log.info("Suggested changes to master records:")
-    for entity, entity_updates in updates.items():
-        log.info(f"{entity}: {dict(entity_updates)}")
+    if deleted_entites:
+        log.info("Suggested removal of entities:")
+        for entity in deleted_entites:
+            log.info(f"- {entity}")
+
+    if updates:
+        log.info("Suggested changes to master records:")
+        for entity, entity_updates in updates.items():
+            log.info(f"- {entity}: {dict(entity_updates)}")
 
     if args.bypass:
         if not confirm_changes(
@@ -78,6 +84,6 @@ def main(args):
     if not confirm_changes("Are you sure you want to apply these changes? (y/[n]): "):
         log.info("Aborted schema update.")
         return
-    db.schema_cleaner.execute_updates(updates)
+    db.schema_cleaner.execute_updates(updates, deleted_entites)
     db.schema_cleaner.schemas.insert_one(config_schema)
     log.info("Applied suggested changes, updated schema, OK now!")

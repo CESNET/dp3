@@ -15,6 +15,10 @@ RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 # current database schema version
 SCHEMA_VERSION = 2
 
+# Collections belonging to entity
+# Used when deleting no-longer existing entity.
+ENTITY_COLLECTIONS = ["{}#master", "{}#raw", "{}#snapshots"]
+
 
 class SchemaCleaner:
     """
@@ -78,12 +82,12 @@ class SchemaCleaner:
         Raises:
             ValueError: If conflicting changes are detected.
         """
-        db_schema, config_schema, updates = self.get_schema_status()
+        db_schema, config_schema, updates, deleted_entites = self.get_schema_status()
         if db_schema["schema"] == config_schema["schema"]:
             self.log.info("Schema OK!")
             return
 
-        if not updates:
+        if not updates and not deleted_entites:
             self.schemas.insert_one(config_schema)
             self.log.info("Updated schema, OK now!")
             return
@@ -92,7 +96,7 @@ class SchemaCleaner:
         self.log.warning("Please run `dp3 schema-update` to make the changes.")
         raise ValueError("Schema update failed: Conflicting changes detected.")
 
-    def get_schema_status(self) -> tuple[dict, dict, dict]:
+    def get_schema_status(self) -> tuple[dict, dict, dict, list]:
         """
         Gets the current schema status.
         `database_schema` is the schema document from the database.
@@ -100,26 +104,26 @@ class SchemaCleaner:
         `updates` is a dictionary of required updates to each entity.
 
         Returns:
-            Tuple of (`database_schema`, `configuration_schema`, `updates`).
+            Tuple of (`database_schema`, `configuration_schema`, `updates`, `deleted_entites`).
         """
         schema_doc = self.get_current_schema_doc(infer=True)
 
         current_schema = self.construct_schema_doc()
 
         if schema_doc["schema"] == current_schema:
-            return schema_doc, schema_doc, {}
+            return schema_doc, schema_doc, {}, []
 
         new_schema = {
             "_id": schema_doc["_id"] + 1,
             "schema": current_schema,
             "version": SCHEMA_VERSION,
         }
-        updates = self.detect_changes(schema_doc, current_schema)
-        return schema_doc, new_schema, updates
+        updates, deleted_entites = self.detect_changes(schema_doc, current_schema)
+        return schema_doc, new_schema, updates, deleted_entites
 
     def detect_changes(
         self, db_schema_doc: dict, current_schema: dict
-    ) -> dict[str, dict[str, dict[str, str]]]:
+    ) -> tuple[dict[str, dict[str, dict[str, str]]], list[str]]:
         """
         Detects changes between configured schema and the one saved in the database.
 
@@ -128,17 +132,24 @@ class SchemaCleaner:
             current_schema: Schema from the configuration.
 
         Returns:
-            Required updates to each entity.
+            Tuple of required updates to each entity and list of deleted entites.
         """
         if db_schema_doc["schema"] == current_schema:
-            return {}
+            return {}, []
 
         if db_schema_doc["version"] != SCHEMA_VERSION:
             self.log.info("Schema version changed, skipping detecting changes.")
-            return {}
+            return {}, []
 
         updates = {}
+        deleted_entites = []
         for entity, attributes in db_schema_doc["schema"].items():
+            # Unset deleted entities
+            if entity not in current_schema:
+                self.log.info("Schema breaking change: Entity %s was deleted", entity)
+                deleted_entites.append(entity)
+                continue
+
             entity_updates = defaultdict(dict)
             current_attributes = current_schema[entity]
 
@@ -170,9 +181,23 @@ class SchemaCleaner:
 
             if entity_updates:
                 updates[entity] = entity_updates
-        return updates
 
-    def execute_updates(self, updates: dict[str, dict[str, dict[str, str]]]):
+        return updates, deleted_entites
+
+    def execute_updates(
+        self, updates: dict[str, dict[str, dict[str, str]]], deleted_entites: list[str]
+    ):
+        # Delete entities
+        for entity in deleted_entites:
+            try:
+                for col_placeholder in ENTITY_COLLECTIONS:
+                    col = col_placeholder.format(entity)
+                    self.log.info("%s: Deleting collection: %s", entity, col)
+                    self._db[col].drop()
+            except Exception as e:
+                raise ValueError(f"Schema update failed: {e}") from e
+
+        # Update attributes
         for entity, entity_updates in updates.items():
             try:
                 self.log.info(

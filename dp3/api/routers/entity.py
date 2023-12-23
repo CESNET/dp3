@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import Json, NonNegativeInt, PositiveInt, ValidationError
@@ -200,6 +200,23 @@ async def set_eid_attr_value(
     # endpoint.
 
     return SuccessResponse()
+
+
+@router.get(
+    "/{etype}/_/distinct/{attr}",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
+async def get_distinct_attribute_values(etype: str, attr: str) -> dict[Any, int]:
+    """Gets distinct attribute values and their counts based on latest snapshots
+
+    Useful for displaying `<select>` enumeration fields.
+
+    Works for all plain and observation data types except `dict` and `json`.
+    """
+    try:
+        return DB.get_distinct_val_count(etype, attr)
+    except DatabaseError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/{etype}/{eid}/ttl")

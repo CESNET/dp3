@@ -11,6 +11,7 @@ There are several API endpoints:
 - [`GET /entity/<entity_type>/<entity_id>`](#get-eid-data): get data of entity with given entity id
 - [`GET /entity/<entity_type>/<entity_id>/get/<attr_id>`](#get-attr-value): get attribute value
 - [`GET /entity/<entity_type>/<entity_id>/set/<attr_id>`](#set-attr-value): set attribute value
+- [`GET /entity/<entity_type>/_/distinct/<attr_id>`](#get-distinct-values): get distinct attribute values and their counts based on latest snapshots
 - [`DELETE /entity/<entity_type>/<entity_id>`](#delete-eid-data): delete entity data for given id
 - [`POST /entity/<entity_type>/<entity_id>/ttl`](#extend-ttls): extend TTLs of the specified entity
 - [`GET /entities`](#entities): list entity configuration
@@ -311,6 +312,30 @@ This endpoint is meant for `editable` plain attributes -- for direct user edit o
 ```json
 {
   "detail": "OK"
+}
+```
+
+---
+
+## Get distinct values
+
+Gets distinct attribute values and their counts based on latest snapshots
+
+Useful for displaying `<select>` enumeration fields.
+
+Works for all plain and observation data types except `dict` and `json`.
+
+### Request
+
+`GET /entity/<entity_type>/_/distinct/<attr_id>`
+
+### Response
+
+```json
+{
+  "value1": 10,
+  "value2": 5,
+  "value3": 43
 }
 ```
 

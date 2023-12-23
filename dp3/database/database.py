@@ -3,7 +3,7 @@ import logging
 import time
 import urllib
 from datetime import datetime
-from typing import Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union
 
 import pymongo
 from pydantic import BaseModel, Field, field_validator
@@ -892,6 +892,74 @@ class EntityDatabase:
                     result.append(row_new)
 
         return result
+
+    def get_distinct_val_count(self, etype: str, attr: str) -> dict[Any, int]:
+        """Counts occurences of distinct values of given attribute in snapshots.
+
+        Returns dictionary mapping value -> count.
+
+        Works for all plain and observation data types except `dict` and `json`.
+        """
+        self._assert_etype_exists(etype)
+
+        snapshot_col = self._snapshots_col_name(etype)
+
+        # Get attribute specification
+        try:
+            attr_spec = self._db_schema_config.attr(etype, attr)
+        except KeyError as e:
+            raise DatabaseError(f"Attribute '{attr}' does not exist") from e
+
+        # Find newest fully completed snapshot date
+        latest_snapshot_date = self._get_latest_snapshots_date()
+        if latest_snapshot_date is None:
+            return {}
+
+        if attr_spec.t not in AttrType.PLAIN | AttrType.OBSERVATIONS:
+            raise DatabaseError(f"Attribute '{attr}' isn't plain or observations")
+
+        # Attribute data type must be primitive, array<T> or set<T>
+        if attr_spec.data_type.root in ("dict", "json"):
+            raise DatabaseError(
+                f"Data type '{attr_spec.data_type}' of attribute '{attr}' is not processable"
+            )
+
+        # Build aggregation query
+        agg_query = [
+            {"$match": {"_time_created": latest_snapshot_date}},
+        ]
+
+        # Unwind array-like and multi value attributes
+        # If attribute is multi value array, unwind twice
+        if "array" in attr_spec.data_type.root or "set" in attr_spec.data_type.root:
+            agg_query.append({"$unwind": "$" + attr})
+        if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
+            agg_query.append({"$unwind": "$" + attr})
+
+        # Group
+        agg_query_group_id = "$" + attr
+        if "link" in attr_spec.data_type.root:
+            agg_query_group_id += ".eid"
+        agg_query.append(
+            {
+                "$group": {
+                    "_id": agg_query_group_id,
+                    "count": {"$sum": 1},
+                }
+            }
+        )
+
+        # Sort
+        agg_query.append({"$sort": {"_id": 1, "count": -1}})
+
+        # Run aggregation
+        distinct_counts_cur = self._db[snapshot_col].aggregate(agg_query)
+
+        distinct_counts = {x["_id"]: x["count"] for x in distinct_counts_cur}
+        if None in distinct_counts:
+            del distinct_counts[None]
+
+        return distinct_counts
 
     def get_raw_summary(self, etype: str, before: datetime) -> pymongo.cursor:
         raw_col_name = self._raw_col_name(etype)

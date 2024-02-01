@@ -194,6 +194,11 @@ class EntityDatabase:
                     attr, background=True, partialFilterExpression={attr: {"$exists": True}}
                 )
 
+        # Create a TTL index for metadata collection
+        self._db["#metadata"].create_index(
+            "#time_created", expireAfterSeconds=60 * 60 * 24 * 30, background=True
+        )
+
     def _assert_etype_exists(self, etype: str):
         """Asserts `etype` existence.
 

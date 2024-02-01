@@ -6,6 +6,7 @@ Various modules may hook their functions to the regular updates.
 Note:
     Core modules needs to be enabled in worker.py and not in config!
 """
+
 import logging
 from datetime import timedelta
 

@@ -1,6 +1,7 @@
 """
 Module managing registered hooks and their dependencies on one another.
 """
+
 import logging
 from collections import defaultdict
 from collections.abc import Hashable

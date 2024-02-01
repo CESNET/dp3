@@ -1,6 +1,7 @@
 """
 Platform config file reader and config model.
 """
+
 import os
 from typing import Annotated, Optional, Union
 

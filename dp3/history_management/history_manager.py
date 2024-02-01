@@ -411,7 +411,8 @@ def compress_file(original: Path, compressed: Path = None):
     if compressed is None:
         compressed = original.parent / (original.name + ".gz")
 
-    with open(original, encoding="utf-8") as in_fp, gzip.open(
-        compressed, "wt", encoding="utf-8"
-    ) as out_fp:
+    with (
+        open(original, encoding="utf-8") as in_fp,
+        gzip.open(compressed, "wt", encoding="utf-8") as out_fp,
+    ):
         out_fp.writelines(in_fp)

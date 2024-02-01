@@ -123,8 +123,7 @@ class MockDB:
 
     def register_on_entity_delete(
         self, f_one: Callable[[str, str], None], f_many: Callable[[str, list[str]], None]
-    ):
-        ...
+    ): ...
 
     def get_module_cache(self, override_called_id: Optional[str] = None):
         return self.module_cache
@@ -146,20 +145,17 @@ class MockTaskQueueWriter:
 
 
 class MockTaskQueueReader:
-    def ack(self, msg_tag):
-        ...
+    def ack(self, msg_tag): ...
 
 
 class MockCollection(dict):
-    def create_index(self, *args, **kwargs):
-        ...
+    def create_index(self, *args, **kwargs): ...
 
 
 class MockTaskExecutor:
     elog = DummyEventGroup()
 
-    def register_attr_hook(self, *args, **kwargs):
-        ...
+    def register_attr_hook(self, *args, **kwargs): ...
 
 
 class TestSnapshotOperation(unittest.TestCase):

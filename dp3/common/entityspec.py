@@ -5,8 +5,7 @@ from pydantic import BaseModel, Extra, Field
 from dp3.common.types import ParsedTimedelta
 
 
-class SpecModel(BaseModel, extra=Extra.forbid):
-    ...
+class SpecModel(BaseModel, extra=Extra.forbid): ...
 
 
 class ImmortalLifetime(SpecModel):

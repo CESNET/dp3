@@ -1,4 +1,5 @@
 """DP3 Setup Script for creating a DP3 application."""
+
 import argparse
 import contextlib
 import shutil

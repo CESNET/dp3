@@ -1,6 +1,7 @@
 """
 Core module managing links between entities.
 """
+
 import logging
 from datetime import datetime, timedelta
 from functools import partial

@@ -1,4 +1,5 @@
 """DP3 Setup Config Script for creating a DP3 application."""
+
 import shutil
 import sys
 from pathlib import Path

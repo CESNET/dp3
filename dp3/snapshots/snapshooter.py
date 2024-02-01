@@ -16,6 +16,7 @@ Module managing creation of snapshots, enabling data correlation and saving snap
     - Callbacks for data correlation and fusion should happen here
     - Save the complete results into database as snapshots
 """
+
 import logging
 from collections import defaultdict
 from datetime import datetime

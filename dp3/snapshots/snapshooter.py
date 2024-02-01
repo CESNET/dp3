@@ -416,6 +416,8 @@ class SnapShooter:
         for master_record in records_cursor:
             if (etype, master_record["_id"]) in have_links:
                 continue
+            if not self.config.keep_empty and len(master_record) == 1:
+                continue
             entity_cnt += 1
             snapshots.append(self.make_linkless_snapshot(etype, master_record, time))
             if len(snapshots) >= DB_SEND_CHUNK:

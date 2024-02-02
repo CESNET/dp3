@@ -89,7 +89,7 @@ class EntityDatabase:
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
 
-        config = MongoConfig.parse_obj(db_conf)
+        config = MongoConfig.model_validate(db_conf)
 
         self.log.info("Connecting to database...")
         for attempt, delay in enumerate(RECONNECT_DELAYS):
@@ -258,9 +258,9 @@ class EntityDatabase:
             attr_spec = self._db_schema_config.attr(etype, dp.attr)
 
             if attr_spec.t in AttrType.PLAIN | AttrType.OBSERVATIONS and attr_spec.is_iterable:
-                v = [elem.dict() if isinstance(elem, BaseModel) else elem for elem in dp.v]
+                v = [elem.model_dump() if isinstance(elem, BaseModel) else elem for elem in dp.v]
             else:
-                v = dp.v.dict() if isinstance(dp.v, BaseModel) else dp.v
+                v = dp.v.model_dump() if isinstance(dp.v, BaseModel) else dp.v
 
             # Rewrite value of plain attribute
             if attr_spec.t == AttrType.PLAIN:

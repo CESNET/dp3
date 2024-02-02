@@ -76,7 +76,7 @@ class SnapShooter:
 
         self.worker_index = platform_config.process_index
         self.worker_cnt = platform_config.num_processes
-        self.config = SnapShooterConfig.parse_obj(platform_config.config.get("snapshots"))
+        self.config = SnapShooterConfig.model_validate(platform_config.config.get("snapshots"))
 
         elog = task_executor.elog
         self.elog = elog
@@ -127,7 +127,7 @@ class SnapShooter:
         )
 
         # Schedule snapshot period
-        snapshot_cron = self.config.creation_rate.dict(exclude_none=True)
+        snapshot_cron = self.config.creation_rate.model_dump(exclude_none=True)
         scheduler.register(self.make_snapshots, **snapshot_cron)
 
     def start(self):

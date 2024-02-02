@@ -85,11 +85,13 @@ class HistoryManager:
         self.model_spec = platform_config.model_spec
         self.worker_index = platform_config.process_index
         self.num_workers = platform_config.num_processes
-        self.config = HistoryManagerConfig.parse_obj(platform_config.config.get("history_manager"))
+        self.config = HistoryManagerConfig.model_validate(
+            platform_config.config.get("history_manager")
+        )
 
         # Schedule master document aggregation
         registrar.scheduler_register(
-            self.aggregate_master_docs, **self.config.aggregation_schedule.dict()
+            self.aggregate_master_docs, **self.config.aggregation_schedule.model_dump()
         )
 
         if platform_config.process_index != 0:
@@ -100,11 +102,15 @@ class HistoryManager:
 
         # Schedule datapoints cleaning
         datapoint_cleaning_schedule = self.config.datapoint_cleaning_schedule
-        registrar.scheduler_register(self.delete_old_dps, **datapoint_cleaning_schedule.dict())
+        registrar.scheduler_register(
+            self.delete_old_dps, **datapoint_cleaning_schedule.model_dump()
+        )
 
         snapshot_cleaning_schedule = self.config.snapshot_cleaning.schedule
         self.keep_snapshot_delta = self.config.snapshot_cleaning.older_than
-        registrar.scheduler_register(self.delete_old_snapshots, **snapshot_cleaning_schedule.dict())
+        registrar.scheduler_register(
+            self.delete_old_snapshots, **snapshot_cleaning_schedule.model_dump()
+        )
 
         # Schedule datapoint archivation
         archive_config = self.config.datapoint_archivation
@@ -113,7 +119,7 @@ class HistoryManager:
             self.log_dir = self._ensure_log_dir(archive_config.archive_dir)
         else:
             self.log_dir = None
-        registrar.scheduler_register(self.archive_old_dps, **archive_config.schedule.dict())
+        registrar.scheduler_register(self.archive_old_dps, **archive_config.schedule.model_dump())
 
     def delete_old_dps(self):
         """Deletes old data points from master collection."""

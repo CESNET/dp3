@@ -740,7 +740,7 @@ class EntityDatabase:
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}
 
         try:
-            res = self._db["#metadata"].update_one({"_id": metadata_id}, changes)
+            res = self._db["#metadata"].update_one({"_id": metadata_id}, changes, upsert=True)
             self.log.debug(
                 "Updated metadata %s, changes: %s, result: %s", metadata_id, changes, res.raw_result
             )

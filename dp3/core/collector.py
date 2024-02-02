@@ -161,11 +161,10 @@ class GarbageCollector:
         entities = 0
         deleted = 0
 
-        if self.worker_index == 0:
-            self.db.save_metadata(
-                start,
-                {"entities": 0, "deleted": 0, "weak_collect_start": start, "entity": etype},
-            )
+        self.db.save_metadata(
+            start,
+            {"entities": 0, "deleted": 0, "weak_collect_start": start, "entity": etype},
+        )
 
         # Aggregate the cache entities by their "to" field, which contains the entity
         aggregated = self.cache.aggregate(
@@ -224,10 +223,9 @@ class GarbageCollector:
         to_delete = []
         expired_ttls = {}
 
-        if self.worker_index == 0:
-            self.db.save_metadata(
-                start, {"entities": 0, "deleted": 0, "ttl_collect_start": start, "entity": etype}
-            )
+        self.db.save_metadata(
+            start, {"entities": 0, "deleted": 0, "ttl_collect_start": start, "entity": etype}
+        )
 
         records_cursor = self.db.get_worker_master_records(
             self.worker_index, self.num_workers, etype, no_cursor_timeout=True

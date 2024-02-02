@@ -241,8 +241,7 @@ class HistoryManager:
         start = datetime.now()
         utcnow = datetime.utcnow()
         entities = 0
-        if self.worker_index == 0:
-            self.db.save_metadata(start, {"entities": 0, "aggregation_start": start})
+        self.db.save_metadata(start, {"entities": 0, "aggregation_start": start})
 
         for entity in self.model_spec.entities:
             entity_attr_specs = self.model_spec.entity_attributes[entity]

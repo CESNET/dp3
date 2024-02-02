@@ -1,17 +1,17 @@
 import logging
 from typing import Callable
 
-from event_count_logger import DummyEventGroup, EventCountLogger
+from event_count_logger import DummyEventGroup
 
+from dp3.common.config import PlatformConfig
 from dp3.common.task import DataPointTask, task_context
+from dp3.common.types import EventGroupType
 from dp3.database.database import DatabaseError, EntityDatabase
 from dp3.task_processing.task_hooks import (
     TaskAttrHooksContainer,
     TaskEntityHooksContainer,
     TaskGenericHooksContainer,
 )
-
-from ..common.config import PlatformConfig
 
 
 class TaskExecutor:
@@ -29,6 +29,8 @@ class TaskExecutor:
         self,
         db: EntityDatabase,
         platform_config: PlatformConfig,
+        elog: EventGroupType,
+        elog_by_src: EventGroupType,
     ) -> None:
         # initialize task distribution
 
@@ -41,14 +43,9 @@ class TaskExecutor:
         self.model_spec = platform_config.model_spec
         self.db = db
 
-        # EventCountLogger
-        # - count number of events across multiple processes using shared counters in Redis
-        ecl = EventCountLogger(
-            platform_config.config.get("event_logging.groups"),
-            platform_config.config.get("event_logging.redis"),
-        )
-        self.elog = ecl.get_group("te") or DummyEventGroup()
-        self.elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
+        # Event logging
+        self.elog = elog
+        self.elog_by_src = elog_by_src
         # Print warning if some event group is not configured
         not_configured_groups = []
         if isinstance(self.elog, DummyEventGroup):
@@ -217,7 +214,6 @@ class TaskExecutor:
         try:
             self.log.debug("Task %s/%s: Deleting entity.", task.etype, task.eid)
             self.db.delete_eid(task.etype, task.eid)
-            self.elog.log("record_removed")
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")
             self.elog.log("task_processing_error")

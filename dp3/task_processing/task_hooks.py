@@ -1,14 +1,11 @@
 import logging
-from typing import Callable, Union
-
-from event_count_logger import DummyEventGroup, EventGroup
+from typing import Callable
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 from dp3.common.task import DataPointTask, task_context
-
-EventGroupType = Union[EventGroup, DummyEventGroup]
+from dp3.common.types import EventGroupType
 
 
 class TaskGenericHooksContainer:

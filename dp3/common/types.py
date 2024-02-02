@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Union
 
+from event_count_logger import DummyEventGroup, EventGroup
 from pydantic import AfterValidator, BeforeValidator
 from pydantic_core.core_schema import FieldValidationInfo
 
@@ -33,3 +34,5 @@ def t2_after_t1(v, info: FieldValidationInfo):
 
 
 T2Datetime = Annotated[datetime, BeforeValidator(t2_implicity_t1), AfterValidator(t2_after_t1)]
+
+EventGroupType = Union[EventGroup, DummyEventGroup]

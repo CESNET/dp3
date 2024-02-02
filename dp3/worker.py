@@ -12,6 +12,7 @@ import threading
 from functools import partial
 from importlib import import_module
 
+from event_count_logger import DummyEventGroup, EventCountLogger
 from pydantic import ValidationError
 
 from dp3.common.callback_registrar import CallbackRegistrar, reload_module_config
@@ -154,20 +155,28 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Create instances of core components
     log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
-    db = EntityDatabase(config.get("database"), model_spec, num_processes)
+    # EventCountLogger
+    ecl = EventCountLogger(
+        platform_config.config.get("event_logging.groups"),
+        platform_config.config.get("event_logging.redis"),
+    )
+    elog = ecl.get_group("te") or DummyEventGroup()
+    elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
+
+    db = EntityDatabase(config.get("database"), model_spec, num_processes, elog)
     if process_index == 0:
         db.update_schema()
     else:
         db.await_updated_schema()
 
     global_scheduler = scheduler.Scheduler()
-    task_executor = TaskExecutor(db, platform_config)
+    task_executor = TaskExecutor(db, platform_config, elog, elog_by_src)
     snap_shooter = SnapShooter(
         db,
         TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
-        task_executor,
         platform_config,
         global_scheduler,
+        elog,
     )
     registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter)
 

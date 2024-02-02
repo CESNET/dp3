@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any, Callable, Literal, Optional, Union
 
 import pymongo
+from event_count_logger import DummyEventGroup
 from pydantic import BaseModel, Field, field_validator
 from pymongo import ReplaceOne, UpdateMany, UpdateOne
 from pymongo.errors import OperationFailure
@@ -13,6 +14,7 @@ from pymongo.errors import OperationFailure
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase
+from dp3.common.types import EventGroupType
 from dp3.database.schema_cleaner import SchemaCleaner
 from dp3.task_processing.task_queue import HASH
 
@@ -85,9 +87,14 @@ class EntityDatabase:
     """
 
     def __init__(
-        self, db_conf: HierarchicalDict, model_spec: ModelSpec, num_processes: int
+        self,
+        db_conf: HierarchicalDict,
+        model_spec: ModelSpec,
+        num_processes: int,
+        elog: Optional[EventGroupType] = None,
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
+        self.elog = elog or DummyEventGroup()
 
         config = MongoConfig.model_validate(db_conf)
 
@@ -369,6 +376,7 @@ class EntityDatabase:
             self.log.debug(
                 "Deleted %s master records of %s (%s).", res.deleted_count, etype, len(eids)
             )
+            self.elog.log("record_removed", count=res.deleted_count)
         except Exception as e:
             raise DatabaseError(f"Delete of master record failed: {e}\n{eids}") from e
         try:
@@ -389,6 +397,7 @@ class EntityDatabase:
         try:
             self._db[master_col].delete_one({"_id": eid})
             self.log.debug("Deleted master record of %s/%s.", etype, eid)
+            self.elog.log("record_removed")
         except Exception as e:
             raise DatabaseError(f"Delete of master record failed: {e}\n{eid}") from e
         try:

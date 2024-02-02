@@ -201,7 +201,6 @@ class TestSnapshotOperation(unittest.TestCase):
                 num_processes=1,
             ),
             scheduler=MockScheduler(),
-            task_executor=MockTaskExecutor(),
         )
 
     def test_multivalue_fitering(self):

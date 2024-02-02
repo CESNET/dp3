@@ -20,9 +20,10 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import logging
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Callable, Union
+from typing import Any, Callable, Optional, Union
 
 import pymongo.errors
+from event_count_logger import DummyEventGroup
 from pydantic import BaseModel
 
 from dp3.common.attrspec import (
@@ -34,13 +35,13 @@ from dp3.common.attrspec import (
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType, task_context
+from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
     SnapshotTimeseriesHookContainer,
 )
-from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
 DB_SEND_CHUNK = 100
@@ -59,9 +60,9 @@ class SnapShooter:
         self,
         db: EntityDatabase,
         task_queue_writer: TaskQueueWriter,
-        task_executor: TaskExecutor,
         platform_config: PlatformConfig,
         scheduler: Scheduler,
+        elog: Optional[EventGroupType] = None,
     ) -> None:
         self.log = logging.getLogger("SnapShooter")
 
@@ -78,8 +79,7 @@ class SnapShooter:
         self.worker_cnt = platform_config.num_processes
         self.config = SnapShooterConfig.model_validate(platform_config.config.get("snapshots"))
 
-        elog = task_executor.elog
-        self.elog = elog
+        self.elog = elog or DummyEventGroup()
 
         self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec, elog)
         self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec, elog)

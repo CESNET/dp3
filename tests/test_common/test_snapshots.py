@@ -113,7 +113,7 @@ class MockDB:
 
     def get_master_record(self, etype: str, eid: str, projection=None) -> dict:
         if projection is not None:
-            projection["_id"] = True if "_id" not in projection else projection["_id"]
+            projection["_id"] = projection.get("_id", True)
             return {
                 key: val
                 for key, val in self.db_content[etype][eid].items()

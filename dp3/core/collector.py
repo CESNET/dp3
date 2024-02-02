@@ -68,14 +68,14 @@ class GarbageCollector:
                 registrar.scheduler_register(
                     self.collect_ttl,
                     func_args=[entity],
-                    **self.config.collection_rate.dict(),
+                    **self.config.collection_rate.model_dump(),
                 )
             elif lifetime.type == "weak":
                 if self.inverse_relations[entity]:
                     registrar.scheduler_register(
                         self.collect_weak,
                         func_args=[entity],
-                        **self.config.collection_rate.dict(),
+                        **self.config.collection_rate.model_dump(),
                     )
                 else:
                     raise ValueError(

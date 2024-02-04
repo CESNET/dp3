@@ -10,6 +10,8 @@ from dp3.api.internal.entity_response_models import (
     EntityEidAttrValueOrHistory,
     EntityEidData,
     EntityEidList,
+    EntityEidMasterRecord,
+    EntityEidSnapshots,
 )
 from dp3.api.internal.helpers import api_to_dp3_datapoint
 from dp3.api.internal.models import (
@@ -26,6 +28,43 @@ async def check_etype(etype: str):
     if etype not in MODEL_SPEC.entities:
         raise RequestValidationError(["path", "etype"], f"Entity type '{etype}' doesn't exist")
     return etype
+
+
+def get_eid_master_record_handler(
+    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+):
+    """Handler for getting master record of EID"""
+    # TODO: This is probably not the most efficient way. Maybe gather only
+    # plain data from master record and then call `get_timeseries_history`
+    # for timeseries.
+    master_record = DB.get_master_record(etype, eid)
+    if "_id" in master_record:
+        del master_record["_id"]
+    if "#hash" in master_record:
+        del master_record["#hash"]
+
+    entity_attribs = MODEL_SPEC.attribs(etype)
+
+    # Get filtered timeseries data
+    for attr in master_record:
+        # Check for no longer existing attributes
+        if attr in entity_attribs and entity_attribs[attr].t == AttrType.TIMESERIES:
+            master_record[attr] = DB.get_timeseries_history(
+                etype, attr, eid, t1=date_from, t2=date_to
+            )
+
+    return master_record
+
+
+def get_eid_snapshots_handler(
+    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+):
+    """Handler for getting snapshots of EID"""
+    snapshots = list(DB.get_snapshots(etype, eid, t1=date_from, t2=date_to))
+    for s in snapshots:
+        del s["_id"]
+
+    return snapshots
 
 
 router = APIRouter(dependencies=[Depends(check_etype)])
@@ -104,36 +143,32 @@ async def get_eid_data(
 
     Contains all snapshots and master record.
     Snapshots are ordered by ascending creation time.
+
+    Combines function of `/{etype}/{eid}/master` and `/{etype}/{eid}/snapshots`.
     """
-    # Get master record
-    # TODO: This is probably not the most efficient way. Maybe gather only
-    # plain data from master record and then call `get_timeseries_history`
-    # for timeseries.
-    master_record = DB.get_master_record(etype, eid)
-    if "_id" in master_record:
-        del master_record["_id"]
-    if "#hash" in master_record:
-        del master_record["#hash"]
-
-    entity_attribs = MODEL_SPEC.attribs(etype)
-
-    # Get filtered timeseries data
-    for attr in master_record:
-        # Check for no longer existing attributes
-        if attr in entity_attribs and entity_attribs[attr].t == AttrType.TIMESERIES:
-            master_record[attr] = DB.get_timeseries_history(
-                etype, attr, eid, t1=date_from, t2=date_to
-            )
-
-    # Get snapshots
-    snapshots = list(DB.get_snapshots(etype, eid, t1=date_from, t2=date_to))
-    for s in snapshots:
-        del s["_id"]
+    master_record = get_eid_master_record_handler(etype, eid, date_from, date_to)
+    snapshots = get_eid_snapshots_handler(etype, eid, date_from, date_to)
 
     # Whether this eid contains any data
     empty = not master_record and len(snapshots) == 0
 
     return EntityEidData(empty=empty, master_record=master_record, snapshots=snapshots)
+
+
+@router.get("/{etype}/{eid}/master")
+async def get_eid_master_record(
+    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+) -> EntityEidMasterRecord:
+    """Get master record of `etype`'s `eid`."""
+    return get_eid_master_record_handler(etype, eid, date_from, date_to)
+
+
+@router.get("/{etype}/{eid}/snapshots")
+async def get_eid_snapshots(
+    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+) -> EntityEidSnapshots:
+    """Get snapshots of `etype`'s `eid`."""
+    return get_eid_snapshots_handler(etype, eid, date_from, date_to)
 
 
 @router.get("/{etype}/{eid}/get/{attr}")

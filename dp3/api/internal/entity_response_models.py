@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, Field, NonNegativeInt
+from pydantic import BaseModel, Field, NonNegativeInt, RootModel
 
 from dp3.common.attrspec import AttrSpecType, AttrType
 
@@ -32,6 +32,11 @@ class EntityEidList(BaseModel):
     count: int
     total_count: int
     data: list[dict]
+
+
+EntityEidMasterRecord = RootModel[dict]
+
+EntityEidSnapshots = RootModel[list[dict]]
 
 
 class EntityEidData(BaseModel):

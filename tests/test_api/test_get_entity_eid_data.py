@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import common
 
-from dp3.api.internal.entity_response_models import EntityEidData
+from dp3.api.internal.entity_response_models import EntityEidData, EntityEidMasterRecord
 
 DATAPOINT_COUNT = 6
 
@@ -44,3 +44,12 @@ class GetEntityEidData(common.APITest):
             lambda data: "test_attr_history" in data.master_record,
         )
         self.assertEqual(DATAPOINT_COUNT, len(data.master_record["test_attr_history"]))
+
+    def test_get_entity_master_record(self):
+        data = self.query_expected_value(
+            lambda: self.get_entity_data(
+                f"entity/test_entity_type/{self.eid}/master", EntityEidMasterRecord
+            ),
+            lambda data: "test_attr_history" in data.root,
+        )
+        self.assertEqual(DATAPOINT_COUNT, len(data.root["test_attr_history"]))

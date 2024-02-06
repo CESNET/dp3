@@ -1004,7 +1004,7 @@ class EntityDatabase:
         raw_col_name = self._raw_col_name(etype)
         query_filter = {"$or": [{"t1": {"$gte": after, "$lt": before}}]}
         if plain:
-            query_filter["$or"].append({"t1": {"$exists": False}})
+            query_filter["$or"].append({"t1": None})
         return self._db[raw_col_name].find(query_filter)
 
     def delete_old_raw_dps(self, etype: str, before: datetime, plain: bool = True):
@@ -1015,7 +1015,7 @@ class EntityDatabase:
         raw_col_name = self._raw_col_name(etype)
         query_filter = {"$or": [{"t1": {"$lt": before}}]}
         if plain:
-            query_filter["$or"].append({"t1": {"$exists": False}})
+            query_filter["$or"].append({"t1": None})
         try:
             return self._db[raw_col_name].delete_many(query_filter)
         except Exception as e:

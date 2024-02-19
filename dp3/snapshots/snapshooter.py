@@ -322,21 +322,22 @@ class SnapShooter:
                 # Set linked as visited
                 visited_entities.update(linked_entities)
 
-                # Update component
+                # Update component, take all connected components into account
                 have_component = linked_entities & set(entity_to_component.keys())
                 if have_component:
                     for entity in have_component:
                         component = entity_to_component[entity]
-                        component.update(linked_entities)
-                        entity_to_component.update(
-                            {entity: component for entity in linked_entities}
-                        )
-                        break
-                else:
-                    entity_to_component.update(
-                        {entity: linked_entities for entity in linked_entities}
-                    )
-                    linked_components.append(linked_entities)
+                        linked_entities.update(component)
+                entity_to_component.update({entity: linked_entities for entity in linked_entities})
+
+        # Make a list of unique components
+        visited_entities.clear()
+        for entity, component in entity_to_component.items():
+            if entity in visited_entities:
+                continue
+            visited_entities.update(component)
+            linked_components.append(component)
+
         return linked_components
 
     def process_snapshot_task(self, msg_id, task: Snapshot):

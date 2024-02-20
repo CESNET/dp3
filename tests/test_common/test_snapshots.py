@@ -59,13 +59,9 @@ class TestHookDependency(unittest.TestCase):
     def test_backlinks(self):
         hook_base = {"hook": dummy_hook_abc, "entity_type": "A", "depends_on": [["data2"]]}
         paths = [
-            (["bs", "as", "data1"], ["A->bs->as->data1", "A->data1"]),
-            (["bs", "as", "bs", "data1"], ["A->bs->as->bs->data1", "A->bs->data1"]),
-            (["bs", "cs", "ds", "cs", "data1"], ["A->bs->cs->ds->cs->data1", "A->bs->cs->data1"]),
-            (
-                ["bs", "as", "ds", "as", "data1"],
-                ["A->bs->as->ds->as->data1", "A->bs->as->data1", "A->ds->as->data1", "A->data1"],
-            ),
+            (["bs", "as", "bs", "data1"], ["B.data1"]),
+            (["bs", "cs", "ds", "cs", "data1"], ["C.data1"]),
+            (["bs", "as", "ds", "as", "data1"], ["A.data1"]),
         ]
         for path, expected_expansions in paths:
             with self.subTest(path=path, expected_expansions=expected_expansions):
@@ -74,15 +70,8 @@ class TestHookDependency(unittest.TestCase):
     def test_nested_backlinks(self):
         hook_base = {"hook": dummy_hook_abc, "entity_type": "A", "depends_on": [["data2"]]}
         paths = [
-            (["bs", "as", "bs", "data1"], ["A->bs->as->bs->data1", "A->bs->data1"]),
-            (
-                ["bs", "cs", "bs", "as", "data1"],
-                ["A->bs->cs->bs->as->data1", "A->data1", "A->bs->as->data1"],
-            ),
-            (
-                ["bs", "as", "bs", "as", "data1"],
-                ["A->bs->as->bs->as->data1", "A->data1", "A->bs->as->data1"],
-            ),
+            (["bs", "as", "bs", "data1"], ["B.data1"]),
+            (["bs", "cs", "bs", "as", "data1"], ["A.data1"]),
         ]
         for path, expected_expansions in paths:
             with self.subTest(path=path, expected_expansions=expected_expansions):

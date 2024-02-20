@@ -6,7 +6,6 @@ import logging
 from collections import defaultdict
 from collections.abc import Hashable
 from dataclasses import dataclass, field
-from itertools import combinations
 from typing import Callable, Union
 
 from dp3.common.attrspec import AttrType
@@ -116,11 +115,8 @@ class SnapshotCorrelationHookContainer:
         self.used_links |= self._validate_attr_paths(entity_type, depends_on)
         self.used_links |= self._validate_attr_paths(entity_type, may_change)
 
-        depends_on = self._expand_path_backlinks(entity_type, depends_on)
-        may_change = self._expand_path_backlinks(entity_type, may_change)
-
-        depends_on = self._embed_base_entity(entity_type, depends_on)
-        may_change = self._embed_base_entity(entity_type, may_change)
+        depends_on = self._get_attr_path_destinations(entity_type, depends_on)
+        may_change = self._get_attr_path_destinations(entity_type, may_change)
 
         hook_id = (
             f"{get_func_name(hook)}("
@@ -161,25 +157,18 @@ class SnapshotCorrelationHookContainer:
                     position = entity_attributes[position.relation_to]
         return used_links
 
-    def _expand_path_backlinks(self, base_entity: str, paths: list[list[str]]):
+    def _get_attr_path_destinations(self, base_entity: str, paths: list[list[str]]) -> list[str]:
         """
-        Returns a list of all possible subpaths considering the path backlinks.
-
-        With user defined entities, attributes and dependency paths, presence of backlinks (cycles)
-        in specified dependency paths must be expected. To fully track dependencies,
-        we assume any entity repeated in the path can be referenced multiple times,
-        effectively making a cycle in the path, which can be ignored.
+        Normalize paths to contain only destination attributes.
+        Returns:
+            List of destination attributes as tuples (entity, attr).
         """
-        expanded_paths = []
+        destinations = []
         for path in paths:
             resolved_path = self._resolve_entities_in_path(base_entity, path)
-            expanded = [resolved_path] + self._catch_them_all(resolved_path)
-            expanded_paths.extend(
-                self._extract_path_from_resolved(resolved) for resolved in expanded
-            )
-        unique_paths = {tuple(path) for path in expanded_paths}
-        expanded_paths = sorted([list(path) for path in unique_paths], key=lambda x: len(x))
-        return expanded_paths
+            dest_entity, dest_attr = resolved_path[-1]
+            destinations.append(f"{dest_entity}.{dest_attr}")
+        return destinations
 
     def _resolve_entities_in_path(self, base_entity: str, path: list[str]) -> list[tuple[str, str]]:
         """
@@ -202,66 +191,6 @@ class SnapshotCorrelationHookContainer:
                 base_entity = position.relation_to
                 position = entity_attributes[position.relation_to]
         return resolved_path
-
-    @staticmethod
-    def _extract_path_from_resolved(path: list[tuple[str, str]]) -> list[str]:
-        """Transform list[(entity_name, attr_name)] to list[attr_name]."""
-        return [attr for entity, attr in path]
-
-    def _catch_them_all(self, path: list[tuple[str, str]]) -> list[list[tuple[str, str]]]:
-        """
-        Recursively searches for all possible path cycles and returns
-        Args:
-            path: A resolved link path of tuples (entity_name, attr_name).
-        Returns:
-            A list of all possible path permutations.
-        """
-        root_cycles = self._get_root_cycles(path)
-        out = []
-        for beg, end in root_cycles:
-            pre = path[:beg]
-            post = path[end:]
-
-            inner_cycles = self._catch_them_all(path[beg:end])
-            out.extend(pre + inner + post for inner in inner_cycles)
-            out.append(pre + post)
-        return out
-
-    @staticmethod
-    def _get_root_cycles(path: list[tuple[str, str]]) -> list[tuple[int, int]]:
-        """
-        Collects indexes of entities on the path, and returns a list of "root cycles"
-        A root cycle is defined using tuple of (start_index, end_index) in the path.
-        Examines all possible combinations of backlink cycles,
-        but returns only ones not completely inside any other existing cycle.
-
-        Args:
-            path: A resolved link path of tuples (entity_name, attr_name).
-        Returns:
-            Empty list if path contains no cycles,
-            a list of all possible "root cycle" combinations otherwise.
-        """
-        entity_indexes: defaultdict[str, list[int]] = defaultdict(list)
-        for i, (entity, _attr) in enumerate(path):
-            entity_indexes[entity].append(i)
-
-        if not any(len(indexes) > 1 for indexes in entity_indexes.values()):
-            return []
-
-        possible_backlinks = [
-            combination
-            for indexes in entity_indexes.values()
-            for combination in combinations(indexes, 2)
-        ]
-        return [
-            (curr_beg, curr_end)
-            for curr_beg, curr_end in possible_backlinks
-            if not any(beg < curr_beg and curr_end < end for beg, end in possible_backlinks)
-        ]
-
-    @staticmethod
-    def _embed_base_entity(base_entity: str, paths: list[list[str]]):
-        return ["->".join([base_entity] + path) for path in paths]
 
     def run(self, entities: dict) -> list[DataPointTask]:
         """Runs registered hooks."""

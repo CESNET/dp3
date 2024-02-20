@@ -77,6 +77,7 @@ class SnapshotCorrelationHookContainer:
         self.model_spec = model_spec
 
         self._hooks: defaultdict[str, list[tuple[str, Callable]]] = defaultdict(list)
+        self._short_hook_ids: dict = {}
 
         self._dependency_graph = DependencyGraph(self.log)
         self.used_links = set()
@@ -118,11 +119,9 @@ class SnapshotCorrelationHookContainer:
         depends_on = self._get_attr_path_destinations(entity_type, depends_on)
         may_change = self._get_attr_path_destinations(entity_type, may_change)
 
-        hook_id = (
-            f"{get_func_name(hook)}("
-            f"{entity_type}, [{','.join(depends_on)}], [{','.join(may_change)}]"
-            f")"
-        )
+        hook_args = f"({entity_type}, [{','.join(depends_on)}], [{','.join(may_change)}])"
+        hook_id = f"{get_func_name(hook)}{hook_args}"
+        self._short_hook_ids[hook_id] = hook_args
         self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 
         self._hooks[entity_type].append((hook_id, hook))
@@ -208,8 +207,9 @@ class SnapshotCorrelationHookContainer:
 
         with task_context(self.model_spec):
             for hook_id, hook, etype in hook_subset:
+                short_id = hook_id if len(hook_id) < 160 else self._short_hook_ids[hook_id]
                 for eid, entity_values in entities_by_etype[etype].items():
-                    self.log.debug("Running hook %s on entity %s", hook_id, eid)
+                    self.log.debug("Running hook %s on entity %s", short_id, eid)
                     try:
                         tasks = hook(etype, entity_values)
                         if tasks is not None and tasks:

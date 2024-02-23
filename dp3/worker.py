@@ -179,7 +179,13 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         global_scheduler,
         elog,
     )
-    updater = Updater(db, platform_config, global_scheduler)
+    updater = Updater(
+        db,
+        TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
+        platform_config,
+        global_scheduler,
+        elog,
+    )
     registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
 
     LinkManager(db, platform_config, registrar)
@@ -247,13 +253,13 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # start TaskDistributor (which starts TaskExecutors in several worker threads)
     task_distributor.start()
 
-    # Run scheduler
-    global_scheduler.start()
-
     # Run core modules
     snap_shooter.start()
     updater.start()
     control.start()
+
+    # Run scheduler
+    global_scheduler.start()
 
     # Wait until someone wants to stop the program by releasing this Lock.
     # It may be a user by pressing Ctrl-C or some program module.

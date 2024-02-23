@@ -11,6 +11,8 @@ from dp3.common.datapoint import DataPointType
 from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask
+from dp3.common.types import ParsedTimedelta
+from dp3.core.updater import Updater
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.task_processing.task_executor import TaskExecutor
 
@@ -105,11 +107,16 @@ class CallbackRegistrar:
     """Interface for callback registration."""
 
     def __init__(
-        self, scheduler: Scheduler, task_executor: TaskExecutor, snap_shooter: SnapShooter
+        self,
+        scheduler: Scheduler,
+        task_executor: TaskExecutor,
+        snap_shooter: SnapShooter,
+        updater: Updater,
     ):
         self._scheduler = scheduler
         self._task_executor = task_executor
         self._snap_shooter = snap_shooter
+        self._updater = updater
 
         self.log = logging.getLogger(self.__class__.__name__)
         self.model_spec = task_executor.model_spec
@@ -377,3 +384,45 @@ class CallbackRegistrar:
                 return a list of DataPointTask objects to perform.
         """
         self._snap_shooter.register_run_finalize_hook(hook)
+
+    def register_periodic_update_hook(
+        self,
+        hook: Callable[[str, str, dict], list[DataPointTask]],
+        hook_id: str,
+        entity_type: str,
+        period: ParsedTimedelta,
+    ):
+        """
+        Registers a callback for periodic update of entities of the specified type.
+
+        The callback receives the entity type, the entity ID and the master record.
+
+        Args:
+            hook: `hook` callable should expect entity type, entity ID and master record
+                as arguments and return a list of DataPointTask objects to perform.
+            hook_id: specifies hook ID
+            entity_type: specifies entity type
+            period: specifies period of the callback
+        """
+        self._updater.register_record_update_hook(hook, hook_id, entity_type, period)
+
+    def register_periodic_eid_update_hook(
+        self,
+        hook: Callable[[str, str], list[DataPointTask]],
+        hook_id: str,
+        entity_type: str,
+        period: ParsedTimedelta,
+    ):
+        """
+        Registers a callback for periodic update of entities of the specified type.
+
+        The callback receives the entity type and the entity ID.
+
+        Args:
+            hook: `hook` callable should expect entity type and entity ID as arguments
+                and return a list of DataPointTask objects to perform.
+            hook_id: specifies hook ID
+            entity_type: specifies entity type
+            period: specifies period of the callback
+        """
+        self._updater.register_eid_update_hook(hook, hook_id, entity_type, period)

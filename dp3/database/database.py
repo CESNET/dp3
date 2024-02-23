@@ -201,6 +201,9 @@ class EntityDatabase:
                     attr, background=True, partialFilterExpression={attr: {"$exists": True}}
                 )
 
+            # Time created index for periodic updates
+            self._db[master_col].create_index("#time_created", background=True)
+
         # Create a TTL index for metadata collection
         self._db["#metadata"].create_index(
             "#time_created", expireAfterSeconds=60 * 60 * 24 * 30, background=True
@@ -303,6 +306,7 @@ class EntityDatabase:
 
         if new_entity:
             master_changes["$set"]["#hash"] = HASH(f"{etype}:{eid}")
+            master_changes["$set"]["#time_created"] = datetime.now()
 
         master_col = self._master_col_name(etype)
         try:

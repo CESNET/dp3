@@ -20,6 +20,7 @@ from dp3.common.config import PlatformConfig
 from dp3.common.control import Control, ControlAction, refresh_on_entity_creation
 from dp3.core.collector import GarbageCollector
 from dp3.core.link_manager import LinkManager
+from dp3.core.updater import Updater
 from dp3.history_management.telemetry import Telemetry
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -178,7 +179,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         global_scheduler,
         elog,
     )
-    registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter)
+    updater = Updater(db, platform_config, global_scheduler)
+    registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
 
     LinkManager(db, platform_config, registrar)
     HistoryManager(db, platform_config, registrar)
@@ -248,9 +250,9 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     # Run scheduler
     global_scheduler.start()
 
-    # Run SnapShooter
+    # Run core modules
     snap_shooter.start()
-
+    updater.start()
     control.start()
 
     # Wait until someone wants to stop the program by releasing this Lock.
@@ -274,6 +276,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     log.info("Stopping running components ...")
     control.stop()
+    updater.stop()
     snap_shooter.stop()
     global_scheduler.stop()
     task_distributor.stop()

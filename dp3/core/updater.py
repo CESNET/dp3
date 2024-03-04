@@ -3,9 +3,11 @@
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
+from functools import partial
 from typing import Callable, Union
 
 from pydantic import BaseModel, validate_call
+from pymongo.cursor import Cursor
 
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.scheduler import Scheduler
@@ -257,6 +259,49 @@ class Updater:
             hooks: The update hooks.
             state: The state of the update process.
         """
+        self._process_batch(
+            entity_type,
+            hooks,
+            state,
+            record_getter=self.db.get_worker_master_records,
+            hook_runner=self._run_hooks,
+        )
+
+    def _process_eid_update_batch(self, entity_type: str, hooks: dict, state: dict):
+        """Processes a batch of entities of the specified type, only passing the entity ID.
+
+        Args:
+            entity_type: The entity type.
+            hooks: The update hooks.
+            state: The state of the update process.
+        """
+        projection = {"_id": True}
+        self._process_batch(
+            entity_type,
+            hooks,
+            state,
+            record_getter=partial(self.db.get_worker_master_records, projection=projection),
+            hook_runner=self._run_hooks_eid,
+        )
+
+    def _process_batch(
+        self,
+        entity_type: str,
+        hooks: dict,
+        state: dict,
+        record_getter: Callable[[int, int, str], Cursor],
+        hook_runner: Callable[[dict[str, Callable], str, dict], None],
+    ):
+        """Processes a batch of entities of the specified type using the specified `value_getter`.
+
+        Args:
+            entity_type: The entity type.
+            hooks: The update hooks.
+            state: The state of the update process.
+            record_getter: Callable taking the (iteration, total_iterations, entity_type)
+                to access the required record values.
+            hook_runner: Callable taking the (hooks, etype, record) and running the hooks.
+        """
         self.log.debug("Processing update batch for '%s'", entity_type)
         batch_cnt = state["modulo"]
         iteration = state["iteration"]
@@ -267,12 +312,10 @@ class Updater:
             state["processed"],
             iteration,
         )
-        records = self.db.get_worker_master_records(
-            worker_index=iteration, worker_cnt=batch_cnt, etype=entity_type
-        )
+        records = record_getter(iteration, batch_cnt, entity_type)
 
         for record in records:
-            self._run_hooks(hooks, entity_type, record)
+            hook_runner(hooks, entity_type, record)
 
             state["processed"] += 1
             state["t_last_update"] = datetime.now()
@@ -303,17 +346,6 @@ class Updater:
             state["total"] = self.db.get_estimated_entity_count(entity_type)
             state["modulo"] = self._calculate_batch_count(state)
 
-    def _process_eid_update_batch(self, entity_type: str, hooks: dict, state: dict):
-        """Processes a batch of entities of the specified type, only passing the entity ID.
-
-        TODO: Finish after finalizing normal update callback
-
-        Args:
-            entity_type: The entity type.
-            hooks: The update hooks.
-            state: The state of the update process.
-        """
-
     def _calculate_batch_count(self, state):
         return state["period"] // self.config.update_batch_period.total_seconds()
 
@@ -332,13 +364,13 @@ class Updater:
         for task in tasks:
             self.task_queue_writer.put_task(task)
 
-    def _run_hooks_eid(self, hooks: dict[str, Callable], entity_type: str, eid: str):
+    def _run_hooks_eid(self, hooks: dict[str, Callable], entity_type: str, record: dict):
         tasks = []
         with task_context(self.model_spec):
             for hook_id, hook in hooks.items():
                 self.log.debug("Running hook: '%s'", hook_id)
                 try:
-                    new_tasks = hook(entity_type, eid)
+                    new_tasks = hook(entity_type, record["_id"])
                     tasks.extend(new_tasks)
                 except Exception as e:
                     self.elog.log("module_error")

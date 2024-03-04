@@ -90,7 +90,7 @@ class Updater:
 
         Deletion note:
             - t_created: datetime
-            - seen_times: int - How many times the deletion note was seen.
+            - seen_times: int - How many times was the deletion note seen.
         """
         self.cache.create_index("type", background=True)
         self.cache.create_index("t_created", background=True)
@@ -107,7 +107,7 @@ class Updater:
 
         The hook receives the entity type, the entity ID and the master record.
         """
-        thread_id = (period, entity_type, False)  # false meaning not eid_only
+        thread_id = (period.total_seconds(), entity_type, False)  # false meaning not eid_only
         hooks = self.update_thread_hooks[thread_id]
 
         if hook_id in hooks:
@@ -126,20 +126,23 @@ class Updater:
 
         The hook receives the entity type and the entity ID.
         """
-        thread_id = (period, entity_type, True)  # true meaning eid_only
+        thread_id = (period.total_seconds(), entity_type, True)  # true meaning eid_only
         hooks = self.update_thread_hooks.get(thread_id, {})
 
         if hook_id in hooks:
             raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
         hooks[hook_id] = hook
 
-    def new_state(self, period: timedelta, entity_type: str, eid_only: bool = False) -> dict:
+    def new_state(self, period: float, entity_type: str, eid_only: bool = False) -> dict:
         now = datetime.now()
         return {
+            "type": "state",
             "t_created": now,
             "t_last_update": now,
-            "t_end": now + period,
+            "t_end": now + timedelta(seconds=period),
             "processed": 0,
+            "total": 0,
+            "finished": False,
             "last_processed_ctime": None,
             "period": period,
             "etype": entity_type,
@@ -149,13 +152,91 @@ class Updater:
 
     def start(self):
         """
-        TODO:
-            Resolve configured hooks with cached previous state.
+        Starts the updater.
+
+        Will fetch the state of the updater from the cache and schedule the update threads.
         """
-        for (period, entity_type, eid_only), hooks in self.update_thread_hooks.items():
-            state = self.new_state(period, entity_type, eid_only)
+        # Get all unfinished progress states
+        states = self.cache.find({"type": "state", "finished": False})
+        saved_states = {}
+        for state in states:
+            period = state["period"]
+            entity_type = state["etype"]
+            eid_only = state["eid_only"]
+            saved_states[(period, entity_type, eid_only)] = state
+
+        # Confirm all saved states have configured hooks, terminate if not
+        for (period, entity_type, eid_only), state in saved_states.items():
+            if (period, entity_type, eid_only) not in self.update_thread_hooks:
+                self.log.warning(
+                    "No hooks configured for '%s' entity with period: %s, aborting hooks: %s",
+                    entity_type,
+                    period,
+                    state["hook_ids"],
+                )
+                self.cache.update_one(
+                    {
+                        k: v
+                        for k, v in state.items()
+                        if k in ["type", "period", "etype", "eid_only", "t_created"]
+                    },
+                    update={"$set": {"finished": True}},
+                )
+
+            # Find if any new hooks are added
+            configured_hooks = self.update_thread_hooks[(period, entity_type, eid_only)]
+            saved_hook_ids = set(state["hook_ids"])
+            configured_hook_ids = set(configured_hooks.keys())
+            new_hook_ids = configured_hook_ids - saved_hook_ids
+            deleted_hook_ids = saved_hook_ids - configured_hook_ids
+
+            # Update the state with new hooks
+            if deleted_hook_ids or new_hook_ids:
+                if deleted_hook_ids:
+                    self.log.warning(
+                        "Some hooks are deleted for '%s' entity with period: %s - %s",
+                        entity_type,
+                        period,
+                        deleted_hook_ids,
+                    )
+                state["hook_ids"] = list(configured_hook_ids)
+                self.cache.update_one(
+                    {
+                        k: v
+                        for k, v in state.items()
+                        if k in ["type", "period", "etype", "eid_only", "t_created"]
+                    },
+                    update={
+                        "$set": {
+                            k: v
+                            for k, v in state.items()
+                            if k not in ["type", "period", "etype", "eid_only", "t_created"]
+                        },
+                    },
+                )
+
+        # Add newly configured hooks that are not in the saved states
+        for thread_id in self.update_thread_hooks:
+            if thread_id not in saved_states:
+                state = self.new_state(*thread_id)
+                self.cache.insert_one(state)
+                saved_states[thread_id] = state
+
+        # Schedule the update threads
+        for (period, entity_type, eid_only), state in saved_states.items():
+            if state["finished"]:
+                continue
+            hooks = self.update_thread_hooks[(period, entity_type, eid_only)]
+            if eid_only:
+                processing_func = self._process_eid_update_batch
+            else:
+                processing_func = self._process_update_batch
+
+            if "_id" in state:
+                del state["_id"]
+
             self.scheduler.register(
-                self._process_update_batch,
+                processing_func,
                 func_args=[entity_type, hooks, state],
                 **self.config.update_batch_cron.model_dump(),
             )
@@ -170,14 +251,13 @@ class Updater:
 
         TODO:
             Add support for entity deletion notes.
-            Add support for storing the state in the cache.
 
         Args:
             entity_type: The entity type.
             hooks: The update hooks.
             state: The state of the update process.
         """
-        self.log.debug("Processing update batch for '%s'")
+        self.log.debug("Processing update batch for '%s'", entity_type)
         state["total"] = self.db.get_estimated_entity_count(entity_type)
         batch_size = self._calculate_batch_size(entity_type, state)
         self.log.debug(
@@ -200,6 +280,22 @@ class Updater:
             state["t_last_update"] = datetime.now()
 
         if state["processed"] >= state["total"]:
+            state["finished"] = True
+        filter_dict = {
+            k: v
+            for k, v in state.items()
+            if k in ["type", "period", "etype", "eid_only", "t_created", "_id"]
+        }
+        update_dict = {
+            "$set": {
+                k: v
+                for k, v in state.items()
+                if k not in ["type", "period", "etype", "eid_only", "t_created", "_id"]
+            }
+        }
+        self.cache.update_one(filter_dict, update=update_dict, upsert=True)
+
+        if state["finished"]:
             self.log.debug(
                 "Finished processing '%s' entity with period: %s", entity_type, state["period"]
             )

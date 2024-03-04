@@ -2,9 +2,10 @@
 
 import logging
 from collections import defaultdict
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from functools import partial
-from typing import Callable, Union
+from typing import Callable, Literal, Union
 
 from pydantic import BaseModel, validate_call
 from pymongo.cursor import Cursor
@@ -39,6 +40,100 @@ class UpdaterConfig(BaseModel):
     min_batch_size: int = 10
 
 
+class UpdateThreadState(BaseModel, validate_assignment=True):
+    """
+    A cache item describing a state of one configured update thread.
+
+    Attributes:
+        type: "state"
+        t_created: Time of creation.
+        t_last_update: Time of last update.
+        t_end: Time of predicted period end.
+        processed: The number of currently processed entities.
+        total: The total number of entities.
+        iteration: The current iteration.
+        total_iterations: Total number of iterations.
+        etype: Entity type.
+        period: Period length in seconds.
+        eid_only: Whether only eids are passed to hooks.
+        hook_ids: Hook ids.
+    """
+
+    type: Literal["state"] = "state"
+    t_created: datetime
+    t_last_update: datetime
+    t_end: datetime
+    processed: int = 0
+    total: int = 0
+    iteration: int = 0
+    total_iterations: int = 0
+    finished: bool = False
+    period: float
+    etype: str
+    eid_only: bool
+    hook_ids: list[str]
+
+    @classmethod
+    def new(cls, hooks: dict, period: float, entity_type: str, eid_only: bool = False):
+        now = datetime.now()
+        return cls(
+            t_created=now,
+            t_last_update=now,
+            t_end=now + timedelta(seconds=period),
+            period=period,
+            etype=entity_type,
+            eid_only=eid_only,
+            hook_ids=hooks.keys(),
+        )
+
+    @property
+    def id_attributes(self):
+        return ["type", "period", "etype", "eid_only", "t_created"]
+
+    @property
+    def thread_id(self) -> tuple[float, str, bool]:
+        return self.period, self.etype, self.eid_only
+
+    def reset(self):
+        now = datetime.now()
+        self.t_created = now
+        self.t_last_update = now
+        self.t_end = now + timedelta(self.period)
+        self.iteration = 0
+        self.processed = 0
+        self.finished = False
+
+
+class UpdaterCache:
+    def __init__(self, cache_collection):
+        self._cache = cache_collection
+        self._setup_cache_indexes()
+
+    def get_unfinished(self) -> Iterator[UpdateThreadState]:
+        for state in self._cache.find({"type": "state", "finished": False}):
+            yield UpdateThreadState.model_validate(state)
+
+    def update(self, state: UpdateThreadState):
+        state_dict = state.model_dump()
+        filter_dict = {k: v for k, v in state_dict.items() if k in state.id_attributes}
+        update_dict = {
+            "$set": {k: v for k, v in state_dict.items() if k not in state.id_attributes}
+        }
+        self._cache.update_one(filter_dict, update=update_dict, upsert=True)
+
+    def insert(self, state: UpdateThreadState):
+        self._cache.insert_one(state.model_dump())
+
+    def _setup_cache_indexes(self):
+        """Sets up the indexes of the state cache.
+
+        The cache collection contains the metadata documents with
+        the state of the update process for each entity type.
+        """
+        self._cache.create_index("type", background=True)
+        self._cache.create_index("t_created", background=True)
+
+
 class Updater:
     """Executes periodic update callbacks."""
 
@@ -65,36 +160,9 @@ class Updater:
             return
 
         # Get state cache
-        self.cache = self.db.get_module_cache("Updater")
-        self._setup_cache_indexes()
+        self.cache = UpdaterCache(self.db.get_module_cache("Updater"))
 
         self.update_thread_hooks = defaultdict(dict)
-
-    def _setup_cache_indexes(self):
-        """Sets up the indexes of the state cache.
-
-        The cache collection has two types of metadata documents, denoted by the "type" field:
-
-        - The state of the update process for each entity type.
-        - Notes about entity deletion that happened since the last update.
-
-        State:
-            - t_created: datetime
-            - t_last_update: datetime
-            - t_end: datetime
-            - processed: int - The number of currently processed entities.
-            - total: int - The total number of entities.
-            - etype: str
-            - period: int
-            - eid_only: bool
-            - hook_ids: list[str]
-
-        Deletion note:
-            - t_created: datetime
-            - seen_times: int - How many times was the deletion note seen.
-        """
-        self.cache.create_index("type", background=True)
-        self.cache.create_index("t_created", background=True)
 
     @validate_call
     def register_record_update_hook(
@@ -134,24 +202,6 @@ class Updater:
             raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
         hooks[hook_id] = hook
 
-    def new_state(self, period: float, entity_type: str, eid_only: bool = False) -> dict:
-        now = datetime.now()
-        return {
-            "type": "state",
-            "t_created": now,
-            "t_last_update": now,
-            "t_end": now + timedelta(seconds=period),
-            "processed": 0,
-            "total": 0,
-            "iteration": 0,
-            "modulo": 0,
-            "finished": False,
-            "period": period,
-            "etype": entity_type,
-            "eid_only": eid_only,
-            "hook_ids": list(self.update_thread_hooks[(period, entity_type, eid_only)].keys()),
-        }
-
     def start(self):
         """
         Starts the updater.
@@ -159,35 +209,25 @@ class Updater:
         Will fetch the state of the updater from the cache and schedule the update threads.
         """
         # Get all unfinished progress states
-        states = self.cache.find({"type": "state", "finished": False})
         saved_states = {}
-        for state in states:
-            period = state["period"]
-            entity_type = state["etype"]
-            eid_only = state["eid_only"]
-            saved_states[(period, entity_type, eid_only)] = state
+        for state in self.cache.get_unfinished():
+            saved_states[state.thread_id] = state
 
         # Confirm all saved states have configured hooks, terminate if not
-        for (period, entity_type, eid_only), state in saved_states.items():
-            if (period, entity_type, eid_only) not in self.update_thread_hooks:
+        for thread_id, state in saved_states.items():
+            if thread_id not in self.update_thread_hooks:
                 self.log.warning(
                     "No hooks configured for '%s' entity with period: %s, aborting hooks: %s",
-                    entity_type,
-                    period,
-                    state["hook_ids"],
+                    state.etype,
+                    state.period,
+                    state.hook_ids,
                 )
-                self.cache.update_one(
-                    {
-                        k: v
-                        for k, v in state.items()
-                        if k in ["type", "period", "etype", "eid_only", "t_created"]
-                    },
-                    update={"$set": {"finished": True}},
-                )
+                state.finished = True
+                self.cache.update(state)
 
             # Find if any new hooks are added
-            configured_hooks = self.update_thread_hooks[(period, entity_type, eid_only)]
-            saved_hook_ids = set(state["hook_ids"])
+            configured_hooks = self.update_thread_hooks[thread_id]
+            saved_hook_ids = set(state.hook_ids)
             configured_hook_ids = set(configured_hooks.keys())
             new_hook_ids = configured_hook_ids - saved_hook_ids
             deleted_hook_ids = saved_hook_ids - configured_hook_ids
@@ -197,36 +237,22 @@ class Updater:
                 if deleted_hook_ids:
                     self.log.warning(
                         "Some hooks are deleted for '%s' entity with period: %s - %s",
-                        entity_type,
-                        period,
+                        state.etype,
+                        state.period,
                         deleted_hook_ids,
                     )
                 state["hook_ids"] = list(configured_hook_ids)
-                self.cache.update_one(
-                    {
-                        k: v
-                        for k, v in state.items()
-                        if k in ["type", "period", "etype", "eid_only", "t_created"]
-                    },
-                    update={
-                        "$set": {
-                            k: v
-                            for k, v in state.items()
-                            if k not in ["type", "period", "etype", "eid_only", "t_created"]
-                        },
-                    },
-                )
+                self.cache.update(state)
 
         # Add newly configured hooks that are not in the saved states
-        for thread_id in self.update_thread_hooks:
+        for thread_id, hooks in self.update_thread_hooks.items():
             if thread_id not in saved_states:
-                state = self.new_state(*thread_id)
-                self.cache.insert_one(state)
+                state = UpdateThreadState.new(hooks, *thread_id)
                 saved_states[thread_id] = state
 
         # Schedule the update threads
         for (period, entity_type, eid_only), state in saved_states.items():
-            if state["finished"]:
+            if state.finished:
                 continue
             hooks = self.update_thread_hooks[(period, entity_type, eid_only)]
             if eid_only:
@@ -234,11 +260,8 @@ class Updater:
             else:
                 processing_func = self._process_update_batch
 
-            if "_id" in state:
-                del state["_id"]
-
-            state["total"] = self.db.get_estimated_entity_count(entity_type)
-            state["modulo"] = self._calculate_batch_count(state)
+            state.total = self.db.get_estimated_entity_count(entity_type)
+            state.total_iterations = self._calculate_iteration_count(state)
 
             self.scheduler.register(
                 processing_func,
@@ -251,7 +274,7 @@ class Updater:
         Stops the updater.
         """
 
-    def _process_update_batch(self, entity_type: str, hooks: dict, state: dict):
+    def _process_update_batch(self, entity_type: str, hooks: dict, state: UpdateThreadState):
         """Processes a batch of entities of the specified type.
 
         Args:
@@ -267,7 +290,7 @@ class Updater:
             hook_runner=self._run_hooks,
         )
 
-    def _process_eid_update_batch(self, entity_type: str, hooks: dict, state: dict):
+    def _process_eid_update_batch(self, entity_type: str, hooks: dict, state: UpdateThreadState):
         """Processes a batch of entities of the specified type, only passing the entity ID.
 
         Args:
@@ -288,7 +311,7 @@ class Updater:
         self,
         entity_type: str,
         hooks: dict,
-        state: dict,
+        state: UpdateThreadState,
         record_getter: Callable[[int, int, str], Cursor],
         hook_runner: Callable[[dict[str, Callable], str, dict], None],
     ):
@@ -303,51 +326,39 @@ class Updater:
             hook_runner: Callable taking the (hooks, etype, record) and running the hooks.
         """
         self.log.debug("Processing update batch for '%s'", entity_type)
-        batch_cnt = state["modulo"]
-        iteration = state["iteration"]
+        iteration_cnt = state.total_iterations
+        iteration = state.iteration
 
         self.log.debug(
             "Current state - total: %s, processed: %s, iteration: %s",
-            state["total"],
-            state["processed"],
+            state.total,
+            state.processed,
             iteration,
         )
-        records = record_getter(iteration, batch_cnt, entity_type)
+        records = record_getter(iteration, iteration_cnt, entity_type)
 
         for record in records:
             hook_runner(hooks, entity_type, record)
 
-            state["processed"] += 1
-            state["t_last_update"] = datetime.now()
+            state.processed += 1
+            state.t_last_update = datetime.now()
 
-        if state["processed"] >= state["total"]:
-            state["finished"] = True
-        state["iteration"] = iteration + 1
+        state.iteration = iteration + 1
+        if state.iteration >= iteration_cnt:
+            state.finished = True
 
-        filter_dict = {
-            k: v
-            for k, v in state.items()
-            if k in ["type", "period", "etype", "eid_only", "t_created", "_id"]
-        }
-        update_dict = {
-            "$set": {
-                k: v
-                for k, v in state.items()
-                if k not in ["type", "period", "etype", "eid_only", "t_created", "_id"]
-            }
-        }
-        self.cache.update_one(filter_dict, update=update_dict, upsert=True)
+        self.cache.update(state)
 
-        if state["finished"]:
+        if state.finished:
             self.log.debug(
-                "Finished processing '%s' entity with period: %s", entity_type, state["period"]
+                "Finished processing '%s' entity with period: %s", entity_type, state.period
             )
-            state.update(self.new_state(state["period"], entity_type, state["eid_only"]))
-            state["total"] = self.db.get_estimated_entity_count(entity_type)
-            state["modulo"] = self._calculate_batch_count(state)
+            state.reset()
+            state.total = self.db.get_estimated_entity_count(entity_type)
+            state.total_iterations = self._calculate_iteration_count(state)
 
-    def _calculate_batch_count(self, state):
-        return state["period"] // self.config.update_batch_period.total_seconds()
+    def _calculate_iteration_count(self, state):
+        return int(state.period // self.config.update_batch_period.total_seconds())
 
     def _run_hooks(self, hooks: dict[str, Callable], entity_type: str, record: dict):
         tasks = []

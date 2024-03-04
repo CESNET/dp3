@@ -81,7 +81,6 @@ class Updater:
             - t_last_update: datetime
             - t_end: datetime
             - processed: int - The number of currently processed entities.
-            - last_processed_ctime: datetime - The time of creation of the last processed entity.
             - total: int - The total number of entities.
             - etype: str
             - period: int
@@ -142,8 +141,9 @@ class Updater:
             "t_end": now + timedelta(seconds=period),
             "processed": 0,
             "total": 0,
+            "iteration": 0,
+            "modulo": 0,
             "finished": False,
-            "last_processed_ctime": None,
             "period": period,
             "etype": entity_type,
             "eid_only": eid_only,
@@ -235,6 +235,9 @@ class Updater:
             if "_id" in state:
                 del state["_id"]
 
+            state["total"] = self.db.get_estimated_entity_count(entity_type)
+            state["modulo"] = self._calculate_batch_count(state)
+
             self.scheduler.register(
                 processing_func,
                 func_args=[entity_type, hooks, state],
@@ -249,38 +252,35 @@ class Updater:
     def _process_update_batch(self, entity_type: str, hooks: dict, state: dict):
         """Processes a batch of entities of the specified type.
 
-        TODO:
-            Add support for entity deletion notes.
-
         Args:
             entity_type: The entity type.
             hooks: The update hooks.
             state: The state of the update process.
         """
         self.log.debug("Processing update batch for '%s'", entity_type)
-        state["total"] = self.db.get_estimated_entity_count(entity_type)
-        batch_size = self._calculate_batch_size(entity_type, state)
+        batch_cnt = state["modulo"]
+        iteration = state["iteration"]
+
         self.log.debug(
-            "Current state - total: %s, processed: %s, batch size: %s",
+            "Current state - total: %s, processed: %s, iteration: %s",
             state["total"],
             state["processed"],
-            batch_size,
+            iteration,
         )
-        records = (
-            self.db.get_master_records(entity_type, sort=[("#time_created", 1)])
-            .skip(state["processed"])
-            .limit(batch_size)
+        records = self.db.get_worker_master_records(
+            worker_index=iteration, worker_cnt=batch_cnt, etype=entity_type
         )
 
         for record in records:
             self._run_hooks(hooks, entity_type, record)
 
             state["processed"] += 1
-            state["last_processed_ctime"] = record["#time_created"]
             state["t_last_update"] = datetime.now()
 
         if state["processed"] >= state["total"]:
             state["finished"] = True
+        state["iteration"] = iteration + 1
+
         filter_dict = {
             k: v
             for k, v in state.items()
@@ -300,48 +300,22 @@ class Updater:
                 "Finished processing '%s' entity with period: %s", entity_type, state["period"]
             )
             state.update(self.new_state(state["period"], entity_type, state["eid_only"]))
+            state["total"] = self.db.get_estimated_entity_count(entity_type)
+            state["modulo"] = self._calculate_batch_count(state)
 
     def _process_eid_update_batch(self, entity_type: str, hooks: dict, state: dict):
         """Processes a batch of entities of the specified type, only passing the entity ID.
+
+        TODO: Finish after finalizing normal update callback
 
         Args:
             entity_type: The entity type.
             hooks: The update hooks.
             state: The state of the update process.
         """
-        state["total"] = self.db.get_estimated_entity_count(entity_type)
-        batch_size = self._calculate_batch_size(entity_type, state)
-        records = (
-            self.db.get_master_records(
-                entity_type, sort={"#time_created": 1}, project={"_id": True}
-            )
-            .skip(state["processed"])
-            .limit(batch_size)
-        )
 
-        for record in records:
-            self._run_hooks_eid(hooks, entity_type, record["_id"])
-
-            state["processed"] += 1
-            state["last_processed_ctime"] = record["#time_created"]
-            state["t_last_update"] = datetime.now()
-
-        if state["processed"] >= state["total"]:
-            self.log.debug(
-                "Finished processing '%s' entity with period: %s", entity_type, state["period"]
-            )
-            state.update(self.new_state(state["period"], entity_type, state["eid_only"]))
-
-    def _calculate_batch_size(self, entity_type, state):
-        processed = state["processed"]
-        total = state["total"]
-
-        # Calculate the batch size
-        if total <= processed:
-            return 0
-        batches_remaining = (state["t_end"] - datetime.now()) // self.config.update_batch_period
-        batch_size = int((total - processed) / (batches_remaining + 1))
-        return batch_size
+    def _calculate_batch_count(self, state):
+        return state["period"] // self.config.update_batch_period.total_seconds()
 
     def _run_hooks(self, hooks: dict[str, Callable], entity_type: str, record: dict):
         tasks = []

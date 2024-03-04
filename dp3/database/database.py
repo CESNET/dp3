@@ -201,9 +201,6 @@ class EntityDatabase:
                     attr, background=True, partialFilterExpression={attr: {"$exists": True}}
                 )
 
-            # Time created index for periodic updates
-            self._db[master_col].create_index("#time_created", background=True)
-
         # Create a TTL index for metadata collection
         self._db["#metadata"].create_index(
             "#time_created", expireAfterSeconds=60 * 60 * 24 * 30, background=True

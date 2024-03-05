@@ -9,6 +9,7 @@ from typing import Callable, Literal, Union
 
 from pydantic import BaseModel, validate_call
 from pymongo.cursor import Cursor
+from pymongo.results import UpdateResult
 
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.scheduler import Scheduler
@@ -22,22 +23,19 @@ class UpdaterConfig(BaseModel):
     """The configuration of the Updater module.
 
     The periodic update is executed in smaller batches for better robustness.
-    The batch size is dynamically adjusted based on the current number of
-    processed entities, the total number of entities and the estimated growth rate.
-    The minimum batch size can be also specified to avoid excessive overhead.
+    The batch size is dynamically adjusted based the total number of entities
+    and the estimated growth rate.
 
     Attributes:
         update_batch_cron: A CRON expression for the periodic update.
         update_batch_period: The period of the periodic update.
             Should equal to the period of update_batch_cron.
         est_growth_rate: The estimated growth rate of the number of entities.
-        min_batch_size: The minimum batch size of the periodic update.
     """
 
     update_batch_cron: CronExpression
     update_batch_period: ParsedTimedelta
     est_growth_rate: float = 0.05
-    min_batch_size: int = 10
 
 
 class UpdateThreadState(BaseModel, validate_assignment=True):
@@ -75,6 +73,7 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
 
     @classmethod
     def new(cls, hooks: dict, period: float, entity_type: str, eid_only: bool = False):
+        """Create a new instance initialized with hooks and thread_id components."""
         now = datetime.now()
         return cls(
             t_created=now,
@@ -86,15 +85,18 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
             hook_ids=hooks.keys(),
         )
 
-    @property
-    def id_attributes(self):
+    @staticmethod
+    def id_attributes():
+        """A list of attributes which identify the state in cache."""
         return ["type", "period", "etype", "eid_only", "t_created"]
 
     @property
     def thread_id(self) -> tuple[float, str, bool]:
+        """A tuple of (period, entity_type, eid_only)."""
         return self.period, self.etype, self.eid_only
 
     def reset(self):
+        """Resets counters and timestamps."""
         now = datetime.now()
         self.t_created = now
         self.t_last_update = now
@@ -105,32 +107,31 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
 
 
 class UpdaterCache:
+    """
+    The cache collection contains the metadata documents with
+    the state of the update process for each entity type.
+    """
+
     def __init__(self, cache_collection):
         self._cache = cache_collection
         self._setup_cache_indexes()
 
     def get_unfinished(self) -> Iterator[UpdateThreadState]:
+        """Yields all unfinished cache entries from DB."""
         for state in self._cache.find({"type": "state", "finished": False}):
             yield UpdateThreadState.model_validate(state)
 
-    def update(self, state: UpdateThreadState):
+    def upsert(self, state: UpdateThreadState) -> UpdateResult:
+        """Update or insert a state entry into DB."""
         state_dict = state.model_dump()
-        filter_dict = {k: v for k, v in state_dict.items() if k in state.id_attributes}
+        filter_dict = {k: v for k, v in state_dict.items() if k in state.id_attributes()}
         update_dict = {
-            "$set": {k: v for k, v in state_dict.items() if k not in state.id_attributes}
+            "$set": {k: v for k, v in state_dict.items() if k not in state.id_attributes()}
         }
-        self._cache.update_one(filter_dict, update=update_dict, upsert=True)
-
-    def insert(self, state: UpdateThreadState):
-        self._cache.insert_one(state.model_dump())
+        return self._cache.update_one(filter_dict, update=update_dict, upsert=True)
 
     def _setup_cache_indexes(self):
-        """Sets up the indexes of the state cache.
-
-        The cache collection contains the metadata documents with
-        the state of the update process for each entity type.
-        """
-        self._cache.create_index("type", background=True)
+        """Sets up the indexes of the state cache."""
         self._cache.create_index("t_created", background=True)
 
 
@@ -223,7 +224,7 @@ class Updater:
                     state.hook_ids,
                 )
                 state.finished = True
-                self.cache.update(state)
+                self.cache.upsert(state)
 
             # Find if any new hooks are added
             configured_hooks = self.update_thread_hooks[thread_id]
@@ -242,7 +243,7 @@ class Updater:
                         deleted_hook_ids,
                     )
                 state["hook_ids"] = list(configured_hook_ids)
-                self.cache.update(state)
+                self.cache.upsert(state)
 
         # Add newly configured hooks that are not in the saved states
         for thread_id, hooks in self.update_thread_hooks.items():
@@ -347,7 +348,7 @@ class Updater:
         if state.iteration >= iteration_cnt:
             state.finished = True
 
-        self.cache.update(state)
+        self.cache.upsert(state)
 
         if state.finished:
             self.log.debug(

@@ -177,12 +177,7 @@ class Updater:
 
         The hook receives the entity type, the entity ID and the master record.
         """
-        thread_id = (period.total_seconds(), entity_type, False)  # false meaning not eid_only
-        hooks = self.update_thread_hooks[thread_id]
-
-        if hook_id in hooks:
-            raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
-        hooks[hook_id] = hook
+        self._register_hook(hook, hook_id, entity_type, period.total_seconds(), eid_only=False)
 
     @validate_call
     def register_eid_update_hook(
@@ -196,9 +191,18 @@ class Updater:
 
         The hook receives the entity type and the entity ID.
         """
-        thread_id = (period.total_seconds(), entity_type, True)  # true meaning eid_only
-        hooks = self.update_thread_hooks.get(thread_id, {})
+        self._register_hook(hook, hook_id, entity_type, period.total_seconds(), eid_only=True)
 
+    def _register_hook(self, hook, hook_id: str, entity_type: str, period: float, eid_only: bool):
+        update_period_secs = self.config.update_batch_period.total_seconds()
+        if period < update_period_secs:
+            raise ValueError(
+                f"The total period {period}s is must be greater or equal than "
+                f"the update batch period {update_period_secs}s."
+            )
+
+        thread_id = (period, entity_type, eid_only)
+        hooks = self.update_thread_hooks[thread_id]
         if hook_id in hooks:
             raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
         hooks[hook_id] = hook
@@ -278,10 +282,13 @@ class Updater:
                 **self.config.update_batch_cron.model_dump(),
             )
 
+        # Connect the queue writer
+        self.task_queue_writer.connect()
+        self.task_queue_writer.check()  # check presence of needed exchanges
+
     def stop(self):
-        """
-        Stops the updater.
-        """
+        """Stops the updater."""
+        self.task_queue_writer.disconnect()
 
     def _process_update_batch(self, entity_type: str, hooks: dict, state: UpdateThreadState):
         """Processes a batch of entities of the specified type.
@@ -368,7 +375,7 @@ class Updater:
     def _calculate_iteration_count(self, period_seconds: float) -> int:
         total_iterations = int(period_seconds // self.config.update_batch_period.total_seconds())
         if total_iterations == 0:
-            raise ValueError("The update batch period is shorter than the total period.")
+            raise ValueError("The total period is shorter than the update batch period.")
         return total_iterations
 
     def _run_hooks(self, hooks: dict[str, Callable], entity_type: str, record: dict):

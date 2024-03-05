@@ -242,7 +242,7 @@ class Updater:
                         state.period,
                         deleted_hook_ids,
                     )
-                state["hook_ids"] = list(configured_hook_ids)
+                state.hook_ids = list(configured_hook_ids)
                 self.cache.upsert(state)
 
         # Add newly configured hooks that are not in the saved states

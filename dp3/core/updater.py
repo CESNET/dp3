@@ -262,7 +262,15 @@ class Updater:
                 processing_func = self._process_update_batch
 
             state.total = self.db.get_estimated_entity_count(entity_type)
-            state.total_iterations = self._calculate_iteration_count(state)
+            try:
+                state.total_iterations = self._calculate_iteration_count(state.period)
+            except ValueError:
+                self.log.error(
+                    "Invalid period configuration for thread: %s, "
+                    "the update batch period must be smaller than the total period ",
+                    state,
+                )
+                raise
 
             self.scheduler.register(
                 processing_func,
@@ -356,10 +364,12 @@ class Updater:
             )
             state.reset()
             state.total = self.db.get_estimated_entity_count(entity_type)
-            state.total_iterations = self._calculate_iteration_count(state)
 
-    def _calculate_iteration_count(self, state):
-        return int(state.period // self.config.update_batch_period.total_seconds())
+    def _calculate_iteration_count(self, period_seconds: float) -> int:
+        total_iterations = int(period_seconds // self.config.update_batch_period.total_seconds())
+        if total_iterations == 0:
+            raise ValueError("The update batch period is shorter than the total period.")
+        return total_iterations
 
     def _run_hooks(self, hooks: dict[str, Callable], entity_type: str, record: dict):
         tasks = []

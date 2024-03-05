@@ -55,6 +55,7 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
         period: Period length in seconds.
         eid_only: Whether only eids are passed to hooks.
         hook_ids: Hook ids.
+        runtime_secs: Total hook runtime in seconds.
     """
 
     type: Literal["state"] = "state"
@@ -70,6 +71,7 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
     etype: str
     eid_only: bool
     hook_ids: list[str]
+    runtime_secs: float = 0.0
 
     @classmethod
     def new(cls, hooks: dict, period: float, entity_type: str, eid_only: bool = False):
@@ -100,9 +102,10 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
         now = datetime.now()
         self.t_created = now
         self.t_last_update = now
-        self.t_end = now + timedelta(self.period)
+        self.t_end = now + timedelta(seconds=self.period)
         self.iteration = 0
         self.processed = 0
+        self.runtime_secs = 0.0
         self.finished = False
 
 
@@ -342,6 +345,7 @@ class Updater:
             hook_runner: Callable taking the (hooks, etype, record) and running the hooks.
         """
         self.log.debug("Processing update batch for '%s'", entity_type)
+        start = datetime.now()
         iteration_cnt = state.total_iterations
         iteration = state.iteration
 
@@ -357,7 +361,23 @@ class Updater:
             hook_runner(hooks, entity_type, record)
 
             state.processed += 1
-            state.t_last_update = datetime.now()
+        state.t_last_update = datetime.now()
+
+        duration = state.t_last_update - start
+        state.runtime_secs += duration.total_seconds()
+
+        if state.runtime_secs > state.period:
+            self.log.warning(
+                "%s hooks: %s, The total hook runtime %.2fs exceeds the desired period %.2fs. "
+                "(Current average is %.3fs per entity when limit is %.3fs) "
+                "Consider optimizing the hooks or extending the update period.",
+                entity_type,
+                state.hook_ids,
+                state.runtime_secs,
+                state.period,
+                state.runtime_secs / state.processed,
+                state.period / state.total,
+            )
 
         state.iteration = iteration + 1
         if state.iteration >= iteration_cnt:

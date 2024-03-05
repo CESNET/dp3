@@ -208,6 +208,13 @@ class Updater:
         hooks = self.update_thread_hooks[thread_id]
         if hook_id in hooks:
             raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
+        self.log.info(
+            "Registered hook '%s' to thread processing entity '%s' over %.1fs, eid_only = %s",
+            hook_id,
+            entity_type,
+            period,
+            eid_only,
+        )
         hooks[hook_id] = hook
 
     def start(self):
@@ -225,13 +232,15 @@ class Updater:
         for thread_id, state in saved_states.items():
             if thread_id not in self.update_thread_hooks:
                 self.log.warning(
-                    "No hooks configured for '%s' entity with period: %s, aborting hooks: %s",
+                    "Previously configured hooks %s for '%s' entity with period: %ss "
+                    "match no current configuration, aborting update thread.",
+                    state.hook_ids,
                     state.etype,
                     state.period,
-                    state.hook_ids,
                 )
                 state.finished = True
                 self.cache.upsert(state)
+                continue
 
             # Find if any new hooks are added
             configured_hooks = self.update_thread_hooks[thread_id]
@@ -244,10 +253,10 @@ class Updater:
             if deleted_hook_ids or new_hook_ids:
                 if deleted_hook_ids:
                     self.log.warning(
-                        "Some hooks are deleted for '%s' entity with period: %s - %s",
+                        "Previously configured hooks %s were deleted for entity '%s', period: %ss",
+                        deleted_hook_ids,
                         state.etype,
                         state.period,
-                        deleted_hook_ids,
                     )
                 state.hook_ids = list(configured_hook_ids)
                 self.cache.upsert(state)
@@ -270,7 +279,11 @@ class Updater:
 
             state.total = self.db.get_estimated_entity_count(entity_type)
             try:
-                state.total_iterations = self._calculate_iteration_count(state.period)
+                total_iterations = self._calculate_iteration_count(state.period)
+                if state.iteration != 0 and total_iterations != state.total_iterations:
+                    self.log.info("The update period was changed, resetting iteration number")
+                    state.iteration = 0
+                state.total_iterations = total_iterations
             except ValueError:
                 self.log.error(
                     "Invalid period configuration for thread: %s, "
@@ -344,16 +357,24 @@ class Updater:
                 to access the required record values.
             hook_runner: Callable taking the (hooks, etype, record) and running the hooks.
         """
-        self.log.debug("Processing update batch for '%s'", entity_type)
+        self.log.debug(
+            "Processing update batch for '%s' over %.1fs, eid_only = %s",
+            entity_type,
+            state.period,
+            state.eid_only,
+        )
         start = datetime.now()
         iteration_cnt = state.total_iterations
         iteration = state.iteration
 
         self.log.debug(
-            "Current state - total: %s, processed: %s, iteration: %s",
-            state.total,
+            "Current state - processed entities: %s/%s, iteration: %s/%s, "
+            "avg runtime per entity: %.3fs",
             state.processed,
+            state.total,
             iteration,
+            state.total_iterations,
+            state.runtime_secs / state.processed if state.processed > 0 else 0,
         )
         records = record_getter(iteration, iteration_cnt, entity_type)
 

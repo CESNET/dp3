@@ -12,7 +12,7 @@ def parse_timedelta_or_passthrough(v):
     """
     We pass the value to the native pydantic validator if the value does not match our pattern.
     """
-    if v and time_duration_pattern.match(v):
+    if v and isinstance(v, str) and time_duration_pattern.match(v):
         return parse_time_duration(v)
     return v
 

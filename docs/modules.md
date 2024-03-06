@@ -302,6 +302,8 @@ registrar.register_timeseries_hook(
 Correlation callbacks are called during snapshot creation, and allow to perform analysis
 on the data of the snapshot.
 
+#### Snapshots Correlation Hook
+
 The [`register_correlation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
 method expects a callable with the following signature: 
 `Callable[[str, dict], Union[None, list[DataPointTask]]]`, where the first argument is the entity type, and the second is a dict
@@ -356,6 +358,66 @@ def snapshot_finalize_hook() -> list[DataPointTask]:
 registrar.register_snapshot_finalize_hook(snapshot_init_hook)
 ```
 
+### Periodic Update Callbacks
+
+Snapshots, which are designed to execute as quickly as possible parallelized over all workers,
+may not fit every use-case for updates, especially when the updates are not tied only to the entity's state.
+For example, fetching data from an external system where rate limits are a concern.
+
+This is where the updater module comes in.
+The updater module is responsible for updating all entities in the database over a longer time frame.
+Learn more about the updater module in the [updater configuration](configuration/updater.md) page.
+
+#### Periodic Update Hook
+
+The [`register_periodic_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_update_hook]
+method expects a callable with the following signature: 
+`Callable[[str, str, dict], list[DataPointTask]]`, where the first arguments are the entity type,
+entity ID and master record as arguments. 
+The callable should return a list of DataPointTask objects to perform (possibly empty).
+
+You must also pass a unique `hook_id` string when registering the hook, the entity type and 
+the period over which the hook should be called for all entities.
+The following example shows how to register a periodic update hook for an entity type `test_entity_type`.
+The hook will be called for all entities of this type every day.
+
+```python
+def periodic_update_hook(entity_type: str, eid: str, record: dict) -> list[DataPointTask]:
+    ...
+    return []
+
+registrar.register_periodic_update_hook(
+    periodic_update_hook, "test_id", "test_entity_type", "1d"
+)
+```
+
+!!! warning "Set a Realistic Update Period"
+
+    Try to configure the period to match the real execution time of the registered hooks, 
+    as when the period is too short, the hooks may not finish before the next batch is run,
+    leading to missed runs and potentially even to doubling of the effective update period.
+
+
+#### Periodic Update EID Hook
+
+The periodic eid update hook is similar to the previous periodic update hook, but the entity record is not passed to the callback.
+This hook is useful when the entity record is not needed for the update, meaning the record data does not have to be fetched from the database.
+
+The [`register_periodic_eid_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_eid_update_hook]
+method expects a callable with the following signature:
+`Callable[[str, str], list[DataPointTask]]`, where the first argument is the entity ID and the second is the entity type.
+The callable should return a list of DataPointTask objects to perform (possibly empty).
+All other arguments are the same as for the [periodic update hook](#periodic-update-hook).
+
+```python
+def periodic_eid_update_hook(eid: str, entity_type: str) -> list[DataPointTask]:
+    ...
+    return []
+
+registrar.register_periodic_eid_update_hook(
+    periodic_eid_update_hook, "test_id", "test_entity_type", "1d"
+)
+```
 
 ## Running module code in a separate thread
 

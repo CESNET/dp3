@@ -19,7 +19,7 @@ from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 
-class UpdaterConfig(BaseModel):
+class UpdaterConfig(BaseModel, extra="forbid"):
     """The configuration of the Updater module.
 
     The periodic update is executed in smaller batches for better robustness.
@@ -29,13 +29,11 @@ class UpdaterConfig(BaseModel):
     Attributes:
         update_batch_cron: A CRON expression for the periodic update.
         update_batch_period: The period of the periodic update.
-            Should equal to the period of update_batch_cron.
-        est_growth_rate: The estimated growth rate of the number of entities.
+            Should equal to the period of `update_batch_cron`.
     """
 
     update_batch_cron: CronExpression
     update_batch_period: ParsedTimedelta
-    est_growth_rate: float = 0.05
 
 
 class UpdateThreadState(BaseModel, validate_assignment=True):

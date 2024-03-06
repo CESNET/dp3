@@ -58,6 +58,7 @@ nav:
     - Processing core: configuration/processing_core.md
     - Snapshots: configuration/snapshots.md
     - Garbage Collector: configuration/garbage_collector.md
+    - Updater: configuration/updater.md
   - Code Reference: reference/
   - Grafana plugin: grafana_plugin.md
   - Extending Documentation: extending.md

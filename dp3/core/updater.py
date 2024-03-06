@@ -5,7 +5,7 @@ from collections import defaultdict
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from functools import partial
-from typing import Callable, Literal, Union
+from typing import Callable, Literal
 
 from pydantic import BaseModel, validate_call
 from pymongo.cursor import Cursor
@@ -186,7 +186,7 @@ class Updater:
         hook: Callable[[str, str], list[DataPointTask]],
         hook_id: str,
         entity_type: str,
-        period: Union[timedelta, str],
+        period: ParsedTimedelta,
     ):
         """Registers a hook for periodic update of entities of the specified type.
 

@@ -250,6 +250,9 @@ class Updater:
 
         Will fetch the state of the updater from the cache and schedule the update threads.
         """
+        if not self.enabled:
+            return
+
         # Get all unfinished progress states
         saved_states = {}
         for state in self.cache.get_unfinished():
@@ -331,6 +334,9 @@ class Updater:
 
     def stop(self):
         """Stops the updater."""
+        if not self.enabled:
+            return
+
         self.task_queue_writer.disconnect()
 
     def _process_update_batch(self, entity_type: str, hooks: dict, state: UpdateThreadState):

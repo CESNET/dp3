@@ -27,3 +27,15 @@ update_batch_period: "5m"
 
 Try to find a balance between having batches run too often (some batches may execute empty,
 leading to unnecessary overhead) and too rarely.
+
+Additional options are available for the updater module, but they are not required.
+They are used to configure when cache management runs and the maximum number of entries in the cache.
+These are the options with their default values:
+
+```yaml
+cache_management_cron: { hour: "2", minute: "0", second: "0" }  # (1)!
+cache_max_entries: 32  # (2)!
+```
+
+1. `cache_management_cron` - a cron schedule for the cache management. See [CronExpression docs][dp3.common.config.CronExpression] for details.
+2. `cache_max_entries` - the maximum number of entries in the cache. If the number of cache items (counted for each individual period) exceeds this number, the oldest entries are removed.

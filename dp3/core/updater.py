@@ -30,10 +30,15 @@ class UpdaterConfig(BaseModel, extra="forbid"):
         update_batch_cron: A CRON expression for the periodic update.
         update_batch_period: The period of the periodic update.
             Should equal to the period of `update_batch_cron`.
+        cache_management_cron: A CRON expression for the cache management.
+        cache_max_entries: The maximum number of finished cache entries per thread_id.
     """
 
     update_batch_cron: CronExpression
     update_batch_period: ParsedTimedelta
+
+    cache_management_cron: CronExpression = CronExpression(hour=2, minute=0, second=0)
+    cache_max_entries: int = 32
 
 
 class UpdateThreadState(BaseModel, validate_assignment=True):
@@ -131,6 +136,27 @@ class UpdaterCache:
         }
         return self._cache.update_one(filter_dict, update=update_dict, upsert=True)
 
+    def register_management(
+        self, scheduler: Scheduler, trigger: CronExpression, max_entries: int
+    ) -> int:
+        """Registers the cache management task with the scheduler."""
+        return scheduler.register(
+            self._manage_cache, func_args=[max_entries], **trigger.model_dump()
+        )
+
+    def _manage_cache(self, max_entries: int):
+        """Removes the oldest finished cache entries if their count exceeds the limit."""
+        counts_per_thread_id = defaultdict(int)
+        to_delete = []
+
+        for state in self._cache.find({"type": "state", "finished": True}).sort("t_created", -1):
+            state_obj = UpdateThreadState.model_validate(state)
+            counts_per_thread_id[state_obj.thread_id] += 1
+            if counts_per_thread_id[state_obj.thread_id] > max_entries:
+                to_delete.append(state["_id"])
+
+        self._cache.delete_many({"_id": {"$in": to_delete}})
+
     def _setup_cache_indexes(self):
         """Sets up the indexes of the state cache."""
         self._cache.create_index("t_created", background=True)
@@ -163,6 +189,9 @@ class Updater:
 
         # Get state cache
         self.cache = UpdaterCache(self.db.get_module_cache("Updater"))
+        self.cache.register_management(
+            scheduler, self.config.cache_management_cron, self.config.cache_max_entries
+        )
 
         self.update_thread_hooks = defaultdict(dict)
 

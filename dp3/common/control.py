@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from dp3.common.config import PlatformConfig
 from dp3.common.task import Task
+from dp3.common.utils import get_func_name
 from dp3.task_processing.task_distributor import TaskDistributor
 from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_queue import TaskQueueReader
@@ -75,7 +76,9 @@ class Control:
         self.control_queue.check()  # check presence of needed queues
         self.control_queue.start()
 
-        self.log.debug("Configured handlers: %s", self.action_handlers)
+        self.log.debug(
+            "Configured handlers: %s", ", ".join(get_func_name(f) for f in self.action_handlers)
+        )
 
     def stop(self):
         """Stop consuming from TaskQueue, disconnect from RabbitMQ."""
@@ -84,7 +87,7 @@ class Control:
 
     def set_action_handler(self, action: ControlAction, handler: Callable):
         """Sets the handler for the given action"""
-        self.log.debug("Setting handler for action %s: %s", action, handler)
+        self.log.debug("Setting handler for action %s: %s", action, get_func_name(handler))
         self.action_handlers[action] = handler
 
     def process_control_task(self, msg_id, task: ControlMessage):

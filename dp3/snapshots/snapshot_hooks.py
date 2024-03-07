@@ -50,7 +50,7 @@ class SnapshotTimeseriesHookContainer:
         if spec.t != AttrType.TIMESERIES:
             raise ValueError(f"'{entity_type}.{attr_type}' is not a timeseries, but '{spec.t}'")
         self._hooks[entity_type, attr_type].append(hook)
-        self.log.debug(f"Added hook: '{hook.__qualname__}'")
+        self.log.debug(f"Added hook: '{get_func_name(hook)}'")
 
     def run(
         self, entity_type: str, attr_type: str, attr_history: list[dict]

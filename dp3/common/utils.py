@@ -4,6 +4,7 @@ auxiliary/utility functions and classes
 
 import datetime
 import re
+from functools import partial
 from typing import Union
 
 # *** IP conversion functions ***
@@ -135,6 +136,16 @@ def conv_from_json(dct):
 # *** pretty print ***
 def get_func_name(func_or_method):
     """Get name of function or method as pretty string."""
+    if isinstance(func_or_method, partial):
+        wrapper = "partial({name}, {args})"
+        args = [str(a) for a in func_or_method.args]
+        args.extend(f"{k}={v}" for k, v in func_or_method.keywords.items())
+        args = ", ".join(args)
+        func_or_method = func_or_method.func
+    else:
+        wrapper = "{name}{args}"
+        args = ""
+
     try:
         fname = func_or_method.__func__.__qualname__
     except AttributeError:
@@ -147,4 +158,4 @@ def get_func_name(func_or_method):
         module = func_or_method.__module__
     except AttributeError:
         return fname
-    return f"{module}.{fname}"
+    return wrapper.format(name=f"{module}.{fname}", args=args)

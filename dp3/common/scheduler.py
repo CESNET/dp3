@@ -11,6 +11,8 @@ from typing import Callable, Union
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from dp3.common.utils import get_func_name
+
 
 class Scheduler:
     """
@@ -85,7 +87,7 @@ class Scheduler:
             max_instances=1,
             id=str(self.last_job_id),
         )
-        self.log.debug(f"Registered function {func.__qualname__} to be called at {trigger}")
+        self.log.debug(f"Registered function {get_func_name(func)} to be called at {trigger}")
         return self.last_job_id
 
     def pause_job(self, id):

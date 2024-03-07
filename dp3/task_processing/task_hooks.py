@@ -6,6 +6,7 @@ from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import EventGroupType
+from dp3.common.utils import get_func_name
 
 
 class TaskGenericHooksContainer:
@@ -28,7 +29,7 @@ class TaskGenericHooksContainer:
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
 
-        self.log.debug(f"Added '{hook_type}' hook: {hook}")
+        self.log.debug(f"Added '{hook_type}' hook: {get_func_name(hook)}")
 
     def run_on_start(self, task: DataPointTask):
         for hook in self._on_start:
@@ -69,7 +70,7 @@ class TaskEntityHooksContainer:
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
 
-        self.log.debug(f"Added '{hook_type}' hook: {hook}")
+        self.log.debug(f"Added '{hook_type}' hook: {get_func_name(hook)}")
 
     def run_allow_creation(self, eid: str, task: DataPointTask):
         for hook in self._allow_creation:
@@ -81,7 +82,7 @@ class TaskEntityHooksContainer:
                     return False
             except Exception as e:
                 self.elog.log("module_error")
-                self.log.error(f"Error during running hook {hook}: {e}")
+                self.log.error(f"Error during running hook {get_func_name(hook)}: {e}")
 
         return True
 
@@ -147,7 +148,7 @@ class TaskAttrHooksContainer:
                 f"Hook type '{hook_type}' doesn't exist for {self.entity}/{self.attr}."
             )
 
-        self.log.debug(f"Added '{hook_type}' hook: {hook}")
+        self.log.debug(f"Added '{hook_type}' hook: {get_func_name(hook)}")
 
     def run_on_new(self, eid: str, dp: DataPointBase):
         new_tasks = []

@@ -303,6 +303,7 @@ class EntityDatabase:
 
         if new_entity:
             master_changes["$set"]["#hash"] = HASH(f"{etype}:{eid}")
+            master_changes["$set"]["#time_created"] = datetime.now()
 
         master_col = self._master_col_name(etype)
         try:
@@ -1040,3 +1041,8 @@ class EntityDatabase:
         module = override_called_id or get_caller_id()
         self.log.debug("Cache collection access: %s", module)
         return self._db[f"#cache#{module}"]
+
+    def get_estimated_entity_count(self, entity_type: str) -> int:
+        """Get count of entities of given type."""
+        master_col = self._master_col_name(entity_type)
+        return self._db[master_col].estimated_document_count()

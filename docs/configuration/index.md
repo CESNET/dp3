@@ -12,6 +12,7 @@ DP³ configuration folder consists of these files and folders:
 - [`📄 history_manager.yml`](history_manager.md) - How often is [history management](../history_management.md) performed.
 - [`📄 processing_core.yml`](processing_core.md) - Settings of main application workers.
 - [`📄 snapshots.yml`](snapshots.md) - How often are entity snapshots taken.
+- [`📄 updater.yml`](updater.md) - Periodic updates of all entities over a longer time frame.
 
 The details of their meaning and usage is explained in their relative pages.
 

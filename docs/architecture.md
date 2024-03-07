@@ -100,7 +100,7 @@ Snapshots take the profile history, and compute the **current value** of the pro
 reducing each attribute history to a single value. 
 The snapshot creation frequency is [configurable](configuration/snapshots.md).
 Snapshots are created on a per-entity basis, but all linked entities are processed at the same time.
-This means that when snapshots are created, the [registered snapshot callbacks][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
+This means that when snapshots are created, the [registered snapshot callbacks](modules.md#correlation-callbacks)
 can access any linked entities for their data correlation needs. 
 After all the correlation callbacks are called, the snapshot is written to the **profile snapshot** collection,
 for which it can be accessed via the API. The collection is accessible under the name `{entity}#snapshots`.

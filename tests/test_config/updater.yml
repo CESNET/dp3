@@ -1,0 +1,6 @@
+# Configuration of the Updater module, responsible for
+# periodically calling hooks updating the system.
+
+# The time values specified bellow must be equivalent, otherwise the system will not work properly.
+update_batch_cron: { minute: "*/5", second: "0" }
+update_batch_period: "5m"

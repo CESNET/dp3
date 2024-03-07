@@ -20,6 +20,7 @@ from dp3.common.config import PlatformConfig
 from dp3.common.control import Control, ControlAction, refresh_on_entity_creation
 from dp3.core.collector import GarbageCollector
 from dp3.core.link_manager import LinkManager
+from dp3.core.updater import Updater
 from dp3.history_management.telemetry import Telemetry
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -178,7 +179,14 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         global_scheduler,
         elog,
     )
-    registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter)
+    updater = Updater(
+        db,
+        TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
+        platform_config,
+        global_scheduler,
+        elog,
+    )
+    registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
 
     LinkManager(db, platform_config, registrar)
     HistoryManager(db, platform_config, registrar)
@@ -242,27 +250,32 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     for module in loaded_modules.values():
         module.start()
 
-    # start TaskDistributor (which starts TaskExecutors in several worker threads)
-    task_distributor.start()
+    core_modules = [
+        updater,  # Updater will throw exceptions when misconfigured (best start first)
+        task_distributor,  # TaskDistributor (which starts TaskExecutors in several worker threads)
+        snap_shooter,
+        control,
+        global_scheduler,
+    ]
+    running_core_modules = []
 
-    # Run scheduler
-    global_scheduler.start()
+    try:
+        for module in core_modules:
+            module.start()
+            running_core_modules.append(module)
 
-    # Run SnapShooter
-    snap_shooter.start()
-
-    control.start()
-
-    # Wait until someone wants to stop the program by releasing this Lock.
-    # It may be a user by pressing Ctrl-C or some program module.
-    # (try to acquire the lock again,
-    # effectively waiting until it's released by signal handler or another thread)
-    if os.name == "nt":
-        # This is needed on Windows in order to catch Ctrl-C, which doesn't break the waiting.
-        while not daemon_stop_lock.acquire(timeout=1):
-            pass
-    else:
-        daemon_stop_lock.acquire()
+        # Wait until someone wants to stop the program by releasing this Lock.
+        # It may be a user by pressing Ctrl-C or some program module.
+        # (try to acquire the lock again,
+        # effectively waiting until it's released by signal handler or another thread)
+        if os.name == "nt":
+            # This is needed on Windows in order to catch Ctrl-C, which doesn't break the waiting.
+            while not daemon_stop_lock.acquire(timeout=1):
+                pass
+        else:
+            daemon_stop_lock.acquire()
+    except Exception as e:
+        log.exception(e)
 
     ################################################
     # Finalization & cleanup
@@ -273,10 +286,9 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     signal.signal(signal.SIGABRT, signal.SIG_DFL)
 
     log.info("Stopping running components ...")
-    control.stop()
-    snap_shooter.stop()
-    global_scheduler.stop()
-    task_distributor.stop()
+    for module in reversed(running_core_modules):
+        module.stop()
+
     for module in loaded_modules.values():
         module.stop()
 

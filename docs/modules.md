@@ -372,8 +372,8 @@ Learn more about the updater module in the [updater configuration](configuration
 
 The [`register_periodic_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_update_hook]
 method expects a callable with the following signature: 
-`Callable[[str, str, dict], list[DataPointTask]]`, where the first arguments are the entity type,
-entity ID and master record as arguments. 
+`Callable[[str, str, dict], list[DataPointTask]]`, where the arguments are the entity type,
+entity ID and master record. 
 The callable should return a list of DataPointTask objects to perform (possibly empty).
 
 You must also pass a unique `hook_id` string when registering the hook, the entity type and 
@@ -405,12 +405,12 @@ This hook is useful when the entity record is not needed for the update, meaning
 
 The [`register_periodic_eid_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_eid_update_hook]
 method expects a callable with the following signature:
-`Callable[[str, str], list[DataPointTask]]`, where the first argument is the entity ID and the second is the entity type.
+`Callable[[str, str], list[DataPointTask]]`, where the first argument is the entity type and the second is the entity ID.
 The callable should return a list of DataPointTask objects to perform (possibly empty).
 All other arguments are the same as for the [periodic update hook](#periodic-update-hook).
 
 ```python
-def periodic_eid_update_hook(eid: str, entity_type: str) -> list[DataPointTask]:
+def periodic_eid_update_hook(entity_type: str, eid: str) -> list[DataPointTask]:
     ...
     return []
 

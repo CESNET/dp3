@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import Json, NonNegativeInt, PositiveInt, ValidationError
+from pydantic import Json, NonNegativeInt, ValidationError
 
 from dp3.api.internal.config import DB, MODEL_SPEC, TASK_WRITER
 from dp3.api.internal.entity_response_models import (
@@ -81,13 +81,14 @@ async def list_entity_type_eids(
     eid_filter: str = eid_filter_query_param,
     fulltext_filters: Json = None,
     skip: NonNegativeInt = 0,
-    limit: PositiveInt = 20,
+    limit: NonNegativeInt = 20,
 ) -> EntityEidList:
     """List latest snapshots of all `id`s present in database under `etype`.
 
     Contains only latest snapshot.
 
     Uses pagination.
+    Setting `limit` to 0 is interpreted as no limit (return all results).
 
     Returns only documents matching `fulltext_filters`
     (JSON object in format: attribute - fulltext filter).

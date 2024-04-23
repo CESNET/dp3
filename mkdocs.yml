@@ -60,6 +60,7 @@ nav:
     - Garbage Collector: configuration/garbage_collector.md
     - Updater: configuration/updater.md
   - Code Reference: reference/
+  - Scripts: scripts.md
   - Grafana plugin: grafana_plugin.md
   - Extending Documentation: extending.md
 

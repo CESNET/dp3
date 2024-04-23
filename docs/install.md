@@ -342,11 +342,10 @@ sudo mv rabbitmqadmin /usr/bin/
 
 Finally, we have to configure the appropriate queues and exchanges, 
 which is done using a provided `rmq_reconfigure.sh` script,
-which can be downloaded from [our repository](https://github.com/CESNET/dp3/blob/master/scripts/rmq_reconfigure.sh).
-With it, simply run:
+which can be run using the `dp3-script` entrypoint:
 
 ```shell
-sudo ./rmq_reconfigure.sh <APP_NAME> <NUM_WORKERS>
+sudo venv/bin/dp3-script rmq_reconfigure.sh <APP_NAME> <NUM_WORKERS>
 ```
 
 ### Nginx

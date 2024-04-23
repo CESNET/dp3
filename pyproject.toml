@@ -59,6 +59,8 @@ dependencies = { file = ["requirements.txt"] }
 dev = { file = ["requirements.dev.txt"] }
 # Using gunicorn for API deployment
 deploy = { file = ["requirements.deploy.txt"] }
+# Using the data scripts that read datapoints from files
+scripts = { file = ["requirements.scripts.txt"] }
 
 ### Black Formatting ###################################################################
 [tool.black]

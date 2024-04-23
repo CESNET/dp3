@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Simple datapoint sender script for testing local DP3 instance."""
 
 import json
@@ -146,7 +147,9 @@ def send_dps(args, stop_event: Event, datapoints, queue: Queue):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser("Simple datapoint sender script for testing local DP3 instance.")
+    parser = ArgumentParser(
+        description="Simple datapoint sender script for testing local DP3 instance."
+    )
     parser.add_argument(
         "input_file",
         help="DataPoint log file in JSON format (pandas orient=records)",

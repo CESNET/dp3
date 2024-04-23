@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Simple script to add hashes to master records to allow for easier parallelization."""
+"""Simple script to add hashes to master records to allow for easier parallelization.
+
+Intended to be run only once to upgrade a database existing before 08-2023.
+"""
 
 import argparse
 

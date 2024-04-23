@@ -38,6 +38,7 @@ worker = "dp3.bin.worker:run"
 dp3-setup = "dp3.bin.setup:run"
 check = "dp3.bin.check:run"
 dp3 = "dp3.bin.cli:run"
+dp3-script = "dp3.scripts.script_runner:run"
 
 [project.urls]
 Homepage = "https://github.com/CESNET/dp3"

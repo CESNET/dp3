@@ -113,7 +113,7 @@ def conv_to_json(obj):
         return {"$datetime": obj.strftime("%Y-%m-%dT%H:%M:%S.%f")}
     if isinstance(obj, datetime.timedelta):
         return {"$timedelta": f"{obj.days},{obj.seconds},{obj.microseconds}"}
-    raise TypeError("%r is not JSON serializable" % obj)
+    raise TypeError(f"{repr(obj)}%r is not JSON serializable")
 
 
 def conv_from_json(dct):

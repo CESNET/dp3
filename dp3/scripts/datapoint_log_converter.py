@@ -205,7 +205,7 @@ class LegacyDataPointLoader:
 
 def get_valid_path(parser, arg):
     if not os.path.exists(arg):
-        parser.error("The file %s does not exist!" % arg)
+        parser.error(f"The file {arg} does not exist!")
     else:
         return os.path.abspath(arg)
 

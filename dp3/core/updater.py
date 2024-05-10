@@ -224,6 +224,9 @@ class Updater:
         self._register_hook(hook, hook_id, entity_type, period.total_seconds(), eid_only=True)
 
     def _register_hook(self, hook, hook_id: str, entity_type: str, period: float, eid_only: bool):
+        if not self.enabled:
+            return
+
         update_period_secs = self.config.update_batch_period.total_seconds()
         if period < update_period_secs:
             raise ValueError(

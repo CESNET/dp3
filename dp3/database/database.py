@@ -255,7 +255,11 @@ class EntityDatabase:
         dps_dicts = [dp.model_dump(exclude={"attr_type"}) for dp in dps]
         try:
             self._db[raw_col].insert_many(dps_dicts)
-            self.log.debug(f"Inserted datapoints to raw collection:\n{dps}")
+            self.log.debug(
+                "Inserted datapoints to raw collection: %s %s",
+                dps[:3],
+                f"... and {len(dps) - 3} more" if len(dps) > 3 else "",
+            )
         except Exception as e:
             raise DatabaseError(f"Insert of datapoints failed: {e}\n{dps}") from e
 

@@ -181,26 +181,16 @@ class HistoryManager:
         else:
             min_date_string = min_date.strftime("%Y%m%dT%H%M%S")
             max_date_string = max_date.strftime("%Y%m%dT%H%M%S")
-            date_logfile = self.log_dir / f"dp-log-{min_date_string}--{max_date_string}.json"
+            date_logfile = self.log_dir / f"dp-log-{min_date_string}--{max_date_string}.jsonl"
             datapoints = 0
 
             with open(date_logfile, "w", encoding="utf-8") as logfile:
-                first = True
-
                 for etype in self.model_spec.entities:
                     result_cursor = self.db.get_raw(etype, after=min_date, before=t_old, plain=True)
                     for dp in result_cursor:
-                        if first:
-                            logfile.write(
-                                f"[\n{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}"
-                            )
-                            first = False
-                        else:
-                            logfile.write(
-                                f",\n{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}"
-                            )
+                        logfile.write(f"{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}\n")
                         datapoints += 1
-                logfile.write("\n]")
+
             self.log.info("Archived %s datapoints to %s", datapoints, date_logfile)
             compress_file(date_logfile)
             os.remove(date_logfile)

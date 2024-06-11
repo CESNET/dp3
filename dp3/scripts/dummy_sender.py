@@ -152,7 +152,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "input_file",
-        help="DataPoint log file in JSON format (pandas orient=records)",
+        help="DataPoint log file in JSON or JSONL format (pandas orient=records)",
         type=lambda x: get_valid_path(parser, x),
     )
     parser.add_argument(
@@ -212,6 +212,7 @@ if __name__ == "__main__":
         args.input_file,
         orient="records",
         convert_dates=["t1", "t2"],
+        lines="jsonl" in args.input_file,
     ).fillna(value={"c": 1.0})
     log.info("Input file contains %s DataPoints", datapoints.shape[0])
 

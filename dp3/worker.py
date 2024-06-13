@@ -164,7 +164,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     elog = ecl.get_group("te") or DummyEventGroup()
     elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
 
-    db = EntityDatabase(config.get("database"), model_spec, num_processes, elog)
+    db = EntityDatabase(config.get("database"), model_spec, num_processes, process_index, elog)
     if process_index == 0:
         db.update_schema()
     else:

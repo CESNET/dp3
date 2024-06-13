@@ -83,6 +83,7 @@ class EntityDatabase:
     Args:
         db_conf: configuration of database connection (content of database.yml)
         model_spec: ModelSpec object, configuration of data model (entities and attributes)
+        process_index: index of worker process - used for sharding metadata
         num_processes: number of worker processes
     """
 
@@ -91,6 +92,7 @@ class EntityDatabase:
         db_conf: HierarchicalDict,
         model_spec: ModelSpec,
         num_processes: int,
+        process_index: int = 0,
         elog: Optional[EventGroupType] = None,
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
@@ -119,6 +121,7 @@ class EntityDatabase:
 
         self._db_schema_config = model_spec
         self._num_processes = num_processes
+        self._process_index = process_index
 
         # Init and switch to correct database
         self._db = self._db[config.db_name]
@@ -733,10 +736,14 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Insert of snapshots failed: {e}\n{snapshots}") from e
 
+    def _get_metadata_id(self, module: str, time: datetime) -> str:
+        """Generates unique metadata id based on `module`, `time` and the worker index."""
+        return f"{module}{time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}w{self._process_index}"
+
     def save_metadata(self, time: datetime, metadata: dict):
-        """Saves snapshot to specified entity of current master document."""
+        """Saves metadata dict under the caller module and passed timestamp."""
         module = get_caller_id()
-        metadata["_id"] = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        metadata["_id"] = self._get_metadata_id(module, time)
         metadata["#module"] = module
         metadata["#time_created"] = time
         metadata["#last_update"] = datetime.now()
@@ -747,8 +754,9 @@ class EntityDatabase:
             raise DatabaseError(f"Insert of metadata failed: {e}\n{metadata}") from e
 
     def update_metadata(self, time: datetime, metadata: dict, increase: dict = None):
+        """Updates existing metadata of caller module and passed timestamp."""
         module = get_caller_id()
-        metadata_id = module + time.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        metadata_id = self._get_metadata_id(module, time)
         metadata["#last_update"] = datetime.now()
 
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}

@@ -736,14 +736,15 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Insert of snapshots failed: {e}\n{snapshots}") from e
 
-    def _get_metadata_id(self, module: str, time: datetime) -> str:
+    def _get_metadata_id(self, module: str, time: datetime, worker_id: Optional[int] = None) -> str:
         """Generates unique metadata id based on `module`, `time` and the worker index."""
-        return f"{module}{time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}w{self._process_index}"
+        worker_id = self._process_index if worker_id is None else worker_id
+        return f"{module}{time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}w{worker_id}"
 
-    def save_metadata(self, time: datetime, metadata: dict):
+    def save_metadata(self, time: datetime, metadata: dict, worker_id: Optional[int] = None):
         """Saves metadata dict under the caller module and passed timestamp."""
         module = get_caller_id()
-        metadata["_id"] = self._get_metadata_id(module, time)
+        metadata["_id"] = self._get_metadata_id(module, time, worker_id)
         metadata["#module"] = module
         metadata["#time_created"] = time
         metadata["#last_update"] = datetime.now()
@@ -753,10 +754,12 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Insert of metadata failed: {e}\n{metadata}") from e
 
-    def update_metadata(self, time: datetime, metadata: dict, increase: dict = None):
+    def update_metadata(
+        self, time: datetime, metadata: dict, increase: dict = None, worker_id: Optional[int] = None
+    ):
         """Updates existing metadata of caller module and passed timestamp."""
         module = get_caller_id()
-        metadata_id = self._get_metadata_id(module, time)
+        metadata_id = self._get_metadata_id(module, time, worker_id)
         metadata["#last_update"] = datetime.now()
 
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}

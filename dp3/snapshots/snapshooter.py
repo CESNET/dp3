@@ -407,6 +407,7 @@ class SnapShooter:
             task.time,
             metadata={},
             increase={"entities": entity_cnt, "components": entity_cnt, "workers_finished": 1},
+            worker_id=0,
         )
         self.log.debug("Worker snapshot creation done.")
 
@@ -515,7 +516,7 @@ class SnapShooter:
             self.db.save_snapshot(rtype, record, task.time)
 
         if task.final:
-            self.db.update_metadata(task.time, metadata={"linked_finished": True})
+            self.db.update_metadata(task.time, metadata={"linked_finished": True}, worker_id=0)
 
     @staticmethod
     def _remove_record_from_value(spec: AttrSpecType, value: Union[dict, list[dict]]):

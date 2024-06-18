@@ -556,21 +556,30 @@ class EntityDatabase:
         return lfcsm["#time_created"]
 
     def get_latest_snapshots(
-        self, etype: str, fulltext_filters: Optional[dict[str, str]] = None
+        self,
+        etype: str,
+        fulltext_filters: Optional[dict[str, str]] = None,
+        generic_filter: Optional[dict[str, any]] = None,
     ) -> tuple[pymongo.cursor.Cursor, int]:
         """Get latest snapshots of given `etype`.
 
         This method is useful for displaying data on web.
 
-        Returns only documents matching `fulltext_filters`
+        Returns only documents matching `generic_filter` and `fulltext_filters`
         (dictionary attribute - fulltext filter).
-        These filters are interpreted as regular expressions.
+        Fulltext filters are interpreted as regular expressions.
         Only string values may be filtered this way. There's no validation that queried attribute
         can be fulltext filtered.
         Only plain and observation attributes with string-based data types can be queried.
         Array and set data types are supported as well as long as they are not multi value
         at the same time.
         If you need to filter EIDs, use attribute `eid`.
+
+        Generic filter allows filtering using generic MongoDB query (including `$and`, `$or`,
+        `$lt`, etc.).
+        There are no attribute name checks (may be added in the future).
+
+        Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
         Also returns total document count (after filtering).
 
@@ -590,11 +599,15 @@ class EntityDatabase:
                 snapshot_col
             ].count_documents({})
 
-        # Create base of query
-        query = {"_time_created": latest_snapshot_date}
-
         if not fulltext_filters:
             fulltext_filters = {}
+
+        if not generic_filter:
+            generic_filter = {}
+
+        # Create base of query
+        query = generic_filter
+        query["_time_created"] = latest_snapshot_date
 
         # Process fulltext filters
         for attr in fulltext_filters:

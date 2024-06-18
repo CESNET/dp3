@@ -80,6 +80,7 @@ async def list_entity_type_eids(
     etype: str,
     eid_filter: str = eid_filter_query_param,
     fulltext_filters: Json = None,
+    generic_filter: Json = None,
     skip: NonNegativeInt = 0,
     limit: NonNegativeInt = 20,
 ) -> EntityEidList:
@@ -90,9 +91,9 @@ async def list_entity_type_eids(
     Uses pagination.
     Setting `limit` to 0 is interpreted as no limit (return all results).
 
-    Returns only documents matching `fulltext_filters`
+    Returns only documents matching `generic_filter` and `fulltext_filters`
     (JSON object in format: attribute - fulltext filter).
-    These filters are interpreted as regular expressions.
+    Fulltext filters are interpreted as regular expressions.
     Only string values may be filtered this way. There's no validation that queried attribute
     can be fulltext filtered.
     Only plain and observation attributes with string-based data types can be queried.
@@ -100,12 +101,22 @@ async def list_entity_type_eids(
     at the same time.
     If you need to filter EIDs, use attribute `eid` (`eid_filter` is deprecated and you should
     migrate to `fulltext_filters["eid"]`).
+
+    Generic filter allows filtering using generic MongoDB query (including `$and`, `$or`,
+    `$lt`, etc.).
+    There are no attribute name checks (may be added in the future).
+
+    Generic and fulltext filters are merged - fulltext overrides conflicting keys.
     """
     if not fulltext_filters:
         fulltext_filters = {}
-
     if not isinstance(fulltext_filters, dict):
         raise HTTPException(status_code=400, detail="Fulltext filter is invalid")
+
+    if not generic_filter:
+        generic_filter = {}
+    if not isinstance(generic_filter, dict):
+        raise HTTPException(status_code=400, detail="Generic filter is invalid")
 
     for attr in fulltext_filters:
         ftr = fulltext_filters[attr]
@@ -117,7 +128,7 @@ async def list_entity_type_eids(
         fulltext_filters["eid"] = eid_filter
 
     try:
-        cursor, total_count = DB.get_latest_snapshots(etype, fulltext_filters)
+        cursor, total_count = DB.get_latest_snapshots(etype, fulltext_filters, generic_filter)
         cursor_page = cursor.skip(skip).limit(limit)
     except DatabaseError as e:
         raise HTTPException(status_code=400, detail="Query is invalid") from e

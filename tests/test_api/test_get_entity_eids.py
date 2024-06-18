@@ -1,3 +1,4 @@
+import json
 import sys
 from time import sleep
 
@@ -35,3 +36,16 @@ class GetEntityEids(common.APITest):
         eids = self.get_entity_data("entity/A", EntityEidList, skip=101, limit=20)
         self.assertEqual(0, len(eids.data))
         self.assertSetEqual(expected_eids, received_eids)
+
+    def test_get_entity_eids_generic_filter(self):
+        eids = self.get_entity_data(
+            "entity/A", EntityEidList, generic_filter=json.dumps({"eid": "A0"})
+        )
+        self.assertEqual(1, len(eids.data))
+        self.assertEqual("A0", eids.data[0]["eid"])
+
+    def test_get_entity_eids_fulltext_filters_eid(self):
+        eids = self.get_entity_data(
+            "entity/A", EntityEidList, fulltext_filters=json.dumps({"eid": "A5.*"})
+        )
+        self.assertEqual(11, len(eids.data))  # A5, A50 ... A59

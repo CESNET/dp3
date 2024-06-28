@@ -224,6 +224,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
         ControlAction.refresh_module_config,
         partial(reload_module_config, log, platform_config, modules),
     )
+    global_scheduler.register(control.control_queue.watchdog, second="15,45")
 
     ##############################################
     # Load all plug-in modules

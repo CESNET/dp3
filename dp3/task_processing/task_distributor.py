@@ -74,6 +74,8 @@ class TaskDistributor:
             worker_index=self.process_index,
             rabbit_config=self.rabbit_params,
         )
+        registrar.scheduler_register(self._task_queue_reader.watchdog, second="20,50")
+
         # Writer - allows modules to write new tasks
         self._task_queue_writer = TaskQueueWriter(
             platform_config.app_name, self.num_processes, self.rabbit_params

@@ -115,8 +115,8 @@ class RobustAMQPConnection:
             "username": rabbit_config.get("username", "guest"),
             "password": rabbit_config.get("password", "guest"),
         }
-        self.connection = None
-        self.channel = None
+        self.connection: amqpstorm.Connection = None
+        self.channel: amqpstorm.Channel = None
 
     def __del__(self):
         self.disconnect()
@@ -401,6 +401,7 @@ class TaskQueueReader(RobustAMQPConnection):
             priority_queue = None
         self.queue_name = queue
         self.priority_queue_name = priority_queue
+        self.worker_index = worker_index
 
         self.running = False
 
@@ -432,12 +433,16 @@ class TaskQueueReader(RobustAMQPConnection):
         self.log.info("Starting TaskQueueReader")
 
         # Start thread for message consuming from server
-        self._consuming_thread = threading.Thread(None, self._consuming_thread_func)
+        self._consuming_thread = threading.Thread(target=self._consuming_thread_func)
+        thread_n = self._consuming_thread.name.split("-")[-1]
+        self._consuming_thread.name = f"Consumer-{self.worker_index}-{thread_n}"
         self._consuming_thread.start()
 
         # Start thread for message processing and passing to user's callback
         self.running = True
-        self._processing_thread = threading.Thread(None, self._msg_processing_thread_func)
+        self._processing_thread = threading.Thread(target=self._msg_processing_thread_func)
+        thread_n = self._processing_thread.name.split("-")[-1]
+        self._processing_thread.name = f"Processor-{self.worker_index}-{thread_n}"
         self._processing_thread.start()
 
     def stop(self) -> None:

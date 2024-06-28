@@ -113,6 +113,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     """
     ##############################################
     # Initialize logging mechanism
+    threading.current_thread().name = f"MainThread-{process_index}"
     LOGFORMAT = "%(asctime)-15s,%(threadName)s,%(name)s,[%(levelname)s] %(message)s"
     LOGDATEFORMAT = "%Y-%m-%dT%H:%M:%S"
 

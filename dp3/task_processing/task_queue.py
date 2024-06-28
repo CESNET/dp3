@@ -37,7 +37,7 @@ import hashlib
 import logging
 import threading
 import time
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 import amqpstorm
 
@@ -161,6 +161,8 @@ class RobustAMQPConnection:
         self.channel = None
 
     def check_queue_existence(self, queue_name: str) -> bool:
+        if queue_name is None:
+            return True
         assert self.channel is not None, "not connected"
         try:
             self.channel.queue.declare(queue_name, passive=True)
@@ -356,7 +358,7 @@ class TaskQueueReader(RobustAMQPConnection):
             (all optional): host, port, virtual_host, username, password
         queue: Name of RabbitMQ queue to read from (default: `"<app-name>-worker-<index>"`)
         priority_queue: Name of RabbitMQ queue to read from (priority messages)
-            (default: `"<app-name>-worker-<index>-pri"`)
+            or `False` to disable. (default: `"<app-name>-worker-<index>-pri"`)
         parent_logger: Logger to inherit prefix from.
     """
 
@@ -368,7 +370,7 @@ class TaskQueueReader(RobustAMQPConnection):
         worker_index: int = 0,
         rabbit_config: dict = None,
         queue: str = None,
-        priority_queue: str = None,
+        priority_queue: Union[str, bool] = None,
         parent_logger: logging.Logger = None,
     ) -> None:
         rabbit_config = {} if rabbit_config is None else rabbit_config
@@ -378,8 +380,8 @@ class TaskQueueReader(RobustAMQPConnection):
         ), "worker_index must be positive number"
         assert isinstance(queue, str) or queue is None, "queue must be string"
         assert (
-            isinstance(priority_queue, str) or priority_queue is None
-        ), "priority_queue must be string"
+            isinstance(priority_queue, str) or priority_queue is None or priority_queue is False
+        ), "priority_queue must be string or False to disable"
 
         super().__init__(rabbit_config)
 
@@ -395,6 +397,8 @@ class TaskQueueReader(RobustAMQPConnection):
             queue = DEFAULT_QUEUE.format(app_name, worker_index)
         if priority_queue is None:
             priority_queue = DEFAULT_PRIORITY_QUEUE.format(app_name, worker_index)
+        elif priority_queue is False:
+            priority_queue = None
         self.queue_name = queue
         self.priority_queue_name = priority_queue
 
@@ -485,9 +489,10 @@ class TaskQueueReader(RobustAMQPConnection):
             try:
                 # Register consumers on both queues
                 self.channel.basic.consume(self._on_message, self.queue_name, no_ack=False)
-                self.channel.basic.consume(
-                    self._on_message_pri, self.priority_queue_name, no_ack=False
-                )
+                if self.priority_queue_name is not None:
+                    self.channel.basic.consume(
+                        self._on_message_pri, self.priority_queue_name, no_ack=False
+                    )
                 # Start consuming (this call blocks until consuming is stopped)
                 self.channel.start_consuming()
                 try:

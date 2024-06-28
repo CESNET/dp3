@@ -59,7 +59,7 @@ class Control:
             worker_index=platform_config.process_index,
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),
             queue=queue,
-            priority_queue=queue,
+            priority_queue=False,
             parent_logger=self.log,
         )
 

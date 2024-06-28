@@ -94,9 +94,10 @@ class SnapShooter:
             worker_index=platform_config.process_index,
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),
             queue=queue,
-            priority_queue=queue,
+            priority_queue=False,
             parent_logger=self.log,
         )
+        scheduler.register(self.snapshot_queue_reader.watchdog, second="10,40")
 
         self.snapshot_entities = [
             entity for entity, spec in self.model_spec.entities.items() if spec.snapshot

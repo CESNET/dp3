@@ -104,7 +104,7 @@ def get_error_sources(data: dict, error: dict) -> tuple[list, list]:
     curr_model = get_args(curr_model_dict)[1]
 
     for key in err_path[1:]:
-        if curr_model_origin != dict and curr_model_origin is not None:
+        if curr_model_origin is not dict and curr_model_origin is not None:
             return [err_path], [data]
 
         if key in data:
@@ -128,7 +128,7 @@ def get_error_sources(data: dict, error: dict) -> tuple[list, list]:
 
             curr_model_dict = get_type_hints(curr_model)
             curr_model_origin = get_origin(curr_model_dict)
-            if curr_model_origin == dict:
+            if curr_model_origin is dict:
                 curr_model = get_args(curr_model_dict)[1]
         else:
             return [err_path], [data]

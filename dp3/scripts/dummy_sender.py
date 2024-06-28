@@ -80,7 +80,7 @@ def cherry_pick_send(datapoints, dp_factory, log, args):
 
 
 def send_all(datapoints, dp_factory, *_):
-    for _, dp in datapoints.iterrows():
+    for _i, dp in datapoints.iterrows():
         yield dp_factory(dp)
 
 

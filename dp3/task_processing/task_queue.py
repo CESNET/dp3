@@ -490,6 +490,11 @@ class TaskQueueReader(RobustAMQPConnection):
                 )
                 # Start consuming (this call blocks until consuming is stopped)
                 self.channel.start_consuming()
+                try:
+                    self.channel.check_for_errors()
+                    self.log.info("Exiting thread - Channel was closed.")
+                except amqpstorm.AMQPError as e:
+                    self.log.error("Exiting thread - Due to error: %s", e)
                 return
             except amqpstorm.AMQPConnectionError as e:
                 self.log.error(f"RabbitMQ connection error (will try to reconnect): {e}")
@@ -540,19 +545,48 @@ class TaskQueueReader(RobustAMQPConnection):
                     "Erroneous message received from main task queue. "
                     f"Error: {str(e)}, Message: '{body}'"
                 )
-                self.ack(tag)
+                try:
+                    self.ack(tag)
+                except amqpstorm.AMQPChannelError as e:
+                    self.log.error("Channel error while acknowledging message: %s", e)
+                    self.running = False
                 continue
 
             # Pass message to user's callback function
             try:
                 self.callback(tag, task)
             except amqpstorm.AMQPChannelError as e:
-                self.log.error("Channel error while processing message, will try to reconnect.")
-                self.log.exception(e)
-                self.connect()
+                self.log.error("Channel error while processing message: %s", e)
+                self.running = False
             except Exception as e:
                 self.log.exception("Error in user callback function. %s: %s", type(e), str(e))
                 self.log.error("Original message: %s", body)
+
+    def watchdog(self):
+        """
+        Check whether both threads are running and perform a reset if not.
+
+        Register to be called periodically by scheduler.
+        """
+        proc = self._processing_thread.is_alive()
+        cons = self._consuming_thread.is_alive()
+
+        if not proc or not cons:
+            self.log.error(
+                "Dead threads detected, processing=%s, consuming=%s, restarting TaskQueueReader.",
+                "alive" if proc else "dead",
+                "alive" if cons else "dead",
+            )
+            self._stop_consuming_thread()
+            self._stop_processing_thread()
+
+            self.channel.close()
+            self.channel = None
+            self.cache.clear()
+            self.cache_pri.clear()
+
+            self.connect()
+            self.start()
 
     def _stop_consuming_thread(self) -> None:
         if self._consuming_thread:

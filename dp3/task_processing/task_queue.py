@@ -458,6 +458,13 @@ class TaskQueueReader(RobustAMQPConnection):
         self._stop_processing_thread()
         self.log.info("TaskQueueReader stopped")
 
+    def reconnect(self) -> None:
+        """Clear local message cache and reconnect to RabbitMQ server."""
+        self.cache.clear()
+        self.cache_pri.clear()
+
+        self.connect()
+
     def check(self) -> bool:
         """
         Check that needed queues are declared, return True or raise RuntimeError.
@@ -501,7 +508,7 @@ class TaskQueueReader(RobustAMQPConnection):
             self.channel.basic.ack(delivery_tag=msg_tag)
         except amqpstorm.AMQPChannelError as why:
             self.log.error("Channel error while acknowledging message: %s", why)
-            self.connect()
+            self.reconnect()
             return False
         return True
 
@@ -522,10 +529,10 @@ class TaskQueueReader(RobustAMQPConnection):
                 return
             except amqpstorm.AMQPChannelError as e:
                 self.log.error("RabbitMQ channel error (will try to reconnect): %s", e)
-                self.connect()
+                self.reconnect()
             except amqpstorm.AMQPConnectionError as e:
                 self.log.error(f"RabbitMQ connection error (will try to reconnect): {e}")
-                self.connect()
+                self.reconnect()
 
     # These two callbacks are called when a new message is received
     # - they only put the message into a local queue
@@ -580,7 +587,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 self.callback(tag, task)
             except amqpstorm.AMQPChannelError as e:
                 self.log.error("Channel error while processing message: %s", e)
-                self.connect()
+                self.reconnect()
             except Exception as e:
                 self.log.exception("Error in user callback function. %s: %s", type(e), str(e))
                 self.log.error("Original message: %s", body)

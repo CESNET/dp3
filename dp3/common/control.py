@@ -96,7 +96,8 @@ class Control:
 
         This function should not be called directly, but set as callback for TaskQueueReader.
         """
-        self.control_queue.ack(msg_id)
+        if not self.control_queue.ack(msg_id):
+            return
         if task.action in self.allowed_actions:
             self.log.info("Executing action: %s", task.action)
             self.action_handlers[task.action](**task.kwargs)

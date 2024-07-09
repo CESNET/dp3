@@ -37,7 +37,7 @@ import hashlib
 import logging
 import threading
 import time
-from typing import Any, Callable, Union
+from typing import Callable, Union
 
 import amqpstorm
 
@@ -117,6 +117,7 @@ class RobustAMQPConnection:
         }
         self.connection: amqpstorm.Connection = None
         self.channel: amqpstorm.Channel = None
+        self._connection_id = 0
 
     def __del__(self):
         self.disconnect()
@@ -128,6 +129,8 @@ class RobustAMQPConnection:
         """
         if self.connection:
             self.connection.close()
+        self._connection_id += 1
+
         attempts = 0
         while True:
             attempts += 1
@@ -450,6 +453,7 @@ class TaskQueueReader(RobustAMQPConnection):
         if not self.running:
             raise RuntimeError("Not running")
 
+        self.running = False
         self._stop_consuming_thread()
         self._stop_processing_thread()
         self.log.info("TaskQueueReader stopped")
@@ -481,12 +485,25 @@ class TaskQueueReader(RobustAMQPConnection):
             raise QueueNotDeclared(self.priority_queue_name)
         return True
 
-    def ack(self, msg_tag: Any):
+    def ack(self, msg_tag: tuple[int, int]) -> bool:
         """Acknowledge processing of the message/task
+
+        Will reconnect by itself on channel error.
         Args:
             msg_tag: Message tag received as the first param of the callback function.
+        Returns:
+            Whether the message was acknowledged successfully and can be processed further.
         """
-        self.channel.basic.ack(delivery_tag=msg_tag)
+        conn_id, msg_tag = msg_tag
+        if conn_id != self._connection_id:
+            return False
+        try:
+            self.channel.basic.ack(delivery_tag=msg_tag)
+        except amqpstorm.AMQPChannelError as why:
+            self.log.error("Channel error while acknowledging message: %s", why)
+            self.connect()
+            return False
+        return True
 
     def _consuming_thread_func(self):
         # Register consumers and start consuming loop, reconnect on error
@@ -513,11 +530,11 @@ class TaskQueueReader(RobustAMQPConnection):
     # These two callbacks are called when a new message is received
     # - they only put the message into a local queue
     def _on_message(self, message):
-        self.cache.append(message)
+        self.cache.append((self._connection_id, message))
         self.cache_full.set()
 
     def _on_message_pri(self, message):
-        self.cache_pri.append(message)
+        self.cache_pri.append((self._connection_id, message))
         self.cache_full.set()
 
     def _msg_processing_thread_func(self):
@@ -525,10 +542,10 @@ class TaskQueueReader(RobustAMQPConnection):
         while self.running:
             # Get task from a local queue (try the priority one first)
             if len(self.cache_pri) > 0:
-                msg = self.cache_pri.popleft()
+                conn_id, msg = self.cache_pri.popleft()
                 pri = True
             elif len(self.cache) > 0:
-                msg = self.cache.popleft()
+                conn_id, msg = self.cache.popleft()
                 pri = False
             else:
                 self.cache_full.wait()
@@ -536,7 +553,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 continue
 
             body = msg.body
-            tag = msg.delivery_tag
+            tag = (conn_id, msg.delivery_tag)
 
             self.log.debug(
                 "Received {}message: {} (tag: {})".format(
@@ -555,11 +572,7 @@ class TaskQueueReader(RobustAMQPConnection):
                     "Erroneous message received from main task queue. "
                     f"Error: {str(e)}, Message: '{body}'"
                 )
-                try:
-                    self.ack(tag)
-                except amqpstorm.AMQPChannelError as e:
-                    self.log.error("Channel error while acknowledging message: %s", e)
-                    self.running = False
+                self.ack(tag)
                 continue
 
             # Pass message to user's callback function

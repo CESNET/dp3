@@ -175,7 +175,9 @@ class TaskDistributor:
             msg_id, task = task_tuple
 
             # Acknowledge receipt of the task (regardless of success/failre of its processing)
-            self._task_queue_reader.ack(msg_id)
+            if not self._task_queue_reader.ack(msg_id):
+                self.log.warning("Acking message %s failed, will not process.", msg_id)
+                continue
 
             # Process the task
             start_time = datetime.now()

@@ -347,7 +347,9 @@ class SnapShooter:
 
         This function should not be called directly, but set as callback for TaskQueueReader.
         """
-        self.snapshot_queue_reader.ack(msg_id)
+        if not self.snapshot_queue_reader.ack(msg_id):
+            self.log.warning("Acking message %s failed, will not process.", msg_id)
+            return
         if task.type == SnapshotMessageType.task:
             self.make_snapshot(task)
         elif task.type == SnapshotMessageType.linked_entities:

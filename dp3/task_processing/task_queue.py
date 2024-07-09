@@ -436,13 +436,13 @@ class TaskQueueReader(RobustAMQPConnection):
         self.log.info("Starting TaskQueueReader")
 
         # Start thread for message consuming from server
+        self.running = True
         self._consuming_thread = threading.Thread(target=self._consuming_thread_func)
         thread_n = self._consuming_thread.name.split("-")[-1]
         self._consuming_thread.name = f"Consumer-{self.worker_index}-{thread_n}"
         self._consuming_thread.start()
 
         # Start thread for message processing and passing to user's callback
-        self.running = True
         self._processing_thread = threading.Thread(target=self._msg_processing_thread_func)
         thread_n = self._processing_thread.name.split("-")[-1]
         self._processing_thread.name = f"Processor-{self.worker_index}-{thread_n}"
@@ -507,7 +507,7 @@ class TaskQueueReader(RobustAMQPConnection):
 
     def _consuming_thread_func(self):
         # Register consumers and start consuming loop, reconnect on error
-        while True:
+        while self.running:
             try:
                 # Register consumers on both queues
                 self.channel.basic.consume(self._on_message, self.queue_name, no_ack=False)
@@ -517,12 +517,12 @@ class TaskQueueReader(RobustAMQPConnection):
                     )
                 # Start consuming (this call blocks until consuming is stopped)
                 self.channel.start_consuming()
-                try:
-                    self.channel.check_for_errors()
-                    self.log.info("Exiting thread - Channel was closed.")
-                except amqpstorm.AMQPError as e:
-                    self.log.error("Exiting thread - Due to error: %s", e)
+                self.channel.check_for_errors()
+                self.log.info("Exiting thread - Channel was closed.")
                 return
+            except amqpstorm.AMQPChannelError as e:
+                self.log.error("RabbitMQ channel error (will try to reconnect): %s", e)
+                self.connect()
             except amqpstorm.AMQPConnectionError as e:
                 self.log.error(f"RabbitMQ connection error (will try to reconnect): {e}")
                 self.connect()
@@ -580,7 +580,7 @@ class TaskQueueReader(RobustAMQPConnection):
                 self.callback(tag, task)
             except amqpstorm.AMQPChannelError as e:
                 self.log.error("Channel error while processing message: %s", e)
-                self.running = False
+                self.connect()
             except Exception as e:
                 self.log.exception("Error in user callback function. %s: %s", type(e), str(e))
                 self.log.error("Original message: %s", body)

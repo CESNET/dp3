@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import datetime
 
 from pymongo import ASCENDING, UpdateOne
@@ -21,34 +22,54 @@ class Telemetry:
         # self.config = platform_config.config.get("telemetry")  # No config for now
         self.cache_col = self.db.get_module_cache("Telemetry")
 
+        self.local_cache = {}
+        self.local_cache_lock = threading.Lock()
+
         # Schedule master document aggregation
         registrar.register_task_hook("on_task_start", self.note_latest_src_timestamp)
+        registrar.scheduler_register(self.sync_to_db, second="*/10", minute="*", hour="*")
 
     def note_latest_src_timestamp(self, task: DataPointTask):
-        updates = []
+        """Note the latest timestamp of each source in the task"""
+        latest_timestamps = {}
         for dp in task.data_points:
             has_timestamp = isinstance(dp, (DataPointObservationsBase, DataPointTimeseriesBase))
             if dp.src is None or not has_timestamp:
-                self.log.debug("Skipping datapoint without src or timestamp: %s", dp)
                 continue
             latest_timestamp = dp.t2 or dp.t1
-            updates.append(
+            latest_timestamps[dp.src] = latest_timestamp
+
+        if not latest_timestamps:
+            return
+
+        with self.local_cache_lock:
+            self.local_cache.update(latest_timestamps)
+
+    def sync_to_db(self):
+        """Sync local timestamp cache to database."""
+        with self.local_cache_lock:
+            updates = [
                 UpdateOne(
-                    {"_id": dp.src},
-                    [{"$set": {"_id": dp.src, "src_t": {"$max": ["$src_t", latest_timestamp]}}}],
+                    {"_id": src},
+                    [{"$set": {"_id": src, "src_t": {"$max": ["$src_t", latest_timestamp]}}}],
                     upsert=True,
                 )
-            )
+                for src, latest_timestamp in self.local_cache.items()
+            ]
+            self.local_cache.clear()
 
         if not updates:
             return
 
-        res = self.cache_col.bulk_write(updates)
-        self.log.debug(
-            "Updating %s src_timestamp records: %s modified",
-            len(updates),
-            res.modified_count,
-        )
+        try:
+            res = self.cache_col.bulk_write(updates)
+            self.log.debug(
+                "Updating %s src_timestamp records: %s modified",
+                len(updates),
+                res.modified_count,
+            )
+        except Exception as e:
+            self.log.error("Error updating src_timestamp records: %s", e)
 
 
 class TelemetryReader:

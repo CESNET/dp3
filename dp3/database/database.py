@@ -257,7 +257,9 @@ class EntityDatabase:
         raw_col = self._raw_col_name(etype)
         dps_dicts = [dp.model_dump(exclude={"attr_type"}) for dp in dps]
         try:
-            self._db[raw_col].insert_many(dps_dicts)
+            self._db.get_collection(raw_col, write_concern=pymongo.WriteConcern(w=0)).insert_many(
+                dps_dicts
+            )
             self.log.debug(
                 "Inserted datapoints to raw collection: %s %s",
                 dps[:3],

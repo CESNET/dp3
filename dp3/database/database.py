@@ -197,17 +197,64 @@ class EntityDatabase:
             self._db[snapshot_col].create_index("eid", background=True)
             self._db[snapshot_col].create_index("_time_created", background=True)
 
-            # Existence indexes for each attribute in master collection
-            master_col = self._master_col_name(etype)
-            for attr, _spec in self._db_schema_config.entity_attributes[etype].items():
-                self._db[master_col].create_index(
-                    attr, background=True, partialFilterExpression={attr: {"$exists": True}}
-                )
-
         # Create a TTL index for metadata collection
         self._db["#metadata"].create_index(
             "#time_created", expireAfterSeconds=60 * 60 * 24 * 30, background=True
         )
+
+        # Master indexes
+        for etype in self._db_schema_config.entities:
+            master_col = self._db[self._master_col_name(etype)]
+            history_attrs = set()
+            plain_attrs = set()
+
+            for attr, spec in self._db_schema_config.entity_attributes[etype].items():
+                if spec.t == AttrType.PLAIN:
+                    plain_attrs.add(attr)
+                if spec.t in AttrType.TIMESERIES | AttrType.OBSERVATIONS:
+                    history_attrs.add(attr)
+
+            attrs = history_attrs | plain_attrs
+
+            # Drop previous indexes
+            recreate_wildcard = False
+            for index in master_col.list_indexes():
+                if index["name"] == "_id_":
+                    continue
+                attr_names = set(index["key"].keys())
+
+                # Drop individual attribute indexes
+                if attr_names & attrs:
+                    self.log.info("Dropping index %s on %s", index["name"], etype)
+                    master_col.drop_index(index["name"])
+
+                # Drop wildcard indexes if there are missing attributes
+                if "$**" in attr_names:
+                    if index.get("wildcardProjection") is not None:
+                        covered_attrs = {
+                            k.rsplit(".", maxsplit=1)[0] for k in index["wildcardProjection"]
+                        }
+                        if not covered_attrs - attrs:
+                            continue  # Index already covers all history attributes
+                    self.log.info("Dropping wildcard index %s on %s", index["name"], etype)
+                    recreate_wildcard = True
+                    master_col.drop_index(index["name"])
+
+            if not recreate_wildcard:
+                continue
+
+            # Create new indexes
+            index_name = f"wildcard_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            try:
+                master_col.create_index(
+                    [("$**", 1)],
+                    name=index_name,
+                    wildcardProjection={f"{attr}.t2": 1 for attr in history_attrs}
+                    | {f"{attr}.ts_last_update": 1 for attr in plain_attrs},
+                )
+                self.log.info("Created wildcard index %s on %s", index_name, etype)
+            except OperationFailure as why:
+                self.log.error("Failed to create wildcard index: %s", why)
 
     def _assert_etype_exists(self, etype: str):
         """Asserts `etype` existence.

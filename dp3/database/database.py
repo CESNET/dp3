@@ -234,7 +234,7 @@ class EntityDatabase:
                         covered_attrs = {
                             k.rsplit(".", maxsplit=1)[0] for k in index["wildcardProjection"]
                         }
-                        if not covered_attrs - attrs:
+                        if not attrs - covered_attrs:
                             continue  # Index already covers all history attributes
                     self.log.info("Dropping wildcard index %s on %s", index["name"], etype)
                     recreate_wildcard = True

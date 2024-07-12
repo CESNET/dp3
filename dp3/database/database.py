@@ -364,7 +364,9 @@ class EntityDatabase:
 
         master_col = self._master_col_name(etype)
         try:
-            self._db[master_col].update_one({"_id": eid}, master_changes, upsert=True)
+            self._db.get_collection(master_col, write_concern=pymongo.WriteConcern(w=1)).update_one(
+                {"_id": eid}, master_changes, upsert=True
+            )
             self.log.debug(f"Updated master record of {etype} {eid}: {master_changes}")
         except Exception as e:
             raise DatabaseError(f"Update of master record failed: {e}\n{dps}") from e

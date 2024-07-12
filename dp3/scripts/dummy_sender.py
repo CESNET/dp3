@@ -43,13 +43,26 @@ def get_shifted_datapoint_from_row(row):
         del dp["t1"]
         del dp["t2"]
         return dp
-    duration = dp["t2"] - dp["t1"]
-    dp["t1"] = (datetime.utcnow()).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+    now = datetime.utcnow()
+    shift = now - dp["t1"]
+    dp["t1"] = now.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
 
-    if pd.isna(duration):
+    if pd.isna(shift):
         del dp["t2"]
         return dp
-    dp["t2"] = (datetime.utcnow() + duration).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+    dp["t2"] = (dp["t2"] + shift).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+    if not isinstance(dp["v"], dict):
+        return dp
+
+    ts_fields = ["time_first", "time_last", "time"]
+    for field in ts_fields:
+        if field in dp["v"]:
+            shifted = []
+            for item in dp["v"][field]:
+                shifted.append(
+                    (datetime.fromisoformat(item) + shift).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+                )
+            dp["v"][field] = shifted
     return dp
 
 

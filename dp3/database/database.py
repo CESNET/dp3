@@ -125,7 +125,8 @@ class EntityDatabase:
 
         # Init and switch to correct database
         self._db = self._db[config.db_name]
-        self._init_database_schema(config.db_name)
+        if process_index == 0:
+            self._init_database_schema(config.db_name)
 
         self.schema_cleaner = SchemaCleaner(
             self._db, self.get_module_cache("Schema"), self._db_schema_config, self.log

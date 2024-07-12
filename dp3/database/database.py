@@ -476,7 +476,7 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         try:
             self._db[master_col].update_many(
-                {attr_name: {"$exists": True}}, {"$pull": {attr_name: {"t2": {"$lt": t_old}}}}
+                {f"{attr_name}.t2": {"$lt": t_old}}, {"$pull": {attr_name: {"t2": {"$lt": t_old}}}}
             )
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e

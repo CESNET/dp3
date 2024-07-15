@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Simple datapoint sender script for testing local DP3 instance."""
-
+import gzip
 import json
 import logging
 import os
@@ -97,9 +97,23 @@ def send_all(datapoints, dp_factory, *_):
         yield dp_factory(dp)
 
 
-def send_dps(args, stop_event: Event, datapoints, queue: Queue):
+def worker_thread(args, stop_event: Event, dp_q: Queue, q_empty: Event, queue: Queue):
     log.debug("Starting")
 
+    while not stop_event.is_set():
+        if dp_q.empty():
+            q_empty.set()
+        dps = dp_q.get()
+        if dp_q.empty():
+            q_empty.set()
+
+        if dps is None:
+            log.debug("Received stop event, exiting.")
+            break
+        send_dps(args, stop_event, dps, queue)
+
+
+def send_dps(args, stop_event: Event, datapoints, queue: Queue):
     if args.mode == "cherry-pick":
         dps = cherry_pick_send(datapoints, dp_factory, log, args)
     elif args.mode == "all":
@@ -157,6 +171,60 @@ def send_dps(args, stop_event: Event, datapoints, queue: Queue):
 
     log.info("Sent %s datapoints in %.3fs", dps_sent, request_time)
     queue.put((dps_sent, request_time))
+
+
+def reader_thread(
+    file_path: str,
+    dp_q: Queue,
+    q_empty: Event,
+    stop_running: Event,
+    buffer_size: int = 1000,
+    prefetch_size: int = 4,
+):
+    startup = True
+    try:
+        dp_iter = datapoint_reader(file_path, buffer_size)
+        while not stop_running.is_set():
+            for _i in range(prefetch_size):
+                dp_chunk = next(dp_iter)
+                log.info("Read %s datapoints (%s)", dp_chunk.shape[0], _i + 1)
+                dp_q.put(dp_chunk)
+            if startup:
+                startup = False
+                q_empty.clear()
+
+            q_empty.wait()
+            q_empty.clear()
+
+    except KeyboardInterrupt:
+        log.info("Received user interrupt, exiting.")
+    except Exception as e:
+        log.exception(e)
+
+    for _ in range(prefetch_size):
+        dp_q.put(None)
+
+
+def datapoint_reader(file_path: str, buffer_size: int = 10000):
+    def yield_transform(buf: list[bytes]):
+        return pd.read_json(
+            b"".join(buf).decode("utf-8"),
+            orient="records",
+            convert_dates=["t1", "t2"],
+            lines="jsonl" in args.input_file,
+        ).fillna(value={"c": 1.0})
+
+    open_fn = open if not file_path.endswith(".gz") else gzip.open
+
+    with open_fn(file_path, "rb") as file:
+        buffer = []
+        for line in file:
+            buffer.append(line)
+            if len(buffer) >= buffer_size:
+                yield yield_transform(buffer)
+                buffer = []
+        if buffer:
+            yield yield_transform(buffer)
 
 
 if __name__ == "__main__":
@@ -221,47 +289,44 @@ if __name__ == "__main__":
     )
     log = logging.getLogger("DataPointSender")
 
-    datapoints = pd.read_json(
-        args.input_file,
-        orient="records",
-        convert_dates=["t1", "t2"],
-        lines="jsonl" in args.input_file,
-    ).fillna(value={"c": 1.0})
-    log.info("Input file contains %s DataPoints", datapoints.shape[0])
-
     prev = 0
-    step = datapoints.shape[0] // args.workers
-    chunked = (datapoints.iloc[i : i + step, :] for i in range(0, datapoints.shape[0], step))
-    queue = Queue()
+    dp_queue = Queue()
+    telem_queue = Queue()
 
     # Send them
+    queue_empty = Event()
     stop = Event()
     workers = [
         Thread(
-            target=send_dps,
-            args=(args, stop, chunk, queue),
+            target=worker_thread,
+            name=f"Worker-{i}",
+            args=(args, stop, dp_queue, queue_empty, telem_queue),
         )
-        for i, chunk in enumerate(chunked)
-        if i < args.workers
+        for i in range(args.workers)
     ]
+    reader = Thread(
+        target=reader_thread,
+        name="Reader",
+        args=(args.input_file, dp_queue, queue_empty, stop),
+        kwargs={"prefetch_size": max(4, args.workers * 2)},
+    )
     try:
-        if args.workers == 1:
-            send_dps(args, stop, datapoints, queue)
-        else:
-            log.info("Starting %s workers", len(workers))
-            [w.start() for w in workers]
-            log.debug("Avaiting result")
-            [w.join() for w in workers]
+        reader.start()
+        log.info("Starting %s workers", len(workers))
+        [w.start() for w in workers]
+        log.debug("Avaiting result")
+        [w.join() for w in workers]
     except KeyboardInterrupt:
         log.info("Received user interrupt, exiting.")
         stop.set()
-        if args.workers > 1:
-            [w.join() for w in workers]
+        queue_empty.set()
+        reader.join()
+        [w.join() for w in workers]
 
     dps_sent, request_time = 0, 0
 
-    while not queue.empty():
-        dps_sent_, request_time_ = queue.get()
+    while not telem_queue.empty():
+        dps_sent_, request_time_ = telem_queue.get()
         dps_sent += dps_sent_
         request_time = max(request_time, request_time_)
 

@@ -241,6 +241,9 @@ class EntityDatabase:
                     self.log.info("Dropping wildcard index %s on %s", index["name"], etype)
                     master_col.drop_index(index["name"])
 
+            # Create an index on the id hash
+            master_col.create_index("#hash", background=True)
+
             if not create_wildcard:
                 continue
 

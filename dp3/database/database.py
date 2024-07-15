@@ -218,7 +218,7 @@ class EntityDatabase:
             attrs = history_attrs | plain_attrs
 
             # Drop previous indexes
-            recreate_wildcard = False
+            create_wildcard = True
             for index in master_col.list_indexes():
                 if index["name"] == "_id_":
                     continue
@@ -236,15 +236,15 @@ class EntityDatabase:
                             k.rsplit(".", maxsplit=1)[0] for k in index["wildcardProjection"]
                         }
                         if not attrs - covered_attrs:
+                            create_wildcard = False
                             continue  # Index already covers all history attributes
                     self.log.info("Dropping wildcard index %s on %s", index["name"], etype)
-                    recreate_wildcard = True
                     master_col.drop_index(index["name"])
 
-            if not recreate_wildcard:
+            if not create_wildcard:
                 continue
 
-            # Create new indexes
+            # Create wildcard index for attribute histories
             index_name = f"wildcard_{datetime.now().strftime('%Y%m%d%H%M%S')}"
             try:
                 master_col.create_index(

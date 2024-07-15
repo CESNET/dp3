@@ -97,7 +97,7 @@ def send_all(datapoints, dp_factory, *_):
         yield dp_factory(dp)
 
 
-def worker_thread(args, stop_event: Event, dp_q: Queue, q_empty: Event, queue: Queue):
+def worker_thread(i: int, args, stop_event: Event, dp_q: Queue, q_empty: Event, queue: Queue):
     log.debug("Starting")
 
     while not stop_event.is_set():
@@ -110,10 +110,10 @@ def worker_thread(args, stop_event: Event, dp_q: Queue, q_empty: Event, queue: Q
         if dps is None:
             log.debug("Received stop event, exiting.")
             break
-        send_dps(args, stop_event, dps, queue)
+        send_dps(i, args, stop_event, dps, queue)
 
 
-def send_dps(args, stop_event: Event, datapoints, queue: Queue):
+def send_dps(i: int, args, stop_event: Event, datapoints, queue: Queue):
     if args.mode == "cherry-pick":
         dps = cherry_pick_send(datapoints, dp_factory, log, args)
     elif args.mode == "all":
@@ -170,7 +170,7 @@ def send_dps(args, stop_event: Event, datapoints, queue: Queue):
             break
 
     log.info("Sent %s datapoints in %.3fs", dps_sent, request_time)
-    queue.put((dps_sent, request_time))
+    queue.put((i, dps_sent, request_time))
 
 
 def reader_thread(
@@ -300,7 +300,7 @@ if __name__ == "__main__":
         Thread(
             target=worker_thread,
             name=f"Worker-{i}",
-            args=(args, stop, dp_queue, queue_empty, telem_queue),
+            args=(i, args, stop, dp_queue, queue_empty, telem_queue),
         )
         for i in range(args.workers)
     ]
@@ -325,10 +325,12 @@ if __name__ == "__main__":
 
     dps_sent, request_time = 0, 0
 
+    w_times = {i: 0 for i in range(args.workers)}
     while not telem_queue.empty():
-        dps_sent_, request_time_ = telem_queue.get()
+        i, dps_sent_, request_time_ = telem_queue.get()
         dps_sent += dps_sent_
-        request_time = max(request_time, request_time_)
+        w_times[i] += request_time_
+    request_time = max(w_times.values())
 
     if dps_sent != 0:
         log.info(

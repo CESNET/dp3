@@ -131,13 +131,13 @@ def send_dps(i: int, args, stop_event: Event, datapoints, queue: Queue):
             break
         payload = json.dumps(batch)
         log.debug(payload)
+        t_sent = time.time()
         try:
-            t_sent = time.time()
             response = requests.post(url=datapoints_url, json=batch)
             t_received = time.time()
             if response.status_code == requests.codes.ok:
                 attributes = {dp["attr"] for dp in batch}
-                log.info(
+                log.debug(
                     "(%.3fs) %s datapoints of attribute(s) %s OK",
                     t_received - t_sent,
                     len(batch),
@@ -156,12 +156,16 @@ def send_dps(i: int, args, stop_event: Event, datapoints, queue: Queue):
             t_error = time.time()
             attributes = {dp["attr"] for dp in batch}
             log.error(
-                "%(%.3f s) %s - %s datapoints of attribute(s) %s",
+                "(%.3fs) %s - %s datapoints of attribute(s) %s",
                 t_error - t_sent,
                 err,
                 len(batch),
                 ", ".join(attributes),
             )
+            stop_event.set()
+            time.sleep(0.5)  # Make sure the reader does not clear the empty queue signal at startup
+            queue_empty.set()
+            break
         except requests.exceptions.InvalidJSONError as err:
             log.exception(err)
             log.error(batch)

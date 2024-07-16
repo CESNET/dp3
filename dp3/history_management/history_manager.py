@@ -168,6 +168,11 @@ class HistoryManager:
         t_old = datetime.utcnow() - self.keep_raw_delta
         self.log.debug("Archiving all records before %s ...", t_old)
 
+        for etype in self.model_spec.entities:
+            res = self.db.move_raw_to_archive(etype)
+            if res:
+                self.log.info("Current %s raw collection was moved to archive: %s", etype, res)
+
         max_date, min_date, total_dps = self._get_raw_dps_summary(t_old)
         if total_dps == 0:
             self.log.debug("Found no datapoints to archive.")
@@ -186,10 +191,12 @@ class HistoryManager:
 
             with open(date_logfile, "w", encoding="utf-8") as logfile:
                 for etype in self.model_spec.entities:
-                    result_cursor = self.db.get_raw(etype, after=min_date, before=t_old, plain=True)
-                    for dp in result_cursor:
-                        logfile.write(f"{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}\n")
-                        datapoints += 1
+                    for result_cursor in self.db.get_archive(etype, after=min_date, before=t_old):
+                        for dp in result_cursor:
+                            logfile.write(
+                                f"{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}\n"
+                            )
+                            datapoints += 1
 
             self.log.info("Archived %s datapoints to %s", datapoints, date_logfile)
             compress_file(date_logfile)
@@ -198,9 +205,15 @@ class HistoryManager:
 
         deleted_count = 0
         for etype in self.model_spec.entities:
-            deleted_res = self.db.delete_old_raw_dps(etype, before=t_old, plain=True)
-            deleted_count += deleted_res.deleted_count
+            for deleted_res in self.db.delete_old_archived_dps(etype, before=t_old):
+                deleted_count += deleted_res.deleted_count
         self.log.info("Deleted %s datapoints", deleted_count)
+
+        dropped_count = 0
+        for etype in self.model_spec.entities:
+            dropped_count += self.db.drop_empty_archives(etype)
+        if dropped_count:
+            self.log.info("Dropped %s empty archive collection(s)", dropped_count)
 
     @staticmethod
     def _reformat_dp(dp):
@@ -216,9 +229,9 @@ class HistoryManager:
     ) -> tuple[Optional[datetime], Optional[datetime], int]:
         date_ranges = []
         for etype in self.model_spec.entities:
-            result_cursor = self.db.get_raw_summary(etype, before=before)
-            for range_summary in result_cursor:
-                date_ranges.append(range_summary)
+            summary = self.db.get_archive_summary(etype, before=before)
+            if summary:
+                date_ranges.append(summary)
         if not date_ranges:
             return None, None, 0
         min_date = min(x["earliest"] for x in date_ranges)

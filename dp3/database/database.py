@@ -2,6 +2,7 @@ import inspect
 import logging
 import time
 import urllib
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Callable, Literal, Optional, Union
 
@@ -9,7 +10,10 @@ import pymongo
 from event_count_logger import DummyEventGroup
 from pydantic import BaseModel, Field, field_validator
 from pymongo import ReplaceOne, UpdateMany, UpdateOne
+from pymongo.command_cursor import CommandCursor
+from pymongo.cursor import Cursor
 from pymongo.errors import OperationFailure
+from pymongo.results import DeleteResult
 
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
@@ -182,6 +186,15 @@ class EntityDatabase:
     def _raw_col_name(entity: str) -> str:
         """Returns name of raw data collection for `entity`."""
         return f"{entity}#raw"
+
+    @staticmethod
+    def _get_new_archive_col_name(entity: str) -> str:
+        """Returns name of new archive collection for `entity`."""
+        return f"{entity}#archive_{datetime.utcnow().strftime('%Y_%m_%d_%H%M%S')}"
+
+    def _archive_col_names(self, entity: str) -> list[str]:
+        """Returns names of archive collections for `entity`."""
+        return self._db.list_collection_names(filter={"name": {"$regex": f"{entity}#archive.*"}})
 
     def _init_database_schema(self, db_name) -> None:
         """Runs full check and update of database schema.
@@ -555,7 +568,7 @@ class EntityDatabase:
         """Checks whether master record for etype/eid exists"""
         return bool(self.get_master_record(etype, eid))
 
-    def get_master_records(self, etype: str, **kwargs) -> pymongo.cursor.Cursor:
+    def get_master_records(self, etype: str, **kwargs) -> Cursor:
         """Get cursor to current master records of etype."""
         # Check `etype`
         self._assert_etype_exists(etype)
@@ -565,7 +578,7 @@ class EntityDatabase:
 
     def get_worker_master_records(
         self, worker_index: int, worker_cnt: int, etype: str, query_filter: dict = None, **kwargs
-    ) -> pymongo.cursor.Cursor:
+    ) -> Cursor:
         """Get cursor to current master records of etype."""
         if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
@@ -617,7 +630,7 @@ class EntityDatabase:
         etype: str,
         fulltext_filters: Optional[dict[str, str]] = None,
         generic_filter: Optional[dict[str, any]] = None,
-    ) -> tuple[pymongo.cursor.Cursor, int]:
+    ) -> tuple[Cursor, int]:
         """Get latest snapshots of given `etype`.
 
         This method is useful for displaying data on web.
@@ -696,7 +709,7 @@ class EntityDatabase:
 
     def get_snapshots(
         self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None
-    ) -> pymongo.cursor.Cursor:
+    ) -> Cursor:
         """Get all (or filtered) snapshots of given `eid`.
 
         This method is useful for displaying `eid`'s history on web.
@@ -1061,10 +1074,38 @@ class EntityDatabase:
 
         return distinct_counts
 
-    def get_raw_summary(self, etype: str, before: datetime) -> pymongo.cursor:
+    def move_raw_to_archive(self, etype: str):
+        """Rename the current raw collection to archive collection.
+
+        Multiple archive collections can exist for one entity type,
+        though they are exported and dropped over time.
+        """
         raw_col_name = self._raw_col_name(etype)
+        archive_col_name = self._get_new_archive_col_name(etype)
         try:
-            return self._db[raw_col_name].aggregate(
+            if self._db.list_collection_names(filter={"name": raw_col_name}):
+                self._db[raw_col_name].rename(archive_col_name)
+                return archive_col_name
+            return None
+        except Exception as e:
+            raise DatabaseError(f"Move of raw collection failed: {e}") from e
+
+    def get_archive_summary(self, etype: str, before: datetime) -> Optional[dict]:
+        collection_summaries = []
+        for archive_col in self._archive_col_names(etype):
+            result_cursor = self._get_archive_summary(archive_col, before=before)
+            for summary in result_cursor:
+                collection_summaries.append(summary)
+        if not collection_summaries:
+            return None
+        min_date = min(x["earliest"] for x in collection_summaries)
+        max_date = max(x["latest"] for x in collection_summaries)
+        total_dps = sum(x["count"] for x in collection_summaries)
+        return {"earliest": min_date, "latest": max_date, "count": total_dps}
+
+    def _get_archive_summary(self, archive_col_name: str, before: datetime) -> CommandCursor:
+        try:
+            return self._db[archive_col_name].aggregate(
                 [
                     {"$match": {"t1": {"$lt": before}}},
                     {
@@ -1078,34 +1119,44 @@ class EntityDatabase:
                 ]
             )
         except Exception as e:
-            raise DatabaseError(f"Raw collection {raw_col_name} fetch failed: {e}") from e
+            raise DatabaseError(f"Archive collection {archive_col_name} fetch failed: {e}") from e
 
-    def get_raw(
-        self, etype: str, after: datetime, before: datetime, plain: bool = True
-    ) -> pymongo.cursor:
-        """Get raw datapoints where `t1` is in <`after`, `before`).
+    def get_archive(self, etype: str, after: datetime, before: datetime) -> Iterator[Cursor]:
+        """Get archived raw datapoints where `t1` is in <`after`, `before`).
 
-        If `plain` is `True`, then all plain datapoints will be returned (default).
+        All plain datapoints will be returned (default).
         """
-        raw_col_name = self._raw_col_name(etype)
-        query_filter = {"$or": [{"t1": {"$gte": after, "$lt": before}}]}
-        if plain:
-            query_filter["$or"].append({"t1": None})
-        return self._db[raw_col_name].find(query_filter)
+        query_filter = {"$or": [{"t1": {"$gte": after, "$lt": before}}, {"t1": None}]}
+        for archive_col in self._archive_col_names(etype):
+            try:
+                yield self._db[archive_col].find(query_filter)
+            except Exception as e:
+                raise DatabaseError(f"Archive collection {archive_col} fetch failed: {e}") from e
 
-    def delete_old_raw_dps(self, etype: str, before: datetime, plain: bool = True):
-        """Delete raw datapoints older than `before`.
+    def delete_old_archived_dps(self, etype: str, before: datetime) -> Iterator[DeleteResult]:
+        """Delete archived raw datapoints older than `before`.
 
         Deletes all plain datapoints if `plain` is `True` (default).
         """
-        raw_col_name = self._raw_col_name(etype)
-        query_filter = {"$or": [{"t1": {"$lt": before}}]}
-        if plain:
-            query_filter["$or"].append({"t1": None})
-        try:
-            return self._db[raw_col_name].delete_many(query_filter)
-        except Exception as e:
-            raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
+        query_filter = {"$or": [{"t1": {"$lt": before}}, {"t1": None}]}
+        for archive_col in self._archive_col_names(etype):
+            try:
+                yield self._db[archive_col].delete_many(query_filter)
+            except Exception as e:
+                raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
+
+    def drop_empty_archives(self, etype: str) -> int:
+        """Drop empty archive collections."""
+        dropped_count = 0
+        for archive_col in self._archive_col_names(etype):
+            try:
+                col = self._db[archive_col]
+                if col.estimated_document_count() < 1000 and col.count_documents({}) == 0:
+                    col.drop()
+                    dropped_count += 1
+            except Exception as e:
+                raise DatabaseError(f"Drop of empty archive failed: {e}") from e
+        return dropped_count
 
     def delete_old_snapshots(self, etype: str, t_old: datetime):
         """Delete old snapshots.

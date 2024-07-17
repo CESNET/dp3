@@ -255,6 +255,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     core_modules = [
         updater,  # Updater will throw exceptions when misconfigured (best start first)
         task_distributor,  # TaskDistributor (which starts TaskExecutors in several worker threads)
+        db,
         snap_shooter,
         control,
         global_scheduler,

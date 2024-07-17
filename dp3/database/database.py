@@ -1,7 +1,9 @@
 import inspect
 import logging
+import threading
 import time
 import urllib
+from collections import defaultdict
 from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Callable, Literal, Optional, Union
@@ -9,7 +11,7 @@ from typing import Any, Callable, Literal, Optional, Union
 import pymongo
 from event_count_logger import DummyEventGroup
 from pydantic import BaseModel, Field, field_validator
-from pymongo import ReplaceOne, UpdateMany, UpdateOne
+from pymongo import ReplaceOne, UpdateMany, UpdateOne, WriteConcern
 from pymongo.command_cursor import CommandCursor
 from pymongo.cursor import Cursor
 from pymongo.errors import OperationFailure
@@ -18,6 +20,7 @@ from pymongo.results import DeleteResult
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase
+from dp3.common.scheduler import Scheduler
 from dp3.common.types import EventGroupType
 from dp3.database.schema_cleaner import SchemaCleaner
 from dp3.task_processing.task_queue import HASH
@@ -139,6 +142,14 @@ class EntityDatabase:
         self._on_entity_delete_one = []
         self._on_entity_delete_many = []
 
+        self._raw_buffer_locks = {etype: threading.Lock() for etype in model_spec.entities}
+        self._raw_buffers = defaultdict(list)
+        self._sched = Scheduler()
+        seconds = ",".join(
+            f"{int(i)}" for i in range(60) if int(i - process_index) % min(num_processes, 3) == 0
+        )
+        self._sched.register(self._push_raw, second=seconds)
+
         self.log.info("Database successfully initialized!")
 
     @staticmethod
@@ -164,6 +175,15 @@ class EntityDatabase:
             )
         else:
             raise NotImplementedError()
+
+    def start(self) -> None:
+        """Starts the database sync of raw datapoint inserts."""
+        self._sched.start()
+
+    def stop(self) -> None:
+        """Stops the database sync, push remaining datapoints."""
+        self._sched.stop()
+        self._push_raw()
 
     def register_on_entity_delete(
         self, f_one: Callable[[str, str], None], f_many: Callable[[str, list[str]], None]
@@ -318,19 +338,9 @@ class EntityDatabase:
         self._assert_etype_exists(etype)
 
         # Insert raw datapoints
-        raw_col = self._raw_col_name(etype)
         dps_dicts = [dp.model_dump(exclude={"attr_type"}) for dp in dps]
-        try:
-            self._db.get_collection(raw_col, write_concern=pymongo.WriteConcern(w=0)).insert_many(
-                dps_dicts
-            )
-            self.log.debug(
-                "Inserted datapoints to raw collection: %s %s",
-                dps[:3],
-                f"... and {len(dps) - 3} more" if len(dps) > 3 else "",
-            )
-        except Exception as e:
-            raise DatabaseError(f"Insert of datapoints failed: {e}\n{dps}") from e
+        with self._raw_buffer_locks[etype]:
+            self._raw_buffers[etype].extend(dps_dicts)
 
         # Update master document
         master_changes = {"$push": {}, "$set": {}}
@@ -380,12 +390,38 @@ class EntityDatabase:
 
         master_col = self._master_col_name(etype)
         try:
-            self._db.get_collection(master_col, write_concern=pymongo.WriteConcern(w=1)).update_one(
+            self._db.get_collection(master_col, write_concern=WriteConcern(w=1)).update_one(
                 {"_id": eid}, master_changes, upsert=True
             )
             self.log.debug(f"Updated master record of {etype} {eid}: {master_changes}")
         except Exception as e:
             raise DatabaseError(f"Update of master record failed: {e}\n{dps}") from e
+
+    def _push_raw(self):
+        """Pushes raw data to master collections."""
+        for etype, lock in self._raw_buffer_locks.items():
+            begin = time.time()
+            with lock:
+                locked = time.time()
+                dps = self._raw_buffers[etype]
+                self._raw_buffers[etype] = []
+                if not dps:
+                    continue
+            try:
+                self._db.get_collection(
+                    self._raw_col_name(etype), write_concern=WriteConcern(w=0)
+                ).insert_many(dps, ordered=False)
+                end = time.time()
+                self.log.debug(
+                    "Inserted %s raw datapoints to %s in %.3fs, %.3fus lock, %.3fs insert",
+                    len(dps),
+                    etype,
+                    end - begin,
+                    (locked - begin) * 1000_000,
+                    end - locked,
+                )
+            except Exception as e:
+                raise DatabaseError(f"Insert of datapoints failed: {e}\n{dps}") from e
 
     def update_master_records(self, etype: str, eids: list[str], records: list[dict]) -> None:
         """Replace master records of `etype`:`eid` with the provided `records`.

@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 from datetime import datetime
 
 from pymongo import ASCENDING, UpdateOne
@@ -27,7 +28,7 @@ class Telemetry:
 
         # Schedule master document aggregation
         registrar.register_task_hook("on_task_start", self.note_latest_src_timestamp)
-        mod = 10
+        mod = 30
         proc_i = platform_config.process_index
         n_proc = platform_config.num_processes
         spread_proc_index = proc_i * (mod // n_proc) if n_proc < mod else proc_i
@@ -53,26 +54,50 @@ class Telemetry:
     def sync_to_db(self):
         """Sync local timestamp cache to database."""
         with self.local_cache_lock:
-            updates = [
-                UpdateOne(
-                    {"_id": src},
-                    [{"$set": {"_id": src, "src_t": {"$max": ["$src_t", latest_timestamp]}}}],
-                    upsert=True,
-                )
-                for src, latest_timestamp in self.local_cache.items()
-            ]
-            self.local_cache.clear()
+            synced_cache = self.local_cache
+            self.local_cache = {}
+
+        updates = [
+            UpdateOne(
+                {"_id": src},
+                [{"$set": {"src_t": {"$max": ["$src_t", latest_timestamp]}}}],
+            )
+            for src, latest_timestamp in synced_cache.items()
+        ]
 
         if not updates:
             return
 
         try:
-            res = self.cache_col.bulk_write(updates)
+            start = time.time()
+            res = self.cache_col.bulk_write(updates, ordered=False)
+            end = time.time()
             self.log.debug(
-                "Updating %s src_timestamp records: %s modified",
+                "Updating %s src_timestamp records: %s matched %s modified in %.4fs",
                 len(updates),
+                res.matched_count,
                 res.modified_count,
+                (end - start),
             )
+            if len(updates) != res.matched_count:
+                upserts = [
+                    UpdateOne(
+                        {"_id": src},
+                        [{"$set": {"_id": src, "src_t": {"$max": ["$src_t", latest_timestamp]}}}],
+                        upsert=True,
+                    )
+                    for src, latest_timestamp in synced_cache.items()
+                ]
+                start = time.time()
+                res = self.cache_col.bulk_write(upserts, ordered=False)
+                end = time.time()
+                self.log.debug(
+                    "Upserting %s src_timestamp records: %s matched %s modified in %.4fs",
+                    len(upserts),
+                    res.matched_count,
+                    res.modified_count,
+                    (end - start),
+                )
         except Exception as e:
             self.log.error("Error updating src_timestamp records: %s", e)
 

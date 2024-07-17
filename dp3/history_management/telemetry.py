@@ -27,7 +27,12 @@ class Telemetry:
 
         # Schedule master document aggregation
         registrar.register_task_hook("on_task_start", self.note_latest_src_timestamp)
-        registrar.scheduler_register(self.sync_to_db, second="*/10", minute="*", hour="*")
+        mod = 10
+        proc_i = platform_config.process_index
+        n_proc = platform_config.num_processes
+        spread_proc_index = proc_i * (mod // n_proc) if n_proc < mod else proc_i
+        seconds = ",".join(f"{int(i)}" for i in range(60) if int(i - spread_proc_index) % mod == 0)
+        registrar.scheduler_register(self.sync_to_db, second=seconds, minute="*", hour="*")
 
     def note_latest_src_timestamp(self, task: DataPointTask):
         """Note the latest timestamp of each source in the task"""

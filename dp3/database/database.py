@@ -466,13 +466,16 @@ class EntityDatabase:
         """
         master_col = self._master_col_name(etype)
         try:
-            self._db[master_col].bulk_write(
+            res = self._db[master_col].bulk_write(
                 [
                     ReplaceOne({"_id": eid}, record, upsert=True)
                     for eid, record in zip(eids, records)
-                ]
+                ],
+                ordered=False,
             )
             self.log.debug("Updated master records of %s (%s).", etype, len(eids))
+            for error in res.bulk_api_result.get("writeErrors", []):
+                self.log.error("Error in bulk write: %s", error)
         except Exception as e:
             raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
 
@@ -886,8 +889,15 @@ class EntityDatabase:
 
         snapshot_col = self._snapshots_col_name(etype)
         try:
-            self._db[snapshot_col].insert_many(snapshots)
-            self.log.debug(f"Inserted snapshots: {snapshots}")
+            res = self._db[snapshot_col].insert_many(snapshots, ordered=False)
+            if len(res.inserted_ids) != len(snapshots):
+                self.log.error(
+                    "Inserted only %s snapshots when trying to insert %s",
+                    len(res.inserted_ids),
+                    len(snapshots),
+                )
+            else:
+                self.log.debug(f"Inserted snapshots: {snapshots}")
         except Exception as e:
             raise DatabaseError(f"Insert of snapshots failed: {e}\n{snapshots}") from e
 

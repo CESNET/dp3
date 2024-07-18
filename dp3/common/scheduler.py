@@ -50,6 +50,7 @@ class Scheduler:
         minute: Union[int, str] = None,
         second: Union[int, str] = None,
         timezone: str = "UTC",
+        misfire_grace_time: int = 1,
     ) -> int:
         """
         Register a function to be run at specified times.
@@ -71,6 +72,8 @@ class Scheduler:
             minute: minute (0-59)
             second: second (0-59)
             timezone: Timezone for time specification (default is UTC).
+            misfire_grace_time: seconds after the designated run time
+                that the job is still allowed to be run (default is 1)
         Returns:
              job ID
         """
@@ -85,6 +88,7 @@ class Scheduler:
             func_kwargs,
             coalesce=True,
             max_instances=1,
+            misfire_grace_time=misfire_grace_time,
             id=str(self.last_job_id),
         )
         self.log.debug(f"Registered function {get_func_name(func)} to be called at {trigger}")

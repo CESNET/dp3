@@ -33,7 +33,9 @@ class Telemetry:
         n_proc = platform_config.num_processes
         spread_proc_index = proc_i * (mod // n_proc) if n_proc < mod else proc_i
         seconds = ",".join(f"{int(i)}" for i in range(60) if int(i - spread_proc_index) % mod == 0)
-        registrar.scheduler_register(self.sync_to_db, second=seconds, minute="*", hour="*")
+        registrar.scheduler_register(
+            self.sync_to_db, second=seconds, minute="*", hour="*", misfire_grace_time=10
+        )
 
     def note_latest_src_timestamp(self, task: DataPointTask):
         """Note the latest timestamp of each source in the task"""

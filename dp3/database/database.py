@@ -151,8 +151,8 @@ class EntityDatabase:
         seconds = ",".join(
             f"{int(i)}" for i in range(60) if int(i - process_index) % min(num_processes, 3) == 0
         )
-        self._sched.register(self._push_raw, second=seconds)
-        self._sched.register(self._push_master, second=seconds)
+        self._sched.register(self._push_raw, second=seconds, misfire_grace_time=5)
+        self._sched.register(self._push_master, second=seconds, misfire_grace_time=5)
 
         self.log.info("Database successfully initialized!")
 

@@ -61,8 +61,6 @@ def get_eid_snapshots_handler(
 ):
     """Handler for getting snapshots of EID"""
     snapshots = list(DB.get_snapshots(etype, eid, t1=date_from, t2=date_to))
-    for s in snapshots:
-        del s["_id"]
 
     return snapshots
 

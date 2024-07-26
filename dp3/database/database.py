@@ -8,13 +8,14 @@ from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Callable, Literal, Optional, Union
 
+import bson
 import pymongo
 from event_count_logger import DummyEventGroup
 from pydantic import BaseModel, Field, field_validator
 from pymongo import ReplaceOne, UpdateMany, UpdateOne, WriteConcern
 from pymongo.command_cursor import CommandCursor
 from pymongo.cursor import Cursor
-from pymongo.errors import OperationFailure
+from pymongo.errors import BulkWriteError, DocumentTooLarge, OperationFailure, WriteError
 from pymongo.results import DeleteResult
 
 from dp3.common.attrspec import AttrType, timeseries_types
@@ -24,6 +25,8 @@ from dp3.common.scheduler import Scheduler
 from dp3.common.types import EventGroupType
 from dp3.database.schema_cleaner import SchemaCleaner
 from dp3.task_processing.task_queue import HASH
+
+BSON_OBJECT_TOO_LARGE = 10334
 
 
 class DatabaseError(Exception):
@@ -206,6 +209,11 @@ class EntityDatabase:
     def _snapshots_col_name(entity: str) -> str:
         """Returns name of snapshots collection for `entity`."""
         return f"{entity}#snapshots"
+
+    @staticmethod
+    def _oversized_snapshots_col_name(entity: str) -> str:
+        """Returns name of oversized snapshots collection for `entity`."""
+        return f"{entity}#snapshots_oversized"
 
     @staticmethod
     def _raw_col_name(entity: str) -> str:
@@ -522,6 +530,7 @@ class EntityDatabase:
         """Delete master record and all snapshots of `etype`:`eids`."""
         master_col = self._master_col_name(etype)
         snapshot_col = self._snapshots_col_name(etype)
+        os_snapshot_col = self._oversized_snapshots_col_name(etype)
         try:
             res = self._db[master_col].delete_many({"_id": {"$in": eids}})
             self.log.debug(
@@ -531,8 +540,12 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of master record failed: {e}\n{eids}") from e
         try:
-            res = self._db[snapshot_col].delete_many({"eid": {"$in": eids}})
+            res = self._db[snapshot_col].delete_many({"_id": {"$in": eids}})
             self.log.debug("Deleted %s snapshots of %s (%s).", res.deleted_count, etype, len(eids))
+            res = self._db[os_snapshot_col].delete_many({"eid": {"$in": eids}})
+            self.log.debug(
+                "Deleted %s oversized snapshots of %s (%s).", res.deleted_count, etype, len(eids)
+            )
         except Exception as e:
             raise DatabaseError(f"Delete of snapshots failed: {e}\n{eids}") from e
         for f in self._on_entity_delete_many:
@@ -545,6 +558,7 @@ class EntityDatabase:
         """Delete master record and all snapshots of `etype`:`eid`."""
         master_col = self._master_col_name(etype)
         snapshot_col = self._snapshots_col_name(etype)
+        os_snapshot_col = self._oversized_snapshots_col_name(etype)
         try:
             self._db[master_col].delete_one({"_id": eid})
             self.log.debug("Deleted master record of %s/%s.", etype, eid)
@@ -552,8 +566,12 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of master record failed: {e}\n{eid}") from e
         try:
-            res = self._db[snapshot_col].delete_many({"eid": eid})
+            res = self._db[snapshot_col].delete_many({"_id": eid})
             self.log.debug("deleted %s snapshots of %s/%s.", res.deleted_count, etype, eid)
+            res = self._db[os_snapshot_col].delete_many({"eid": eid})
+            self.log.debug(
+                "Deleted %s oversized snapshots of %s/%s.", res.deleted_count, etype, eid
+            )
         except Exception as e:
             raise DatabaseError(f"Delete of snapshots failed: {e}\n{eid}") from e
         for f in self._on_entity_delete_one:
@@ -673,7 +691,9 @@ class EntityDatabase:
         self._assert_etype_exists(etype)
 
         snapshot_col = self._snapshots_col_name(etype)
-        return self._db[snapshot_col].find_one({"eid": eid}, sort=[("_id", -1)]) or {}
+        return (
+            self._db[snapshot_col].find_one({"eid": eid}, {"last": 1}, sort=[("_id", -1)]) or {}
+        ).get("last", {})
 
     def _get_latest_snapshots_date(self) -> Optional[datetime]:
         """Get date of newest snapshot set.
@@ -735,15 +755,6 @@ class EntityDatabase:
 
         snapshot_col = self._snapshots_col_name(etype)
 
-        # Find newest fully completed snapshot date
-        latest_snapshot_date = self._get_latest_snapshots_date()
-
-        # There are no fully completed snapshots sets - return all currently existing snapshots
-        if latest_snapshot_date is None:
-            return self._db[snapshot_col].find().sort([("eid", pymongo.ASCENDING)]), self._db[
-                snapshot_col
-            ].count_documents({})
-
         if not fulltext_filters:
             fulltext_filters = {}
 
@@ -752,7 +763,6 @@ class EntityDatabase:
 
         # Create base of query
         query = generic_filter
-        query["_time_created"] = latest_snapshot_date
 
         # Process fulltext filters
         for attr in fulltext_filters:
@@ -760,7 +770,7 @@ class EntityDatabase:
 
             # EID filter
             if attr == "eid":
-                query[attr] = fulltext_filter
+                query["_id"] = fulltext_filter
                 continue
 
             # Check if attribute exists
@@ -771,20 +781,20 @@ class EntityDatabase:
 
             # Correctly handle link<...> data type
             if attr_spec.t in AttrType.PLAIN | AttrType.OBSERVATIONS and attr_spec.is_relation:
-                query[attr + ".eid"] = fulltext_filter
+                query["last." + attr + ".eid"] = fulltext_filter
             else:
-                query[attr] = fulltext_filter
+                query["last." + attr] = fulltext_filter
 
         try:
-            return self._db[snapshot_col].find(query).sort([("eid", pymongo.ASCENDING)]), self._db[
-                snapshot_col
-            ].count_documents(query)
+            return self._db[snapshot_col].find(query, {"last": 1}).sort(
+                [("_id", pymongo.ASCENDING)]
+            ), self._db[snapshot_col].count_documents(query)
         except OperationFailure as e:
             raise DatabaseError("Invalid query") from e
 
     def get_snapshots(
         self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None
-    ) -> Cursor:
+    ) -> Union[Cursor, CommandCursor]:
         """Get all (or filtered) snapshots of given `eid`.
 
         This method is useful for displaying `eid`'s history on web.
@@ -799,6 +809,37 @@ class EntityDatabase:
         self._assert_etype_exists(etype)
 
         snapshot_col = self._snapshots_col_name(etype)
+
+        # Find out if the snapshot is oversized
+        doc = self._db[snapshot_col].find_one({"_id": eid}, {"oversized": 1})
+        if doc and doc.get("oversized", False):
+            return self._get_snapshots_oversized(etype, eid, t1, t2)
+
+        query = {"_time_created": {}}
+        pipeline = [
+            {"$match": {"_id": eid}},
+            {"$set": {"history": {"$concatArrays": [["$last"], "$history"]}}},
+            {"$unwind": "$history"},
+            {"$replaceRoot": {"newRoot": "$history"}},
+        ]
+
+        # Filter by date
+        if t1:
+            query["_time_created"]["$gte"] = t1
+        if t2:
+            query["_time_created"]["$lte"] = t2
+
+        # Unset if empty
+        if query["_time_created"]:
+            pipeline.append({"$match": query})
+        pipeline.append({"$sort": {"_time_created": pymongo.ASCENDING}})
+        return self._db[snapshot_col].aggregate(pipeline)
+
+    def _get_snapshots_oversized(
+        self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+    ) -> Cursor:
+        """Get all (or filtered) snapshots of given `eid` from oversized snapshots collection."""
+        snapshot_col = self._oversized_snapshots_col_name(etype)
         query = {"eid": eid, "_time_created": {}}
 
         # Filter by date
@@ -861,25 +902,95 @@ class EntityDatabase:
         master_col = self._master_col_name(etype)
         return self._db[master_col].estimated_document_count({})
 
+    def _migrate_to_oversized_snapshot(self, etype: str, eid: str, snapshot: dict):
+        snapshot_col = self._snapshots_col_name(etype)
+        os_col = self._oversized_snapshots_col_name(etype)
+
+        try:
+            doc = self._db[snapshot_col].find_one_and_update(
+                {"_id": eid},
+                {
+                    "$set": {"oversized": True, "last": snapshot, "count": 0},
+                    "$unset": {"history": ""},
+                },
+            )
+            inserts = list(doc.get("history", []))
+            inserts.insert(0, doc.get("last", {}))
+            inserts.insert(0, snapshot)
+            self._db[os_col].insert_many(inserts)
+        except Exception as e:
+            raise DatabaseError(f"Update of snapshot {eid} failed: {e}, {snapshot}") from e
+
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
-        """Saves snapshot to specified entity of current master document."""
+        """Saves snapshot to specified entity of current master document.
+
+        Will move snapshot to oversized snapshots if the maintained bucket is too large.
+        """
         # Check `etype`
         self._assert_etype_exists(etype)
 
         snapshot["_time_created"] = time
+        if "eid" not in snapshot:
+            self.log.error("Snapshot is missing 'eid' field: %s", snapshot)
+            return
+        eid = snapshot["eid"]
 
         snapshot_col = self._snapshots_col_name(etype)
+        os_col = self._oversized_snapshots_col_name(etype)
+
+        # Find out if the snapshot is oversized
+        doc = self._db[snapshot_col].find_one({"_id": eid}, {"oversized": 1})
+        if doc is None:
+            # First snapshot of entity
+            self._db[snapshot_col].insert_one(
+                {"_id": eid, "last": snapshot, "history": [], "oversized": False, "count": 0}
+            )
+            self.log.debug(f"Inserted snapshot of {eid}")
+            return
+        elif doc.get("oversized", False):
+            # Snapshot is already marked as oversized
+            self._db[snapshot_col].update_one({"_id": eid}, {"$set": {"last": snapshot}})
+            self._db[os_col].insert_one(snapshot)
+            return
+
         try:
-            self._db[snapshot_col].insert_one(snapshot)
-            self.log.debug(f"Inserted snapshot: {snapshot}")
+            # Update a normal snapshot bucket
+            res = self._db[snapshot_col].update_one(
+                {"_id": eid},
+                [
+                    {
+                        "$set": {
+                            "history": {
+                                "$concatArrays": [
+                                    ["$last"],
+                                    "$history",
+                                ]
+                            },
+                            "count": {"$sum": ["$count", 1]},
+                        }
+                    },
+                    {"$set": {"last": {"$literal": snapshot}}},
+                ],
+            )
+            if res.modified_count == 0:
+                self.log.error(f"Snapshot of {eid} was not updated, {res.raw_result}")
+        except (WriteError, OperationFailure) as e:
+            if e.code != BSON_OBJECT_TOO_LARGE:
+                raise e
+            # The snapshot is too large, move it to oversized snapshots
+            self.log.info(f"Snapshot of {eid} is too large: {e}, marking as oversized.")
+            self._migrate_to_oversized_snapshot(etype, eid, snapshot)
         except Exception as e:
-            raise DatabaseError(f"Insert of snapshot failed: {e}\n{snapshot}") from e
+            raise DatabaseError(f"Insert of snapshot {eid} failed: {e}, {snapshot}") from e
 
     def save_snapshots(self, etype: str, snapshots: list[dict], time: datetime):
         """
         Saves a list of snapshots of current master documents.
 
         All snapshots must belong to same entity type.
+
+        Will move snapshots to oversized snapshots if the maintained bucket is too large.
+        For better understanding, see `save_snapshot()`.
         """
         # Check `etype`
         self._assert_etype_exists(etype)
@@ -888,18 +999,151 @@ class EntityDatabase:
             snapshot["_time_created"] = time
 
         snapshot_col = self._snapshots_col_name(etype)
-        try:
-            res = self._db[snapshot_col].insert_many(snapshots, ordered=False)
-            if len(res.inserted_ids) != len(snapshots):
-                self.log.error(
-                    "Inserted only %s snapshots when trying to insert %s",
-                    len(res.inserted_ids),
-                    len(snapshots),
+        os_col = self._oversized_snapshots_col_name(etype)
+
+        snapshots_by_eid = defaultdict(list)
+        for snapshot in snapshots:
+            if "eid" not in snapshot:
+                continue
+            if "_id" in snapshot:
+                del snapshot["_id"]
+            snapshots_by_eid[snapshot["eid"]].append(snapshot)
+
+        # Find out if any of the snapshots are oversized
+        docs = list(
+            self._db[snapshot_col].find(
+                {"_id": {"$in": list(snapshots_by_eid.keys())}}, {"oversized": 1, "eid": 1}
+            )
+        )
+
+        updates = []
+        update_originals = []
+        oversized_inserts = []
+        oversized_updates = []
+
+        for doc in docs:
+            eid = doc["_id"]
+            if not doc.get("oversized", False):
+                # A normal snapshot, shift the last snapshot to history and update last
+                updates.append(
+                    UpdateOne(
+                        {"_id": eid},
+                        [
+                            {
+                                "$set": {
+                                    "history": {
+                                        "$concatArrays": [
+                                            snapshots_by_eid[eid][:-1],
+                                            ["$last"],
+                                            "$history",
+                                        ]
+                                    },
+                                    "count": {"$sum": [len(snapshots_by_eid[eid]), "$count"]},
+                                }
+                            },
+                            {"$set": {"last": {"$literal": snapshots_by_eid[eid][-1]}}},
+                        ],
+                    )
                 )
+                update_originals.append(snapshots_by_eid[eid])
             else:
-                self.log.debug(f"Inserted snapshots: {snapshots}")
-        except Exception as e:
-            raise DatabaseError(f"Insert of snapshots failed: {e}\n{snapshots}") from e
+                # Snapshot is already marked as oversized
+                oversized_inserts.extend(snapshots_by_eid[eid])
+                oversized_updates.append(
+                    UpdateOne({"_id": eid}, {"$set": {"last": snapshots_by_eid[eid][-1]}})
+                )
+            del snapshots_by_eid[eid]
+
+        # The remaining snapshots are new
+        inserts = [
+            {
+                "_id": eid,
+                "last": eid_snapshots[-1],
+                "history": eid_snapshots[:-1],
+                "oversized": False,
+                "count": len(eid_snapshots) - 1,
+            }
+            for eid, eid_snapshots in snapshots_by_eid.items()
+        ]
+
+        if updates:
+            try:
+                res = self._db[snapshot_col].bulk_write(updates, ordered=False)
+                if res.modified_count != len(updates):
+                    self.log.warning(
+                        "Some snapshots were not updated, %s != %s",
+                        res.modified_count,
+                        len(snapshots_by_eid),
+                    )
+            except (BulkWriteError, OperationFailure) as e:
+                self.log.info("Update of snapshots failed, will retry with oversize.")
+                failed_indexes = [
+                    err["index"]
+                    for err in e.details["writeErrors"]
+                    if err["code"] == BSON_OBJECT_TOO_LARGE
+                ]
+                failed_snapshots = (update_originals[i] for i in failed_indexes)
+                for eid_snapshots in failed_snapshots:
+                    eid = eid_snapshots[0]["eid"]
+                    failed_snapshots = sorted(
+                        eid_snapshots, key=lambda s: s["_time_created"], reverse=True
+                    )
+                    self._migrate_to_oversized_snapshot(etype, eid, failed_snapshots[0])
+                    oversized_inserts.extend(failed_snapshots[1:])
+
+                if any(err["code"] != BSON_OBJECT_TOO_LARGE for err in e.details["writeErrors"]):
+                    # Some other error occurred
+                    raise e
+            except Exception as e:
+                raise DatabaseError(f"Update of snapshots failed: {str(e)[:2048]}") from e
+
+        if inserts:
+            try:
+                # Insert new snapshots
+                res = self._db[snapshot_col].insert_many(inserts, ordered=False)
+                if len(res.inserted_ids) != len(snapshots_by_eid):
+                    self.log.warning(
+                        "Some snapshots were not inserted, %s != %s",
+                        len(res.inserted_ids),
+                        len(snapshots_by_eid),
+                    )
+            except (DocumentTooLarge, OperationFailure) as e:
+                self.log.info(f"Inserted snapshot is too large, will retry with oversize. {e}")
+                checked_inserts = []
+                oversized_inserts = []
+
+                # Filter out the oversized snapshots
+                for insert_doc in inserts:
+                    bsize = len(bson.BSON.encode(insert_doc))
+                    if bsize < 16 * 1024 * 1024:
+                        checked_inserts.append(insert_doc)
+                    else:
+                        eid = insert_doc["_id"]
+                        checked_inserts.append(
+                            {
+                                "_id": eid,
+                                "last": insert_doc["last"],
+                                "oversized": True,
+                                "history": [],
+                                "count": 0,
+                            }
+                        )
+                        oversized_inserts.extend(insert_doc["history"] + [insert_doc["last"]])
+                try:
+                    self._db[snapshot_col].insert_many(checked_inserts, ordered=False)
+                except Exception as e:
+                    raise DatabaseError(f"Insert of snapshots failed: {e}") from e
+            except Exception as e:
+                raise DatabaseError(f"Insert of snapshot failed: {e}") from e
+
+        # Update the oversized snapshots
+        if oversized_inserts:
+            try:
+                if oversized_updates:
+                    self._db[snapshot_col].bulk_write(oversized_updates)
+                self._db[os_col].insert_many(oversized_inserts)
+            except Exception as e:
+                raise DatabaseError(f"Insert of snapshots failed: {str(e)[:2048]}") from e
 
     def _get_metadata_id(self, module: str, time: datetime, worker_id: Optional[int] = None) -> str:
         """Generates unique metadata id based on `module`, `time` and the worker index."""
@@ -1098,6 +1342,7 @@ class EntityDatabase:
         self._assert_etype_exists(etype)
 
         snapshot_col = self._snapshots_col_name(etype)
+        os_snapshot_col = self._oversized_snapshots_col_name(etype)
 
         # Get attribute specification
         try:
@@ -1120,37 +1365,48 @@ class EntityDatabase:
             )
 
         # Build aggregation query
-        agg_query = [
-            {"$match": {"_time_created": latest_snapshot_date}},
-        ]
+        attr_path = "$last." + attr
+        os_attr_path = "$" + attr
+        unwinding = []
+        os_unwinding = []
 
         # Unwind array-like and multi value attributes
         # If attribute is multi value array, unwind twice
         if "array" in attr_spec.data_type.root or "set" in attr_spec.data_type.root:
-            agg_query.append({"$unwind": "$" + attr})
+            unwinding.append({"$unwind": attr_path})
+            os_unwinding.append({"$unwind": os_attr_path})
         if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
-            agg_query.append({"$unwind": "$" + attr})
+            unwinding.append({"$unwind": attr_path})
+            os_unwinding.append({"$unwind": os_attr_path})
 
         # Group
-        agg_query_group_id = "$" + attr
+        agg_query_group_id = attr_path
+        os_agg_query_group_id = os_attr_path
         if "link" in attr_spec.data_type.root:
             agg_query_group_id += ".eid"
-        agg_query.append(
-            {
-                "$group": {
-                    "_id": agg_query_group_id,
-                    "count": {"$sum": 1},
-                }
-            }
-        )
+            os_agg_query_group_id += ".eid"
 
-        # Sort
-        agg_query.append({"$sort": {"_id": 1, "count": -1}})
-
+        agg_query = [
+            *unwinding,
+            {"$group": {"_id": agg_query_group_id, "count": {"$sum": 1}}},
+            {"$sort": {"_id": 1, "count": -1}},
+        ]
         # Run aggregation
         distinct_counts_cur = self._db[snapshot_col].aggregate(agg_query)
 
         distinct_counts = {x["_id"]: x["count"] for x in distinct_counts_cur}
+
+        # Run aggregation for oversized snapshots and sum the counts
+        agg_query = [
+            {"$match": {"_time_created": latest_snapshot_date}},
+            *os_unwinding,
+            {"$group": {"_id": os_agg_query_group_id, "count": {"$sum": 1}}},
+            {"$sort": {"_id": 1, "count": -1}},
+        ]
+        os_distinct_counts_cur = self._db[os_snapshot_col].aggregate(agg_query)
+        for x in os_distinct_counts_cur:
+            distinct_counts[x["_id"]] = distinct_counts.get(x["_id"], 0) + x["count"]
+
         if None in distinct_counts:
             del distinct_counts[None]
 
@@ -1240,16 +1496,24 @@ class EntityDatabase:
                 raise DatabaseError(f"Drop of empty archive failed: {e}") from e
         return dropped_count
 
-    def delete_old_snapshots(self, etype: str, t_old: datetime):
+    def delete_old_snapshots(self, etype: str, t_old: datetime, n_old: int) -> int:
         """Delete old snapshots.
 
         Periodically called for all `etype`s from HistoryManager.
         """
         snapshot_col_name = self._snapshots_col_name(etype)
+        os_snapshot_col_name = self._oversized_snapshots_col_name(etype)
+        deleted = 0
         try:
-            return self._db[snapshot_col_name].delete_many({"_time_created": {"$lt": t_old}})
+            res = self._db[snapshot_col_name].update_many(
+                {"count": {"$gt": n_old}}, {"$pop": {"history": 1}, "$inc": {"count": -1}}
+            )
+            deleted += res.modified_count
+            res = self._db[os_snapshot_col_name].delete_many({"_time_created": {"$lt": t_old}})
+            deleted += res.deleted_count
         except Exception as e:
             raise DatabaseError(f"Delete of olds snapshots failed: {e}") from e
+        return deleted
 
     def get_module_cache(self, override_called_id: Optional[str] = None):
         """Return a persistent cache collection for given module name.

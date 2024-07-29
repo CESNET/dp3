@@ -157,6 +157,9 @@ class EntityDatabase:
         self._sched.register(self._push_raw, second=seconds, misfire_grace_time=5)
         self._sched.register(self._push_master, second=seconds, misfire_grace_time=5)
 
+        self._normal_snapshot_eids = defaultdict(set)
+        self._oversized_snapshot_eids = defaultdict(set)
+
         self.log.info("Database successfully initialized!")
 
     @staticmethod
@@ -939,15 +942,16 @@ class EntityDatabase:
         os_col = self._oversized_snapshots_col_name(etype)
 
         # Find out if the snapshot is oversized
-        doc = self._db[snapshot_col].find_one({"_id": eid}, {"oversized": 1})
-        if doc is None:
+        normal, oversized, new = self._get_snapshot_state(etype, {eid})
+        if new:
             # First snapshot of entity
             self._db[snapshot_col].insert_one(
                 {"_id": eid, "last": snapshot, "history": [], "oversized": False, "count": 0}
             )
             self.log.debug(f"Inserted snapshot of {eid}")
+            self._cache_snapshot_state(etype, new, oversized)
             return
-        elif doc.get("oversized", False):
+        elif oversized:
             # Snapshot is already marked as oversized
             self._db[snapshot_col].update_one({"_id": eid}, {"$set": {"last": snapshot}})
             self._db[os_col].insert_one(snapshot)
@@ -980,8 +984,41 @@ class EntityDatabase:
             # The snapshot is too large, move it to oversized snapshots
             self.log.info(f"Snapshot of {eid} is too large: {e}, marking as oversized.")
             self._migrate_to_oversized_snapshot(etype, eid, snapshot)
+            self._cache_snapshot_state(etype, set(), normal)
         except Exception as e:
             raise DatabaseError(f"Insert of snapshot {eid} failed: {e}, {snapshot}") from e
+
+    def _get_snapshot_state(self, etype: str, eids: set[str]) -> tuple[set, set, set]:
+        """Get current state of snapshot of given `eid`."""
+        unknown = eids
+        normal = self._normal_snapshot_eids[etype] & unknown
+        oversized = self._oversized_snapshot_eids[etype] & unknown
+        unknown = unknown - normal - oversized
+
+        if not unknown:
+            return normal, oversized, unknown
+
+        snapshot_col = self._snapshots_col_name(etype)
+        new_normal = set()
+        new_oversized = set()
+        for doc in self._db[snapshot_col].find({"_id": {"$in": list(unknown)}}, {"oversized": 1}):
+            if doc.get("oversized", False):
+                new_oversized.add(doc["_id"])
+            else:
+                new_normal.add(doc["_id"])
+
+        self._normal_snapshot_eids[etype] |= new_normal
+        self._oversized_snapshot_eids[etype] |= new_oversized
+        unknown = unknown - new_normal - new_oversized
+
+        return normal | new_normal, oversized | new_oversized, unknown
+
+    def _cache_snapshot_state(self, etype: str, normal: set, oversized: set):
+        """Cache snapshot state for given `etype`."""
+        self._normal_snapshot_eids[etype] |= normal
+
+        self._normal_snapshot_eids[etype] -= oversized
+        self._oversized_snapshot_eids[etype] |= oversized
 
     def save_snapshots(self, etype: str, snapshots: list[dict], time: datetime):
         """
@@ -1010,61 +1047,60 @@ class EntityDatabase:
             snapshots_by_eid[snapshot["eid"]].append(snapshot)
 
         # Find out if any of the snapshots are oversized
-        docs = list(
-            self._db[snapshot_col].find(
-                {"_id": {"$in": list(snapshots_by_eid.keys())}}, {"oversized": 1, "eid": 1}
-            )
-        )
+        normal, oversized, new = self._get_snapshot_state(etype, set(snapshots_by_eid.keys()))
 
+        inserts = []
         updates = []
         update_originals = []
         oversized_inserts = []
         oversized_updates = []
 
-        for doc in docs:
-            eid = doc["_id"]
-            if not doc.get("oversized", False):
-                # A normal snapshot, shift the last snapshot to history and update last
-                updates.append(
-                    UpdateOne(
-                        {"_id": eid},
-                        [
-                            {
-                                "$set": {
-                                    "history": {
-                                        "$concatArrays": [
-                                            snapshots_by_eid[eid][:-1],
-                                            ["$last"],
-                                            "$history",
-                                        ]
-                                    },
-                                    "count": {"$sum": [len(snapshots_by_eid[eid]), "$count"]},
-                                }
-                            },
-                            {"$set": {"last": {"$literal": snapshots_by_eid[eid][-1]}}},
-                        ],
-                    )
+        # A normal snapshot, shift the last snapshot to history and update last
+        for eid in normal:
+            updates.append(
+                UpdateOne(
+                    {"_id": eid},
+                    [
+                        {
+                            "$set": {
+                                "history": {
+                                    "$concatArrays": [
+                                        snapshots_by_eid[eid][:-1],
+                                        ["$last"],
+                                        "$history",
+                                    ]
+                                },
+                                "count": {"$sum": [len(snapshots_by_eid[eid]), "$count"]},
+                            }
+                        },
+                        {"$set": {"last": {"$literal": snapshots_by_eid[eid][-1]}}},
+                    ],
                 )
-                update_originals.append(snapshots_by_eid[eid])
-            else:
-                # Snapshot is already marked as oversized
-                oversized_inserts.extend(snapshots_by_eid[eid])
-                oversized_updates.append(
-                    UpdateOne({"_id": eid}, {"$set": {"last": snapshots_by_eid[eid][-1]}})
-                )
-            del snapshots_by_eid[eid]
+            )
+            update_originals.append(snapshots_by_eid[eid])
+
+        # Snapshot is already marked as oversized
+        for eid in oversized:
+            oversized_inserts.extend(snapshots_by_eid[eid])
+            oversized_updates.append(
+                UpdateOne({"_id": eid}, {"$set": {"last": snapshots_by_eid[eid][-1]}})
+            )
 
         # The remaining snapshots are new
-        inserts = [
-            {
-                "_id": eid,
-                "last": eid_snapshots[-1],
-                "history": eid_snapshots[:-1],
-                "oversized": False,
-                "count": len(eid_snapshots) - 1,
-            }
-            for eid, eid_snapshots in snapshots_by_eid.items()
-        ]
+        for eid in new:
+            eid_snapshots = snapshots_by_eid[eid]
+            inserts.append(
+                {
+                    "_id": eid,
+                    "last": eid_snapshots[-1],
+                    "history": eid_snapshots[:-1],
+                    "oversized": False,
+                    "count": len(eid_snapshots) - 1,
+                }
+            )
+
+        new_oversized = set()
+        new_normal = set()
 
         if updates:
             try:
@@ -1073,7 +1109,7 @@ class EntityDatabase:
                     self.log.warning(
                         "Some snapshots were not updated, %s != %s",
                         res.modified_count,
-                        len(snapshots_by_eid),
+                        len(updates),
                     )
             except (BulkWriteError, OperationFailure) as e:
                 self.log.info("Update of snapshots failed, will retry with oversize.")
@@ -1090,6 +1126,7 @@ class EntityDatabase:
                     )
                     self._migrate_to_oversized_snapshot(etype, eid, failed_snapshots[0])
                     oversized_inserts.extend(failed_snapshots[1:])
+                    new_oversized.add(eid)
 
                 if any(err["code"] != BSON_OBJECT_TOO_LARGE for err in e.details["writeErrors"]):
                     # Some other error occurred
@@ -1101,6 +1138,7 @@ class EntityDatabase:
             try:
                 # Insert new snapshots
                 res = self._db[snapshot_col].insert_many(inserts, ordered=False)
+                new_normal.update(res.inserted_ids)
                 if len(res.inserted_ids) != len(snapshots_by_eid):
                     self.log.warning(
                         "Some snapshots were not inserted, %s != %s",
@@ -1129,8 +1167,10 @@ class EntityDatabase:
                             }
                         )
                         oversized_inserts.extend(insert_doc["history"] + [insert_doc["last"]])
+                        new_oversized.add(eid)
                 try:
-                    self._db[snapshot_col].insert_many(checked_inserts, ordered=False)
+                    res = self._db[snapshot_col].insert_many(checked_inserts, ordered=False)
+                    new_normal.update(res.inserted_ids)
                 except Exception as e:
                     raise DatabaseError(f"Insert of snapshots failed: {e}") from e
             except Exception as e:
@@ -1144,6 +1184,9 @@ class EntityDatabase:
                 self._db[os_col].insert_many(oversized_inserts)
             except Exception as e:
                 raise DatabaseError(f"Insert of snapshots failed: {str(e)[:2048]}") from e
+
+        # Cache the new state
+        self._cache_snapshot_state(etype, new_normal, new_oversized)
 
     def _get_metadata_id(self, module: str, time: datetime, worker_id: Optional[int] = None) -> str:
         """Generates unique metadata id based on `module`, `time` and the worker index."""

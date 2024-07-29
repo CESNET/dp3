@@ -243,7 +243,7 @@ class EntityDatabase:
         """
         for etype in self._db_schema_config.entities:
             # Snapshots index on `eid` and `_time_created` fields
-            snapshot_col = self._snapshots_col_name(etype)
+            snapshot_col = self._oversized_snapshots_col_name(etype)
             self._db[snapshot_col].create_index("eid", background=True)
             self._db[snapshot_col].create_index("_time_created", background=True)
 

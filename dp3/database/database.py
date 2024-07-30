@@ -425,7 +425,7 @@ class EntityDatabase:
 
     def _push_master(self):
         """Push master changes to database."""
-        for etype, lock in self._raw_buffer_locks.items():
+        for etype, lock in self._master_buffer_locks.items():
             master_col = self._db.get_collection(
                 self._master_col_name(etype), write_concern=WriteConcern(w=1)
             )

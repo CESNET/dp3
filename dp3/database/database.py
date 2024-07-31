@@ -16,7 +16,7 @@ from pymongo import ReplaceOne, UpdateMany, UpdateOne, WriteConcern
 from pymongo.command_cursor import CommandCursor
 from pymongo.cursor import Cursor
 from pymongo.errors import BulkWriteError, DocumentTooLarge, OperationFailure, WriteError
-from pymongo.results import DeleteResult
+from pymongo.results import DeleteResult, UpdateResult
 
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
@@ -282,9 +282,12 @@ class EntityDatabase:
                 if "$**" in attr_names:
                     if index.get("wildcardProjection") is not None:
                         covered_attrs = {
-                            k.rsplit(".", maxsplit=1)[0] for k in index["wildcardProjection"]
+                            it
+                            for k in index["wildcardProjection"]
+                            for it in k.rsplit(".", maxsplit=1)
                         }
-                        if not attrs - covered_attrs:
+                        covered_attrs -= {"ts_last_update", "#min_t2s"}
+                        if "t2" not in covered_attrs and not attrs - covered_attrs:
                             create_wildcard = False
                             continue  # Index already covers all history attributes
                     self.log.info("Dropping wildcard index %s on %s", index["name"], etype)
@@ -302,7 +305,7 @@ class EntityDatabase:
                 master_col.create_index(
                     [("$**", 1)],
                     name=index_name,
-                    wildcardProjection={f"{attr}.t2": 1 for attr in history_attrs}
+                    wildcardProjection={f"#min_t2s.{attr}": 1 for attr in history_attrs}
                     | {f"{attr}.ts_last_update": 1 for attr in plain_attrs},
                 )
                 self.log.info("Created wildcard index %s on %s", index_name, etype)
@@ -583,15 +586,91 @@ class EntityDatabase:
             except Exception as e:
                 self.log.exception("Error in on_entity_delete_one callback %s: %s", f, e)
 
-    def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> None:
+    def mark_all_entity_dps_t2(self, etype: str, attrs: list[str]) -> UpdateResult:
+        """
+        Updates the `min_t2s` of the master records of `etype` for all records.
+
+        Periodically called for all `etype`s from HistoryManager.
+        """
+        master_col = self._master_col_name(etype)
+        try:
+            return self._db[master_col].update_many(
+                {},
+                [
+                    {
+                        "$set": {
+                            attr_name: {
+                                "$cond": {
+                                    "if": {
+                                        "$eq": [
+                                            {"$size": {"$ifNull": [f"${attr_name}", []]}},
+                                            0,
+                                        ]
+                                    },
+                                    "then": "$$REMOVE",
+                                    "else": f"${attr_name}",
+                                }
+                            }
+                            for attr_name in attrs
+                        }
+                        | {
+                            f"#min_t2s.{attr_name}": {
+                                "$cond": {
+                                    "if": {
+                                        "$eq": [
+                                            {"$size": {"$ifNull": [f"${attr_name}", []]}},
+                                            0,
+                                        ]
+                                    },
+                                    "then": "$$REMOVE",
+                                    "else": {"$min": f"${attr_name}.t2"},
+                                }
+                            }
+                            for attr_name in attrs
+                        }
+                    }
+                ],
+            )
+        except Exception as e:
+            raise DatabaseError(f"Update of min_t2s failed: {e}") from e
+
+    def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> UpdateResult:
         """Delete old datapoints from master collection.
 
         Periodically called for all `etype`s from HistoryManager.
         """
         master_col = self._master_col_name(etype)
         try:
-            self._db[master_col].update_many(
-                {f"{attr_name}.t2": {"$lt": t_old}}, {"$pull": {attr_name: {"t2": {"$lt": t_old}}}}
+            return self._db[master_col].update_many(
+                {f"#min_t2s.{attr_name}": {"$lt": t_old}},
+                [
+                    {
+                        "$set": {
+                            attr_name: {
+                                "$filter": {
+                                    "input": f"${attr_name}",
+                                    "cond": {"$gte": ["$$this.t2", t_old]},
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "$set": {
+                            f"#min_t2s.{attr_name}": {
+                                "$cond": {
+                                    "if": {
+                                        "$eq": [
+                                            {"$size": {"$ifNull": [f"${attr_name}", []]}},
+                                            0,
+                                        ]
+                                    },
+                                    "then": "$$REMOVE",
+                                    "else": {"$min": f"${attr_name}.t2"},
+                                }
+                            }
+                        },
+                    },
+                ],
             )
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e

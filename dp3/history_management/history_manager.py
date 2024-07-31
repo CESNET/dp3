@@ -65,12 +65,14 @@ class HistoryManagerConfig(BaseModel, extra=Extra.forbid):
     Attributes:
         aggregation_schedule: Schedule for master document aggregation.
         datapoint_cleaning_schedule: Schedule for datapoint cleaning.
+        mark_datapoints_schedule: Schedule for marking datapoints in master docs.
         snapshot_cleaning: Configuration for snapshot cleaning.
         datapoint_archivation: Configuration for datapoint archivation.
     """
 
     aggregation_schedule: CronExpression
     datapoint_cleaning_schedule: CronExpression
+    mark_datapoints_schedule: CronExpression
     snapshot_cleaning: SnapshotCleaningConfig
     datapoint_archivation: DPArchivationConfig
 
@@ -101,6 +103,11 @@ class HistoryManager:
             return
 
         # Schedule datapoints cleaning
+        datapoint_marking_schedule = self.config.mark_datapoints_schedule
+        registrar.scheduler_register(
+            self.mark_datapoints_in_master_docs, **datapoint_marking_schedule.model_dump()
+        )
+
         datapoint_cleaning_schedule = self.config.datapoint_cleaning_schedule
         registrar.scheduler_register(
             self.delete_old_dps, **datapoint_cleaning_schedule.model_dump()
@@ -182,6 +189,24 @@ class HistoryManager:
 
             try:
                 self.db.delete_old_dps(etype, attr_name, t_old)
+            except DatabaseError as e:
+                self.log.error(e)
+
+    def mark_datapoints_in_master_docs(self):
+        """Marks the timestamps of all datapoints in master documents."""
+        self.log.debug("Marking the datapoint timestamps for all entity records ...")
+
+        for entity, attr_conf in self.model_spec.entity_attributes.items():
+            attrs_to_mark = []
+            for attr, conf in attr_conf.items():
+                if conf.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
+                    attrs_to_mark.append(attr)
+
+            if not attrs_to_mark:
+                continue
+            try:
+                res = self.db.mark_all_entity_dps_t2(entity, attrs_to_mark)
+                self.log.debug("Marked %s records of %s", res.modified_count, entity)
             except DatabaseError as e:
                 self.log.error(e)
 

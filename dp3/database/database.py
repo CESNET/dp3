@@ -1549,7 +1549,20 @@ class EntityDatabase:
         deleted = 0
         try:
             res = self._db[snapshot_col_name].update_many(
-                {"count": {"$gt": n_old}}, {"$pop": {"history": 1}, "$inc": {"count": -1}}
+                {"count": {"$gte": n_old}},
+                [
+                    {
+                        "$set": {
+                            "history": {
+                                "$filter": {
+                                    "input": "$history",
+                                    "cond": {"$gte": ["$$this._time_created", t_old]},
+                                }
+                            }
+                        }
+                    },
+                    {"$set": {"count": {"$size": "$history"}}},
+                ],
             )
             deleted += res.modified_count
             res = self._db[os_snapshot_col_name].delete_many({"_time_created": {"$lt": t_old}})

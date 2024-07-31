@@ -639,9 +639,11 @@ class EntityDatabase:
 
         Periodically called for all `etype`s from HistoryManager.
         """
-        master_col = self._master_col_name(etype)
+        master_col = self._db.get_collection(
+            self._master_col_name(etype), write_concern=WriteConcern(w=1)
+        )
         try:
-            return self._db[master_col].update_many(
+            return master_col.update_many(
                 {f"#min_t2s.{attr_name}": {"$lt": t_old}},
                 [
                     {

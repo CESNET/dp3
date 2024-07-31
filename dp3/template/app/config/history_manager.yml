@@ -9,6 +9,10 @@ aggregation_schedule:
   minute: "*/10"
 
 # Deleting old datapoints from master records
+mark_datapoints_schedule:
+  hour: "7,19"
+  minute: "45"
+
 datapoint_cleaning_schedule:
   minute: "*/30"
 

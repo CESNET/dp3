@@ -774,7 +774,7 @@ class EntityDatabase:
 
         snapshot_col = self._snapshots_col_name(etype)
         return (
-            self._db[snapshot_col].find_one({"eid": eid}, {"last": 1}, sort=[("_id", -1)]) or {}
+            self._db[snapshot_col].find_one({"_id": eid}, {"last": 1}, sort=[("_id", -1)]) or {}
         ).get("last", {})
 
     def _get_latest_snapshots_date(self) -> Optional[datetime]:

@@ -1227,11 +1227,12 @@ class EntityDatabase:
                 # Insert new snapshots
                 res = self._db[snapshot_col].insert_many(inserts, ordered=False)
                 new_normal.update(res.inserted_ids)
-                if len(res.inserted_ids) != len(snapshots_by_eid):
+                if len(res.inserted_ids) != len(inserts):
                     self.log.warning(
-                        "Some snapshots were not inserted, %s != %s",
+                        "Some snapshots were not inserted, %s != %s, failed: %s",
                         len(res.inserted_ids),
                         len(snapshots_by_eid),
+                        {s["_id"] for s in inserts} - set(res.inserted_ids),
                     )
             except (DocumentTooLarge, OperationFailure) as e:
                 self.log.info(f"Inserted snapshot is too large, will retry with oversize. {e}")

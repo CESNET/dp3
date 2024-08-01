@@ -134,11 +134,10 @@ async def list_entity_type_eids(
     time_created = None
 
     # Remove _id field
-    result = list(cursor_page)
+    result = [r["last"] for r in cursor_page]
     for r in result:
         time_created = r["_time_created"]
         del r["_time_created"]
-        del r["_id"]
 
     return EntityEidList(
         time_created=time_created, count=len(result), total_count=total_count, data=result

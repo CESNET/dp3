@@ -20,7 +20,7 @@ from pymongo.results import DeleteResult, UpdateResult
 
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
-from dp3.common.datapoint import DataPointBase
+from dp3.common.datapoint import DataPointBase, to_json_friendly
 from dp3.common.scheduler import Scheduler
 from dp3.common.types import EventGroupType
 from dp3.database.schema_cleaner import SchemaCleaner
@@ -135,6 +135,9 @@ class EntityDatabase:
 
         # Init and switch to correct database
         self._db = self._db[config.db_name]
+        type_registry = bson.codec_options.TypeRegistry(fallback_encoder=to_json_friendly)
+        self._codec_opts = bson.codec_options.CodecOptions(type_registry=type_registry)
+
         if process_index == 0:
             self._init_database_schema(config.db_name)
 
@@ -412,7 +415,9 @@ class EntityDatabase:
                     continue
             try:
                 self._db.get_collection(
-                    self._raw_col_name(etype), write_concern=WriteConcern(w=0)
+                    self._raw_col_name(etype),
+                    write_concern=WriteConcern(w=0),
+                    codec_options=self._codec_opts,
                 ).insert_many(dps, ordered=False)
                 end = time.time()
                 self.log.debug(
@@ -430,7 +435,9 @@ class EntityDatabase:
         """Push master changes to database."""
         for etype, lock in self._master_buffer_locks.items():
             master_col = self._db.get_collection(
-                self._master_col_name(etype), write_concern=WriteConcern(w=1)
+                self._master_col_name(etype),
+                write_concern=WriteConcern(w=1),
+                codec_options=self._codec_opts,
             )
             begin = time.time()
             with lock:

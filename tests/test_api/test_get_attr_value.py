@@ -1,3 +1,5 @@
+from time import sleep
+
 import common
 from common import ACCEPTED_ERROR_CODES
 
@@ -13,6 +15,11 @@ TESTED_INT_PATH = TESTED_PATH.format(
 
 
 class GetEidAttrValue(common.APITest):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        sleep(10)
+
     def test_unknown_entity_type(self):
         response = self.get_request(
             TESTED_PATH.format(entity="xyz", eid="test_entity_id", attr="test_attr_int")

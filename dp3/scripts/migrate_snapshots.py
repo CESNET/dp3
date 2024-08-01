@@ -17,7 +17,8 @@ from dp3.database.database import DatabaseError, EntityDatabase, MongoConfig
 
 # Arguments parser
 parser = argparse.ArgumentParser(
-    description="Add hashes to master records to allow for easier parallelization in ADiCT."
+    description="Migrate snapshots schema from flat single-snapshot documents "
+    "to a nested history schema."
 )
 parser.add_argument(
     "--config",

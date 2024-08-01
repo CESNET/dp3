@@ -34,10 +34,11 @@ class GetDistinctAttrValues(APITest):
                 ]
             )
             print(res.content.decode("utf-8"), file=sys.stderr)
+        sleep(9)
 
         # Make snapshots
         cls.get_request("control/make_snapshots")
-        sleep(3)
+        sleep(6)
 
     def test_unknown_entity_type(self):
         response = self.get_request(TESTED_PATH.format(entity="xyz", attr="test_attr_int"))

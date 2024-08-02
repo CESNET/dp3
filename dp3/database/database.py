@@ -943,7 +943,11 @@ class EntityDatabase:
         if not query["_time_created"]:
             del query["_time_created"]
 
-        return self._db[snapshot_col].find(query).sort([("_time_created", pymongo.ASCENDING)])
+        return (
+            self._db[snapshot_col]
+            .find(query, projection={"_id": False})
+            .sort([("_time_created", pymongo.ASCENDING)])
+        )
 
     def get_value_or_history(
         self,

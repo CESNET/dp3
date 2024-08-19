@@ -1069,7 +1069,13 @@ class EntityDatabase:
                 ],
             )
             if res.modified_count == 0:
-                self.log.error(f"Snapshot of {eid} was not updated, {res.raw_result}")
+                self.log.error(
+                    f"Snapshot of {eid} was not updated, {res.raw_result}, will retry insert"
+                )
+                self._db[snapshot_col].insert_one(
+                    {"_id": eid, "last": snapshot, "history": [], "oversized": False, "count": 0}
+                )
+                self.log.info(f"Inserted snapshot of {eid}")
         except (WriteError, OperationFailure) as e:
             if e.code != BSON_OBJECT_TOO_LARGE:
                 raise e

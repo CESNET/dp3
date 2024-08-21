@@ -63,9 +63,7 @@ EnabledModules = Enum(
     "EnabledModules", {module: module for module in CONFIG.get("processing_core.enabled_modules")}
 )
 MODEL_SPEC = ModelSpec(CONFIG.get("db_entities"))
-DB = EntityDatabase(
-    CONFIG.get("database"), MODEL_SPEC, CONFIG.get("processing_core.worker_processes")
-)
+DB = EntityDatabase(CONFIG, MODEL_SPEC, CONFIG.get("processing_core.worker_processes"))
 TASK_WRITER = TaskQueueWriter(
     conf_env.APP_NAME,
     CONFIG.get("processing_core.worker_processes"),

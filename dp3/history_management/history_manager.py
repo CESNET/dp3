@@ -118,8 +118,6 @@ class HistoryManager:
         registrar.scheduler_register(
             self.delete_old_snapshots, **snapshot_cleaning_schedule.model_dump()
         )
-        self.keep_snapshot_count = self._get_snapshot_count_to_keep(platform_config.config)
-        self.log.info("Keeping %s snapshots", self.keep_snapshot_count)
 
         # Schedule datapoint archivation
         archive_config = self.config.datapoint_archivation
@@ -129,45 +127,6 @@ class HistoryManager:
         else:
             self.log_dir = None
         registrar.scheduler_register(self.archive_old_dps, **archive_config.schedule.model_dump())
-
-    def _get_snapshot_count_to_keep(self, config) -> int:
-        """Returns how many snapshots should be kept based on configuration.
-
-        This depends on the frequency of snapshot creation and the max snapshot age.
-        """
-        max_age_days = self.keep_snapshot_delta.total_seconds() / 3600 / 24
-        creation_rate = config.get("snapshots.creation_rate", {"minute": "*/30"})
-        if len(creation_rate) > 1:
-            raise ValueError("Only one snapshot creation rate is supported.")
-
-        for key, value in creation_rate.items():
-            if value.startswith("*/"):
-                snapshot_interval = int(value[2:])
-                if key == "second":
-                    snapshots_per_day = 60 * 60 * 24 / snapshot_interval
-                elif key == "minute":
-                    snapshots_per_day = 60 * 24 / snapshot_interval
-                elif key == "hour":
-                    snapshots_per_day = 24 / snapshot_interval
-                elif key == "day":
-                    snapshots_per_day = 1 / snapshot_interval
-                else:
-                    raise ValueError(f"Unsupported snapshot creation rate: {creation_rate}")
-            else:
-                count = len(value.split(","))
-                if key == "second":
-                    snapshots_per_day = 60 * 24 * count
-                elif key == "minute":
-                    snapshots_per_day = 24 * count
-                elif key == "hour":
-                    snapshots_per_day = count
-                else:
-                    raise ValueError(f"Unsupported snapshot creation rate: {creation_rate}")
-            break
-        else:
-            raise ValueError(f"Unsupported snapshot creation rate: {creation_rate}")
-
-        return int(max_age_days * snapshots_per_day)
 
     def delete_old_dps(self):
         """Deletes old data points from master collection."""
@@ -213,13 +172,12 @@ class HistoryManager:
     def delete_old_snapshots(self):
         """Deletes old snapshots."""
         t_old = datetime.now() - self.keep_snapshot_delta
-        n_old = self.keep_snapshot_count
-        self.log.debug("Deleting all snapshots before %s and over %s in total", t_old, n_old)
+        self.log.debug("Deleting all snapshots before %s", t_old)
 
         deleted_total = 0
         for etype in self.model_spec.entities:
             try:
-                result = self.db.delete_old_snapshots(etype, t_old, n_old)
+                result = self.db.delete_old_snapshots(etype, t_old)
                 deleted_total += result
             except DatabaseError as e:
                 self.log.exception(e)

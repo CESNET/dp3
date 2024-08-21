@@ -44,9 +44,8 @@ def main(args):
     log = logging.getLogger("SchemaUpdate")
 
     # Connect to database
-    connection_conf = config.get("database", {})
     db = EntityDatabase(
-        connection_conf,
+        config,
         ModelSpec(config.get("db_entities")),
         config.get("processing_core.worker_processes"),
     )

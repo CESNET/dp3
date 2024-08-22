@@ -51,7 +51,23 @@ def main(args):
     )
 
     prev_schema, config_schema, updates, deleted_entites = db.schema_cleaner.get_schema_status()
-    if prev_schema["schema"] == config_schema["schema"]:
+    if prev_schema["version"] != config_schema["version"]:
+        log.info(
+            f"Schema version mismatch: {prev_schema['version']} (DB) "
+            f"!= {config_schema['version']} (config)"
+        )
+        if confirm_changes("Are you sure you want to perform a migration now? (y/[n]): "):
+            db.schema_cleaner.migrate(prev_schema)
+        return
+
+    if prev_schema["storage"] != config_schema["storage"]:
+        log.info(
+            f"Storage mismatch: {prev_schema['storage']} (DB) "
+            f"!= {config_schema['storage']} (config)"
+        )
+        if confirm_changes("Are you sure you want to change the storage now? (y/[n]): "):
+            db.schema_cleaner.update_storage(prev_schema["storage"], config_schema["storage"])
+    elif prev_schema["schema"] == config_schema["schema"]:
         log.info("Schema is OK!")
         return
 

@@ -4,7 +4,9 @@ auxiliary/utility functions and classes
 
 import datetime
 import re
+from collections.abc import Iterable, Iterator
 from functools import partial
+from itertools import islice
 from typing import Union
 
 # *** IP conversion functions ***
@@ -131,6 +133,19 @@ def conv_from_json(dct):
         days, seconds, microseconds = dct["$timedelta"].split(",")
         return datetime.timedelta(int(days), int(seconds), int(microseconds))
     return dct
+
+
+def batched(iterable: Iterable, n: int) -> Iterator[list]:
+    """Batch data into tuples of length n. The last batch may be shorter."""
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    if n < 1:
+        raise ValueError("n must be at least one")
+    it = iter(iterable)
+    while True:
+        batch = list(islice(it, n))
+        if not batch:
+            break
+        yield batch
 
 
 # *** pretty print ***

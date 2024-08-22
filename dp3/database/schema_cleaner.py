@@ -1,19 +1,22 @@
 import logging
 import time
 from collections import defaultdict
+from datetime import datetime
 from logging import Logger
 
 import pymongo
+from pymongo import DeleteOne, InsertOne
 from pymongo.collection import Collection
 from pymongo.database import Database
 
 from dp3.common.attrspec import ID_REGEX, AttrSpecType, AttrType
-from dp3.common.config import ModelSpec
+from dp3.common.config import HierarchicalDict, ModelSpec
+from dp3.common.utils import batched
 
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 # current database schema version
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Collections belonging to entity
 # Used when deleting no-longer existing entity.
@@ -32,7 +35,12 @@ class SchemaCleaner:
     """
 
     def __init__(
-        self, db: Database, schema_col: Collection, model_spec: ModelSpec, log: Logger = None
+        self,
+        db: Database,
+        schema_col: Collection,
+        model_spec: ModelSpec,
+        config: HierarchicalDict,
+        log: Logger = None,
     ):
         if log is None:
             self.log = logging.getLogger("SchemaCleaner")
@@ -41,7 +49,14 @@ class SchemaCleaner:
 
         self._db = db
         self._model_spec = model_spec
+        self._config = config
         self.schemas = schema_col
+
+        self.storage = {
+            "snapshot_bucket_size": self._config.get("database.storage.snapshot_bucket_size", 32)
+        }
+
+        self.migrations = {2: self.migrate_schema_2_to_3}
 
     def get_current_schema_doc(self, infer: bool = False) -> dict:
         """
@@ -54,7 +69,12 @@ class SchemaCleaner:
         if schema_doc is None and infer:
             self.log.info("No schema found, inferring initial schema from database")
             schema = self.infer_current_schema()
-            schema_doc = {"_id": 0, "schema": schema, "version": SCHEMA_VERSION}
+            schema_doc = {
+                "_id": 0,
+                "schema": schema,
+                "storage": self.storage,
+                "version": SCHEMA_VERSION,
+            }
         return schema_doc
 
     def safe_update_schema(self):
@@ -73,6 +93,9 @@ class SchemaCleaner:
             {
                 "_id": int,
                 "schema": { ... }, # (1)!
+                "storage": {
+                    "snapshot_bucket_size": int
+                },
                 "version": int
             }
         ```
@@ -83,15 +106,32 @@ class SchemaCleaner:
             ValueError: If conflicting changes are detected.
         """
         db_schema, config_schema, updates, deleted_entites = self.get_schema_status()
+
+        if db_schema["version"] != config_schema["version"]:
+            self.log.warning(
+                "Schema version mismatch: %s (DB) != %s (config)",
+                db_schema["version"],
+                config_schema["version"],
+            )
+            return self._error_on_conflict()
+
+        if db_schema["storage"] != config_schema["storage"]:
+            self.log.warning(
+                "DB storage settings mismatch: %s (DB) != %s (config)",
+                db_schema["storage"],
+                config_schema["storage"],
+            )
+            return self._error_on_conflict()
+
         if db_schema["schema"] == config_schema["schema"]:
             self.log.info("Schema OK!")
-            return
-
-        if not updates and not deleted_entites:
+        elif not updates and not deleted_entites:
             self.schemas.insert_one(config_schema)
             self.log.info("Updated schema, OK now!")
-            return
+        else:
+            return self._error_on_conflict()
 
+    def _error_on_conflict(self):
         self.log.warning("Schema update that cannot be performed automatically is required.")
         self.log.warning("Please run `dp3 schema-update` to make the changes.")
         raise ValueError("Schema update failed: Conflicting changes detected.")
@@ -110,12 +150,17 @@ class SchemaCleaner:
 
         current_schema = self.construct_schema_doc()
 
-        if schema_doc["schema"] == current_schema:
+        if (
+            schema_doc["schema"] == current_schema
+            and schema_doc["version"] == SCHEMA_VERSION
+            and schema_doc["storage"] == self.storage
+        ):
             return schema_doc, schema_doc, {}, []
 
         new_schema = {
             "_id": schema_doc["_id"] + 1,
             "schema": current_schema,
+            "storage": self.storage,
             "version": SCHEMA_VERSION,
         }
         updates, deleted_entites = self.detect_changes(schema_doc, current_schema)
@@ -383,15 +428,119 @@ class SchemaCleaner:
         if schema_doc is None:
             raise ValueError("Unable to establish schema")
 
-        configured_schema = self.construct_schema_doc()
+        db_schema, config_schema, _updates, _deleted_entites = self.get_schema_status()
         for delay in RECONNECT_DELAYS:
-            if schema_doc["schema"] == configured_schema:
+            if db_schema == config_schema:
                 break
             self.log.info("Schema mismatch, will await update by main worker in %s seconds", delay)
             time.sleep(delay)
-            schema_doc = self.get_current_schema_doc()
+            db_schema, config_schema, _updates, _deleted_entites = self.get_schema_status()
 
-        if schema_doc["schema"] != configured_schema:
+        if db_schema != config_schema:
             raise ValueError("Unable to establish matching schema")
 
         self.log.info("Schema OK!")
+
+    def update_storage(self, prev_storage: dict, curr_storage: dict):
+        """
+        Updates storage settings in schema.
+
+        Args:
+            prev_storage: Previous storage settings.
+            curr_storage: Current storage settings.
+        """
+        self.log.info("Updating storage settings")
+
+        if prev_storage["snapshot_bucket_size"] != curr_storage["snapshot_bucket_size"]:
+            self.log.info(
+                "Snapshot bucket size changed: %s -> %s",
+                prev_storage["snapshot_bucket_size"],
+                curr_storage["snapshot_bucket_size"],
+            )
+            for entity in self._model_spec.entities:
+                self.log.info("Updating %s", entity)
+                self._db[f"{entity}#snapshots"].update_many(
+                    {},
+                    {"$set": {"count": curr_storage["snapshot_bucket_size"]}},
+                )
+
+    def migrate(self, schema_doc: dict) -> dict:
+        """
+        Migrates schema to the latest version.
+
+        Args:
+            schema_doc: Schema to migrate.
+        Returns:
+            Migrated schema.
+        """
+        if schema_doc["version"] == SCHEMA_VERSION:
+            return schema_doc
+
+        for version in range(schema_doc["version"], SCHEMA_VERSION):
+            self.log.info("Migrating schema from version %s to %s", version, version + 1)
+            schema_doc = self.migrations[version](schema_doc)
+            self.schemas.insert_one(schema_doc)
+
+        return schema_doc
+
+    def migrate_schema_2_to_3(self, schema) -> dict:
+        """
+        Migrates schema from version 2 to version 3.
+
+        This migration adds the storage setting for snapshot bucket size to the schema.
+
+        Args:
+            schema: Schema to migrate.
+        Returns:
+            Migrated schema.
+        """
+        # Set created time for all snapshots, append last to history
+        bucket_size = self._config.get("database.storage.snapshot_bucket_size", 32)
+
+        for entity in self._model_spec.entities:
+            self.log.info("Migrating %s", entity)
+            snapshot_col = self._db[f"{entity}#snapshots"]
+            for doc in self._db[f"{entity}#snapshots"].find(
+                {"_id": {"$not": {"$regex": r"_#\d+$"}}}
+            ):
+                if doc.get("oversized", False):
+                    ctime = doc["last"].get("_time_created", datetime.now())
+                    snapshot_col.bulk_write(
+                        [
+                            InsertOne(
+                                {
+                                    **doc,
+                                    "_id": f"{doc['_id']}_#{int(ctime.timestamp())}",
+                                    "_time_created": ctime,
+                                    "count": 0,
+                                }
+                            ),
+                            DeleteOne({"_id": doc["_id"]}),
+                        ]
+                    )
+                    continue
+
+                to_insert = []
+                for snapshot_bucket in batched([doc["last"]] + doc["history"], bucket_size):
+                    ctime = snapshot_bucket[-1].get(
+                        "_time_created",
+                    )
+                    to_insert.append(
+                        {
+                            "_id": f"{doc['_id']}_#{int(ctime.timestamp())}",
+                            "last": snapshot_bucket[0],
+                            "history": snapshot_bucket,
+                            "_time_created": ctime,
+                            "count": len(snapshot_bucket),
+                            "oversized": False,
+                        }
+                    )
+                snapshot_col.insert_many(to_insert)
+                snapshot_col.delete_one({"_id": doc["_id"]})
+
+        # Update schema
+        schema["_id"] += 1
+        schema["version"] = 3
+        schema["storage"] = {"snapshot_bucket_size": bucket_size}
+
+        return schema

@@ -149,7 +149,7 @@ class EntityDatabase:
             self._init_database_schema(db_config.db_name)
 
         self.schema_cleaner = SchemaCleaner(
-            self._db, self.get_module_cache("Schema"), self._db_schema_config, self.log
+            self._db, self.get_module_cache("Schema"), self._db_schema_config, config, self.log
         )
 
         self._on_entity_delete_one = []

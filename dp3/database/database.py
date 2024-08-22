@@ -1,5 +1,6 @@
 import inspect
 import logging
+import re
 import threading
 import time
 import urllib
@@ -953,12 +954,12 @@ class EntityDatabase:
         return f"{eid}_#{int(ctime.timestamp())}"
 
     @staticmethod
-    def _snapshot_bucket_eid_filter(eid) -> dict:
-        return {"_id": {"$regex": f"^{eid}_#"}}
+    def _snapshot_bucket_eid_filter(eid: str) -> dict:
+        return {"_id": {"$regex": f"^{re.escape(eid)}_#"}}
 
     @staticmethod
     def _snapshot_bucket_eids_filter(eids: Iterable[str]) -> dict:
-        return {"_id": {"$regex": "|".join([f"^{eid}_#" for eid in eids])}}
+        return {"_id": {"$regex": "|".join([f"^{re.escape(eid)}_#" for eid in eids])}}
 
     def get_snapshots(
         self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None

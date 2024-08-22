@@ -716,8 +716,7 @@ class SnapShooter:
                 confidence = self.extrapolate_confidence(point, time, attr_spec.history_params)
                 if value in values:
                     i = values.index(value)
-                    if confidence_list[i] < confidence:
-                        confidence_list[i] = confidence
+                    confidence_list[i] = max(confidence_list[i], confidence)
                 elif confidence > 0.0:
                     values.append(value)
                     confidence_list.append(confidence)

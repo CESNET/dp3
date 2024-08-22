@@ -40,7 +40,7 @@ class GetEntityEids(common.APITest):
 
     def test_get_entity_eids_generic_filter(self):
         eids = self.get_entity_data(
-            "entity/A", EntityEidList, generic_filter=json.dumps({"_id": "A0"})
+            "entity/A", EntityEidList, generic_filter=json.dumps({"last.eid": "A0"})
         )
         self.assertEqual(1, len(eids.data))
         self.assertEqual("A0", eids.data[0]["eid"])

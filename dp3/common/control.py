@@ -33,6 +33,9 @@ class ControlMessage(Task):
     def routing_key(self):
         return ""
 
+    def hashed_routing_key(self) -> int:
+        return 0
+
     def as_message(self) -> str:
         return self.model_dump_json()
 

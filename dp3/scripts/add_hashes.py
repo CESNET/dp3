@@ -9,8 +9,8 @@ import argparse
 from pymongo import UpdateOne
 
 from dp3.common.config import ModelSpec, read_config_dir
+from dp3.common.task import HASH
 from dp3.database.database import EntityDatabase, MongoConfig
-from dp3.task_processing.task_queue import HASH
 
 # Arguments parser
 parser = argparse.ArgumentParser(

@@ -1,3 +1,4 @@
+import hashlib
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -19,6 +20,16 @@ from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 
 _init_context_var = ContextVar("_init_context_var", default=None)
+
+
+def HASH(key: str) -> int:
+    """Hash function used to distribute tasks to worker processes.
+    Args:
+        key: to be hashed
+    Returns:
+        last 4 bytes of MD5
+    """
+    return int(hashlib.md5(key.encode("utf8")).hexdigest()[-4:], 16)
 
 
 @contextmanager
@@ -44,6 +55,13 @@ class Task(BaseModel, ABC):
         Returns:
             A string to be used as a routing key between workers.
         """
+
+    def hashed_routing_key(self) -> int:
+        """
+        Returns:
+            An integer to be used as a hashed routing key between workers.
+        """
+        return HASH(self.routing_key())
 
     @abstractmethod
     def as_message(self) -> str:

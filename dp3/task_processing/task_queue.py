@@ -33,7 +33,6 @@ worker_processes: 1
 
 import collections
 import contextlib
-import hashlib
 import logging
 import threading
 import time
@@ -51,16 +50,6 @@ DEFAULT_EXCHANGE = "{}-main-task-exchange"
 DEFAULT_PRIORITY_EXCHANGE = "{}-priority-task-exchange"
 DEFAULT_QUEUE = "{}-worker-{}"
 DEFAULT_PRIORITY_QUEUE = "{}-worker-{}-pri"
-
-
-def HASH(key: str) -> int:
-    """Hash function used to distribute tasks to worker processes.
-    Args:
-        key: to be hashed
-    Returns:
-        last 4 bytes of MD5
-    """
-    return int(hashlib.md5(key.encode("utf8")).hexdigest()[-4:], 16)
 
 
 # When reading, pre-fetch only a limited amount of messages
@@ -294,8 +283,8 @@ class TaskQueueWriter(RobustAMQPConnection):
 
         # Prepare routing key
         body = task.as_message()
-        key = task.routing_key()
-        routing_key = HASH(key) % self.workers  # index of the worker to send the task to
+        # index of the worker to send the task to
+        routing_key = task.hashed_routing_key() % self.workers
 
         exchange = self.exchange_pri if priority else self.exchange
         self._send_message(routing_key, exchange, body)

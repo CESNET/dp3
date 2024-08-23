@@ -460,7 +460,7 @@ class SchemaCleaner:
             for entity in self._model_spec.entities:
                 self.log.info("Updating %s", entity)
                 self._db[f"{entity}#snapshots"].update_many(
-                    {},
+                    {"oversized": False},
                     {"$set": {"count": curr_storage["snapshot_bucket_size"]}},
                 )
 

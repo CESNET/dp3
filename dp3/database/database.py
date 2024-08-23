@@ -23,9 +23,9 @@ from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase, to_json_friendly
 from dp3.common.scheduler import Scheduler
+from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
 from dp3.database.schema_cleaner import SchemaCleaner
-from dp3.task_processing.task_queue import HASH
 
 BSON_OBJECT_TOO_LARGE = 10334
 

@@ -1180,7 +1180,9 @@ class EntityDatabase:
             return
         elif oversized:
             # Snapshot is already marked as oversized
-            self._db[snapshot_col].update_one({"_id": eid}, {"$set": {"last": snapshot}})
+            self._db[snapshot_col].update_one(
+                self._snapshot_bucket_eid_filter(eid), {"$set": {"last": snapshot}}
+            )
             self._db[os_col].insert_one(snapshot)
             return
 
@@ -1276,7 +1278,7 @@ class EntityDatabase:
             oversized_inserts.extend(snapshots_by_eid[eid])
             oversized_updates.append(
                 UpdateOne(
-                    {"_id": self._snapshot_bucket_eid_filter(eid)},
+                    self._snapshot_bucket_eid_filter(eid),
                     {"$set": {"last": snapshots_by_eid[eid][-1]}},
                 )
             )
@@ -1524,7 +1526,6 @@ class EntityDatabase:
         self._assert_etype_exists(etype)
 
         snapshot_col = self._snapshots_col_name(etype)
-        os_snapshot_col = self._oversized_snapshots_col_name(etype)
 
         # Get attribute specification
         try:
@@ -1548,25 +1549,19 @@ class EntityDatabase:
 
         # Build aggregation query
         attr_path = "$last." + attr
-        os_attr_path = "$" + attr
         unwinding = []
-        os_unwinding = []
 
         # Unwind array-like and multi value attributes
         # If attribute is multi value array, unwind twice
         if "array" in attr_spec.data_type.root or "set" in attr_spec.data_type.root:
             unwinding.append({"$unwind": attr_path})
-            os_unwinding.append({"$unwind": os_attr_path})
         if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
             unwinding.append({"$unwind": attr_path})
-            os_unwinding.append({"$unwind": os_attr_path})
 
         # Group
         agg_query_group_id = attr_path
-        os_agg_query_group_id = os_attr_path
         if "link" in attr_spec.data_type.root:
             agg_query_group_id += ".eid"
-            os_agg_query_group_id += ".eid"
 
         agg_query = [
             {"$match": {"_time_created": {"$gt": latest_snapshot_date - self._bucket_delta}}},
@@ -1578,17 +1573,6 @@ class EntityDatabase:
         distinct_counts_cur = self._db[snapshot_col].aggregate(agg_query)
 
         distinct_counts = {x["_id"]: x["count"] for x in distinct_counts_cur}
-
-        # Run aggregation for oversized snapshots and sum the counts
-        agg_query = [
-            {"$match": {"_time_created": latest_snapshot_date}},
-            *os_unwinding,
-            {"$group": {"_id": os_agg_query_group_id, "count": {"$sum": 1}}},
-            {"$sort": {"_id": 1, "count": -1}},
-        ]
-        os_distinct_counts_cur = self._db[os_snapshot_col].aggregate(agg_query)
-        for x in os_distinct_counts_cur:
-            distinct_counts[x["_id"]] = distinct_counts.get(x["_id"], 0) + x["count"]
 
         if None in distinct_counts:
             del distinct_counts[None]

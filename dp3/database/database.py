@@ -141,6 +141,11 @@ class EntityDatabase:
         self._num_processes = num_processes
         self._process_index = process_index
 
+        self._normal_snapshot_eids = defaultdict(set)
+        self._oversized_snapshot_eids = defaultdict(set)
+        self._snapshot_bucket_size = db_config.storage.snapshot_bucket_size
+        self._bucket_delta = self._get_snapshot_bucket_delta(config)
+
         # Init and switch to correct database
         self._db = self._db[db_config.db_name]
         type_registry = bson.codec_options.TypeRegistry(fallback_encoder=to_json_friendly)
@@ -167,11 +172,6 @@ class EntityDatabase:
         )
         self._sched.register(self._push_raw, second=seconds, misfire_grace_time=5)
         self._sched.register(self._push_master, second=seconds, misfire_grace_time=5)
-
-        self._normal_snapshot_eids = defaultdict(set)
-        self._oversized_snapshot_eids = defaultdict(set)
-        self._snapshot_bucket_size = db_config.storage.snapshot_bucket_size
-        self._bucket_delta = self._get_snapshot_bucket_delta(config)
 
         self.log.info("Database successfully initialized!")
 
@@ -306,10 +306,22 @@ class EntityDatabase:
 
             snapshot_col = self._snapshots_col_name(etype)
             # To get the empty bucket for an entity without fetching all its buckets
-            self._db[snapshot_col].create_index(
-                [("_id", pymongo.DESCENDING), ("count", pymongo.ASCENDING)],
-                background=True,
-            )
+            for ix in self._db[snapshot_col].list_indexes():
+                if set(ix["key"].keys()) == {"_id", "count"}:
+                    if ix.get("partialFilterExpression") is None:
+                        self._db[snapshot_col].drop_index(ix["name"])
+                        self._db[snapshot_col].create_index(
+                            [("_id", pymongo.DESCENDING), ("count", pymongo.ASCENDING)],
+                            partialFilterExpression={"count": {"$lt": self._snapshot_bucket_size}},
+                            background=True,
+                        )
+                    break
+            else:
+                self._db[snapshot_col].create_index(
+                    [("_id", pymongo.DESCENDING), ("count", pymongo.ASCENDING)],
+                    partialFilterExpression={"count": {"$lt": self._snapshot_bucket_size}},
+                    background=True,
+                )
             # To fetch the oversized entities only
             self._db[snapshot_col].create_index(
                 [("oversized", pymongo.DESCENDING)],

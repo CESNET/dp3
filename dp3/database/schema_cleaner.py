@@ -441,6 +441,32 @@ class SchemaCleaner:
 
         self.log.info("Schema OK!")
 
+    def get_index_name_by_keys(self, collection: str, keys: dict) -> str:
+        """
+        Gets index name by keys.
+
+        Args:
+            collection: Collection name.
+            keys: Index keys.
+        Returns:
+            Index name.
+        """
+        for index in self._db[collection].list_indexes():
+            if index["key"] == keys:
+                return index["name"]
+        raise ValueError(f"Index not found for {collection} with keys {keys}")
+
+    def fix_latest_bucket_index(self, collection: str, new_bucket_size: int):
+        index = self.get_index_name_by_keys(collection, {"_id": -1, "count": 1})
+        self.log.info("Dropping index %s.%s", collection, index)
+        self._db[collection].drop_index(index)
+        name = self._db[collection].create_index(
+            [("_id", pymongo.DESCENDING), ("count", pymongo.ASCENDING)],
+            partialFilterExpression={"count": {"$lt": new_bucket_size}},
+            background=True,
+        )
+        self.log.info("Created index %s.%s", collection, name)
+
     def update_storage(self, prev_storage: dict, curr_storage: dict):
         """
         Updates storage settings in schema.
@@ -457,12 +483,23 @@ class SchemaCleaner:
                 prev_storage["snapshot_bucket_size"],
                 curr_storage["snapshot_bucket_size"],
             )
+
             for entity in self._model_spec.entities:
+                snapshot_col = f"{entity}#snapshots"
+
+                # Bucket size decreased, fix indexes before updating
+                if prev_storage["snapshot_bucket_size"] > curr_storage["snapshot_bucket_size"]:
+                    self.fix_latest_bucket_index(snapshot_col, curr_storage["snapshot_bucket_size"])
+
                 self.log.info("Updating %s", entity)
-                self._db[f"{entity}#snapshots"].update_many(
+                self._db[snapshot_col].update_many(
                     {"oversized": False},
                     {"$set": {"count": curr_storage["snapshot_bucket_size"]}},
                 )
+
+                # Bucket size increased, fix indexes after updating
+                if prev_storage["snapshot_bucket_size"] <= curr_storage["snapshot_bucket_size"]:
+                    self.fix_latest_bucket_index(snapshot_col, curr_storage["snapshot_bucket_size"])
 
     def migrate(self, schema_doc: dict) -> dict:
         """

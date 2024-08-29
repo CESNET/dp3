@@ -322,6 +322,14 @@ class EntityDatabase:
                     partialFilterExpression={"count": {"$lt": self._snapshot_bucket_size}},
                     background=True,
                 )
+
+            # To fetch all the latest snapshots without relying on date
+            self._db[snapshot_col].create_index(
+                [("latest", pymongo.DESCENDING), ("_id", pymongo.ASCENDING)],
+                partialFilterExpression={"latest": {"$eq": True}},
+                background=True,
+            )
+
             # To fetch the oversized entities only
             self._db[snapshot_col].create_index(
                 [("oversized", pymongo.DESCENDING)],
@@ -936,7 +944,7 @@ class EntityDatabase:
             fulltext_filters = {}
 
         if not generic_filter:
-            generic_filter = {}
+            generic_filter: dict[str, Any] = {"latest": True}
 
         # Create base of query
         query = generic_filter
@@ -962,13 +970,9 @@ class EntityDatabase:
             else:
                 query["last." + attr] = fulltext_filter
 
-        lsd = self._get_latest_snapshots_date()
-        if lsd is not None:
-            query["_time_created"] = {"$gt": lsd - self._bucket_delta}
-
         try:
             return self._db[snapshot_col].find(query, {"last": 1}).sort(
-                [("_time_created", pymongo.DESCENDING), ("_id", pymongo.ASCENDING)]
+                [("_id", pymongo.ASCENDING)]
             ), self._db[snapshot_col].count_documents(query)
         except OperationFailure as e:
             raise DatabaseError("Invalid query") from e
@@ -1164,6 +1168,7 @@ class EntityDatabase:
                             "_id": self._snapshot_bucket_id(eid, ctime),
                             "_time_created": ctime,
                             "oversized": False,
+                            "latest": True,
                         },
                     },
                     upsert=True,
@@ -1266,6 +1271,7 @@ class EntityDatabase:
                             "_id": self._snapshot_bucket_id(eid, ctime),
                             "_time_created": ctime,
                             "oversized": False,
+                            "latest": True,
                         },
                     },
                     upsert=True,
@@ -1288,6 +1294,26 @@ class EntityDatabase:
         if upserts:
             try:
                 res = self._db[snapshot_col].bulk_write(upserts, ordered=False)
+
+                # Unset latest snapshots if new snapshots were inserted
+                if res.upserted_count > 0:
+                    unset_latest_updates = []
+                    for upsert_id in res.upserted_ids.values():
+                        eid = upsert_id.rsplit("_#", maxsplit=1)[0]
+                        unset_latest_updates.append(
+                            UpdateOne(
+                                self._snapshot_bucket_eid_filter(eid)
+                                | {"latest": True, "count": self._snapshot_bucket_size},
+                                {"$unset": {"latest": 1}},
+                            )
+                        )
+                    up_res = self._db[snapshot_col].bulk_write(unset_latest_updates)
+                    if up_res.modified_count != res.upserted_count:
+                        self.log.info(
+                            "Upserted the first snapshot for %d entities.",
+                            res.upserted_count - up_res.modified_count,
+                        )
+
                 if res.modified_count + res.upserted_count != len(upserts):
                     self.log.error(
                         "Some snapshots were not updated, %s != %s",
@@ -1533,11 +1559,6 @@ class EntityDatabase:
         except KeyError as e:
             raise DatabaseError(f"Attribute '{attr}' does not exist") from e
 
-        # Find newest fully completed snapshot date
-        latest_snapshot_date = self._get_latest_snapshots_date()
-        if latest_snapshot_date is None:
-            return {}
-
         if attr_spec.t not in AttrType.PLAIN | AttrType.OBSERVATIONS:
             raise DatabaseError(f"Attribute '{attr}' isn't plain or observations")
 
@@ -1564,7 +1585,7 @@ class EntityDatabase:
             agg_query_group_id += ".eid"
 
         agg_query = [
-            {"$match": {"_time_created": {"$gt": latest_snapshot_date - self._bucket_delta}}},
+            {"$match": {"latest": True}},
             *unwinding,
             {"$group": {"_id": agg_query_group_id, "count": {"$sum": 1}}},
             {"$sort": {"_id": 1, "count": -1}},

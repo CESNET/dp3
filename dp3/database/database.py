@@ -944,10 +944,11 @@ class EntityDatabase:
             fulltext_filters = {}
 
         if not generic_filter:
-            generic_filter: dict[str, Any] = {"latest": True}
+            generic_filter = {}
 
         # Create base of query
         query = generic_filter
+        query["latest"] = True
 
         # Process fulltext filters
         for attr in fulltext_filters:

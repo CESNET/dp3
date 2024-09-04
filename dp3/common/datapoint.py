@@ -44,6 +44,9 @@ class DataPointPlainBase(DataPointBase):
     the same naming for simplicity.
     """
 
+    t1: None = None
+    t2: None = None
+
 
 class DataPointObservationsBase(DataPointBase):
     """Observations attribute data-point

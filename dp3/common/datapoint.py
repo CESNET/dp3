@@ -2,7 +2,7 @@ from datetime import datetime
 from ipaddress import IPv4Address, IPv6Address
 from typing import Annotated, Any, Optional, Union
 
-from pydantic import BaseModel, Field, PlainSerializer
+from pydantic import BaseModel, BeforeValidator, Field, PlainSerializer
 
 from dp3.common.types import T2Datetime
 
@@ -11,6 +11,11 @@ def to_json_friendly(v):
     if isinstance(v, (IPv4Address, IPv6Address)):
         return str(v)
     return v
+
+
+def ignore_value(_v):
+    """Ignore the passed value and return None."""
+    return None
 
 
 class DataPointBase(BaseModel, use_enum_values=True):
@@ -44,7 +49,7 @@ class DataPointPlainBase(DataPointBase):
     the same naming for simplicity.
     """
 
-    t1: None = None
+    t1: Annotated[None, BeforeValidator(ignore_value)] = None
     t2: None = None
 
 

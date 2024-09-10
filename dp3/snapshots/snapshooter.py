@@ -228,7 +228,7 @@ class SnapShooter:
 
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
-        time = datetime.now()
+        time = datetime.utcnow()
         self.db.save_metadata(
             time,
             {
@@ -258,7 +258,7 @@ class SnapShooter:
         counts = {"entities": 0, "components": 0}
         try:
             linked_entities = self.get_linked_entities(time, cached)
-            times["components_loaded"] = datetime.now()
+            times["components_loaded"] = datetime.utcnow()
 
             for i, linked_entities_component in enumerate(linked_entities):
                 counts["entities"] += len(linked_entities_component)
@@ -278,7 +278,7 @@ class SnapShooter:
         except pymongo.errors.CursorNotFound as err:
             self.log.exception(err)
         finally:
-            times["task_creation_end"] = datetime.now()
+            times["task_creation_end"] = datetime.utcnow()
             self.db.update_metadata(
                 time,
                 metadata=times,

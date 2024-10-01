@@ -1158,7 +1158,7 @@ class EntityDatabase:
         normal, oversized = self._get_snapshot_state(etype, {eid})
         if normal:
             try:
-                self._db[snapshot_col].update_one(
+                res = self._db[snapshot_col].update_one(
                     self._snapshot_bucket_eid_filter(eid)
                     | {"count": {"$lt": self._snapshot_bucket_size}},
                     {
@@ -1174,6 +1174,13 @@ class EntityDatabase:
                     },
                     upsert=True,
                 )
+
+                if res.upserted_id is not None:
+                    self._db[snapshot_col].update_many(
+                        self._snapshot_bucket_eid_filter(eid)
+                        | {"latest": True, "count": self._snapshot_bucket_size},
+                        {"$unset": {"latest": 1}},
+                    )
             except (WriteError, OperationFailure, DocumentTooLarge) as e:
                 if e.code != BSON_OBJECT_TOO_LARGE:
                     raise e
@@ -1302,7 +1309,7 @@ class EntityDatabase:
                     for upsert_id in res.upserted_ids.values():
                         eid = upsert_id.rsplit("_#", maxsplit=1)[0]
                         unset_latest_updates.append(
-                            UpdateOne(
+                            UpdateMany(
                                 self._snapshot_bucket_eid_filter(eid)
                                 | {"latest": True, "count": self._snapshot_bucket_size},
                                 {"$unset": {"latest": 1}},

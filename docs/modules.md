@@ -199,7 +199,7 @@ registrar.register_allow_entity_creation_hook(
 
 Receives eid and Task, may return new DataPointTasks.
 
-The callback is registered using the 
+Callbacks which are called once when an entity is created are registered using the 
 [`register_on_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_entity_creation_hook] method.
 Required signature is `Callable[[str, DataPointTask], list[DataPointTask]]`.
 
@@ -240,7 +240,7 @@ registrar.register_on_entity_creation_hook(
 
 #### Attribute hooks
 
-Callbacks are registered using the 
+Callbacks that are called on every incoming datapoint of an attribute are registered using the 
 [`register_on_new_attr_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_new_attr_hook] method.
 The callback allways receives eid, attribute and Task, and may return new DataPointTasks.
 The required signature is `Callable[[str, DataPointBase], Union[None, list[DataPointTask]]]`.

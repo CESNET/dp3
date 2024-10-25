@@ -1,9 +1,10 @@
 from datetime import datetime
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, Union
 
-from pydantic import BaseModel, Field, NonNegativeInt, RootModel
+from pydantic import BaseModel, Field, NonNegativeInt, PlainSerializer
 
 from dp3.common.attrspec import AttrSpecType, AttrType
+from dp3.common.datapoint import to_json_friendly
 
 
 class EntityState(BaseModel):
@@ -19,6 +20,20 @@ class EntityState(BaseModel):
     eid_estimate_count: NonNegativeInt
 
 
+# This is necessary to allow for non-JSON-serializable types in the model
+JsonVal = Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")]
+
+PlainVal = dict[str, JsonVal]
+HistoryVal = list[dict[str, JsonVal]]
+
+Dp3Val = Union[HistoryVal, PlainVal, JsonVal]
+
+EntityEidMasterRecord = dict[str, Dp3Val]
+
+SnapshotType = dict[str, Dp3Val]
+EntityEidSnapshots = list[SnapshotType]
+
+
 class EntityEidList(BaseModel):
     """List of entity eids and their data based on latest snapshot
 
@@ -31,12 +46,7 @@ class EntityEidList(BaseModel):
     time_created: Optional[datetime] = None
     count: int
     total_count: int
-    data: list[dict]
-
-
-EntityEidMasterRecord = RootModel[dict]
-
-EntityEidSnapshots = RootModel[list[dict]]
+    data: EntityEidSnapshots
 
 
 class EntityEidData(BaseModel):
@@ -48,8 +58,8 @@ class EntityEidData(BaseModel):
     """
 
     empty: bool
-    master_record: dict
-    snapshots: list[dict]
+    master_record: EntityEidMasterRecord
+    snapshots: EntityEidSnapshots
 
 
 class EntityEidAttrValueOrHistory(BaseModel):
@@ -62,8 +72,8 @@ class EntityEidAttrValueOrHistory(BaseModel):
     """
 
     attr_type: AttrType
-    current_value: Any = None
-    history: list[dict] = []
+    current_value: JsonVal = None
+    history: HistoryVal = []
 
 
 class EntityEidAttrValue(BaseModel):
@@ -72,4 +82,4 @@ class EntityEidAttrValue(BaseModel):
     The value is fetched from master record.
     """
 
-    value: Any = None
+    value: JsonVal = None

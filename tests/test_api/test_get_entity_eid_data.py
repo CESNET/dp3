@@ -2,6 +2,7 @@ import sys
 from datetime import datetime, timedelta
 
 import common
+from pydantic import RootModel
 
 from dp3.api.internal.entity_response_models import EntityEidData, EntityEidMasterRecord
 
@@ -48,7 +49,7 @@ class GetEntityEidData(common.APITest):
     def test_get_entity_master_record(self):
         data = self.query_expected_value(
             lambda: self.get_entity_data(
-                f"entity/test_entity_type/{self.eid}/master", EntityEidMasterRecord
+                f"entity/test_entity_type/{self.eid}/master", RootModel[EntityEidMasterRecord]
             ),
             lambda data: "test_attr_history" in data.root,
         )

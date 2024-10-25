@@ -12,6 +12,7 @@ from dp3.api.internal.entity_response_models import (
     EntityEidList,
     EntityEidMasterRecord,
     EntityEidSnapshots,
+    JsonVal,
 )
 from dp3.api.internal.helpers import api_to_dp3_datapoint
 from dp3.api.internal.models import (
@@ -56,7 +57,7 @@ def get_eid_master_record_handler(
 
 def get_eid_snapshots_handler(
     etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
-):
+) -> list[dict[str, Any]]:
     """Handler for getting snapshots of EID"""
     snapshots = list(DB.get_snapshots(etype, eid, t1=date_from, t2=date_to))
 
@@ -248,7 +249,7 @@ async def set_eid_attr_value(
     "/{etype}/_/distinct/{attr}",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
-async def get_distinct_attribute_values(etype: str, attr: str) -> dict[Any, int]:
+async def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, int]:
     """Gets distinct attribute values and their counts based on latest snapshots
 
     Useful for displaying `<select>` enumeration fields.

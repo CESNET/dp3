@@ -40,6 +40,8 @@ primitive_data_types = {
     "json": Union[Json[Any], dict, list],
 }
 
+eid_data_types = ["string", "int", "ipv4", "ipv6"]
+
 
 class ReadOnly(BaseModel):
     """The ReadOnly data_type is used to avoid datapoint insertion for an attribute."""
@@ -95,8 +97,7 @@ class DataType(RootModel):
     _mirror_as = PrivateAttr()
     _link_data = PrivateAttr()
 
-    @model_validator(mode="after")
-    def determine_value_validator(self):
+    def _determine_value_validator(self):
         """Determines value validator (inner `data_type`)."""
         str_type = self.root
 
@@ -201,6 +202,11 @@ class DataType(RootModel):
             self._type_info = str(data_type)
         return self
 
+    @model_validator(mode="after")
+    def determine_value_validator(self):
+        """Determines value validator (inner `data_type`)."""
+        return self._determine_value_validator()
+
     @property
     def data_type(self) -> Union[type, BaseModel]:
         """Type for incoming value validation"""
@@ -265,6 +271,23 @@ class DataType(RootModel):
 
     def __repr__(self):
         return f"'{str(self)}'"
+
+
+class EidDataType(DataType):
+    """Data type container for entity id
+
+    Represents one of primitive data types:
+    - string
+    - int
+    - ipv4
+    - ipv6
+    """
+
+    @model_validator(mode="after")
+    def determine_value_validator(self):
+        if self.root not in eid_data_types:
+            raise ValueError(f"Data type of entity ID must be one of {eid_data_types}")
+        return self._determine_value_validator()
 
 
 def is_primitive_element_type(data_type: DataType) -> bool:

@@ -2,6 +2,7 @@ from typing import Literal, Union
 
 from pydantic import BaseModel, Extra, Field
 
+from dp3.common.datatype import EidDataType
 from dp3.common.types import ParsedTimedelta
 
 
@@ -51,6 +52,7 @@ class EntitySpec(SpecModel):
 
     id: str
     name: str
+    data_type: EidDataType = EidDataType("string")
     snapshot: bool
     lifetime: Union[ImmortalLifetime, TimeToLiveLifetime, WeakLifetime] = Field(
         default_factory=lambda: ImmortalLifetime(type="immortal"), discriminator="type"

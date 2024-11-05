@@ -1,10 +1,10 @@
 AMQPStorm~=2.7.2
 apscheduler~=3.10.0
 event-count-logger>=1.1
-fastapi>=0.100.0
-pydantic>=2.1.0
-pymongo~=4.3.3
+fastapi>=0.109.1
+pydantic>=2.4.0
+pymongo~=4.6.3
 python-dateutil~=2.8
-pyyaml>=5.3.1,<5.5.0
-requests~=2.31.0
+pyyaml~=6.0
+requests~=2.32.0
 uvicorn>=0.22.0

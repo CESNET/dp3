@@ -101,6 +101,61 @@ async def list_entity_type_eids(
 
     Generic filter allows filtering using generic MongoDB query (including `$and`, `$or`,
     `$lt`, etc.).
+    For querying non-JSON-native types, you can use the following magic strings:
+
+    - `"$$IPv4{<ip address>}"` - converts to IPv4Address object
+    - `"$$IPv6{<ip address>}"` - converts to IPv6Address object
+    - `"$$int{<value>}"` - may be necessary for filtering when `eid` data type is int
+    - `"$$Date{<YYYY-mm-ddTHH:MM:ssZ>}"` - converts specified UTC date to UTC datetime object
+    - `"$$DateTs{<POSIX timestamp>}"` - converts POSIX timestamp (int/float) to UTC datetime object
+    - `"$$MAC{<mac address>}"` - converts to MACAddress object
+
+    To query an IP prefix, use the following magic strings:
+
+    - `"$$IPv4Prefix{<ip address>/<prefix length>}"` - matches prefix
+    - `"$$IPv6Prefix{<ip address>/<prefix length>}"` - matches prefix
+
+    To query a binary `_id`s of non-string snapshot buckets,
+    use the following magic string:
+
+    - `"$$Binary_ID{<EID object | Valid magic string>}"`
+
+        - converts to filter the exact EID object snapshots, only EID valid types are supported
+
+    There are no attribute name checks (may be added in the future).
+
+    Generic filter examples:
+
+    - `{"attr1": {"$gt": 10}, "attr2": {"$lt": 20}}`
+    - `{"ip_attr": "$$IPv4{127.0.0.1}"}` - converts to IPv4Address object, exact match
+    - `{"ip_attr": "$$IPv4Prefix{127.0.0.0/24}"}`
+        - converts to `{"ip_attr": {"$gte": "$$IPv4{127.0.0.0}",
+          "$lte": "$$IPv4{127.0.0.255}"}}`
+
+    - `{"ip_attr": "$$IPv6{::1}"}` - converts to IPv6Address object, exact match
+    - `{"ip_attr": "$$IPv6Prefix{::1/64}"}`
+        - converts to `{"ip_attr": {"$gte": "$$IPv6{::1}",
+          "$lte": "$$IPv6{::1:ffff:ffff:ffff:ffff}"}}`
+
+    - `{"_id": "$$Binary_ID{$$IPv4{127.0.0.1}}"}`
+        - converts to `{"_id": {"$gte": Binary(<IP bytes + min timestamp>),
+          "$lt": Binary(<IP bytes + max timestamp>)}}`
+
+    - `{"id": "$$Binary_ID{$$IPv4Prefix{127.0.0.0/24}}"}`
+        - converts to `{"_id": {"$gte": Binary(<IP 127.0.0.0 bytes + min timestamp>),
+          "$lte": Binary(<IP 127.0.0.255 bytes + max timestamp>)}}`
+
+    - `{"_time_created": {"$gte": "$$Date{2024-11-07T00:00:00Z}"}}`
+        - converts to `{"_time_created": datetime(2024, 11, 7, 0, 0, 0, tzinfo=timezone.utc)}`
+
+    - `{"_time_created": {"$gte": "$$DateTs{1609459200}"}}`
+        - converts to `{"_time_created": datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone.utc)}`
+
+    - `{"attr": "$$MAC{00:11:22:33:44:55}"}` - converts to MACAddress object, exact match
+    - `{"_id": "$$Binary_ID{$$MAC{Ab-cD-Ef-12-34-56}}"}`
+        - converts to `{"_id": {"$gte": Binary(<MAC bytes + min timestamp>),
+            "$lt": Binary(<MAC bytes + max timestamp>)}}`
+
     There are no attribute name checks (may be added in the future).
 
     Generic and fulltext filters are merged - fulltext overrides conflicting keys.
@@ -128,7 +183,7 @@ async def list_entity_type_eids(
         cursor, total_count = DB.get_latest_snapshots(etype, fulltext_filters, generic_filter)
         cursor_page = cursor.skip(skip).limit(limit)
     except DatabaseError as e:
-        raise HTTPException(status_code=400, detail="Query is invalid") from e
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     time_created = None
 

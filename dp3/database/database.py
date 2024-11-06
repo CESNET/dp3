@@ -31,6 +31,7 @@ from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
 from dp3.common.utils import int2bytes
+from dp3.database.magic import search_and_replace
 from dp3.database.schema_cleaner import SchemaCleaner
 
 BSON_OBJECT_TOO_LARGE = 10334
@@ -962,7 +963,7 @@ class EntityDatabase:
         self,
         etype: str,
         fulltext_filters: Optional[dict[str, str]] = None,
-        generic_filter: Optional[dict[str, any]] = None,
+        generic_filter: Optional[dict[str, Any]] = None,
     ) -> tuple[Cursor, int]:
         """Get latest snapshots of given `etype`.
 
@@ -976,11 +977,14 @@ class EntityDatabase:
         Only plain and observation attributes with string-based data types can be queried.
         Array and set data types are supported as well as long as they are not multi value
         at the same time.
-        If you need to filter EIDs, use attribute `eid`.
+        If you need to filter EIDs, ensure the EID is string, then use attribute `eid`.
+        Otherwise, use generic filter.
 
         Generic filter allows filtering using generic MongoDB query (including `$and`, `$or`,
         `$lt`, etc.).
-        There are no attribute name checks (may be added in the future).
+        For querying non-JSON-native types, you can use magic strings, such as
+        `"$$IPv4{<ip address>}"` for IPv4 addresses. The full spec with examples is in the
+        [magic strings module][dp3.database.magic].
 
         Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
@@ -1000,7 +1004,10 @@ class EntityDatabase:
             generic_filter = {}
 
         # Create base of query
-        query = generic_filter
+        try:
+            query = search_and_replace(generic_filter)
+        except ValueError as e:
+            raise DatabaseError(f"Invalid generic filter: {str(e)}") from e
         query["latest"] = True
 
         # Process fulltext filters
@@ -1029,7 +1036,7 @@ class EntityDatabase:
                 [("_id", pymongo.ASCENDING)]
             ), snapshot_col.count_documents(query)
         except OperationFailure as e:
-            raise DatabaseError("Invalid query") from e
+            raise DatabaseError(f"Query is invalid: {e}") from e
 
     def _snapshot_bucket_id(self, etype: str, eid: Any, ctime: datetime) -> Union[str, Binary]:
         entity_data_type = self._db_schema_config.entities[etype].id_data_type.root

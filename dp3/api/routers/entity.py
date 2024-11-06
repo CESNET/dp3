@@ -37,11 +37,9 @@ def get_eid_master_record_handler(
     # TODO: This is probably not the most efficient way. Maybe gather only
     # plain data from master record and then call `get_timeseries_history`
     # for timeseries.
-    master_record = DB.get_master_record(etype, eid)
-    if "_id" in master_record:
-        del master_record["_id"]
-    if "#hash" in master_record:
-        del master_record["#hash"]
+    master_record = DB.get_master_record(
+        etype, eid, projection={"_id": False, "#hash": False, "#min_t2s": False}
+    )
 
     entity_attribs = MODEL_SPEC.attribs(etype)
 

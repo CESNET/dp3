@@ -1571,7 +1571,7 @@ class EntityDatabase:
             raise DatabaseError(f"Attribute '{attr}' isn't plain or observations")
 
         # Attribute data type must be primitive, array<T> or set<T>
-        if attr_spec.data_type.root in ("dict", "json"):
+        if any(needle in attr_spec.data_type.root for needle in ("dict", "json")):
             raise DatabaseError(
                 f"Data type '{attr_spec.data_type}' of attribute '{attr}' is not processable"
             )

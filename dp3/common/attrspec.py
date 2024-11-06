@@ -24,7 +24,7 @@ from dp3.common.datapoint import (
     dp_ts_v_validator,
 )
 from dp3.common.datatype import DataType, ReadOnly
-from dp3.common.entityspec import SpecModel
+from dp3.common.entityspec import SpecModel, _init_attr_spec_context_var
 from dp3.common.types import ParsedTimedelta
 
 # Regex of attribute and series id's
@@ -186,9 +186,14 @@ class AttrSpecPlain(AttrSpecClassic):
     def __init__(self, **data):
         super().__init__(**data)
 
+        entity_spec = _init_attr_spec_context_var.get()
+        if entity_spec is None:
+            raise ValueError("Entity specification not found in context")
+
         self._dp_model = create_model(
             f"DataPointPlain_{self.id}",
             __base__=DataPointPlainBase,
+            eid=(entity_spec.id_data_type.data_type, ...),
             v=(self.data_type.data_type, ...),
         )
 
@@ -199,9 +204,14 @@ class AttrSpecReadOnly(AttrSpecPlain):
     def __init__(self, **data):
         super().__init__(**data)
 
+        entity_spec = _init_attr_spec_context_var.get()
+        if entity_spec is None:
+            raise ValueError("Entity specification not found in context")
+
         self._dp_model = create_model(
             f"DataPointReadOnly_{self.id}",
             __base__=DataPointPlainBase,
+            eid=(entity_spec.id_data_type.data_type, ...),
             v=(ReadOnly, ...),
         )
 
@@ -221,10 +231,14 @@ class AttrSpecObservations(AttrSpecClassic):
         super().__init__(**data)
 
         value_validator = self.data_type.data_type
+        entity_spec = _init_attr_spec_context_var.get()
+        if entity_spec is None:
+            raise ValueError("Entity specification not found in context")
 
         self._dp_model = create_model(
             f"DataPointObservations_{self.id}",
             __base__=DataPointObservationsBase,
+            eid=(entity_spec.id_data_type.data_type, ...),
             v=(value_validator, ...),
         )
 
@@ -241,6 +255,10 @@ class AttrSpecTimeseries(AttrSpecGeneric):
 
     def __init__(self, **data):
         super().__init__(**data)
+
+        entity_spec = _init_attr_spec_context_var.get()
+        if entity_spec is None:
+            raise ValueError("Entity specification not found in context")
 
         # Typing of `v` field
         dp_value_typing = {}
@@ -268,6 +286,7 @@ class AttrSpecTimeseries(AttrSpecGeneric):
             f"DataPointTimeseries_{self.id}",
             __base__=DataPointTimeseriesBase,
             __validators__=dp_validators,
+            eid=(entity_spec.id_data_type.data_type, ...),
             v=(create_model(f"DataPointTimeseriesValue_{self.id}", **dp_value_typing), ...),
         )
 
@@ -304,4 +323,6 @@ def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:
         AttrType.OBSERVATIONS: AttrSpecObservations,
         AttrType.TIMESERIES: AttrSpecTimeseries,
     }
-    return subclasses[attr_type](id=id, **spec)
+
+    spec["id"] = id  # Fill in the id if not present, else overwrite
+    return subclasses[attr_type](**spec)

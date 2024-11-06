@@ -3,7 +3,7 @@ Platform config file reader and config model.
 """
 
 import os
-from typing import Annotated, Optional, Union
+from typing import Annotated, Any, Optional, Union
 
 import yaml
 from pydantic import (
@@ -25,7 +25,7 @@ from dp3.common.attrspec import (
     AttrSpecReadOnly,
     AttrSpecType,
 )
-from dp3.common.entityspec import EntitySpec
+from dp3.common.entityspec import EntitySpec, entity_context
 
 
 class NoDefault:
@@ -200,19 +200,22 @@ class EntitySpecDict(BaseModel):
     def __getitem__(self, item):
         return self.__getattribute__(item)
 
-    @field_validator("entity", mode="before")
-    def _parse_entity_spec(cls, v):
-        if isinstance(v, EntitySpec):
-            return v
-        return EntitySpec.model_validate(v)
+    @model_validator(mode="before")
+    def _validate_attr_spec(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or "entity" not in data or "attribs" not in data:
+            return data
 
-    @field_validator("attribs", mode="before")
-    def _parse_attr_spec(cls, v):
-        assert isinstance(v, dict), "'attribs' must be a dictionary"
-        return {
-            attr_id: AttrSpec(attr_id, spec) if not isinstance(spec, AttrSpecGeneric) else spec
-            for attr_id, spec in v.items()
-        }
+        if not isinstance(data["entity"], EntitySpec):
+            data["entity"] = EntitySpec.model_validate(data["entity"])
+
+        assert isinstance(data["attribs"], dict), "'attribs' must be a dictionary"
+        with entity_context(data["entity"]):
+            data["attribs"] = {
+                attr_id: AttrSpec(attr_id, spec) if not isinstance(spec, AttrSpecGeneric) else spec
+                for attr_id, spec in data["attribs"].items()
+            }
+
+        return data
 
 
 class ModelSpec(BaseModel):

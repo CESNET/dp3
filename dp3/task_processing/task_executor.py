@@ -152,7 +152,7 @@ class TaskExecutor:
 
         # Insert into database
         try:
-            self.db.insert_datapoints(task.etype, task.eid, task.data_points, new_entity=new_entity)
+            self.db.insert_datapoints(task.eid, task.data_points, new_entity=new_entity)
             self.log.debug(f"Task {task.etype}/{task.eid}: All changes written to DB")
         except DatabaseError as e:
             self.log.error(f"Task {task.etype}/{task.eid}: DB error: {e}")

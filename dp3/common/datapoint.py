@@ -31,7 +31,7 @@ class DataPointBase(BaseModel, use_enum_values=True):
     """
 
     etype: str
-    eid: str
+    eid: Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")] = None
     attr: str
     src: Optional[str] = None
     v: Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")] = None

@@ -75,6 +75,7 @@ async def list_entity_types() -> dict[str, EntityState]:
         entity_spec = MODEL_SPEC.entity(etype)
         entities[etype] = {
             "id": etype,
+            "id_data_type": entity_spec.id_data_type.root,
             "name": entity_spec.name,
             "attribs": MODEL_SPEC.attribs(etype),
             "eid_estimate_count": DB.estimate_count_eids(etype),

@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
-from typing import Annotated, Union
+from ipaddress import IPv4Address, IPv6Address
+from json import JSONEncoder
+from typing import Annotated, Any, Union
 
 from event_count_logger import DummyEventGroup, EventGroup
 from pydantic import AfterValidator, BeforeValidator
@@ -36,3 +38,14 @@ def t2_after_t1(v, info: FieldValidationInfo):
 T2Datetime = Annotated[datetime, BeforeValidator(t2_implicity_t1), AfterValidator(t2_after_t1)]
 
 EventGroupType = Union[EventGroup, DummyEventGroup]
+
+
+class DP3Encoder(JSONEncoder):
+    """JSONEncoder to encode python types using DP3 conventions."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, datetime):
+            return o.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
+        if isinstance(o, (IPv4Address, IPv6Address)):
+            return str(o)
+        return super().default(o)

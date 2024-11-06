@@ -33,6 +33,18 @@ def int2ipstr(i):
     return ".".join((str(i >> 24), str((i >> 16) & 0xFF), str((i >> 8) & 0xFF), str(i & 0xFF)))
 
 
+def int2bytes(num: int) -> bytes:
+    """Convert signed int to however many bytes necessary in big-endian order"""
+    return num.to_bytes(
+        length=(8 + (num + (num < 0)).bit_length()) // 8, byteorder="big", signed=True
+    )
+
+
+def bytes2int(b: bytes) -> int:
+    """Convert bytes to signed int in big-endian order"""
+    return int.from_bytes(b, "big", signed=True)
+
+
 # *** Time conversion ***
 # Regex for RFC 3339 time format
 timestamp_re = re.compile(

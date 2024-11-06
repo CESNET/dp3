@@ -3,9 +3,8 @@ import json
 import logging
 import os
 from datetime import datetime
-from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Extra
 
@@ -17,20 +16,11 @@ from dp3.common.attrspec import (
 )
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
-from dp3.common.types import ParsedTimedelta
+from dp3.common.types import DP3Encoder, ParsedTimedelta
 from dp3.common.utils import entity_expired
 from dp3.database.database import DatabaseError, EntityDatabase
 
 DB_SEND_CHUNK = 100
-
-
-class DatetimeEncoder(JSONEncoder):
-    """JSONEncoder to encode datetime using the standard ADiCT format string."""
-
-    def default(self, o: Any) -> Any:
-        if isinstance(o, datetime):
-            return o.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
-        return super().default(o)
 
 
 class SnapshotCleaningConfig(BaseModel):
@@ -218,9 +208,7 @@ class HistoryManager:
                 for etype in self.model_spec.entities:
                     for result_cursor in self.db.get_archive(etype, after=min_date, before=t_old):
                         for dp in result_cursor:
-                            logfile.write(
-                                f"{json.dumps(self._reformat_dp(dp), cls=DatetimeEncoder)}\n"
-                            )
+                            logfile.write(f"{json.dumps(self._reformat_dp(dp), cls=DP3Encoder)}\n")
                             datapoints += 1
 
             self.log.info("Archived %s datapoints to %s", datapoints, date_logfile)

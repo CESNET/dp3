@@ -29,6 +29,7 @@ from dp3.common.datapoint import DataPointBase
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
+from dp3.common.utils import int2bytes
 from dp3.database.schema_cleaner import SchemaCleaner
 
 BSON_OBJECT_TOO_LARGE = 10334
@@ -487,7 +488,7 @@ class EntityDatabase:
         self.schema_cleaner.await_updated()
 
     def insert_datapoints(
-        self, etype: str, eid: str, dps: list[DataPointBase], new_entity: bool = False
+        self, eid: Any, dps: list[DataPointBase], new_entity: bool = False
     ) -> None:
         """Inserts datapoint to raw data collection and updates master record.
 
@@ -636,7 +637,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
 
-    def extend_ttl(self, etype: str, eid: str, ttl_tokens: dict[str, datetime]):
+    def extend_ttl(self, etype: str, eid: Any, ttl_tokens: dict[str, datetime]):
         """Extends TTL of given `etype`:`eid` by `ttl_tokens`."""
         master_col = self._master_col(etype)
         try:
@@ -689,7 +690,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of master record failed: {e}\n{eids}") from e
         try:
-            res = snapshot_col.delete_many(self._snapshot_bucket_eids_filter(eids))
+            res = snapshot_col.delete_many(self._snapshot_bucket_eids_filter(etype, eids))
             del_cnt = res.deleted_count * self._snapshot_bucket_size
             self.log.debug("Deleted %s snapshots of %s (%s).", del_cnt, etype, len(eids))
             res = os_snapshot_col.delete_many({"eid": {"$in": eids}})
@@ -704,7 +705,7 @@ class EntityDatabase:
             except Exception as e:
                 self.log.exception("Error in on_entity_delete_many callback %s: %s", f, e)
 
-    def delete_eid(self, etype: str, eid: str):
+    def delete_eid(self, etype: str, eid: Any):
         """Delete master record and all snapshots of `etype`:`eid`."""
         master_col = self._master_col(etype)
         snapshot_col = self._snapshot_col(etype)
@@ -716,7 +717,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of master record failed: {e}\n{eid}") from e
         try:
-            res = snapshot_col.delete_many(self._snapshot_bucket_eid_filter(eid))
+            res = snapshot_col.delete_many(self._snapshot_bucket_eid_filter(etype, eid))
             del_cnt = res.deleted_count * self._snapshot_bucket_size
             self.log.debug("deleted %s snapshots of %s/%s.", del_cnt, etype, eid)
             res = os_snapshot_col.delete_many({"eid": eid})
@@ -873,18 +874,19 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of link datapoints failed: {e}") from e
 
-    def get_master_record(self, etype: str, eid: str, **kwargs) -> dict:
+    def get_master_record(self, etype: str, eid: Any, **kwargs) -> dict:
         """Get current master record for etype/eid.
 
         If doesn't exist, returns {}.
         """
         # Check `etype`
         self._assert_etype_exists(etype)
-
+        entity_spec = self._db_schema_config.entities[etype]
         master_col = self._master_col(etype)
-        return master_col.find_one({"_id": eid}, **kwargs) or {}
 
-    def ekey_exists(self, etype: str, eid: str) -> bool:
+        return master_col.find_one({"_id": entity_spec.validate_eid(eid)}, **kwargs) or {}
+
+    def ekey_exists(self, etype: str, eid: Any) -> bool:
         """Checks whether master record for etype/eid exists"""
         return bool(self.get_master_record(etype, eid))
 
@@ -909,7 +911,7 @@ class EntityDatabase:
             {"#hash": {"$mod": [worker_cnt, worker_index]}, **query_filter}, **kwargs
         )
 
-    def get_latest_snapshot(self, etype: str, eid: str) -> dict:
+    def get_latest_snapshot(self, etype: str, eid: Any) -> dict:
         """Get latest snapshot of given etype/eid.
 
         If doesn't exist, returns {}.
@@ -920,7 +922,7 @@ class EntityDatabase:
         snapshot_col = self._snapshot_col(etype)
         return (
             snapshot_col.find_one(
-                self._snapshot_bucket_eid_filter(eid), {"last": 1}, sort=[("_id", -1)]
+                self._snapshot_bucket_eid_filter(etype, eid), {"last": 1}, sort=[("_id", -1)]
             )
             or {}
         ).get("last", {})
@@ -1023,20 +1025,75 @@ class EntityDatabase:
         except OperationFailure as e:
             raise DatabaseError("Invalid query") from e
 
-    @staticmethod
-    def _snapshot_bucket_id(eid: str, ctime: datetime) -> str:
-        return f"{eid}_#{int(ctime.timestamp())}"
+    def _snapshot_bucket_id(self, etype: str, eid: Any, ctime: datetime) -> Union[str, Binary]:
+        entity_data_type = self._db_schema_config.entities[etype].id_data_type.root
+        ts_int = int(ctime.timestamp())
+
+        if entity_data_type == "string":
+            return f"{eid}_#{ts_int}"
+        if entity_data_type == "int" and isinstance(eid, int):
+            return self._pack_binary_snapshot_bucket_id(int2bytes(eid), ts_int)
+        if entity_data_type == "ipv4" and isinstance(eid, IPv4Address):
+            return self._pack_binary_snapshot_bucket_id(eid.packed, ts_int)
+        if entity_data_type == "ipv6" and isinstance(eid, IPv6Address):
+            return self._pack_binary_snapshot_bucket_id(eid.packed, ts_int)
+        raise ValueError(f"Unsupported data type '{entity_data_type}' for entity '{etype}', {eid}")
 
     @staticmethod
-    def _snapshot_bucket_eid_filter(eid: str) -> dict:
-        return {"_id": {"$regex": f"^{re.escape(eid)}_#"}}
+    def _pack_binary_snapshot_bucket_id(eid: bytes, ts_int: int) -> Binary:
+        return Binary(b"".join([eid, ts_int.to_bytes(8, "big", signed=True)]))
 
-    @staticmethod
-    def _snapshot_bucket_eids_filter(eids: Iterable[str]) -> dict:
-        return {"_id": {"$regex": "|".join([f"^{re.escape(eid)}_#" for eid in eids])}}
+    def _snapshot_bucket_eid_filter(self, etype: str, eid: Any) -> dict:
+        entity_data_type = self._db_schema_config.entities[etype].id_data_type.root
+
+        if entity_data_type == "string":
+            eid = str(eid)
+            return {"_id": {"$regex": f"^{re.escape(eid)}_#"}}
+        if entity_data_type == "int":
+            eid = int(eid)
+            return {"_id": self._binary_snapshot_bucket_range(int2bytes(eid))}
+        if entity_data_type == "ipv4":
+            eid = IPv4Address(eid)
+            return {"_id": self._binary_snapshot_bucket_range(eid.packed)}
+        if entity_data_type == "ipv6":
+            eid = IPv6Address(eid)
+            return {"_id": self._binary_snapshot_bucket_range(eid.packed)}
+        raise ValueError(
+            f"Unsupported data type '{entity_data_type}' for entity {etype} '{eid}' ({type(eid)})"
+        )
+
+    def _snapshot_eid_filter_from_bid(self, etype: str, b_id: Union[bytes, str]) -> dict:
+        """Returns filter for snapshots with same eid as given bucket document _id.
+        Args:
+            etype: entity type
+            b_id: the _id of the snapshot bucket, type depends on etype's data type
+        """
+        entity_data_type = self._db_schema_config.entities[etype].id_data_type.root
+
+        if entity_data_type == "string":
+            eid = b_id.rsplit("_#", maxsplit=1)[0]
+            return {"_id": {"$regex": f"^{re.escape(eid)}_#"}}
+        if entity_data_type in ["int", "ipv4", "ipv6"]:
+            eid_bytes = b_id[:-8]
+            return {"_id": self._binary_snapshot_bucket_range(eid_bytes)}
+        raise ValueError(f"Unsupported data type '{entity_data_type}' for entity '{etype}'")
+
+    def _binary_snapshot_bucket_range(self, eid: bytes) -> dict:
+        return {
+            "$gte": self._pack_binary_snapshot_bucket_id(eid, 0),
+            "$lt": self._pack_binary_snapshot_bucket_id(eid, -1),
+        }
+
+    def _snapshot_bucket_eids_filter(self, etype: str, eids: Iterable[Any]) -> dict:
+        entity_data_type = self._db_schema_config.entities[etype].id_data_type.root
+        if entity_data_type == "string":
+            return {"_id": {"$regex": "|".join([f"^{re.escape(eid)}_#" for eid in eids])}}
+        if entity_data_type in ["int", "ipv4", "ipv6"]:
+            return {"$or": [self._snapshot_bucket_eid_filter(etype, eid) for eid in eids]}
+        raise ValueError(f"Unsupported data type '{entity_data_type}' for entity '{etype}'")
 
     def get_snapshots(
-        self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+        self, etype: str, eid: Any, t1: Optional[datetime] = None, t2: Optional[datetime] = None
     ) -> Union[Cursor, CommandCursor]:
         """Get all (or filtered) snapshots of given `eid`.
 
@@ -1055,7 +1112,7 @@ class EntityDatabase:
 
         # Find out if the snapshot is oversized
         doc = (
-            snapshot_col.find(self._snapshot_bucket_eid_filter(eid), {"oversized": 1})
+            snapshot_col.find(self._snapshot_bucket_eid_filter(etype, eid), {"oversized": 1})
             .sort([("_id", -1)])
             .limit(1)
         )
@@ -1065,7 +1122,7 @@ class EntityDatabase:
 
         query = {"_time_created": {}}
         pipeline = [
-            {"$match": self._snapshot_bucket_eid_filter(eid)},
+            {"$match": self._snapshot_bucket_eid_filter(etype, eid)},
             {"$unwind": "$history"},
             {"$replaceRoot": {"newRoot": "$history"}},
         ]
@@ -1083,7 +1140,7 @@ class EntityDatabase:
         return snapshot_col.aggregate(pipeline)
 
     def _get_snapshots_oversized(
-        self, etype: str, eid: str, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+        self, etype: str, eid: Any, t1: Optional[datetime] = None, t2: Optional[datetime] = None
     ) -> Cursor:
         """Get all (or filtered) snapshots of given `eid` from oversized snapshots collection."""
         snapshot_col = self._oversized_snapshots_col(etype)
@@ -1107,7 +1164,7 @@ class EntityDatabase:
         self,
         etype: str,
         attr_name: str,
-        eid: str,
+        eid: Any,
         t1: Optional[datetime] = None,
         t2: Optional[datetime] = None,
     ) -> dict:
@@ -1151,19 +1208,21 @@ class EntityDatabase:
         master_col = self._master_col(etype)
         return master_col.estimated_document_count({})
 
-    def _migrate_to_oversized_snapshot(self, etype: str, eid: str, snapshot: dict):
+    def _migrate_to_oversized_snapshot(self, etype: str, eid: Any, snapshot: dict):
         snapshot_col = self._snapshot_col(etype)
         os_col = self._oversized_snapshots_col(etype)
 
         try:
             move_to_oversized = []
             last_id = None
-            for doc in snapshot_col.find(self._snapshot_bucket_eid_filter(eid)).sort({"_id": 1}):
+            for doc in snapshot_col.find(self._snapshot_bucket_eid_filter(etype, eid)).sort(
+                {"_id": 1}
+            ):
                 move_to_oversized.extend(doc.get("history", []))
                 last_id = doc["_id"]
             move_to_oversized.insert(0, snapshot)
 
-            self._db[os_col].insert_many(move_to_oversized)
+            os_col.insert_many(move_to_oversized)
             snapshot_col.update_one(
                 {"_id": last_id},
                 {
@@ -1171,7 +1230,9 @@ class EntityDatabase:
                     "$unset": {"history": ""},
                 },
             )
-            snapshot_col.delete_many(self._snapshot_bucket_eid_filter(eid) | {"oversized": False})
+            snapshot_col.delete_many(
+                self._snapshot_bucket_eid_filter(etype, eid) | {"oversized": False}
+            )
         except Exception as e:
             raise DatabaseError(f"Update of snapshot {eid} failed: {e}, {snapshot}") from e
 
@@ -1197,14 +1258,14 @@ class EntityDatabase:
         if normal:
             try:
                 res = snapshot_col.update_one(
-                    self._snapshot_bucket_eid_filter(eid)
+                    self._snapshot_bucket_eid_filter(etype, eid)
                     | {"count": {"$lt": self._snapshot_bucket_size}},
                     {
                         "$set": {"last": snapshot},
                         "$push": {"history": {"$each": [snapshot], "$position": 0}},
                         "$inc": {"count": 1},
                         "$setOnInsert": {
-                            "_id": self._snapshot_bucket_id(eid, ctime),
+                            "_id": self._snapshot_bucket_id(etype, eid, ctime),
                             "_time_created": ctime,
                             "oversized": False,
                             "latest": True,
@@ -1215,7 +1276,7 @@ class EntityDatabase:
 
                 if res.upserted_id is not None:
                     snapshot_col.update_many(
-                        self._snapshot_bucket_eid_filter(eid)
+                        self._snapshot_bucket_eid_filter(etype, eid)
                         | {"latest": True, "count": self._snapshot_bucket_size},
                         {"$unset": {"latest": 1}},
                     )
@@ -1232,7 +1293,7 @@ class EntityDatabase:
         elif oversized:
             # Snapshot is already marked as oversized
             snapshot_col.update_one(
-                self._snapshot_bucket_eid_filter(eid), {"$set": {"last": snapshot}}
+                self._snapshot_bucket_eid_filter(etype, eid), {"$set": {"last": snapshot}}
             )
             os_col.insert_one(snapshot)
             return
@@ -1250,7 +1311,7 @@ class EntityDatabase:
         snapshot_col = self._snapshot_col(etype)
         new_oversized = set()
         for doc in snapshot_col.find(
-            self._snapshot_bucket_eids_filter(unknown) | {"oversized": True},
+            self._snapshot_bucket_eids_filter(etype, unknown) | {"oversized": True},
             {"oversized": 1},
         ):
             eid = doc["_id"].rsplit("_#", maxsplit=1)[0]
@@ -1299,7 +1360,7 @@ class EntityDatabase:
         normal, oversized = self._get_snapshot_state(etype, set(snapshots_by_eid.keys()))
 
         upserts = []
-        update_originals = []
+        update_originals: list[list[dict]] = []
         oversized_inserts = []
         oversized_updates = []
 
@@ -1307,14 +1368,14 @@ class EntityDatabase:
         for eid in normal:
             upserts.append(
                 UpdateOne(
-                    self._snapshot_bucket_eid_filter(eid)
+                    self._snapshot_bucket_eid_filter(etype, eid)
                     | {"count": {"$lt": self._snapshot_bucket_size}},
                     {
                         "$set": {"last": snapshots_by_eid[eid][-1]},
                         "$push": {"history": {"$each": snapshots_by_eid[eid], "$position": 0}},
                         "$inc": {"count": len(snapshots_by_eid[eid])},
                         "$setOnInsert": {
-                            "_id": self._snapshot_bucket_id(eid, ctime),
+                            "_id": self._snapshot_bucket_id(etype, eid, ctime),
                             "_time_created": ctime,
                             "oversized": False,
                             "latest": True,
@@ -1330,7 +1391,7 @@ class EntityDatabase:
             oversized_inserts.extend(snapshots_by_eid[eid])
             oversized_updates.append(
                 UpdateOne(
-                    self._snapshot_bucket_eid_filter(eid),
+                    self._snapshot_bucket_eid_filter(etype, eid),
                     {"$set": {"last": snapshots_by_eid[eid][-1]}},
                 )
             )
@@ -1345,10 +1406,9 @@ class EntityDatabase:
                 if res.upserted_count > 0:
                     unset_latest_updates = []
                     for upsert_id in res.upserted_ids.values():
-                        eid = upsert_id.rsplit("_#", maxsplit=1)[0]
                         unset_latest_updates.append(
                             UpdateMany(
-                                self._snapshot_bucket_eid_filter(eid)
+                                self._snapshot_eid_filter_from_bid(etype, upsert_id)
                                 | {"latest": True, "count": self._snapshot_bucket_size},
                                 {"$unset": {"latest": 1}},
                             )
@@ -1441,7 +1501,7 @@ class EntityDatabase:
         self,
         etype: str,
         attr_name: str,
-        eid: str,
+        eid: Any,
         t1: datetime = None,
         t2: datetime = None,
         sort: int = None,
@@ -1484,7 +1544,7 @@ class EntityDatabase:
         self,
         etype: str,
         attr_name: str,
-        eid: str,
+        eid: Any,
         t1: datetime = None,
         t2: datetime = None,
         sort: int = None,

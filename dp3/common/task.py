@@ -11,13 +11,14 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     BeforeValidator,
+    PlainSerializer,
     ValidationError,
     field_validator,
 )
 from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.config import ModelSpec
-from dp3.common.datapoint import DataPointBase
+from dp3.common.datapoint import DataPointBase, to_json_friendly
 
 _init_context_var = ContextVar("_init_context_var", default=None)
 
@@ -128,7 +129,7 @@ class DataPointTask(Task):
     """
 
     etype: str
-    eid: str
+    eid: Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")]
     data_points: list[ValidatedDataPoint] = []
     tags: list[Any] = []
     ttl_tokens: Optional[dict[str, datetime]] = None
@@ -159,6 +160,18 @@ class DataPointTask(Task):
         else:
             raise AssertionError("Missing `model_spec` in context")
         return v
+
+    @field_validator("eid")
+    def validate_eid(cls, v, info: FieldValidationInfo):
+        if "etype" not in info.data:
+            return v
+
+        context = info.context
+        if context and "model_spec" in context:
+            ms: ModelSpec = context["model_spec"]
+            return ms.entities[info.data["etype"]].validate_eid(v)
+        else:
+            raise AssertionError("Missing `model_spec` in context")
 
 
 def parse_data_point_task(task: str, model_spec: ModelSpec) -> DataPointTask:

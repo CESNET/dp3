@@ -1,12 +1,15 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Literal, Union
 
-from pydantic import BaseModel, Extra, Field
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
 from dp3.common.datatype import EidDataType
 from dp3.common.types import ParsedTimedelta
 
 
-class SpecModel(BaseModel, extra=Extra.forbid): ...
+class SpecModel(BaseModel, extra="forbid"): ...
 
 
 class ImmortalLifetime(SpecModel):
@@ -48,14 +51,46 @@ class EntitySpec(SpecModel):
     """Entity specification
 
     This class represents specification of an entity type (e.g. ip, asn, ...)
+
+    Attributes:
+        id: Entity type identifier
+        id_data_type: Entity type identifier data type
+        name: User-friendly entity type name for display
+        snapshot: If `True`, the entity type supports snapshots
+        lifetime: Entity lifetime specification
+        description: Entity type description
     """
 
     id: str
+    id_data_type: EidDataType = EidDataType("string")
     name: str
-    data_type: EidDataType = EidDataType("string")
     snapshot: bool
     lifetime: Union[ImmortalLifetime, TimeToLiveLifetime, WeakLifetime] = Field(
         default_factory=lambda: ImmortalLifetime(type="immortal"), discriminator="type"
     )
 
     description: str = ""
+
+    _eid_validator: PrivateAttr()
+
+    @model_validator(mode="after")
+    def fill_validator(self):
+        """Fill the `eid_validator` attribute."""
+        self._eid_validator = self.id_data_type.data_type
+        return self
+
+    def validate_eid(self, v):
+        return self._eid_validator(v)
+
+
+_init_attr_spec_context_var = ContextVar("_init_attr_spec_context_var", default=None)
+
+
+@contextmanager
+def entity_context(entity_spec: EntitySpec) -> Iterator[None]:
+    """Context manager for setting the `model_spec` context variable."""
+    token = _init_attr_spec_context_var.set(entity_spec)
+    try:
+        yield
+    finally:
+        _init_attr_spec_context_var.reset(token)

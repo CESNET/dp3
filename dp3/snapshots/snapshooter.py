@@ -427,11 +427,11 @@ class SnapShooter:
             entity_cnt += 1
             snapshots.append(self.make_linkless_snapshot(etype, master_record, time))
             if len(snapshots) >= DB_SEND_CHUNK:
-                self.db.save_snapshots(etype, snapshots, time)
+                self.db.snapshots.save_many(etype, snapshots, time)
                 snapshots.clear()
 
         if snapshots:
-            self.db.save_snapshots(etype, snapshots, time)
+            self.db.snapshots.save_many(etype, snapshots, time)
             snapshots.clear()
         return entity_cnt
 
@@ -516,7 +516,7 @@ class SnapShooter:
         for (rtype, _rid), record in entity_values.items():
             if len(record) == 1 and not self.config.keep_empty:
                 continue
-            self.db.save_snapshot(rtype, record, task.time)
+            self.db.snapshots.save_one(rtype, record, task.time)
 
         if task.final:
             self.db.update_metadata(task.time, metadata={"linked_finished": True}, worker_id=0)

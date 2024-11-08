@@ -81,6 +81,7 @@ def instanciate_dps(v, info: FieldValidationInfo):
 
     # Fetch datapoint model
     context = info.context
+    assert context is not None, "Missing context"
     assert context.get("model_spec"), "Missing `model_spec` in context"
     try:
         dp_model = context.get("model_spec").attr(etype, attr).dp_model
@@ -95,6 +96,8 @@ def instanciate_dps(v, info: FieldValidationInfo):
 
 
 def validate_data_points(v, info: FieldValidationInfo):
+    if "etype" not in info.data or "eid" not in info.data:
+        return v
     assert (
         v.etype == info.data["etype"]
     ), f"Task's etype '{info.data['etype']}' doesn't match datapoint's etype '{v.etype}'"

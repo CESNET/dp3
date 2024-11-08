@@ -4,11 +4,12 @@ from typing import Annotated, Any, Optional, Union
 
 from pydantic import BaseModel, BeforeValidator, Field, PlainSerializer
 
+from dp3.common.mac_address import MACAddress
 from dp3.common.types import T2Datetime
 
 
 def to_json_friendly(v):
-    if isinstance(v, (IPv4Address, IPv6Address)):
+    if isinstance(v, (IPv4Address, IPv6Address, MACAddress)):
         return str(v)
     return v
 

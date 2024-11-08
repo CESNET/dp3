@@ -26,6 +26,7 @@ from pymongo.results import DeleteResult, UpdateResult
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase
+from dp3.common.mac_address import MACAddress
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
@@ -36,6 +37,7 @@ BSON_OBJECT_TOO_LARGE = 10334
 
 BSON_IPV4_SUBTYPE = USER_DEFINED_SUBTYPE + 1
 BSON_IPV6_SUBTYPE = BSON_IPV4_SUBTYPE + 1
+BSON_MAC_SUBTYPE = BSON_IPV6_SUBTYPE + 1
 
 
 def fallback_encoder(value):
@@ -43,6 +45,8 @@ def fallback_encoder(value):
         return Binary(value.packed, BSON_IPV4_SUBTYPE)
     if isinstance(value, IPv6Address):
         return Binary(value.packed, BSON_IPV6_SUBTYPE)
+    if isinstance(value, MACAddress):
+        return Binary(value.mac, BSON_MAC_SUBTYPE)
     return value
 
 
@@ -54,6 +58,8 @@ class DP3BinaryDecoder(TypeDecoder):
             return IPv4Address(value)
         if value.subtype == BSON_IPV6_SUBTYPE:
             return IPv6Address(value)
+        if value.subtype == BSON_MAC_SUBTYPE:
+            return MACAddress(value)
         return value
 
 
@@ -1037,6 +1043,8 @@ class EntityDatabase:
             return self._pack_binary_snapshot_bucket_id(eid.packed, ts_int)
         if entity_data_type == "ipv6" and isinstance(eid, IPv6Address):
             return self._pack_binary_snapshot_bucket_id(eid.packed, ts_int)
+        if entity_data_type == "mac" and isinstance(eid, MACAddress):
+            return self._pack_binary_snapshot_bucket_id(eid.packed, ts_int)
         raise ValueError(f"Unsupported data type '{entity_data_type}' for entity '{etype}', {eid}")
 
     @staticmethod
@@ -1058,6 +1066,9 @@ class EntityDatabase:
         if entity_data_type == "ipv6":
             eid = IPv6Address(eid)
             return {"_id": self._binary_snapshot_bucket_range(eid.packed)}
+        if entity_data_type == "mac":
+            eid = MACAddress(eid)
+            return {"_id": self._binary_snapshot_bucket_range(eid.packed)}
         raise ValueError(
             f"Unsupported data type '{entity_data_type}' for entity {etype} '{eid}' ({type(eid)})"
         )
@@ -1073,7 +1084,7 @@ class EntityDatabase:
         if entity_data_type == "string":
             eid = b_id.rsplit("_#", maxsplit=1)[0]
             return {"_id": {"$regex": f"^{re.escape(eid)}_#"}}
-        if entity_data_type in ["int", "ipv4", "ipv6"]:
+        if entity_data_type in ["int", "ipv4", "ipv6", "mac"]:
             eid_bytes = b_id[:-8]
             return {"_id": self._binary_snapshot_bucket_range(eid_bytes)}
         raise ValueError(f"Unsupported data type '{entity_data_type}' for entity '{etype}'")
@@ -1088,7 +1099,7 @@ class EntityDatabase:
         entity_data_type = self._db_schema_config.entities[etype].id_data_type.root
         if entity_data_type == "string":
             return {"_id": {"$regex": "|".join([f"^{re.escape(eid)}_#" for eid in eids])}}
-        if entity_data_type in ["int", "ipv4", "ipv6"]:
+        if entity_data_type in ["int", "ipv4", "ipv6", "mac"]:
             return {"$or": [self._snapshot_bucket_eid_filter(etype, eid) for eid in eids]}
         raise ValueError(f"Unsupported data type '{entity_data_type}' for entity '{etype}'")
 

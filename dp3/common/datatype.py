@@ -2,18 +2,19 @@ import ipaddress
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any, Optional, Union
+from typing import Any, Optional, Union
 
 from pydantic import (
     BaseModel,
     Extra,
-    Field,
     Json,
     PrivateAttr,
     RootModel,
     create_model,
     model_validator,
 )
+
+from dp3.common.mac_address import MACAddress
 
 # Regular expressions for parsing various data types
 re_array = re.compile(r"^array<(.+)>$")
@@ -34,13 +35,13 @@ primitive_data_types = {
     "float": float,
     "ipv4": ipaddress.IPv4Address,
     "ipv6": ipaddress.IPv6Address,
-    "mac": Annotated[str, Field(pattern=r"^([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})$")],
+    "mac": MACAddress,
     "time": datetime,
     "special": Any,
     "json": Union[Json[Any], dict, list],
 }
 
-eid_data_types = ["string", "int", "ipv4", "ipv6"]
+eid_data_types = ["string", "int", "ipv4", "ipv6", "mac"]
 
 
 class ReadOnly(BaseModel):
@@ -281,6 +282,7 @@ class EidDataType(DataType):
     - int
     - ipv4
     - ipv6
+    - mac
     """
 
     @model_validator(mode="after")

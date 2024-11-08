@@ -59,7 +59,7 @@ def get_eid_snapshots_handler(
     etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
 ) -> list[dict[str, Any]]:
     """Handler for getting snapshots of EID"""
-    snapshots = list(DB.get_snapshots(etype, eid, t1=date_from, t2=date_to))
+    snapshots = list(DB.snapshots.get_by_eid(etype, eid, t1=date_from, t2=date_to))
 
     return snapshots
 
@@ -180,7 +180,7 @@ async def list_entity_type_eids(
         fulltext_filters["eid"] = eid_filter
 
     try:
-        cursor, total_count = DB.get_latest_snapshots(etype, fulltext_filters, generic_filter)
+        cursor, total_count = DB.snapshots.get_latest(etype, fulltext_filters, generic_filter)
         cursor_page = cursor.skip(skip).limit(limit)
     except DatabaseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -312,7 +312,7 @@ async def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, 
     Works for all plain and observation data types except `dict` and `json`.
     """
     try:
-        return DB.get_distinct_val_count(etype, attr)
+        return DB.snapshots.get_distinct_val_count(etype, attr)
     except DatabaseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

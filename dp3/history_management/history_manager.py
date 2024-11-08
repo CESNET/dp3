@@ -165,12 +165,10 @@ class HistoryManager:
         self.log.debug("Deleting all snapshots before %s", t_old)
 
         deleted_total = 0
-        for etype in self.model_spec.entities:
-            try:
-                result = self.db.delete_old_snapshots(etype, t_old)
-                deleted_total += result
-            except DatabaseError as e:
-                self.log.exception(e)
+        try:
+            deleted_total = self.db.snapshots.delete_old(t_old)
+        except DatabaseError as e:
+            self.log.exception(e)
         self.log.debug("Deleted %s snapshots in total.", deleted_total)
 
     def archive_old_dps(self):

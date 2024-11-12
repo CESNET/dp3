@@ -4,6 +4,7 @@ from typing import Callable
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
+from dp3.common.datatype import AnyEidT
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name
@@ -72,7 +73,7 @@ class TaskEntityHooksContainer:
 
         self.log.debug(f"Added '{hook_type}' hook: {get_func_name(hook)}")
 
-    def run_allow_creation(self, eid: str, task: DataPointTask):
+    def run_allow_creation(self, eid: AnyEidT, task: DataPointTask):
         for hook in self._allow_creation:
             try:
                 if not hook(eid, task):
@@ -86,7 +87,7 @@ class TaskEntityHooksContainer:
 
         return True
 
-    def run_on_creation(self, eid: str, task: DataPointTask):
+    def run_on_creation(self, eid: AnyEidT, task: DataPointTask):
         new_tasks = []
 
         with task_context(self.model_spec):
@@ -150,7 +151,7 @@ class TaskAttrHooksContainer:
 
         self.log.debug(f"Added '{hook_type}' hook: {get_func_name(hook)}")
 
-    def run_on_new(self, eid: str, dp: DataPointBase):
+    def run_on_new(self, eid: AnyEidT, dp: DataPointBase):
         new_tasks = []
 
         with task_context(self.model_spec):

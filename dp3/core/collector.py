@@ -13,6 +13,7 @@ from dp3.common.attrspec import AttrType
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase, DataPointTimeseriesBase
+from dp3.common.datatype import AnyEidT
 from dp3.common.task import DataPointTask
 from dp3.database.database import EntityDatabase
 
@@ -93,7 +94,7 @@ class GarbageCollector:
         return inverse_relations
 
     def extend_ttl_on_create(
-        self, eid: str, task: DataPointTask, base_ttl: timedelta
+        self, eid: AnyEidT, task: DataPointTask, base_ttl: timedelta
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
         task = DataPointTask(
@@ -276,7 +277,7 @@ class GarbageCollector:
         )
 
     def extend_plain_ttl(
-        self, eid: str, dp: DataPointBase, extend_by: timedelta
+        self, eid: AnyEidT, dp: DataPointBase, extend_by: timedelta
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
         now = datetime.utcnow()
@@ -288,7 +289,7 @@ class GarbageCollector:
         return [task]
 
     def extend_observations_ttl(
-        self, eid: str, dp: DataPointObservationsBase, extend_by: timedelta
+        self, eid: AnyEidT, dp: DataPointObservationsBase, extend_by: timedelta
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
         task = DataPointTask(
@@ -299,7 +300,7 @@ class GarbageCollector:
         return [task]
 
     def extend_timeseries_ttl(
-        self, eid: str, dp: DataPointTimeseriesBase, extend_by: timedelta
+        self, eid: AnyEidT, dp: DataPointTimeseriesBase, extend_by: timedelta
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
         task = DataPointTask(

@@ -149,7 +149,7 @@ def search_and_replace(query: dict[str, Any]) -> dict[str, Any]:
     """Search and replace all occurrences of magic strings in the query.
 
     A helper function to
-    [`get_latest_snapshots`][dp3.database.database.EntityDatabase.get_latest_snapshots]
+    [`snapshots.get_latest`][dp3.database.snapshots.TypedSnapshotCollection.get_latest]
     """
     if isinstance(query, dict):
         for key, value in query.items():

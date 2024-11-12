@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
 from dp3.common.datapoint import DataPointType
+from dp3.common.datatype import AnyEidT
 from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask
@@ -38,7 +39,7 @@ def write_datapoints_into_record(model_spec: ModelSpec, tasks: list[DataPointTas
 def on_entity_creation_in_snapshots(
     model_spec: ModelSpec,
     run_flag: SharedFlag,
-    original_hook: Callable[[str, DataPointTask], list[DataPointTask]],
+    original_hook: Callable[[AnyEidT, DataPointTask], list[DataPointTask]],
     etype: str,
     record: dict,
 ) -> list[DataPointTask]:
@@ -55,7 +56,7 @@ def on_entity_creation_in_snapshots(
 def on_attr_change_in_snapshots(
     model_spec: ModelSpec,
     run_flag: SharedFlag,
-    original_hook: Callable[[str, DataPointTask], Union[list[DataPointTask], None]],
+    original_hook: Callable[[AnyEidT, DataPointTask], Union[list[DataPointTask], None]],
     etype: str,
     record: dict,
 ) -> list[DataPointTask]:
@@ -194,7 +195,7 @@ class CallbackRegistrar:
 
     def register_allow_entity_creation_hook(
         self,
-        hook: Callable[[str, DataPointTask], bool],
+        hook: Callable[[AnyEidT, DataPointTask], bool],
         entity: str,
     ):
         """
@@ -210,7 +211,7 @@ class CallbackRegistrar:
 
     def register_on_entity_creation_hook(
         self,
-        hook: Callable[[str, DataPointTask], list[DataPointTask]],
+        hook: Callable[[AnyEidT, DataPointTask], list[DataPointTask]],
         entity: str,
         refresh: SharedFlag = None,
         may_change: list[list[str]] = None,
@@ -259,7 +260,7 @@ class CallbackRegistrar:
 
     def register_on_new_attr_hook(
         self,
-        hook: Callable[[str, DataPointType], Union[None, list[DataPointTask]]],
+        hook: Callable[[AnyEidT, DataPointType], Union[None, list[DataPointTask]]],
         entity: str,
         attr: str,
         refresh: SharedFlag = None,
@@ -269,7 +270,7 @@ class CallbackRegistrar:
         Registers passed hook to be called on new attribute datapoint.
 
         Args:
-            hook: `hook` callable should expect eid, Task and attribute value as arguments.
+            hook: `hook` callable should expect eid and a datapoint as arguments.
                 Can optionally return a list of DataPointTasks to perform.
             entity: specifies entity type
             attr: specifies attribute name
@@ -391,7 +392,7 @@ class CallbackRegistrar:
 
     def register_periodic_update_hook(
         self,
-        hook: Callable[[str, str, dict], list[DataPointTask]],
+        hook: Callable[[str, AnyEidT, dict], list[DataPointTask]],
         hook_id: str,
         entity_type: str,
         period: ParsedTimedelta,
@@ -412,7 +413,7 @@ class CallbackRegistrar:
 
     def register_periodic_eid_update_hook(
         self,
-        hook: Callable[[str, str], list[DataPointTask]],
+        hook: Callable[[str, AnyEidT], list[DataPointTask]],
         hook_id: str,
         entity_type: str,
         period: ParsedTimedelta,

@@ -1,7 +1,7 @@
-import ipaddress
 import re
 from datetime import datetime
 from enum import Enum
+from ipaddress import IPv4Address, IPv6Address
 from typing import Any, Optional, Union
 
 from pydantic import (
@@ -33,8 +33,8 @@ primitive_data_types = {
     "int": int,
     "int64": int,
     "float": float,
-    "ipv4": ipaddress.IPv4Address,
-    "ipv6": ipaddress.IPv6Address,
+    "ipv4": IPv4Address,
+    "ipv6": IPv6Address,
     "mac": MACAddress,
     "time": datetime,
     "special": Any,
@@ -42,6 +42,13 @@ primitive_data_types = {
 }
 
 eid_data_types = ["string", "int", "ipv4", "ipv6", "mac"]
+
+AnyEidT = Union[str, int, IPv4Address, IPv6Address, MACAddress]
+"""Type alias for any of possible entity ID data types.
+
+Note that the type is determined based on the loaded entity configuration
+and in most cases is only one of the options, based on what entity is being processed.
+"""
 
 
 class ReadOnly(BaseModel):

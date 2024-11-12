@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from collections.abc import Generator, Iterator
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 import pymongo
 from event_count_logger import DummyEventGroup
@@ -21,6 +21,7 @@ from pymongo.results import DeleteResult, UpdateResult
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
 from dp3.common.datapoint import DataPointBase
+from dp3.common.datatype import AnyEidT
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
@@ -360,7 +361,7 @@ class EntityDatabase:
         self.schema_cleaner.await_updated()
 
     def insert_datapoints(
-        self, eid: Any, dps: list[DataPointBase], new_entity: bool = False
+        self, eid: AnyEidT, dps: list[DataPointBase], new_entity: bool = False
     ) -> None:
         """Inserts datapoint to raw data collection and updates master record.
 
@@ -509,7 +510,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
 
-    def extend_ttl(self, etype: str, eid: Any, ttl_tokens: dict[str, datetime]):
+    def extend_ttl(self, etype: str, eid: AnyEidT, ttl_tokens: dict[str, datetime]):
         """Extends TTL of given `etype`:`eid` by `ttl_tokens`."""
         master_col = self._master_col(etype)
         try:
@@ -567,7 +568,7 @@ class EntityDatabase:
             except Exception as e:
                 self.log.exception("Error in on_entity_delete_many callback %s: %s", f, e)
 
-    def delete_eid(self, etype: str, eid: Any):
+    def delete_eid(self, etype: str, eid: AnyEidT):
         """Delete master record and all snapshots of `etype`:`eid`."""
         master_col = self._master_col(etype)
         try:
@@ -726,7 +727,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of link datapoints failed: {e}") from e
 
-    def get_master_record(self, etype: str, eid: Any, **kwargs) -> dict:
+    def get_master_record(self, etype: str, eid: AnyEidT, **kwargs) -> dict:
         """Get current master record for etype/eid.
 
         If doesn't exist, returns {}.
@@ -738,7 +739,7 @@ class EntityDatabase:
 
         return master_col.find_one({"_id": entity_spec.validate_eid(eid)}, **kwargs) or {}
 
-    def ekey_exists(self, etype: str, eid: Any) -> bool:
+    def ekey_exists(self, etype: str, eid: AnyEidT) -> bool:
         """Checks whether master record for etype/eid exists"""
         return bool(self.get_master_record(etype, eid))
 
@@ -767,7 +768,7 @@ class EntityDatabase:
         self,
         etype: str,
         attr_name: str,
-        eid: Any,
+        eid: AnyEidT,
         t1: Optional[datetime] = None,
         t2: Optional[datetime] = None,
     ) -> dict:
@@ -851,7 +852,7 @@ class EntityDatabase:
         self,
         etype: str,
         attr_name: str,
-        eid: Any,
+        eid: AnyEidT,
         t1: datetime = None,
         t2: datetime = None,
         sort: int = None,
@@ -894,7 +895,7 @@ class EntityDatabase:
         self,
         etype: str,
         attr_name: str,
-        eid: Any,
+        eid: AnyEidT,
         t1: datetime = None,
         t2: datetime = None,
         sort: int = None,

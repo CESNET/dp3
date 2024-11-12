@@ -12,6 +12,7 @@ from dp3.common.attrspec import AttrType
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase
+from dp3.common.datatype import AnyEidT
 from dp3.database.database import EntityDatabase
 
 
@@ -70,7 +71,7 @@ class LinkManager:
         self.cache.create_index("using_attr", background=True)
         self.cache.create_index("ttl", expireAfterSeconds=0, background=True)
 
-    def add_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
+    def add_plain_to_link_cache(self, etype_to: str, eid: AnyEidT, dp: DataPointBase):
         self.cache.update_one(
             {
                 "to": f"{etype_to}#{dp.v.eid}",
@@ -81,7 +82,7 @@ class LinkManager:
             upsert=True,
         )
 
-    def add_iterable_plain_to_link_cache(self, etype_to: str, eid: str, dp: DataPointBase):
+    def add_iterable_plain_to_link_cache(self, etype_to: str, eid: AnyEidT, dp: DataPointBase):
         linked_eids = [v.eid for v in dp.v]
         self.cache.update_many(
             {
@@ -94,7 +95,7 @@ class LinkManager:
         )
 
     def add_observation_to_link_cache(
-        self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
+        self, etype_to: str, post_validity: timedelta, eid: AnyEidT, dp: DataPointObservationsBase
     ):
         self.cache.update_one(
             {
@@ -107,7 +108,7 @@ class LinkManager:
         )
 
     def add_iterable_observation_to_link_cache(
-        self, etype_to: str, post_validity: timedelta, eid: str, dp: DataPointObservationsBase
+        self, etype_to: str, post_validity: timedelta, eid: AnyEidT, dp: DataPointObservationsBase
     ):
         linked_eids = [v.eid for v in dp.v]
         self.cache.update_many(
@@ -120,7 +121,7 @@ class LinkManager:
             upsert=True,
         )
 
-    def remove_link_cache_of_deleted(self, etype: str, eid: str):
+    def remove_link_cache_of_deleted(self, etype: str, eid: AnyEidT):
         # Delete from master records
         # Get all links to the deleted entity grouped by attribute
         links = self.cache.aggregate(
@@ -140,7 +141,7 @@ class LinkManager:
             [DeleteMany({"from": f"{etype}#{eid}"}), DeleteMany({"to": f"{etype}#{eid}"})]
         )
 
-    def remove_link_cache_of_many_deleted(self, etype: str, eids: list[str]):
+    def remove_link_cache_of_many_deleted(self, etype: str, eids: list[AnyEidT]):
         # Delete from master records
         # Get all links to the deleted entities grouped by attribute
         links = self.cache.aggregate(

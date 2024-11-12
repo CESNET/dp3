@@ -3,6 +3,7 @@ import time
 from collections import defaultdict
 from datetime import datetime
 from logging import Logger
+from typing import Callable
 
 import pymongo
 from pymongo import DeleteOne, InsertOne
@@ -56,7 +57,7 @@ class SchemaCleaner:
             "snapshot_bucket_size": self._config.get("database.storage.snapshot_bucket_size", 32)
         }
 
-        self.migrations = {2: self.migrate_schema_2_to_3}
+        self.migrations: dict[int, Callable[[dict], dict]] = {2: self.migrate_schema_2_to_3}
 
     def get_current_schema_doc(self, infer: bool = False) -> dict:
         """
@@ -520,7 +521,7 @@ class SchemaCleaner:
 
         return schema_doc
 
-    def migrate_schema_2_to_3(self, schema) -> dict:
+    def migrate_schema_2_to_3(self, schema: dict) -> dict:
         """
         Migrates schema from version 2 to version 3.
 

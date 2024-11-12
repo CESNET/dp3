@@ -19,6 +19,7 @@ from pymongo.errors import BulkWriteError, DocumentTooLarge, OperationFailure, W
 
 from dp3.common.attrspec import AttrSpecType, AttrType
 from dp3.common.config import ModelSpec
+from dp3.common.datatype import AnyEidT
 from dp3.common.mac_address import MACAddress
 from dp3.common.utils import int2bytes
 from dp3.database.config import MongoConfig
@@ -124,7 +125,7 @@ class TypedSnapshotCollection(abc.ABC):
         }
 
     @abc.abstractmethod
-    def _bucket_id(self, eid: Any, ctime: datetime) -> Union[str, Binary]:
+    def _bucket_id(self, eid: AnyEidT, ctime: datetime) -> Union[str, Binary]:
         """Returns `_id` for snapshot bucket document."""
 
     @abc.abstractmethod
@@ -135,14 +136,14 @@ class TypedSnapshotCollection(abc.ABC):
         """
 
     @abc.abstractmethod
-    def _filter_from_eid(self, eid: Any) -> dict:
+    def _filter_from_eid(self, eid: AnyEidT) -> dict:
         """Returns filter for snapshots with given eid."""
 
     @abc.abstractmethod
     def _filter_from_eids(self, eids: Iterable[Any]) -> dict:
         """Returns filter for snapshots with given eids."""
 
-    def get_latest_one(self, eid: Any) -> dict:
+    def get_latest_one(self, eid: AnyEidT) -> dict:
         """Get latest snapshot of given eid.
 
         If doesn't exist, returns {}.
@@ -229,7 +230,7 @@ class TypedSnapshotCollection(abc.ABC):
             raise SnapshotCollectionError(f"Query is invalid: {e}") from e
 
     def get_by_eid(
-        self, eid: Any, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+        self, eid: AnyEidT, t1: Optional[datetime] = None, t2: Optional[datetime] = None
     ) -> Union[Cursor, CommandCursor]:
         """Get all (or filtered) snapshots of given `eid`.
 
@@ -326,7 +327,7 @@ class TypedSnapshotCollection(abc.ABC):
         return distinct_counts
 
     def _get_oversized(
-        self, eid: Any, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+        self, eid: AnyEidT, t1: Optional[datetime] = None, t2: Optional[datetime] = None
     ) -> Cursor:
         """Get all (or filtered) snapshots of given `eid` from oversized snapshots collection."""
         snapshot_col = self._os_col()
@@ -346,7 +347,7 @@ class TypedSnapshotCollection(abc.ABC):
             [("_time_created", pymongo.ASCENDING)]
         )
 
-    def _migrate_to_oversized(self, eid: Any, snapshot: dict):
+    def _migrate_to_oversized(self, eid: AnyEidT, snapshot: dict):
         snapshot_col = self._col()
         os_col = self._os_col()
 
@@ -607,7 +608,7 @@ class TypedSnapshotCollection(abc.ABC):
             raise SnapshotCollectionError(f"Delete of olds snapshots failed: {e}") from e
         return deleted
 
-    def delete_eid(self, eid: Any):
+    def delete_eid(self, eid: AnyEidT):
         """Delete all snapshots of `eid`."""
         try:
             res = self._col().delete_many(self._filter_from_eid(eid))
@@ -655,18 +656,18 @@ class StringEidSnapshots(TypedSnapshotCollection):
 
 class BinaryEidSnapshots(TypedSnapshotCollection, ABC):
     @abc.abstractmethod
-    def _get_packed(self, eid: Any) -> bytes:
+    def _get_packed(self, eid: AnyEidT) -> bytes:
         """Return the packed bytes representation of the given eid."""
 
     def _filter_from_bid(self, b_id: bytes) -> dict:
         eid_bytes = b_id[:-8]
         return {"_id": self._binary_bucket_range(eid_bytes)}
 
-    def _bucket_id(self, eid: Any, ctime: datetime) -> Binary:
+    def _bucket_id(self, eid: AnyEidT, ctime: datetime) -> Binary:
         ts = int(ctime.timestamp())
         return self._pack_binary_bucket_id(self._get_packed(eid), ts)
 
-    def _filter_from_eid(self, eid: Any) -> dict:
+    def _filter_from_eid(self, eid: AnyEidT) -> dict:
         return {"_id": self._binary_bucket_range(self._get_packed(eid))}
 
     def _filter_from_eids(self, eids: Iterable[Any]) -> dict:
@@ -735,7 +736,7 @@ class SnapshotCollectionContainer:
         """
         return self[entity_type].save_many(snapshots, ctime)
 
-    def get_latest_one(self, entity_type: str, eid: Any) -> dict:
+    def get_latest_one(self, entity_type: str, eid: AnyEidT) -> dict:
         """Get latest snapshot of given eid.
 
         If doesn't exist, returns {}.
@@ -780,7 +781,7 @@ class SnapshotCollectionContainer:
     def get_by_eid(
         self,
         entity_type: str,
-        eid: Any,
+        eid: AnyEidT,
         t1: Optional[datetime] = None,
         t2: Optional[datetime] = None,
     ) -> Union[Cursor, CommandCursor]:
@@ -820,7 +821,7 @@ class SnapshotCollectionContainer:
                 raise SnapshotCollectionError(f"Delete of old snapshots failed: {e}") from e
         return deleted_total
 
-    def delete_eid(self, entity_type: str, eid: Any) -> int:
+    def delete_eid(self, entity_type: str, eid: AnyEidT) -> int:
         """Delete snapshots of given `eids`."""
         return self[entity_type].delete_eid(eid)
 

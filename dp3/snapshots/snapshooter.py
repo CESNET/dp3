@@ -312,9 +312,10 @@ class SnapShooter:
         entity_to_component = {}
         linked_components = []
         for etype, eid in cached_linked_entities:
+            typed_eid = self.model_spec.parse_eid(etype, eid)
             master_record = self.db.get_master_record(
-                etype, eid, projection=self.entity_relation_attrs[etype]
-            ) or {"_id": eid}
+                etype, typed_eid, projection=self.entity_relation_attrs[etype]
+            ) or {"_id": typed_eid}
 
             if not self.config.keep_empty and len(master_record) == 1:
                 continue

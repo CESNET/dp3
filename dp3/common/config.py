@@ -29,6 +29,7 @@ from dp3.common.attrspec import (
     AttrSpecType,
 )
 from dp3.common.context import entity_context
+from dp3.common.datatype import AnyEidT
 from dp3.common.entityspec import EntitySpec
 
 
@@ -272,6 +273,11 @@ class ModelSpec(BaseModel):
                 raise ValueError(f"Invalid entity specification for '{entity_id}'")
             if not isinstance(entity_dict["entity"], EntitySpec):
                 entity_dict["entity"] = EntitySpec.model_validate(entity_dict["entity"])
+            if entity_id != entity_dict["entity"].id:
+                spec_id = entity_dict["entity"].id
+                raise ValueError(
+                    f"Entity id '{entity_id}' does not match entity id '{spec_id}' in spec."
+                )
             data["entities"][entity_id] = entity_dict["entity"]
 
         # Then validate all attributes
@@ -386,6 +392,9 @@ class ModelSpec(BaseModel):
 
     def keys(self):
         return self.config.keys()
+
+    def parse_eid(self, entity_type: str, eid: str) -> AnyEidT:
+        return self.entities[entity_type].validate_eid(eid)
 
     def __contains__(self, item):
         return item in self.config

@@ -1,5 +1,6 @@
 entity:
   id: A
+  id_data_type: int
   name: test entity A
   snapshot: true
 

@@ -14,9 +14,11 @@ class GetEntityEids(common.APITest):
         dp_base = {"src": "setup@test", "attr": "data1", "type": "A"}
         for i in range(0, 100, 20):
             res = cls.push_datapoints(
-                [{**dp_base, "id": f"A{i}", "v": f"v{i}"} for i in range(i, i + 20)]
+                [{**dp_base, "id": i, "v": f"v{i}"} for i in range(i, i + 20)]
             )
-            print(res.content.decode("utf-8"), file=sys.stderr)
+            if res.status_code != 200:
+                print(json.dumps(res.json(), indent=2), file=sys.stderr)
+                raise Exception(f"Failed to push datapoints: {res.status_code}")
         sleep(8)
         cls.get_request("control/make_snapshots")
         sleep(6)
@@ -26,7 +28,7 @@ class GetEntityEids(common.APITest):
         self.assertEqual(20, len(eids.data))
 
     def test_get_entity_eids_pagination(self):
-        expected_eids = {f"A{i}" for i in range(0, 100)}
+        expected_eids = set(range(0, 100))
         received_eids = set()
 
         for i in range(0, 100, 10):
@@ -34,19 +36,27 @@ class GetEntityEids(common.APITest):
             self.assertEqual(10, len(eids.data), f"Failed at {i}")
             received_eids.update(x["eid"] for x in eids.data)
 
-        eids = self.get_entity_data("entity/A", EntityEidList, skip=101, limit=20)
+        eids = self.get_entity_data("entity/A", EntityEidList, skip=102, limit=20)
         self.assertEqual(0, len(eids.data))
         self.assertSetEqual(expected_eids, received_eids)
 
     def test_get_entity_eids_generic_filter(self):
         eids = self.get_entity_data(
-            "entity/A", EntityEidList, generic_filter=json.dumps({"last.eid": "A0"})
+            "entity/A", EntityEidList, generic_filter=json.dumps({"last.eid": 0})
         )
         self.assertEqual(1, len(eids.data))
-        self.assertEqual("A0", eids.data[0]["eid"])
+        self.assertEqual(0, eids.data[0]["eid"])
 
-    def test_get_entity_eids_fulltext_filters_eid(self):
+    def test_get_entity_eids_generic_filters_eid(self):
         eids = self.get_entity_data(
-            "entity/A", EntityEidList, fulltext_filters=json.dumps({"eid": "A5.*"})
+            "entity/A",
+            EntityEidList,
+            generic_filter=json.dumps(
+                {"$or": [{"last.eid": 5}, {"last.eid": {"$gte": 50, "$lt": 60}}]}
+            ),
         )
         self.assertEqual(11, len(eids.data))  # A5, A50 ... A59
+        self.assertEqual(
+            {5, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59},
+            {x["eid"] for x in eids.data},
+        )

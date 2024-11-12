@@ -34,6 +34,8 @@ class GetDistinctAttrValues(APITest):
                 ]
             )
             print(res.content.decode("utf-8"), file=sys.stderr)
+            if res.status_code != 200:
+                raise Exception(f"Failed to push datapoints: {res.status_code}")
         sleep(9)
 
         # Make snapshots

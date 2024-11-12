@@ -2,7 +2,11 @@ import os
 import sys
 from enum import Enum
 
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ValidationError,
+    field_validator,
+)
 
 from dp3.api.internal.dp_logger import DPLogger
 from dp3.common.config import ModelSpec, read_config_dir

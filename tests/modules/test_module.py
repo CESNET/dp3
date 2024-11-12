@@ -7,7 +7,7 @@ from dp3.common.config import PlatformConfig
 
 
 def copy_linked(_: str, record: dict, link: str, attr: str):
-    record[attr] = record.get(link, {}).get(attr, None)
+    record[attr] = record.get(link, {}).get("record", {}).get(attr, None)
 
 
 def modify_value(_: str, record: dict, attr: str, value):

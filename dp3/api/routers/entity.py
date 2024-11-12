@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import Json, NonNegativeInt, ValidationError
@@ -15,9 +15,7 @@ from dp3.api.internal.entity_response_models import (
     JsonVal,
 )
 from dp3.api.internal.helpers import api_to_dp3_datapoint
-from dp3.api.internal.models import (
-    DataPoint,
-)
+from dp3.api.internal.models import DataPoint, EntityId, EntityIdAdapter
 from dp3.api.internal.response_models import ErrorResponse, RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
 from dp3.common.task import DataPointTask, task_context
@@ -31,35 +29,46 @@ async def check_etype(etype: str):
     return etype
 
 
+async def parse_eid(etype: str, eid: str):
+    """Middleware to parse EID"""
+    try:
+        return EntityIdAdapter.validate_python({"etype": etype, "eid": eid})
+    except ValidationError as e:
+        raise RequestValidationError(["path", "eid"], e.errors()[0]["msg"]) from e
+
+
+ParsedEid = Annotated[EntityId, Depends(parse_eid)]
+
+
 def get_eid_master_record_handler(
-    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: EntityId, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
 ):
     """Handler for getting master record of EID"""
     # TODO: This is probably not the most efficient way. Maybe gather only
     # plain data from master record and then call `get_timeseries_history`
     # for timeseries.
     master_record = DB.get_master_record(
-        etype, eid, projection={"_id": False, "#hash": False, "#min_t2s": False}
+        e.type, e.id, projection={"_id": False, "#hash": False, "#min_t2s": False}
     )
 
-    entity_attribs = MODEL_SPEC.attribs(etype)
+    entity_attribs = MODEL_SPEC.attribs(e.type)
 
     # Get filtered timeseries data
     for attr in master_record:
         # Check for no longer existing attributes
         if attr in entity_attribs and entity_attribs[attr].t == AttrType.TIMESERIES:
             master_record[attr] = DB.get_timeseries_history(
-                etype, attr, eid, t1=date_from, t2=date_to
+                e.type, attr, e.id, t1=date_from, t2=date_to
             )
 
     return master_record
 
 
 def get_eid_snapshots_handler(
-    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: EntityId, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
 ) -> list[dict[str, Any]]:
     """Handler for getting snapshots of EID"""
-    snapshots = list(DB.snapshots.get_by_eid(etype, eid, t1=date_from, t2=date_to))
+    snapshots = list(DB.snapshots.get_by_eid(e.type, e.id, t1=date_from, t2=date_to))
 
     return snapshots
 
@@ -200,7 +209,7 @@ async def list_entity_type_eids(
 
 @router.get("/{etype}/{eid}")
 async def get_eid_data(
-    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: ParsedEid, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
 ) -> EntityEidData:
     """Get data of `etype`'s `eid`.
 
@@ -209,8 +218,8 @@ async def get_eid_data(
 
     Combines function of `/{etype}/{eid}/master` and `/{etype}/{eid}/snapshots`.
     """
-    master_record = get_eid_master_record_handler(etype, eid, date_from, date_to)
-    snapshots = get_eid_snapshots_handler(etype, eid, date_from, date_to)
+    master_record = get_eid_master_record_handler(e, date_from, date_to)
+    snapshots = get_eid_snapshots_handler(e, date_from, date_to)
 
     # Whether this eid contains any data
     empty = not master_record and len(snapshots) == 0
@@ -220,24 +229,23 @@ async def get_eid_data(
 
 @router.get("/{etype}/{eid}/master")
 async def get_eid_master_record(
-    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: ParsedEid, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
 ) -> EntityEidMasterRecord:
     """Get master record of `etype`'s `eid`."""
-    return get_eid_master_record_handler(etype, eid, date_from, date_to)
+    return get_eid_master_record_handler(e, date_from, date_to)
 
 
 @router.get("/{etype}/{eid}/snapshots")
 async def get_eid_snapshots(
-    etype: str, eid: str, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: ParsedEid, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
 ) -> EntityEidSnapshots:
     """Get snapshots of `etype`'s `eid`."""
-    return get_eid_snapshots_handler(etype, eid, date_from, date_to)
+    return get_eid_snapshots_handler(e, date_from, date_to)
 
 
 @router.get("/{etype}/{eid}/get/{attr}")
 async def get_eid_attr_value(
-    etype: str,
-    eid: str,
+    e: ParsedEid,
     attr: str,
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
@@ -250,12 +258,14 @@ async def get_eid_attr_value(
     - history: in case of timeseries attribute
     """
     # Check if attribute exists
-    if attr not in MODEL_SPEC.attribs(etype):
+    if attr not in MODEL_SPEC.attribs(e.type):
         raise RequestValidationError(["path", "attr"], f"Attribute '{attr}' doesn't exist")
 
-    value_or_history = DB.get_value_or_history(etype, attr, eid, t1=date_from, t2=date_to)
+    value_or_history = DB.get_value_or_history(e.type, attr, e.id, t1=date_from, t2=date_to)
 
-    return EntityEidAttrValueOrHistory(attr_type=MODEL_SPEC.attr(etype, attr).t, **value_or_history)
+    return EntityEidAttrValueOrHistory(
+        attr_type=MODEL_SPEC.attr(e.type, attr).t, **value_or_history
+    )
 
 
 @router.post("/{etype}/{eid}/set/{attr}")
@@ -318,11 +328,11 @@ async def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, 
 
 
 @router.post("/{etype}/{eid}/ttl")
-async def extend_eid_ttls(etype: str, eid: str, body: dict[str, datetime]) -> SuccessResponse:
+async def extend_eid_ttls(e: ParsedEid, body: dict[str, datetime]) -> SuccessResponse:
     """Extend TTLs of the specified entity"""
     # Construct task
     with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=etype, eid=eid, ttl_tokens=body)
+        task = DataPointTask(etype=e.type, eid=e.id, ttl_tokens=body)
 
     # Push tasks to task queue
     TASK_WRITER.put_task(task, False)
@@ -331,7 +341,7 @@ async def extend_eid_ttls(etype: str, eid: str, body: dict[str, datetime]) -> Su
 
 
 @router.delete("/{etype}/{eid}")
-async def delete_eid_record(etype: str, eid: str) -> SuccessResponse:
+async def delete_eid_record(e: ParsedEid) -> SuccessResponse:
     """Delete the master record and snapshots of the specified entity.
 
     Notice that this does not delete any raw datapoints,
@@ -339,7 +349,7 @@ async def delete_eid_record(etype: str, eid: str) -> SuccessResponse:
     """
     # Create a "delete" task and push it to task queue
     with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=etype, eid=eid, delete=True)
+        task = DataPointTask(etype=e.type, eid=e.id, delete=True)
     TASK_WRITER.put_task(task, False)
 
     return SuccessResponse()

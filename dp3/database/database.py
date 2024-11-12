@@ -339,6 +339,18 @@ class EntityDatabase:
         if etype not in self._db_schema_config.entities:
             raise DatabaseError(f"Entity '{etype}' does not exist")
 
+    def _assert_eid_correct_dtype(self, etype: str, eid: AnyEidT):
+        """Asserts `etype` existence.
+
+        If doesn't exist, raises `DatabaseError`.
+        """
+        entity_spec = self._db_schema_config.entities[etype]
+        if not isinstance(eid, entity_spec.eid_type):
+            raise DatabaseError(
+                f"Invalid entity ID type: {type(eid)}, expected {entity_spec.eid_type}"
+            )
+        return entity_spec
+
     def update_schema(self):
         """
         Checks whether schema saved in database is up-to-date and updates it if necessary.
@@ -374,6 +386,7 @@ class EntityDatabase:
 
         # Check `etype`
         self._assert_etype_exists(etype)
+        self._assert_eid_correct_dtype(etype, eid)
 
         # Insert raw datapoints
         dps_dicts = [dp.model_dump(exclude={"attr_type"}) for dp in dps]
@@ -732,12 +745,12 @@ class EntityDatabase:
 
         If doesn't exist, returns {}.
         """
-        # Check `etype`
         self._assert_etype_exists(etype)
-        entity_spec = self._db_schema_config.entities[etype]
+        self._assert_eid_correct_dtype(etype, eid)
+
         master_col = self._master_col(etype)
 
-        return master_col.find_one({"_id": entity_spec.validate_eid(eid)}, **kwargs) or {}
+        return master_col.find_one({"_id": eid}, **kwargs) or {}
 
     def ekey_exists(self, etype: str, eid: AnyEidT) -> bool:
         """Checks whether master record for etype/eid exists"""
@@ -745,7 +758,6 @@ class EntityDatabase:
 
     def get_master_records(self, etype: str, **kwargs) -> Cursor:
         """Get cursor to current master records of etype."""
-        # Check `etype`
         self._assert_etype_exists(etype)
 
         master_col = self._master_col(etype)
@@ -781,8 +793,8 @@ class EntityDatabase:
 
         Returns dict with two keys: `current_value` and `history` (list of values).
         """
-        # Check `etype`
         self._assert_etype_exists(etype)
+        self._assert_eid_correct_dtype(etype, eid)
 
         attr_spec = self._db_schema_config.attr(etype, attr_name)
 
@@ -806,7 +818,6 @@ class EntityDatabase:
 
     def estimate_count_eids(self, etype: str) -> int:
         """Estimates count of `eid`s in given `etype`"""
-        # Check `etype`
         self._assert_etype_exists(etype)
 
         master_col = self._master_col(etype)

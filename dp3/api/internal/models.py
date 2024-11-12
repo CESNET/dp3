@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, create_model, model_validator
 
+from dp3.api.internal.config import MODEL_SPEC
 from dp3.api.internal.helpers import api_to_dp3_datapoint
 from dp3.common.types import T2Datetime
 
@@ -23,7 +24,7 @@ class DataPoint(BaseModel):
     """
 
     type: str
-    id: str
+    id: Any
     attr: str
     v: Any
     t1: Optional[datetime] = None
@@ -40,3 +41,31 @@ class DataPoint(BaseModel):
             raise ValueError(f"Missing key: {e}") from e
 
         return self
+
+
+class EntityId(BaseModel):
+    """Dummy model for entity id
+
+    Attributes:
+        type: Entity type
+        id: Entity ID
+    """
+
+    type: Literal["entity_type"]
+    id: Any
+
+
+entity_id_models = []
+for entity_type, entity_spec in MODEL_SPEC.entities.items():
+    dtype = entity_spec.eid_type
+    entity_id_models.append(
+        create_model(
+            f"EntityId{{{entity_type}}}",
+            __base__=BaseModel,
+            type=(Literal[entity_type], Field(..., alias="etype")),
+            id=(dtype, Field(..., alias="eid")),
+        )
+    )
+
+EntityId = Annotated[Union[tuple(entity_id_models)], Field(discriminator="type")]  # noqa: F811
+EntityIdAdapter = TypeAdapter(EntityId)

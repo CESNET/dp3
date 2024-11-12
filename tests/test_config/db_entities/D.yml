@@ -1,6 +1,6 @@
 entity:
-  id: C
-  name: test entity C
+  id: D
+  name: test entity D
   snapshot: true
 
 attribs:

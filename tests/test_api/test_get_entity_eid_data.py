@@ -38,6 +38,8 @@ class GetEntityEidData(common.APITest):
         print(dps, file=sys.stderr)
         res = self.push_datapoints(dps)
         print(res.content.decode("utf-8"), file=sys.stderr)
+        if res.status_code != 200:
+            raise Exception(f"Failed to push datapoints: {res.status_code}")
 
     def test_get_entity_data(self):
         data = self.query_expected_value(

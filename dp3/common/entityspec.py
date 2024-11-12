@@ -78,3 +78,7 @@ class EntitySpec(SpecModel):
 
     def validate_eid(self, v):
         return self._eid_validator(v)
+
+    @property
+    def eid_type(self):
+        return self._eid_validator

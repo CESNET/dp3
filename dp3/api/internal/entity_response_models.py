@@ -1,11 +1,10 @@
 from datetime import datetime
 from typing import Annotated, Any, Optional, Union
 
-from pydantic import BaseModel, Field, NonNegativeInt, PlainSerializer, model_validator
+from pydantic import BaseModel, Field, NonNegativeInt, PlainSerializer
 
-from dp3.common.attrspec import AttrSpec, AttrSpecGeneric, AttrSpecType, AttrType
+from dp3.common.attrspec import AttrSpecType, AttrType
 from dp3.common.datapoint import to_json_friendly
-from dp3.common.entityspec import EntitySpec, entity_context
 
 
 class EntityState(BaseModel):
@@ -20,32 +19,6 @@ class EntityState(BaseModel):
     name: str
     attribs: dict[str, Annotated[AttrSpecType, Field(discriminator="type")]]
     eid_estimate_count: NonNegativeInt
-
-    @model_validator(mode="before")
-    def _validate_attribs(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        if any(x not in data for x in ["id", "name"]):
-            return data
-
-        entity_spec = EntitySpec.model_validate(
-            {
-                "id": data["id"],
-                "name": data["name"],
-                "id_data_type": data.get("id_data_type", "string"),
-                "snapshot": True,
-            }
-        )
-        print(entity_spec)
-
-        assert isinstance(data["attribs"], dict), "'attribs' must be a dictionary"
-        with entity_context(entity_spec):
-            data["attribs"] = {
-                attr_id: AttrSpec(attr_id, spec) if not isinstance(spec, AttrSpecGeneric) else spec
-                for attr_id, spec in data["attribs"].items()
-            }
-
-        return data
 
 
 # This is necessary to allow for non-JSON-serializable types in the model

@@ -32,7 +32,7 @@ from dp3.common.attrspec import (
     AttrType,
     ObservationsHistoryParams,
 )
-from dp3.common.config import CronExpression, PlatformConfig
+from dp3.common.config import CronExpression, PlatformConfig, entity_type_context
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType, task_context
 from dp3.common.types import EventGroupType
@@ -89,7 +89,7 @@ class SnapShooter:
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
         self.snapshot_queue_reader = TaskQueueReader(
             callback=self.process_snapshot_task,
-            parse_task=Snapshot.model_validate_json,
+            parse_task=Snapshot.get_validator(self.model_spec),
             app_name=platform_config.app_name,
             worker_index=platform_config.process_index,
             rabbit_config=platform_config.config.get("processing_core.msg_broker", {}),
@@ -240,16 +240,18 @@ class SnapShooter:
             },
         )
         # Broadcast run start
-        self.snapshot_queue_writer.broadcast_task(
-            task=Snapshot(type=SnapshotMessageType.run_start, time=time)
-        )
+        with entity_type_context(self.model_spec):
+            self.snapshot_queue_writer.broadcast_task(
+                task=Snapshot(type=SnapshotMessageType.run_start, time=time)
+            )
 
         # distribute list of possibly linked entities to all workers
         cached = self.get_cached_link_entity_ids()
         self.log.debug("Broadcasting %s cached linked entities", len(cached))
-        self.snapshot_queue_writer.broadcast_task(
-            task=Snapshot(entities=cached, time=time, type=SnapshotMessageType.linked_entities)
-        )
+        with entity_type_context(self.model_spec):
+            self.snapshot_queue_writer.broadcast_task(
+                task=Snapshot(entities=cached, time=time, type=SnapshotMessageType.linked_entities)
+            )
 
         # Load links only for a reduced set of entities
         self.log.debug("Loading linked entities.")
@@ -264,14 +266,15 @@ class SnapShooter:
                 counts["entities"] += len(linked_entities_component)
                 counts["components"] += 1
 
-                self.snapshot_queue_writer.put_task(
-                    task=Snapshot(
-                        entities=linked_entities_component,
-                        time=time,
-                        type=SnapshotMessageType.task,
-                        final=(i + 1 == len(linked_entities)),
+                with entity_type_context(self.model_spec):
+                    self.snapshot_queue_writer.put_task(
+                        task=Snapshot(
+                            entities=linked_entities_component,
+                            time=time,
+                            type=SnapshotMessageType.task,
+                            final=(i + 1 == len(linked_entities)),
+                        )
                     )
-                )
 
             if len(linked_entities) == 0:
                 self.db.update_metadata(time, metadata={"linked_finished": True})
@@ -286,9 +289,10 @@ class SnapShooter:
             )
 
         # Broadcast run end
-        self.snapshot_queue_writer.broadcast_task(
-            task=Snapshot(type=SnapshotMessageType.run_end, time=time)
-        )
+        with entity_type_context(self.model_spec):
+            self.snapshot_queue_writer.broadcast_task(
+                task=Snapshot(type=SnapshotMessageType.run_end, time=time)
+            )
 
     def get_cached_link_entity_ids(self):
         used = [f"{etype}#{attr}" for etype, attr in self._correlation_hooks.used_links]

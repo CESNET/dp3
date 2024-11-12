@@ -3,6 +3,9 @@ Platform config file reader and config model.
 """
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Annotated, Any, Optional, Union
 
 import yaml
@@ -443,3 +446,26 @@ class PlatformConfig(BaseModel):
             f"num_processes={self.num_processes}, "
             f"process_index={self.process_index})"
         )
+
+
+_init_entity_type_context_var = ContextVar("init_entity_type_context_var", default=None)
+
+
+@contextmanager
+def entity_type_context(model_spec: ModelSpec) -> Iterator[None]:
+    """Context manager for AttrSpec initialization."""
+    token = _init_entity_type_context_var.set(
+        {entity: spec.id_data_type.root for entity, spec in model_spec.entities.items()}
+    )
+    try:
+        yield
+    finally:
+        _init_entity_type_context_var.reset(token)
+
+
+def get_entity_type_context() -> dict:
+    """Get entity spec context."""
+    cxt = _init_entity_type_context_var.get()
+    if cxt is None or not isinstance(cxt, dict):
+        raise ValueError("Entity type context is not set")
+    return cxt

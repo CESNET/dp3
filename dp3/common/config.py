@@ -25,7 +25,8 @@ from dp3.common.attrspec import (
     AttrSpecReadOnly,
     AttrSpecType,
 )
-from dp3.common.entityspec import EntitySpec, entity_context
+from dp3.common.context import entity_context
+from dp3.common.entityspec import EntitySpec
 
 
 class NoDefault:
@@ -200,23 +201,6 @@ class EntitySpecDict(BaseModel):
     def __getitem__(self, item):
         return self.__getattribute__(item)
 
-    @model_validator(mode="before")
-    def _validate_attr_spec(cls, data: Any) -> Any:
-        if not isinstance(data, dict) or "entity" not in data or "attribs" not in data:
-            return data
-
-        if not isinstance(data["entity"], EntitySpec):
-            data["entity"] = EntitySpec.model_validate(data["entity"])
-
-        assert isinstance(data["attribs"], dict), "'attribs' must be a dictionary"
-        with entity_context(data["entity"]):
-            data["attribs"] = {
-                attr_id: AttrSpec(attr_id, spec) if not isinstance(spec, AttrSpecGeneric) else spec
-                for attr_id, spec in data["attribs"].items()
-            }
-
-        return data
-
 
 class ModelSpec(BaseModel):
     """
@@ -266,6 +250,40 @@ class ModelSpec(BaseModel):
         super().__init__(
             config=config, entities={}, attributes={}, entity_attributes={}, relations={}
         )
+
+    @model_validator(mode="before")
+    def _validate_config(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if not all(isinstance(entity_dict, dict) for entity_dict in data.values()):
+            return data
+
+        data["entities"] = {}
+        if "config" not in data:
+            return data
+        config = data["config"]
+
+        # First validate all entities for global context
+        for entity_id, entity_dict in config.items():
+            if "entity" not in entity_dict or "attribs" not in entity_dict:
+                raise ValueError(f"Invalid entity specification for '{entity_id}'")
+            if not isinstance(entity_dict["entity"], EntitySpec):
+                entity_dict["entity"] = EntitySpec.model_validate(entity_dict["entity"])
+            data["entities"][entity_id] = entity_dict["entity"]
+
+        # Then validate all attributes
+        for entity_id, entity_dict in config.items():
+            if "attribs" not in entity_dict:
+                continue
+            with entity_context(data["entities"][entity_id], data["entities"]):
+                entity_dict["attribs"] = {
+                    attr_id: (
+                        AttrSpec(attr_id, spec) if not isinstance(spec, AttrSpecGeneric) else spec
+                    )
+                    for attr_id, spec in entity_dict["attribs"].items()
+                }
+
+        return data
 
     @field_validator("entities")
     def _fill_entities(cls, v, info: FieldValidationInfo):

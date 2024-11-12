@@ -6,7 +6,6 @@ from typing import Any, Optional, Union
 
 from pydantic import (
     BaseModel,
-    Extra,
     Json,
     PrivateAttr,
     RootModel,
@@ -14,6 +13,7 @@ from pydantic import (
     model_validator,
 )
 
+from dp3.common.context import get_entity_context
 from dp3.common.mac_address import MACAddress
 
 # Regular expressions for parsing various data types
@@ -53,8 +53,8 @@ class ReadOnly(BaseModel):
         raise ValueError("Cannot instantiate a read-only attribute datapoint.")
 
 
-class Link(BaseModel, extra=Extra.forbid):
-    eid: str
+class Link(BaseModel, extra="forbid"):
+    eid: Any
 
 
 class DataType(RootModel):
@@ -145,13 +145,25 @@ class DataType(RootModel):
             self._mirror_as = mirrored if mirrored else None
             self._type_info = f"link<{etype},{data}>"
 
+            context = get_entity_context()
+            if etype not in context["entities"]:
+                raise ValueError(f"Entity type '{etype}' is not defined")
+            entity_spec = context["entities"][etype]
+
             if etype and data:
                 value_type = DataType(root=data)
                 data_type = create_model(
-                    f"Link<{data}>", __base__=Link, data=(value_type.data_type, ...)
+                    f"Link<{data}>",
+                    __base__=Link,
+                    eid=(entity_spec.id_data_type.data_type, ...),
+                    data=(value_type.data_type, ...),
                 )
             else:
-                data_type = Link
+                data_type = create_model(
+                    f"Link<{etype}>",
+                    __base__=Link,
+                    eid=(entity_spec.id_data_type.data_type, ...),
+                )
 
         elif re.match(re_dict, str_type):
             # Dict

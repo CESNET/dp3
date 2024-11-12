@@ -1,6 +1,3 @@
-from collections.abc import Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
 from typing import Literal, Union
 
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
@@ -81,16 +78,3 @@ class EntitySpec(SpecModel):
 
     def validate_eid(self, v):
         return self._eid_validator(v)
-
-
-_init_attr_spec_context_var = ContextVar("_init_attr_spec_context_var", default=None)
-
-
-@contextmanager
-def entity_context(entity_spec: EntitySpec) -> Iterator[None]:
-    """Context manager for setting the `model_spec` context variable."""
-    token = _init_attr_spec_context_var.set(entity_spec)
-    try:
-        yield
-    finally:
-        _init_attr_spec_context_var.reset(token)

@@ -13,6 +13,7 @@ from pydantic import (
 )
 from pydantic_core.core_schema import FieldValidationInfo
 
+from dp3.common.context import get_entity_context
 from dp3.common.datapoint import (
     DataPointBase,
     DataPointObservationsBase,
@@ -24,7 +25,7 @@ from dp3.common.datapoint import (
     dp_ts_v_validator,
 )
 from dp3.common.datatype import DataType, ReadOnly
-from dp3.common.entityspec import SpecModel, _init_attr_spec_context_var
+from dp3.common.entityspec import SpecModel
 from dp3.common.types import ParsedTimedelta
 
 # Regex of attribute and series id's
@@ -186,10 +187,7 @@ class AttrSpecPlain(AttrSpecClassic):
     def __init__(self, **data):
         super().__init__(**data)
 
-        entity_spec = _init_attr_spec_context_var.get()
-        if entity_spec is None:
-            raise ValueError("Entity specification not found in context")
-
+        entity_spec = get_entity_context()["self"]
         self._dp_model = create_model(
             f"DataPointPlain_{self.id}",
             __base__=DataPointPlainBase,
@@ -204,10 +202,7 @@ class AttrSpecReadOnly(AttrSpecPlain):
     def __init__(self, **data):
         super().__init__(**data)
 
-        entity_spec = _init_attr_spec_context_var.get()
-        if entity_spec is None:
-            raise ValueError("Entity specification not found in context")
-
+        entity_spec = get_entity_context()["self"]
         self._dp_model = create_model(
             f"DataPointReadOnly_{self.id}",
             __base__=DataPointPlainBase,
@@ -231,10 +226,7 @@ class AttrSpecObservations(AttrSpecClassic):
         super().__init__(**data)
 
         value_validator = self.data_type.data_type
-        entity_spec = _init_attr_spec_context_var.get()
-        if entity_spec is None:
-            raise ValueError("Entity specification not found in context")
-
+        entity_spec = get_entity_context()["self"]
         self._dp_model = create_model(
             f"DataPointObservations_{self.id}",
             __base__=DataPointObservationsBase,
@@ -256,9 +248,7 @@ class AttrSpecTimeseries(AttrSpecGeneric):
     def __init__(self, **data):
         super().__init__(**data)
 
-        entity_spec = _init_attr_spec_context_var.get()
-        if entity_spec is None:
-            raise ValueError("Entity specification not found in context")
+        entity_spec = get_entity_context()["self"]
 
         # Typing of `v` field
         dp_value_typing = {}

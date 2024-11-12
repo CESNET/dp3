@@ -5,20 +5,24 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any, Optional
+from ipaddress import IPv4Address, IPv6Address
+from typing import Annotated, Any, Callable, Optional, Union
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     BeforeValidator,
+    Discriminator,
     PlainSerializer,
+    Tag,
     ValidationError,
     field_validator,
 )
 from pydantic_core.core_schema import FieldValidationInfo
 
-from dp3.common.config import ModelSpec
+from dp3.common.config import ModelSpec, entity_type_context, get_entity_type_context
 from dp3.common.datapoint import DataPointBase, to_json_friendly
+from dp3.common.mac_address import MACAddress
 
 _init_context_var = ContextVar("_init_context_var", default=None)
 
@@ -186,6 +190,23 @@ class SnapshotMessageType(Enum):
     run_end = "run_end"
 
 
+def get_discriminator_value(entity_tuple: tuple[str, Any]) -> str:
+    name_2_type_name = get_entity_type_context()
+    return name_2_type_name[entity_tuple[0]]
+
+
+EntityTuple = Annotated[
+    Union[
+        Annotated[tuple[str, str], Tag("string")],
+        Annotated[tuple[str, int], Tag("int")],
+        Annotated[tuple[str, IPv4Address], Tag("ipv4")],
+        Annotated[tuple[str, IPv6Address], Tag("ipv6")],
+        Annotated[tuple[str, MACAddress], Tag("mac")],
+    ],
+    Discriminator(get_discriminator_value),
+]
+
+
 class Snapshot(Task):
     """Snapshot
 
@@ -200,7 +221,7 @@ class Snapshot(Task):
         final: If True, this is the last linked snapshot for the given time
     """
 
-    entities: list[tuple[str, str]] = []
+    entities: list[EntityTuple] = []
     time: datetime
     type: SnapshotMessageType
     final: bool = False
@@ -210,3 +231,11 @@ class Snapshot(Task):
 
     def as_message(self) -> str:
         return self.model_dump_json()
+
+    @staticmethod
+    def get_validator(model_spec: ModelSpec) -> Callable[[Union[str, bytes]], "Snapshot"]:
+        def json_validator(serialized: Union[str, bytes]) -> Snapshot:
+            with entity_type_context(model_spec):
+                return Snapshot.model_validate_json(serialized)
+
+        return json_validator

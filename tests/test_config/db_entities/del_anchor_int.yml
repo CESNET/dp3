@@ -1,0 +1,26 @@
+entity:
+  id: del_anchor_int
+  id_data_type: int
+  name: Delete test anchor
+  snapshot: true
+  lifetime:
+    type: immortal
+
+attribs:
+  data1:
+    name: data1
+    description: entity data
+    type: plain
+    data_type: string
+
+  ref:
+    name: ref
+    description: reference to weak entity
+    type: plain
+    data_type: link<del_weak_mac>
+
+  ref_ttl:
+    name: ref_ttl
+    description: reference to TTL entity
+    type: plain
+    data_type: link<del_ttl_ip>

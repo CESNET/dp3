@@ -13,6 +13,7 @@ from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase
 from dp3.common.datatype import AnyEidT
+from dp3.common.task import parse_eids_from_cache
 from dp3.database.database import EntityDatabase
 
 
@@ -133,7 +134,7 @@ class LinkManager:
         # Delete the retrieved references
         for link in links:
             etype_from, attr = link["_id"].split("#", maxsplit=1)
-            eids_from = [l_eid.split("#", maxsplit=1)[1] for l_eid in link["eids_from"]]
+            eids_from = parse_eids_from_cache(self.model_spec, link["eids_from"])
             self.db.delete_link_dps(etype_from, eids_from, attr, eid)
 
         # Delete from cache
@@ -167,8 +168,8 @@ class LinkManager:
             etype_from, attr = link["_id"].split("#", maxsplit=1)
             etypes_from.append(etype_from)
             attrs.append(attr)
-            affected_eids.append([l_eid.split("#", maxsplit=1)[1] for l_eid in link["eids_from"]])
-            eids_to.append([l_eid.split("#", maxsplit=1)[1] for l_eid in link["eids_to"]])
+            affected_eids.append(parse_eids_from_cache(self.model_spec, link["eids_from"]))
+            eids_to.append(parse_eids_from_cache(self.model_spec, link["eids_to"]))
 
         self.db.delete_many_link_dps(etypes_from, affected_eids, attrs, eids_to)
 

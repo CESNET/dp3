@@ -103,16 +103,25 @@ class APITest(unittest.TestCase):
         )
 
     def query_expected_value(
-        self, query: Callable[[], A], assertion: Callable[[A], bool], attempts=5, delay_s=0.5
+        self,
+        query: Callable[[], A],
+        assertion: Callable[[A], bool],
+        attempts=25,
+        delay_s=0.1,
+        msg: str = None,
     ):
         payload: A = None
-        for _ in range(attempts):
-            time.sleep(delay_s)
+        for i in range(attempts):
+            if i > 0:
+                time.sleep(delay_s)
             payload = query()
-            print(payload, file=sys.stderr)
             if assertion(payload):
                 break
-        self.assertTrue(assertion(payload))
+            print(payload, file=sys.stderr)
+        if msg:
+            self.assertTrue(assertion(payload), msg=msg)
+        else:
+            self.assertTrue(assertion(payload))
         return payload
 
     @classmethod

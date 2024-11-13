@@ -34,7 +34,14 @@ from dp3.common.attrspec import (
 )
 from dp3.common.config import CronExpression, PlatformConfig, entity_type_context
 from dp3.common.scheduler import Scheduler
-from dp3.common.task import DataPointTask, Snapshot, SnapshotMessageType, task_context
+from dp3.common.task import (
+    DataPointTask,
+    Snapshot,
+    SnapshotMessageType,
+    parse_eids_from_cache,
+    task_context,
+    parse_eid_tuples_from_cache,
+)
 from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name
 from dp3.database.database import EntityDatabase
@@ -299,12 +306,12 @@ class SnapShooter:
         result = self.cache.aggregate(
             [{"$match": {"using_attr": {"$in": used}}}, {"$group": {"_id": "$from"}}]
         )
-        links_from = {tuple(doc["_id"].split("#", maxsplit=1)) for doc in result}
+        links_from = parse_eid_tuples_from_cache(self.model_spec, [doc["_id"] for doc in result])
         result = self.cache.aggregate(
             [{"$match": {"using_attr": {"$in": used}}}, {"$group": {"_id": "$to"}}]
         )
-        links_to = {tuple(doc["_id"].split("#", maxsplit=1)) for doc in result}
-        return list(links_from | links_to)
+        links_to = parse_eid_tuples_from_cache(self.model_spec, [doc["_id"] for doc in result])
+        return list(set(links_from) | set(links_to))
 
     def get_linked_entities(self, time: datetime, cached_linked_entities: list[tuple[str, str]]):
         """Get weakly connected components from entity graph."""
@@ -479,9 +486,10 @@ class SnapShooter:
                         {"$project": {"from": 1}},
                     ]
                 )
-                values[mirror_name] = [
-                    {"eid": source["from"].split("#", maxsplit=1)[1]} for source in link_sources
-                ]
+                parsed = parse_eids_from_cache(
+                    self.model_spec, [doc["from"] for doc in link_sources]
+                )
+                values[mirror_name] = [{"eid": eid} for eid in parsed]
 
     def make_snapshot(self, task: Snapshot):
         """

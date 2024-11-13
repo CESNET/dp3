@@ -1,0 +1,5 @@
+# Garbage collector configuration - cleans up expired entities
+
+# The rate at which the garbage collector will run - A CRON expression
+collection_rate:
+  second: "*/2"

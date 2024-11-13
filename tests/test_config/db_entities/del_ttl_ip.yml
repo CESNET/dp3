@@ -1,0 +1,23 @@
+entity:
+  id: del_ttl_ip
+  id_data_type: ipv4
+  name: Delete test ttl entity
+  snapshot: true
+  lifetime:
+    type: ttl
+    on_create: 5s
+    mirror_data: true
+
+attribs:
+  data1:
+    name: data1
+    description: entity data
+    type: plain
+    data_type: string
+    ttl: 10s
+
+  ref:
+    name: ref
+    description: reference to weak entity
+    type: plain
+    data_type: link<del_weak_mac>

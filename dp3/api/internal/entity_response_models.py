@@ -73,7 +73,7 @@ class EntityEidAttrValueOrHistory(BaseModel):
     """
 
     attr_type: AttrType
-    current_value: JsonVal = None
+    current_value: Dp3Val = None
     history: HistoryVal = []
 
 

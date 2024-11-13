@@ -160,7 +160,7 @@ class EntityDatabase:
         self._push_master()
 
     def register_on_entity_delete(
-        self, f_one: Callable[[str, str], None], f_many: Callable[[str, list[str]], None]
+        self, f_one: Callable[[str, AnyEidT], None], f_many: Callable[[str, list[AnyEidT]], None]
     ):
         """Registers function to be called when entity is forcibly deleted."""
         self._on_entity_delete_one.append(f_one)
@@ -473,13 +473,18 @@ class EntityDatabase:
                 updates = [
                     UpdateOne(
                         {"_id": eid},
-                        {
-                            "$push": {
-                                attr: push_dps[0] if len(push_dps) == 1 else {"$each": push_dps}
-                                for attr, push_dps in changes["pushes"].items()
-                            },
-                            "$set": changes["$set"],
-                        },
+                        (
+                            {
+                                "$push": {
+                                    attr: push_dps[0] if len(push_dps) == 1 else {"$each": push_dps}
+                                    for attr, push_dps in changes.get("pushes", {}).items()
+                                }
+                            }
+                            if "pushes" in changes
+                            else {}
+                        )
+                        | ({"$set": changes["$set"]} if "$set" in changes else {})
+                        | ({"$max": changes["$max"]} if "$max" in changes else {}),
                         upsert=True,
                     )
                     for eid, changes in master_changes.items()
@@ -503,7 +508,7 @@ class EntityDatabase:
                     f"Update of master records failed: {e}\n{master_changes}"
                 ) from e
 
-    def update_master_records(self, etype: str, eids: list[str], records: list[dict]) -> None:
+    def update_master_records(self, etype: str, eids: list[AnyEidT], records: list[dict]) -> None:
         """Replace master records of `etype`:`eid` with the provided `records`.
 
         Raises DatabaseError when update fails.
@@ -525,22 +530,22 @@ class EntityDatabase:
 
     def extend_ttl(self, etype: str, eid: AnyEidT, ttl_tokens: dict[str, datetime]):
         """Extends TTL of given `etype`:`eid` by `ttl_tokens`."""
-        master_col = self._master_col(etype)
-        try:
-            master_col.update_one(
-                {"_id": eid},
-                {
-                    "$max": {
-                        f"#ttl.{token_name}": token_value
-                        for token_name, token_value in ttl_tokens.items()
-                    }
-                },
-            )
-            self.log.debug("Updated TTL of %s: %s.", etype, eid)
-        except Exception as e:
-            raise DatabaseError(f"TTL update failed: {e} ({ttl_tokens})") from e
+        extensions = {
+            f"#ttl.{token_name}": token_value for token_name, token_value in ttl_tokens.items()
+        }
+        with self._master_buffer_locks[etype]:
+            buf = self._master_buffers[etype]
+            if eid in buf:
+                if "$max" in buf[eid]:
+                    for ttl_name, this_val in extensions.items():
+                        curr_val = buf[eid]["$max"].get(ttl_name, datetime.min)
+                        buf[eid]["$max"][ttl_name] = max(curr_val, this_val)
+                else:
+                    self._master_buffers[etype][eid]["$max"] = extensions
+            else:
+                self._master_buffers[etype][eid] = {"$max": extensions}
 
-    def remove_expired_ttls(self, etype: str, expired_eid_ttls: dict[str, list[str]]):
+    def remove_expired_ttls(self, etype: str, expired_eid_ttls: dict[AnyEidT, list[str]]):
         """Removes expired TTL of given `etype`:`eid`."""
         master_col = self._master_col(etype)
         try:
@@ -562,9 +567,13 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"TTL update failed: {e}") from e
 
-    def delete_eids(self, etype: str, eids: list[str]):
+    def delete_eids(self, etype: str, eids: list[AnyEidT]):
         """Delete master record and all snapshots of `etype`:`eids`."""
         master_col = self._master_col(etype)
+        with self._master_buffer_locks[etype]:
+            for eid in eids:
+                if eid in self._master_buffers[etype]:
+                    del self._master_buffers[etype][eid]
         try:
             res = master_col.delete_many({"_id": {"$in": eids}})
             self.log.debug(
@@ -584,6 +593,9 @@ class EntityDatabase:
     def delete_eid(self, etype: str, eid: AnyEidT):
         """Delete master record and all snapshots of `etype`:`eid`."""
         master_col = self._master_col(etype)
+        with self._master_buffer_locks[etype]:
+            if eid in self._master_buffers[etype]:
+                del self._master_buffers[etype][eid]
         try:
             master_col.delete_one({"_id": eid})
             self.log.debug("Deleted master record of %s/%s.", etype, eid)
@@ -688,7 +700,7 @@ class EntityDatabase:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 
     def delete_link_dps(
-        self, etype: str, affected_eids: list[str], attr_name: str, eid_to: str
+        self, etype: str, affected_eids: list[AnyEidT], attr_name: str, eid_to: AnyEidT
     ) -> None:
         """Delete link datapoints from master collection.
 
@@ -712,9 +724,9 @@ class EntityDatabase:
     def delete_many_link_dps(
         self,
         etypes: list[str],
-        affected_eids: list[list[str]],
+        affected_eids: list[list[AnyEidT]],
         attr_names: list[str],
-        eids_to: list[list[str]],
+        eids_to: list[list[AnyEidT]],
     ) -> None:
         """Delete link datapoints from master collection.
 
@@ -754,7 +766,9 @@ class EntityDatabase:
 
     def ekey_exists(self, etype: str, eid: AnyEidT) -> bool:
         """Checks whether master record for etype/eid exists"""
-        return bool(self.get_master_record(etype, eid))
+        with self._master_buffer_locks[etype]:
+            in_cache = eid in self._master_buffers[etype]
+        return in_cache or bool(self.get_master_record(etype, eid, projection={"_id": 1}))
 
     def get_master_records(self, etype: str, **kwargs) -> Cursor:
         """Get cursor to current master records of etype."""

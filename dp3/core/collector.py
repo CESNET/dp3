@@ -14,7 +14,7 @@ from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.datatype import AnyEidT
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, parse_eids_from_cache
 from dp3.database.database import EntityDatabase
 
 DB_SEND_CHUNK = 1000
@@ -174,7 +174,7 @@ class GarbageCollector:
                 {"$group": {"_id": "$to"}},
             ]
         )
-        have_references = [doc["_id"].split("#", maxsplit=1)[1] for doc in aggregated]
+        have_references = parse_eids_from_cache(self.model_spec, [doc["_id"] for doc in aggregated])
         entities += len(have_references)
 
         to_delete = []

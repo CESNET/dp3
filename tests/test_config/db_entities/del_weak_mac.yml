@@ -1,0 +1,20 @@
+entity:
+  id: del_weak_mac
+  id_data_type: mac
+  name: Delete test weak entity
+  snapshot: true
+  lifetime:
+    type: weak
+
+attribs:
+  data1:
+    name: data1
+    description: entity data
+    type: plain
+    data_type: string
+
+  ref:
+    name: ref
+    description: reference to weak entity
+    type: plain
+    data_type: link<del_weak_mac>

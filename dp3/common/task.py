@@ -15,6 +15,7 @@ from pydantic import (
     Discriminator,
     PlainSerializer,
     Tag,
+    TypeAdapter,
     ValidationError,
     field_validator,
 )
@@ -22,6 +23,7 @@ from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.config import ModelSpec, entity_type_context, get_entity_type_context
 from dp3.common.datapoint import DataPointBase, to_json_friendly
+from dp3.common.datatype import AnyEidT
 from dp3.common.mac_address import MACAddress
 
 _init_context_var = ContextVar("_init_context_var", default=None)
@@ -239,3 +241,41 @@ class Snapshot(Task):
                 return Snapshot.model_validate_json(serialized)
 
         return json_validator
+
+
+EntityTuplesAdapter = TypeAdapter(list[EntityTuple])
+
+
+def validate_entities(model_spec: ModelSpec, v: list[tuple[str, str]]) -> list[EntityTuple]:
+    with entity_type_context(model_spec):
+        return EntityTuplesAdapter.validate_python(v)
+
+
+def parse_eids_from_cache(model_spec: ModelSpec, link_entity_entries: list[str]) -> list[AnyEidT]:
+    """Parses entity IDs from the "Link" cache.
+
+    Args:
+        model_spec: Model specification.
+        link_entity_entries: List of entity entries from the cache.
+
+    Returns:
+        List of entity IDs.
+    """
+    raw = [entry.split("#", maxsplit=1) for entry in link_entity_entries]
+    return [eid for etype, eid in validate_entities(model_spec, raw)]
+
+
+def parse_eid_tuples_from_cache(
+    model_spec: ModelSpec, link_entity_entries: list[str]
+) -> list[tuple[str, AnyEidT]]:
+    """Parses entity IDs from the "Link" cache.
+
+    Args:
+        model_spec: Model specification.
+        link_entity_entries: List of entity entries from the cache.
+
+    Returns:
+        List of tuples (entity type, entity ID).
+    """
+    raw = [entry.split("#", maxsplit=1) for entry in link_entity_entries]
+    return validate_entities(model_spec, raw)

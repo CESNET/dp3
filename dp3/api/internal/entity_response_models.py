@@ -24,10 +24,12 @@ class EntityState(BaseModel):
 # This is necessary to allow for non-JSON-serializable types in the model
 JsonVal = Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")]
 
-PlainVal = dict[str, JsonVal]
-HistoryVal = list[dict[str, JsonVal]]
+LinkVal = dict[str, JsonVal]
+PlainVal = Union[LinkVal, JsonVal]
+MultiVal = list[PlainVal]
+HistoryVal = list[dict[str, PlainVal]]
 
-Dp3Val = Union[HistoryVal, PlainVal, JsonVal]
+Dp3Val = Union[HistoryVal, MultiVal, PlainVal]
 
 EntityEidMasterRecord = dict[str, Dp3Val]
 

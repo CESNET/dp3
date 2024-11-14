@@ -93,3 +93,60 @@ attribs:
     name: test_attr_data_link
     type: plain
     data_type: link<test_entity_type, int>
+  test_attr_data_link_multi:
+    name: test_attr_data_link_multi
+    type: observations
+    data_type: link<test_entity_type, int>
+    multi_value: true
+    history_params:
+      max_age: 7d
+      pre_validity: 10m
+      post_validity: 10m
+      aggregate: true
+
+
+  test_attr_data_link_int:
+    name: test_attr_data_link_int
+    type: plain
+    data_type: link<del_anchor_int, ipv4>
+  test_attr_data_link_ip:
+    name: test_attr_data_link_ip
+    type: plain
+    data_type: link<del_ttl_ip, string>
+  test_attr_data_link_mac:
+    name: test_attr_data_link_mac
+    type: plain
+    data_type: link<del_weak_mac, string>
+
+  test_attr_data_link_int_multi:
+    name: test_attr_data_link_int_multi
+    type: observations
+    data_type: link<del_anchor_int, ipv4>
+    multi_value: true
+    history_params:
+      max_age: 7d
+      pre_validity: 10m
+      post_validity: 10m
+      aggregate: true
+
+  test_attr_data_link_ip_multi:
+    name: test_attr_data_link_ip_multi
+    type: observations
+    data_type: link<del_ttl_ip, string>
+    multi_value: true
+    history_params:
+      max_age: 7d
+      pre_validity: 10m
+      post_validity: 10m
+      aggregate: true
+
+  test_attr_data_link_mac_multi:
+    name: test_attr_data_link_mac_multi
+    type: observations
+    data_type: link<del_weak_mac, string>
+    multi_value: true
+    history_params:
+      max_age: 7d
+      pre_validity: 10m
+      post_validity: 10m
+      aggregate: true

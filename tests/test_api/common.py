@@ -31,22 +31,25 @@ MODEL_SPEC = ModelSpec(CONFIG.get("db_entities"))
 
 values = {
     "valid": {
-        "binary": ["true"],
-        "int": ["123"],
-        "int64": ["123"],
+        "binary": [True],
+        "int": [123],
+        "int64": [123],
         "string": ['"xyz"'],
-        "float": ["1.0", "1"],
+        "float": [1.0],
         "ipv4": ["127.0.0.1"],
         "ipv6": ["2001:0db8:85a3:0000:0000:8a2e:0370:7334", "::1"],
         "mac": ["de:ad:be:ef:ba:be", "11:22:33:44:55:66"],
         "time": ["2020-01-01T00:00:00"],
-        "json": ['{"test": "test"}'],
+        "json": [{"test": "test"}],
         "category": ["cat1"],
         "array": [[1, 2, 3]],
         "set": [[1, 2, 3]],
         "dict": [{"key1": 1, "key2": "xyz"}],
         "link": [{"eid": "test_entity_2"}],
         "data_link": [{"eid": "test_entity_3", "data": 42}],
+        "data_link_int": [{"eid": 666, "data": "1.1.1.1"}],
+        "data_link_ip": [{"eid": "2.2.2.2", "data": "test"}],
+        "data_link_mac": [{"eid": "de:ad:be:ef:ba:be", "data": "test"}],
     },
     "invalid": {
         "binary": ["xyz"],
@@ -70,7 +73,50 @@ values = {
             {"eid": "test_entity_3"},
             {"eid": "test_entity_3", "data": [42]},
         ],
+        "data_link_int": [
+            666,
+            {"id": 666},
+            {"eid": 666},
+            {"eid": 666, "data": [42]},
+            {"eid": "int666", "data": 42},
+        ],
+        "data_link_ip": [
+            "2.2.2.2",
+            {"id": "2.2.2.2"},
+            {"eid": "2.2.2.2"},
+            {"eid": "2.2.2.2", "data": [42]},
+            {"eid": "ip2.2.2.2", "data": "test"},
+        ],
+        "data_link_mac": [
+            "de:ad:be:ef:ba:be",
+            {"id": "de:ad:be:ef:ba:be"},
+            {"eid": "de:ad:be:ef:ba:be"},
+            {"eid": "de:ad:be:ef:ba:be", "data": [42]},
+            {"eid": "macde:ad:be:ef:ba:be", "data": "wrong"},
+        ],
     },
+}
+
+observation_values = {
+    "valid": {
+        "data_link_multi": [
+            {"eid": "test_entity_4", "data": 42},
+            {"eid": "test_entity_3", "data": 42},
+        ],
+        "data_link_int_multi": [
+            {"eid": 666, "data": "1.1.1.1"},
+            {"eid": 667, "data": "1.1.1.2"},
+        ],
+        "data_link_ip_multi": [
+            {"eid": "2.2.2.2", "data": "test"},
+            {"eid": "2.2.2.3", "data": "test"},
+        ],
+        "data_link_mac_multi": [
+            {"eid": "de:ad:be:ef:ba:be", "data": "test"},
+            {"eid": "11:22:33:44:55:66", "data": "test"},
+        ],
+    },
+    "invalid": {},
 }
 
 
@@ -121,7 +167,7 @@ class APITest(unittest.TestCase):
         if msg:
             self.assertTrue(assertion(payload), msg=msg)
         else:
-            self.assertTrue(assertion(payload))
+            self.assertTrue(assertion(payload), f"with payload: {payload}")
         return payload
 
     @classmethod

@@ -1,4 +1,7 @@
+import json
 import sys
+from datetime import datetime
+from typing import Any
 
 import common
 from common import ACCEPTED_ERROR_CODES
@@ -54,30 +57,49 @@ class PushDatapoints(common.APITest):
         )
         self.assertIn(response.status_code, ACCEPTED_ERROR_CODES)
 
-    def helper_test_datatype_value(self, data_type: str, value, expected_codes: set[int]):
-        response = self.push_datapoints(
-            [
-                {
-                    "type": "test_entity_type",
-                    "id": "test_entity_id",
-                    "attr": f"test_attr_{data_type}",
-                    "v": value,
-                }
-            ]
-        )
-        print(response.content.decode("utf-8"), file=sys.stderr)
+    @staticmethod
+    def make_datapoint(data_type: str, value: Any) -> dict[str, Any]:
+        return {
+            "type": "test_entity_type",
+            "id": "test_entity_id",
+            "attr": f"test_attr_{data_type}",
+            "v": value,
+        }
+
+    def make_observation_datapoint(self, data_type: str, value: Any) -> dict[str, Any]:
+        dp = self.make_datapoint(data_type, value)
+        dp["t1"] = datetime.utcnow().isoformat()
+        return dp
+
+    def helper_test_datatype_value(self, datapoint: dict, expected_codes: set[int]):
+        response = self.push_datapoints([datapoint])
+
+        if response.status_code not in expected_codes:
+            print(json.dumps(response.json(), indent=2), file=sys.stderr)
         self.assertIn(response.status_code, expected_codes)
 
     def test_data_type_values_valid(self):
         for data_type, valid in common.values["valid"].items():
             for value in valid:
                 with self.subTest(data_type=data_type, v=value):
-                    self.helper_test_datatype_value(data_type, value=value, expected_codes={200})
+                    dp = self.make_datapoint(data_type, value)
+                    self.helper_test_datatype_value(dp, expected_codes={200})
+
+        for data_type, valid in common.observation_values["valid"].items():
+            for value in valid:
+                with self.subTest(data_type=data_type, v=value):
+                    dp = self.make_observation_datapoint(data_type, value)
+                    self.helper_test_datatype_value(dp, expected_codes={200})
 
     def test_data_type_values_invalid(self):
         for data_type, valid in common.values["invalid"].items():
             for value in valid:
                 with self.subTest(data_type=data_type, v=value):
-                    self.helper_test_datatype_value(
-                        data_type, value=value, expected_codes=ACCEPTED_ERROR_CODES
-                    )
+                    dp = self.make_datapoint(data_type, value)
+                    self.helper_test_datatype_value(dp, expected_codes=ACCEPTED_ERROR_CODES)
+
+        for data_type, valid in common.observation_values["invalid"].items():
+            for value in valid:
+                with self.subTest(data_type=data_type, v=value):
+                    dp = self.make_observation_datapoint(data_type, value)
+                    self.helper_test_datatype_value(dp, expected_codes=ACCEPTED_ERROR_CODES)

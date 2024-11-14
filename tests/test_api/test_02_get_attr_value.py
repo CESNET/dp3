@@ -18,7 +18,9 @@ class GetEidAttrValue(common.APITest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        sleep(10)
+        sleep(1)
+        cls.get_request("control/make_snapshots")
+        sleep(6)
 
     def test_unknown_entity_type(self):
         response = self.get_request(
@@ -73,3 +75,43 @@ class GetEidAttrValue(common.APITest):
             with self.subTest(msg=msg):
                 response = self.get_request(TESTED_HISTORY_PATH, **intervals)
                 self.assertEqual(200, response.status_code)
+
+    def get_history_attr_value(self, path: str):
+        result = self.get_entity_data(path, EntityEidAttrValueOrHistory)
+        result.history = []  # Ignore history for sake of test reliability
+        if isinstance(result.current_value, list):
+            result.current_value = sorted(result.current_value, key=lambda x: str(x))
+        return result
+
+    def test_attr_serialization(self):
+        for data_type, valid in common.values["valid"].items():
+            value = valid[-1]  # Plain attribute has the latest sent value
+            with self.subTest(data_type=data_type, v=value):
+                path = TESTED_PATH.format(
+                    entity="test_entity_type",
+                    eid="test_entity_id",
+                    attr=f"test_attr_{data_type}",
+                )
+                expected = EntityEidAttrValueOrHistory(attr_type=1, current_value=value)
+                result = self.get_entity_data(path, EntityEidAttrValueOrHistory)
+                if expected != result:
+                    print(f"Expected: {expected}")
+                    print(f"Result:   {result}")
+                self.assertEqual(expected, result)
+
+        for data_type, valid in common.observation_values["valid"].items():
+            with self.subTest(data_type=data_type, v=value):
+                path = TESTED_PATH.format(
+                    entity="test_entity_type",
+                    eid="test_entity_id",
+                    attr=f"test_attr_{data_type}",
+                )
+                expected = EntityEidAttrValueOrHistory(
+                    attr_type=2, current_value=sorted(valid, key=lambda x: str(x))
+                )
+                self.query_expected_value(
+                    lambda: self.get_history_attr_value(path),
+                    lambda received: received == expected,
+                    attempts=10,
+                    delay_s=0.2,
+                )

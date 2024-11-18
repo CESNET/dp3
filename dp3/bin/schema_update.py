@@ -78,7 +78,7 @@ def main(args):
         curr_eid_types = config_schema["entity_id_types"]
 
         log.info("Mismatch in entity ID types:")
-        for entity, entity_updates in sorted(eid_updates.items(), key=lambda x: x[0]):
+        for entity in sorted(eid_updates):
             prev = prev_eid_types.get(entity, "None")
             curr = curr_eid_types.get(entity, "None")
             log.info(

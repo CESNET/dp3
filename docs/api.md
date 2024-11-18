@@ -198,11 +198,27 @@ v -> some_embedded_dict_field
 
 ## List entities
 
-List latest snapshots of all ids present in database under entity type.
+List latest snapshots of all ids present in database under entity type, 
+filtered by `generic_filter` and `fulltext_filters`.
+Contains only the latest snapshot per entity.
 
-Contains only latest snapshot.
+Uses pagination, default limit is 20, setting to 0 will return all results.
 
-Uses pagination.
+Fulltext filters are interpreted as regular expressions.
+Only string values may be filtered this way. There's no validation that queried attribute
+can be fulltext filtered.
+Only plain and observation attributes with string-based data types can be queried.
+Array and set data types are supported as well as long as they are not multi value
+at the same time.
+If you need to filter EIDs, use attribute `eid`.
+
+Generic filter allows filtering using generic MongoDB query (including `$and`, `$or`,`$lt`, etc.).
+For querying non-JSON-native types, you can use the following magic strings,
+as are defined by the search & replace [`magic`][dp3.database.magic] module.
+
+There are no attribute name checks (may be added in the future).
+
+Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
 ### Request
 
@@ -212,6 +228,8 @@ Uses pagination.
 
 - skip: how many entities to skip (default: 0)
 - limit: how many entities to return (default: 20)
+- fulltext_filters: dictionary of fulltext filters (default: no filters)
+- generic_filter: dictionary of generic filters (default: no filters)
 
 ### Response
 

@@ -5,6 +5,11 @@ from pydantic_core import CoreSchema, core_schema
 
 
 class MACAddress:
+    """Represents a MAC Address.
+
+    Can be initialized from colon or comma separated string, or from raw bytes.
+    """
+
     def __init__(self, mac: Union[bytes, str, "MACAddress"]):
         if isinstance(mac, self.__class__):
             mac = mac.mac  # type: ignore

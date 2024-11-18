@@ -50,11 +50,17 @@ def main(args):
         config.get("processing_core.worker_processes"),
     )
 
-    prev_schema, config_schema, updates, deleted_entites = db.schema_cleaner.get_schema_status()
+    (
+        prev_schema,
+        config_schema,
+        eid_updates,
+        updates,
+        deleted_entites,
+    ) = db.schema_cleaner.get_schema_status()
     if prev_schema["version"] != config_schema["version"]:
         log.info(
             f"Schema version mismatch: {prev_schema['version']} (DB) "
-            f"!= {config_schema['version']} (config)"
+            f"!= {config_schema['version']} (DP3 required)"
         )
         if confirm_changes("Are you sure you want to perform a migration now? (y/[n]): "):
             db.schema_cleaner.migrate(prev_schema)
@@ -67,6 +73,21 @@ def main(args):
         )
         if confirm_changes("Are you sure you want to change the storage now? (y/[n]): "):
             db.schema_cleaner.update_storage(prev_schema["storage"], config_schema["storage"])
+    elif eid_updates:
+        prev_eid_types = prev_schema["entity_id_types"]
+        curr_eid_types = config_schema["entity_id_types"]
+
+        log.info("Mismatch in entity ID types:")
+        for entity, entity_updates in sorted(eid_updates.items(), key=lambda x: x[0]):
+            prev = prev_eid_types.get(entity, "None")
+            curr = curr_eid_types.get(entity, "None")
+            log.info(
+                f"- {entity}: Type changed from {prev} to {curr} "
+                f"- all relevant collections must be dropped"
+            )
+            if entity not in deleted_entites:
+                deleted_entites.append(entity)
+        log.info("")
     elif prev_schema["schema"] == config_schema["schema"]:
         log.info("Schema is OK!")
         return
@@ -78,7 +99,7 @@ def main(args):
 
     if deleted_entites:
         log.info("Suggested removal of entities:")
-        for entity in deleted_entites:
+        for entity in sorted(deleted_entites):
             log.info(f"- {entity}")
 
     if updates:

@@ -17,7 +17,7 @@ from dp3.common.utils import batched
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 # current database schema version
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # Collections belonging to entity
 # Used when deleting no-longer existing entity.
@@ -57,7 +57,10 @@ class SchemaCleaner:
             "snapshot_bucket_size": self._config.get("database.storage.snapshot_bucket_size", 32)
         }
 
-        self.migrations: dict[int, Callable[[dict], dict]] = {2: self.migrate_schema_2_to_3}
+        self.migrations: dict[int, Callable[[dict], dict]] = {
+            2: self.migrate_schema_2_to_3,
+            3: self.migrate_schema_3_to_4,
+        }
 
     def get_current_schema_doc(self, infer: bool = False) -> dict:
         """
@@ -70,8 +73,10 @@ class SchemaCleaner:
         if schema_doc is None and infer:
             self.log.info("No schema found, inferring initial schema from database")
             schema = self.infer_current_schema()
+            entity_id_types = self.construct_entity_types()
             schema_doc = {
                 "_id": 0,
+                "entity_id_types": entity_id_types,
                 "schema": schema,
                 "storage": self.storage,
                 "version": SCHEMA_VERSION,
@@ -93,7 +98,11 @@ class SchemaCleaner:
         ```py
             {
                 "_id": int,
-                "schema": { ... }, # (1)!
+                entity_id_types: {
+                    <entity_type>: <entity_id_type>,
+                    ...
+                },
+                "schema": { ... },  # (1)!
                 "storage": {
                     "snapshot_bucket_size": int
                 },
@@ -106,7 +115,7 @@ class SchemaCleaner:
         Raises:
             ValueError: If conflicting changes are detected.
         """
-        db_schema, config_schema, updates, deleted_entites = self.get_schema_status()
+        db_schema, config_schema, eid_updates, updates, deleted_entites = self.get_schema_status()
 
         if db_schema["version"] != config_schema["version"]:
             self.log.warning(
@@ -124,6 +133,16 @@ class SchemaCleaner:
             )
             return self._error_on_conflict()
 
+        if eid_updates:
+            for entity in eid_updates.keys():
+                self.log.warning(
+                    "Entity ID type mismatch for %s: %s (DB) -> %s (config)",
+                    entity,
+                    db_schema["entity_id_types"][entity],
+                    config_schema["entity_id_types"][entity],
+                )
+            return self._error_on_conflict()
+
         if db_schema["schema"] == config_schema["schema"]:
             self.log.info("Schema OK!")
         elif not updates and not deleted_entites:
@@ -137,7 +156,7 @@ class SchemaCleaner:
         self.log.warning("Please run `dp3 schema-update` to make the changes.")
         raise ValueError("Schema update failed: Conflicting changes detected.")
 
-    def get_schema_status(self) -> tuple[dict, dict, dict, list]:
+    def get_schema_status(self) -> tuple[dict, dict, dict, dict, list]:
         """
         Gets the current schema status.
         `database_schema` is the schema document from the database.
@@ -150,42 +169,61 @@ class SchemaCleaner:
         schema_doc = self.get_current_schema_doc(infer=True)
 
         current_schema = self.construct_schema_doc()
-
-        if (
-            schema_doc["schema"] == current_schema
-            and schema_doc["version"] == SCHEMA_VERSION
-            and schema_doc["storage"] == self.storage
-        ):
-            return schema_doc, schema_doc, {}, []
+        current_entity_types = self.construct_entity_types()
 
         new_schema = {
-            "_id": schema_doc["_id"] + 1,
+            "_id": schema_doc["_id"],
+            "entity_id_types": current_entity_types,
             "schema": current_schema,
             "storage": self.storage,
             "version": SCHEMA_VERSION,
         }
-        updates, deleted_entites = self.detect_changes(schema_doc, current_schema)
-        return schema_doc, new_schema, updates, deleted_entites
+
+        if schema_doc == new_schema:
+            return schema_doc, schema_doc, {}, {}, []
+
+        new_schema["_id"] += 1
+
+        eid_updates, updates, deleted_entites = self.detect_changes(
+            schema_doc, current_entity_types, current_schema
+        )
+        return schema_doc, new_schema, eid_updates, updates, deleted_entites
 
     def detect_changes(
-        self, db_schema_doc: dict, current_schema: dict
-    ) -> tuple[dict[str, dict[str, dict[str, str]]], list[str]]:
+        self, db_schema_doc: dict, current_entity_types: dict, current_schema: dict
+    ) -> tuple[dict[str, str], dict[str, dict[str, dict[str, str]]], list[str]]:
         """
         Detects changes between configured schema and the one saved in the database.
 
         Args:
             db_schema_doc: Schema document from the database.
+            current_entity_types: Entity ID types from the configuration.
             current_schema: Schema from the configuration.
 
         Returns:
             Tuple of required updates to each entity and list of deleted entites.
         """
-        if db_schema_doc["schema"] == current_schema:
-            return {}, []
-
         if db_schema_doc["version"] != SCHEMA_VERSION:
             self.log.info("Schema version changed, skipping detecting changes.")
-            return {}, []
+            return {}, {}, []
+
+        eid_updates = {}
+        for entity, id_type in db_schema_doc["entity_id_types"].items():
+            if entity not in current_schema:
+                self.log.info("Schema breaking change: Entity %s was deleted", entity)
+                continue
+
+            if id_type != current_entity_types[entity]:
+                self.log.info(
+                    "Schema breaking change: Entity %s ID type changed: %s -> %s",
+                    entity,
+                    id_type,
+                    current_entity_types[entity],
+                )
+                eid_updates[entity] = "$drop"
+
+        if db_schema_doc["schema"] == current_schema:
+            return eid_updates, {}, []
 
         updates = {}
         deleted_entites = []
@@ -228,7 +266,7 @@ class SchemaCleaner:
             if entity_updates:
                 updates[entity] = entity_updates
 
-        return updates, deleted_entites
+        return eid_updates, updates, deleted_entites
 
     def execute_updates(
         self, updates: dict[str, dict[str, dict[str, str]]], deleted_entites: list[str]
@@ -240,6 +278,17 @@ class SchemaCleaner:
                     col = col_placeholder.format(entity)
                     self.log.info("%s: Deleting collection: %s", entity, col)
                     self._db[col].drop()
+
+                # Delete entity from Link cache
+                self.log.info("%s: Deleting entity entries from Link cache", entity)
+                self._db["#cache#Link"].delete_many(
+                    {
+                        "$or": [
+                            {"from": {"$regex": f"^{entity}#"}},
+                            {"to": {"$regex": f"^{entity}#"}},
+                        ]
+                    }
+                )
             except Exception as e:
                 raise ValueError(f"Schema update failed: {e}") from e
 
@@ -412,6 +461,18 @@ class SchemaCleaner:
             res["series"] = {s: sspec.data_type.type_info for s, sspec in spec.series.items()}
         return res
 
+    def construct_entity_types(self) -> dict:
+        """
+        Constructs entity ID type dictionary from model specification.
+
+        Returns:
+            Dictionary with entity ID types.
+        """
+        return {
+            entity: entity_spec.id_data_type.type_info
+            for entity, entity_spec in self._model_spec.entities.items()
+        }
+
     def await_updated(self):
         """
         Checks whether schema saved in database is up-to-date and awaits its update
@@ -429,13 +490,13 @@ class SchemaCleaner:
         if schema_doc is None:
             raise ValueError("Unable to establish schema")
 
-        db_schema, config_schema, _updates, _deleted_entites = self.get_schema_status()
+        db_schema, config_schema, *_ = self.get_schema_status()
         for delay in RECONNECT_DELAYS:
             if db_schema == config_schema:
                 break
             self.log.info("Schema mismatch, will await update by main worker in %s seconds", delay)
             time.sleep(delay)
-            db_schema, config_schema, _updates, _deleted_entites = self.get_schema_status()
+            db_schema, config_schema, *_ = self.get_schema_status()
 
         if db_schema != config_schema:
             raise ValueError("Unable to establish matching schema")
@@ -580,5 +641,26 @@ class SchemaCleaner:
         schema["_id"] += 1
         schema["version"] = 3
         schema["storage"] = {"snapshot_bucket_size": bucket_size}
+
+        return schema
+
+    @staticmethod
+    def migrate_schema_3_to_4(schema: dict) -> dict:
+        """
+        Migrates schema from version 3 to version 4.
+
+        This migration adds eid_data_type specification to the schema.
+        As all entities were previously using string as their entity ID type,
+        this is merely an accounting change.
+        Actual data types are to be changed by following migrations.
+
+        Args:
+            schema: Schema to migrate.
+        Returns:
+            Migrated schema.
+        """
+        schema["_id"] += 1
+        schema["version"] = 4
+        schema["entity_id_types"] = {entity: str(str) for entity in schema["schema"].keys()}
 
         return schema

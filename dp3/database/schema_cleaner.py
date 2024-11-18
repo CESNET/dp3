@@ -134,7 +134,7 @@ class SchemaCleaner:
             return self._error_on_conflict()
 
         if eid_updates:
-            for entity in eid_updates.keys():
+            for entity in eid_updates:
                 self.log.warning(
                     "Entity ID type mismatch for %s: %s (DB) -> %s (config)",
                     entity,
@@ -661,6 +661,6 @@ class SchemaCleaner:
         """
         schema["_id"] += 1
         schema["version"] = 4
-        schema["entity_id_types"] = {entity: str(str) for entity in schema["schema"].keys()}
+        schema["entity_id_types"] = {entity: str(str) for entity in schema["schema"]}
 
         return schema

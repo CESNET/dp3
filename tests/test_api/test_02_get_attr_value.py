@@ -110,8 +110,8 @@ class GetEidAttrValue(common.APITest):
                     attr_type=2, current_value=sorted(valid, key=lambda x: str(x))
                 )
                 self.query_expected_value(
-                    lambda: self.get_history_attr_value(path),
-                    lambda received: received == expected,
+                    lambda: self.get_history_attr_value(path),  # noqa: B023
+                    lambda received: received == expected,  # noqa: B023
                     attempts=10,
                     delay_s=0.2,
                 )

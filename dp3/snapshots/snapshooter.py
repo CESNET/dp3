@@ -38,9 +38,9 @@ from dp3.common.task import (
     DataPointTask,
     Snapshot,
     SnapshotMessageType,
+    parse_eid_tuples_from_cache,
     parse_eids_from_cache,
     task_context,
-    parse_eid_tuples_from_cache,
 )
 from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name

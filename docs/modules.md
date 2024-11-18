@@ -122,6 +122,19 @@ and [`on_new_attr`](#attribute-hooks) callbacks,
 and you can enable it by passing the `refresh` keyword argument
 to the callback registration. See the Callbacks section for more details.
 
+## Type of `eid`
+
+!!! tip "Specifying the `eid` type"
+
+    At runtime, the `eid` will be exactly the type as specified in the entity specification.
+
+All the examples on this page will show the `eid` as a string, as that is the default type.
+The type of the `eid` is can be configured in the entity specification, as is
+detailed [here](configuration//db_entities.md#entity).
+
+The typehint of the `eid` used in callback registration definitions is the [
+`AnyEidT`][dp3.common.datatype.AnyEidT] type, which is a type alias of Union of all the allowed
+types of the `eid` in the entity specification.
 
 ## Callbacks
 
@@ -184,10 +197,13 @@ registrar.register_task_hook("on_task_start", task_hook)
 Receives eid and Task, may prevent entity record creation (by returning False).
 The callback is registered using the 
 [`register_allow_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_allow_entity_creation_hook] method.
-Required signature is `Callable[[str, DataPointTask], bool]`.
+Required signature is `Callable[[AnyEidT, DataPointTask], bool]`.
 
 ```python
-def entity_creation(eid: str, task: DataPointTask) -> bool:
+def entity_creation(
+        eid: str,  # (1)! 
+        task: DataPointTask,
+) -> bool:
     return eid.startswith("1")
 
 registrar.register_allow_entity_creation_hook(
@@ -195,16 +211,22 @@ registrar.register_allow_entity_creation_hook(
 )
 ```
 
+1. `eid` may not be string, depending on the entity configuration, see [Type of
+   `eid`](#type-of-eid).
+
 #### Entity `on_entity_creation` hook
 
 Receives eid and Task, may return new DataPointTasks.
 
 Callbacks which are called once when an entity is created are registered using the 
 [`register_on_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_entity_creation_hook] method.
-Required signature is `Callable[[str, DataPointTask], list[DataPointTask]]`.
+Required signature is `Callable[[AnyEidT, DataPointTask], list[DataPointTask]]`.
 
 ```python
-def processing_function(eid: str, task: DataPointTask) -> list[DataPointTask]:
+def processing_function(
+        eid: str,  # (1)! 
+        task: DataPointTask
+) -> list[DataPointTask]:
     output = does_work(task)
     return [DataPointTask(
         model_spec=task.model_spec,
@@ -223,6 +245,9 @@ registrar.register_on_entity_creation_hook(
     processing_function, "test_entity_type"
 )
 ```
+
+1. `eid` may not be string, depending on the entity configuration, see [Type of
+   `eid`](#type-of-eid).
 
 The `register_on_entity_creation_hook` method also allows for refreshing of values derived 
 by the registered hook. This can be done using the `refresh` keyword argument, (expecting a [`SharedFlag`][dp3.common.state.SharedFlag] object, which is created by default for all modules)
@@ -243,10 +268,13 @@ registrar.register_on_entity_creation_hook(
 Callbacks that are called on every incoming datapoint of an attribute are registered using the 
 [`register_on_new_attr_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_new_attr_hook] method.
 The callback allways receives eid, attribute and Task, and may return new DataPointTasks.
-The required signature is `Callable[[str, DataPointBase], Union[None, list[DataPointTask]]]`.
+The required signature is `Callable[[AnyEidT, DataPointBase], Union[None, list[DataPointTask]]]`.
 
 ```python
-def attr_hook(eid: str, dp: DataPointBase) -> list[DataPointTask]:
+def attr_hook(
+        eid: str,  # (1)!
+        dp: DataPointBase,
+) -> list[DataPointTask]:
     ...
     return []
 
@@ -254,6 +282,9 @@ registrar.register_on_new_attr_hook(
     attr_hook, "test_entity_type", "test_attr_type",
 )
 ```
+
+1. `eid` may not be string, depending on the entity configuration, see [Type of
+   `eid`](#type-of-eid).
 
 This hook can be refreshed on configuration changes if you feel like the attribute value may change too slowly
 to catch up naturally. 
@@ -290,7 +321,6 @@ def timeseries_hook(
 ) -> list[DataPointTask]:
     ...
     return []
-    
 
 registrar.register_timeseries_hook(
     timeseries_hook, "test_entity_type", "test_attr_type",
@@ -371,8 +401,8 @@ Learn more about the updater module in the [updater configuration](configuration
 #### Periodic Update Hook
 
 The [`register_periodic_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_update_hook]
-method expects a callable with the following signature: 
-`Callable[[str, str, dict], list[DataPointTask]]`, where the arguments are the entity type,
+method expects a callable with the following signature:
+`Callable[[str, AnyEidT, dict], list[DataPointTask]]`, where the arguments are the entity type,
 entity ID and master record. 
 The callable should return a list of DataPointTask objects to perform (possibly empty).
 
@@ -382,7 +412,11 @@ The following example shows how to register a periodic update hook for an entity
 The hook will be called for all entities of this type every day.
 
 ```python
-def periodic_update_hook(entity_type: str, eid: str, record: dict) -> list[DataPointTask]:
+def periodic_update_hook(
+        entity_type: str,
+        eid: str,  # (1)!
+        record: dict,
+) -> list[DataPointTask]:
     ...
     return []
 
@@ -390,6 +424,9 @@ registrar.register_periodic_update_hook(
     periodic_update_hook, "test_id", "test_entity_type", "1d"
 )
 ```
+
+1. `eid` may not be string, depending on the entity configuration, see [Type of
+   `eid`](#type-of-eid).
 
 !!! warning "Set a Realistic Update Period"
 
@@ -405,12 +442,15 @@ This hook is useful when the entity record is not needed for the update, meaning
 
 The [`register_periodic_eid_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_eid_update_hook]
 method expects a callable with the following signature:
-`Callable[[str, str], list[DataPointTask]]`, where the first argument is the entity type and the second is the entity ID.
+`Callable[[str, AnyEidT], list[DataPointTask]]`, where the first argument is the entity type and the second is the entity ID.
 The callable should return a list of DataPointTask objects to perform (possibly empty).
 All other arguments are the same as for the [periodic update hook](#periodic-update-hook).
 
 ```python
-def periodic_eid_update_hook(entity_type: str, eid: str) -> list[DataPointTask]:
+def periodic_eid_update_hook(
+        entity_type: str,
+        eid: str,  # (1)!
+) -> list[DataPointTask]:
     ...
     return []
 
@@ -418,6 +458,9 @@ registrar.register_periodic_eid_update_hook(
     periodic_eid_update_hook, "test_id", "test_entity_type", "1d"
 )
 ```
+
+1. `eid` may not be string, depending on the entity configuration, see [Type of
+   `eid`](#type-of-eid).
 
 ## Running module code in a separate thread
 

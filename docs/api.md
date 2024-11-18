@@ -150,20 +150,20 @@ More details depends on the particular type of the attribute.
 Can be represented using both **plain** attributes and **observations**. The difference will be only
 in time specification. Two examples using observations:
 
-**no data - `link<mac>`**: just the eid is sent
+**no data - `link<mac>`**: Sent as a dictionary with a single `"eid"` key.
 
 ```json
 {
   "type": "ip",
   "id": "192.168.0.1",
   "attr": "mac_addrs",
-  "v": "AA:AA:AA:AA:AA",
+  "v": {"eid": "AA:AA:AA:AA:AA"},
   "t1": "2022-08-01T12:00:00",
   "t2": "2022-08-01T12:10:00"
 }
 ```
 
-**with additional data - `link<ip, int>`**: The eid and the data are sent as a dictionary.
+**with additional data - `link<ip, int>`**: Sent as a dictionary with `"eid"` and `"data"` keys.
 
 ```json
 {
@@ -410,6 +410,7 @@ Returns dictionary containing all entity types configured -- their simplified co
 {
   "<entity_id>": {
     "id": "<entity_id>",
+    "id_data_type": "<entity_spec.id_data_type>",
     "name": "<entity_spec.name>",
     "attribs": "<MODEL_SPEC.attribs(e_id)>",
     "eid_estimate_count": "<DB.estimate_count_eids(e_id)>"

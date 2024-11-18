@@ -86,10 +86,23 @@ Entity is described simply by:
 | Parameter      | Data-type           | Default value       | Description                                                                                                                               |
 |----------------|---------------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | **`id`**       | string (identifier) | *(mandatory)*       | Short string identifying the entity type, it's machine name (must match regex `[a-zA-Z_][a-zA-Z0-9_-]*`). Lower-case only is recommended. |
+| `id_data_type` | string              | "string"            | Data type of the entity id (`eid`) value, see [Supported eid data types](#supported-entity-id-data-types).                                |
 | **`name`**     | string              | *(mandatory)*       | Attribute name for humans. May contain any symbols.                                                                                       |
 | **`snapshot`** | bool                | *(mandatory)*       | Whether to create snapshots of the entity. See [Architecture](../architecture.md#data-flow) for more details.                             |
 | `lifetime`     | `Lifetime Spec`     | `Immortal Lifetime` | Defines the lifetime of the entitiy, entities are never deleted by default. See the [Entity Lifetimes](lifetimes.md) for details.         |
 
+### Supported entity id data types
+
+Only a subset of [primitive data types](#primitive-types) is supported for entity ids. The supported data types are:
+
+- `string` (default)
+- `int`: 32-bit signed integer (range from -2147483648 to +2147483647)
+- `ipv4`: IPv4 address, represented as [IPv4Address][ipaddress.IPv4Address] (passed as dotted-decimal string)
+- `ipv6`: IPv6 address, represented as [IPv6Address][ipaddress.IPv6Address] (passed as string in short or full format)
+- `mac`: MAC address, represented as [MACAddress][dp3.common.mac_address.MACAddress]  (passed as string)
+
+Whenever writing a piece of code independent of a specific configuration,
+the [`AnyEidT`][dp3.common.datatype.AnyEidT] type alias should be used.
 
 ## Attributes
 
@@ -196,9 +209,9 @@ List of supported values for parameter `data_type`:
 - `int64`: 64-bit signed integer (use when the range of normal `int` is not sufficent)
 - `float`
 - `time`: Timestamp in `YYYY-MM-DD[T]HH:MM[:SS[.ffffff]][Z or [±]HH[:]MM]` format or timestamp since 1.1.1970 in seconds or milliseconds.
-- `ip4`: IPv4 address (passed as dotted-decimal string)
-- `ip6`: IPv6 address (passed as string in short or full format)
-- `mac`: MAC address (passed as string)
+- `ipv4`: IPv4 address, represented as [IPv4Address][ipaddress.IPv4Address] (passed as dotted-decimal string)
+- `ipv6`: IPv6 address, represented as [IPv6Address][ipaddress.IPv6Address] (passed as string in short or full format)
+- `mac`: MAC address, represented as [MACAddress][dp3.common.mac_address.MACAddress]  (passed as string)
 - `json`: Any JSON object can be stored, all processing is handled by user's code. This is here for special cases which can't be mapped to any other data type.
 
 #### Composite types

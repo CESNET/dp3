@@ -162,8 +162,11 @@ class APITest(unittest.TestCase):
                 time.sleep(delay_s)
             payload = query()
             if assertion(payload):
+                if i > 0:
+                    print(f"After {i * delay_s:.2f}s: {payload}", file=sys.stderr)
                 break
-            print(payload, file=sys.stderr)
+        else:
+            print(f"After {attempts * delay_s:.2f}s: {payload}", file=sys.stderr)
         if msg:
             self.assertTrue(assertion(payload), msg=msg)
         else:

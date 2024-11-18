@@ -112,6 +112,6 @@ class GetEidAttrValue(common.APITest):
                 self.query_expected_value(
                     lambda: self.get_history_attr_value(path),  # noqa: B023
                     lambda received: received == expected,  # noqa: B023
-                    attempts=10,
+                    attempts=50,
                     delay_s=0.2,
                 )

@@ -18,14 +18,15 @@ jobs:
       - name: Pause for stack to start
         run: sleep 10
 
-      - name: Show running containers
-        run: docker ps -a
-
       - name: Integration tests - API
         run: docker run 
           --env CONF_DIR=/dp3/tests/test_config 
           --network container:dp3_api 
           dp3_interpreter python -m unittest discover -s tests/test_api -v
+
+      - name: Dump Logs on Failure
+        if: failure()
+        run: docker compose logs
 
       - name: Check worker errors
         run: docker compose logs worker | grep "WARNING\|ERROR\|exception" | grep -v "RabbitMQ\|it's\ OK\ now,\ we're\ successfully\ connected" || true

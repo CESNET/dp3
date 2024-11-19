@@ -18,9 +18,9 @@ class GetEidAttrValue(common.APITest):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        sleep(1)
+        sleep(8)
+        # Data must pass to DB before this request is processed
         cls.get_request("control/make_snapshots")
-        sleep(6)
 
     def test_unknown_entity_type(self):
         response = self.get_request(
@@ -84,23 +84,9 @@ class GetEidAttrValue(common.APITest):
         return result
 
     def test_attr_serialization(self):
-        for data_type, valid in common.values["valid"].items():
-            value = valid[-1]  # Plain attribute has the latest sent value
-            with self.subTest(data_type=data_type, v=value):
-                path = TESTED_PATH.format(
-                    entity="test_entity_type",
-                    eid="test_entity_id",
-                    attr=f"test_attr_{data_type}",
-                )
-                expected = EntityEidAttrValueOrHistory(attr_type=1, current_value=value)
-                result = self.get_entity_data(path, EntityEidAttrValueOrHistory)
-                if expected != result:
-                    print(f"Expected: {expected}")
-                    print(f"Result:   {result}")
-                self.assertEqual(expected, result)
-
+        # Test first with `query_expected_value` to await snapshot
         for data_type, valid in common.observation_values["valid"].items():
-            with self.subTest(data_type=data_type, v=value):
+            with self.subTest(data_type=data_type, v=valid):
                 path = TESTED_PATH.format(
                     entity="test_entity_type",
                     eid="test_entity_id",
@@ -115,3 +101,18 @@ class GetEidAttrValue(common.APITest):
                     attempts=50,
                     delay_s=0.2,
                 )
+
+        for data_type, valid in common.values["valid"].items():
+            value = valid[-1]  # Plain attribute has the latest sent value
+            with self.subTest(data_type=data_type, v=value):
+                path = TESTED_PATH.format(
+                    entity="test_entity_type",
+                    eid="test_entity_id",
+                    attr=f"test_attr_{data_type}",
+                )
+                expected = EntityEidAttrValueOrHistory(attr_type=1, current_value=value)
+                result = self.get_entity_data(path, EntityEidAttrValueOrHistory)
+                if expected != result:
+                    print(f"Expected: {expected}")
+                    print(f"Result:   {result}")
+                self.assertEqual(expected, result)

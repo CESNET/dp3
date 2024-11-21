@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import Json, NonNegativeInt, ValidationError
 
 from dp3.api.internal.config import DB, MODEL_SPEC, TASK_WRITER

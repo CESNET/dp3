@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -20,6 +20,7 @@ from dp3.api.internal.models import DataPoint, EntityId, EntityIdAdapter
 from dp3.api.internal.response_models import ErrorResponse, RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
 from dp3.common.task import DataPointTask, task_context
+from dp3.common.types import UTC
 from dp3.database.database import DatabaseError
 
 
@@ -354,7 +355,7 @@ async def set_eid_attr_value(
             id=eid,
             attr=attr,
             v=body.value,
-            t1=datetime.now(timezone.utc),
+            t1=datetime.now(UTC),
             src=f"{request.client.host} via API",
         )
         dp3_dp = api_to_dp3_datapoint(dp.dict())

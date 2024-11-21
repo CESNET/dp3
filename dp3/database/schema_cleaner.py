@@ -12,6 +12,7 @@ from pymongo.database import Database
 
 from dp3.common.attrspec import ID_REGEX, AttrSpecType, AttrType
 from dp3.common.config import HierarchicalDict, ModelSpec
+from dp3.common.types import UTC
 from dp3.common.utils import batched
 
 # number of seconds to wait for the i-th attempt to reconnect after error
@@ -603,7 +604,7 @@ class SchemaCleaner:
                 {"_id": {"$not": {"$regex": r"_#\d+$"}}}
             ):
                 if doc.get("oversized", False):
-                    ctime = doc["last"].get("_time_created", datetime.now())
+                    ctime = doc["last"].get("_time_created", datetime.now(UTC))
                     snapshot_col.bulk_write(
                         [
                             InsertOne(

@@ -6,12 +6,13 @@ from time import sleep
 import common
 
 from dp3.api.internal.entity_response_models import EntityEidData
+from dp3.common.types import UTC
 
 
 class SnapshotIntegration(common.APITest):
     @classmethod
     def setUpClass(cls) -> None:
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(UTC)
         t1 = (now - datetime.timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
         t2 = (now + datetime.timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
 

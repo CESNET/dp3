@@ -75,16 +75,12 @@ def get_eid_snapshots_handler(
 
 router = APIRouter(dependencies=[Depends(check_etype)])
 
-# As variable, because otherwise generates ruff B008 error
-eid_filter_query_param = Query(default="", deprecated=True)
-
 
 @router.get(
     "/{etype}", responses={400: {"description": "Query can't be processed", "model": ErrorResponse}}
 )
 async def list_entity_type_eids(
     etype: str,
-    eid_filter: str = eid_filter_query_param,
     fulltext_filters: Json = None,
     generic_filter: Json = None,
     skip: NonNegativeInt = 0,
@@ -105,8 +101,7 @@ async def list_entity_type_eids(
     Only plain and observation attributes with string-based data types can be queried.
     Array and set data types are supported as well as long as they are not multi value
     at the same time.
-    If you need to filter EIDs, use attribute `eid` (`eid_filter` is deprecated and you should
-    migrate to `fulltext_filters["eid"]`).
+    If you need to filter EIDs, use attribute fulltext_filters["eid"].
 
     Generic filter allows filtering using generic MongoDB query (including `$and`, `$or`,
     `$lt`, etc.).
@@ -183,10 +178,6 @@ async def list_entity_type_eids(
         ftr = fulltext_filters[attr]
         if not isinstance(ftr, str):
             raise HTTPException(status_code=400, detail=f"Filter '{ftr}' is not string")
-
-    # `eid_filter` is deprecated - to be removed in the future
-    if eid_filter:
-        fulltext_filters["eid"] = eid_filter
 
     try:
         cursor, total_count = DB.snapshots.get_latest(etype, fulltext_filters, generic_filter)

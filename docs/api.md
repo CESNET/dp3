@@ -7,7 +7,9 @@ There are several API endpoints:
 
 - [`GET /`](#index): check if API is running (just returns `It works!` message)
 - [`POST /datapoints`](#insert-datapoints): insert datapoints into DP³
-- [`GET /entity/<entity_type>`](#list-entities): list current snapshots of all entities of given type
+- ~~[`GET /entity/<entity_type>`](#list-entities): list current snapshots of all entities of given type~~
+- [`GET /entity/<entity_type>/get`](#get-entities): get current snapshots of entities of entity type
+- [`GET /entity/<entity_type>/count`](#count-entities): get total document count for query of entity type
 - [`GET /entity/<entity_type>/<entity_id>`](#get-eid-data): get data of entity with given entity id
 - [`GET /entity/<entity_type>/<entity_id>/get/<attr_id>`](#get-attr-value): get attribute value
 - [`GET /entity/<entity_type>/<entity_id>/set/<attr_id>`](#set-attr-value): set attribute value
@@ -198,7 +200,45 @@ v -> some_embedded_dict_field
 
 ## List entities
 
+!!! warning "Deprecated"
+
+    This endpoint is deprecated and will be removed in the future, 
+    Use [`GET /entity/<entity_type>/get`](#get-entities) to get paged documents and
+    [`GET /entity/<entity_type>/count`](#count-entities) to get total document count for query.
+
 List latest snapshots of all ids present in database under entity type, 
+filtered by `generic_filter` and `fulltext_filters`.
+Contains only the latest snapshot per entity. 
+
+Counts all results for given query.
+
+### Request
+
+`GET /entity/<entity_type>`
+
+**Optional query parameters:**
+
+- skip: how many entities to skip (default: 0)
+- limit: how many entities to return (default: 20)
+- fulltext_filters: dictionary of fulltext filters (default: no filters)
+- generic_filter: dictionary of generic filters (default: no filters)
+
+### Response
+
+```json
+{
+  "time_created": "2023-07-04T12:10:38.827Z",
+  "data": [
+    {}
+  ]
+}
+```
+
+---
+
+## Get entities
+
+Get a list of latest snapshots of all ids present in database under entity type,
 filtered by `generic_filter` and `fulltext_filters`.
 Contains only the latest snapshot per entity.
 
@@ -239,6 +279,31 @@ Generic and fulltext filters are merged - fulltext overrides conflicting keys.
   "data": [
     {}
   ]
+}
+```
+
+---
+
+## Count entities
+
+Count latest snapshots of all ids present in database under entity type,
+filtered by `generic_filter` and `fulltext_filters`.
+See [`GET /entity/<entity_type>/get`](#get-entities) for details on filter format.
+
+### Request
+
+`GET /entity/<entity_type>/count`
+
+**Optional query parameters:**
+
+- fulltext_filters: dictionary of fulltext filters (default: no filters)
+- generic_filter: dictionary of generic filters (default: no filters)
+
+### Response
+
+```json
+{
+  "total_count": 0
 }
 ```
 

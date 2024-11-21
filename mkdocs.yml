@@ -82,6 +82,8 @@ markdown_extensions:
   # Additional attribute lists (used e.g. for image size)
   - attr_list
   - md_in_html
+  # Strike-through
+  - pymdownx.tilde
 
 plugins:
   # Default search bar

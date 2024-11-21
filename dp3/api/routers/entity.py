@@ -8,6 +8,7 @@ from dp3.api.internal.config import DB, MODEL_SPEC, TASK_WRITER
 from dp3.api.internal.entity_response_models import (
     EntityEidAttrValue,
     EntityEidAttrValueOrHistory,
+    EntityEidCount,
     EntityEidData,
     EntityEidList,
     EntityEidMasterRecord,
@@ -76,8 +77,29 @@ def get_eid_snapshots_handler(
 router = APIRouter(dependencies=[Depends(check_etype)])
 
 
+def _validate_snapshot_filters(fulltext_filters, generic_filter):
+    if not fulltext_filters:
+        fulltext_filters = {}
+    if not isinstance(fulltext_filters, dict):
+        raise HTTPException(status_code=400, detail="Fulltext filter is invalid")
+
+    if not generic_filter:
+        generic_filter = {}
+    if not isinstance(generic_filter, dict):
+        raise HTTPException(status_code=400, detail="Generic filter is invalid")
+
+    for attr in fulltext_filters:
+        ftr = fulltext_filters[attr]
+        if not isinstance(ftr, str):
+            raise HTTPException(status_code=400, detail=f"Filter '{ftr}' is not string")
+
+    return fulltext_filters, generic_filter
+
+
 @router.get(
-    "/{etype}", responses={400: {"description": "Query can't be processed", "model": ErrorResponse}}
+    "/{etype}",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+    deprecated=True,
 )
 async def list_entity_type_eids(
     etype: str,
@@ -88,7 +110,47 @@ async def list_entity_type_eids(
 ) -> EntityEidList:
     """List latest snapshots of all `id`s present in database under `etype`.
 
+    Deprecated in favor of `/entity/{etype}/get` and `/entity/{etype}/count` endpoints,
+    which provide more flexibility and better performance.
+
+    See `/entity/{etype}/get` for more information.
+    """
+    fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
+
+    try:
+        cursor, total_count = DB.snapshots.get_latest(etype, fulltext_filters, generic_filter)
+        cursor_page = cursor.skip(skip).limit(limit)
+    except DatabaseError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    time_created = None
+
+    # Remove _id field
+    result = [r["last"] for r in cursor_page]
+    for r in result:
+        time_created = r["_time_created"]
+        del r["_time_created"]
+
+    return EntityEidList(
+        time_created=time_created, count=len(result), total_count=total_count, data=result
+    )
+
+
+@router.get(
+    "/{etype}/get",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
+async def get_entity_type_eids(
+    etype: str,
+    fulltext_filters: Json = None,
+    generic_filter: Json = None,
+    skip: NonNegativeInt = 0,
+    limit: NonNegativeInt = 20,
+) -> EntityEidList:
+    """List latest snapshots of all `id`s present in database under `etype`.
+
     Contains only latest snapshot.
+    The `total_count` returned is always 0, use `/entity/{etype}/count` to get total count.
 
     Uses pagination.
     Setting `limit` to 0 is interpreted as no limit (return all results).
@@ -164,23 +226,10 @@ async def list_entity_type_eids(
 
     Generic and fulltext filters are merged - fulltext overrides conflicting keys.
     """
-    if not fulltext_filters:
-        fulltext_filters = {}
-    if not isinstance(fulltext_filters, dict):
-        raise HTTPException(status_code=400, detail="Fulltext filter is invalid")
-
-    if not generic_filter:
-        generic_filter = {}
-    if not isinstance(generic_filter, dict):
-        raise HTTPException(status_code=400, detail="Generic filter is invalid")
-
-    for attr in fulltext_filters:
-        ftr = fulltext_filters[attr]
-        if not isinstance(ftr, str):
-            raise HTTPException(status_code=400, detail=f"Filter '{ftr}' is not string")
+    fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
 
     try:
-        cursor, total_count = DB.snapshots.get_latest(etype, fulltext_filters, generic_filter)
+        cursor = DB.snapshots.find_latest(etype, fulltext_filters, generic_filter)
         cursor_page = cursor.skip(skip).limit(limit)
     except DatabaseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -193,9 +242,34 @@ async def list_entity_type_eids(
         time_created = r["_time_created"]
         del r["_time_created"]
 
-    return EntityEidList(
-        time_created=time_created, count=len(result), total_count=total_count, data=result
-    )
+    return EntityEidList(time_created=time_created, count=len(result), total_count=0, data=result)
+
+
+@router.get(
+    "/{etype}/count",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
+async def count_entity_type_eids(
+    etype: str,
+    fulltext_filters: Json = None,
+    generic_filter: Json = None,
+) -> EntityEidCount:
+    """Count latest snapshots of all `id`s present in database under `etype`.
+
+    Returns only count of documents matching `generic_filter` and `fulltext_filters`,
+    see `/entity/{etype}/get` documentation for details.
+
+    Note that responses from this endpoint may take much longer than `/entity/{etype}/get`
+    for large datasets.
+    """
+    fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
+
+    try:
+        count = DB.snapshots.count_latest(etype, fulltext_filters, generic_filter)
+    except DatabaseError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return EntityEidCount(total_count=count)
 
 
 @router.get("/{etype}/{eid}")

@@ -16,7 +16,7 @@ from dp3.common.attrspec import (
 )
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
-from dp3.common.types import DP3Encoder, ParsedTimedelta
+from dp3.common.types import UTC, DP3Encoder, ParsedTimedelta
 from dp3.common.utils import entity_expired
 from dp3.database.database import DatabaseError, EntityDatabase
 
@@ -161,7 +161,7 @@ class HistoryManager:
 
     def delete_old_snapshots(self):
         """Deletes old snapshots."""
-        t_old = datetime.now() - self.keep_snapshot_delta
+        t_old = datetime.now(UTC) - self.keep_snapshot_delta
         self.log.debug("Deleting all snapshots before %s", t_old)
 
         deleted_total = 0
@@ -258,10 +258,9 @@ class HistoryManager:
 
     def aggregate_master_docs(self):
         self.log.debug("Starting master documents aggregation.")
-        start = datetime.now()
-        utcnow = datetime.utcnow()
+        ts = datetime.now(UTC)
         entities = 0
-        self.db.save_metadata(start, {"entities": 0, "aggregation_start": start})
+        self.db.save_metadata(ts, {"entities": 0, "aggregation_start": ts})
 
         for entity in self.model_spec.entities:
             entity_attr_specs = self.model_spec.entity_attributes[entity]
@@ -272,7 +271,7 @@ class HistoryManager:
             )
             try:
                 for master_document in records_cursor:
-                    if entity_expired(utcnow, master_document):
+                    if entity_expired(ts, master_document):
                         continue  # Avoid expired entities to avoid conflict with garbage collector
 
                     entities += 1
@@ -293,7 +292,7 @@ class HistoryManager:
                 records_cursor.close()
 
         self.db.update_metadata(
-            start, metadata={"aggregation_end": datetime.now()}, increase={"entities": entities}
+            ts, metadata={"aggregation_end": datetime.now(UTC)}, increase={"entities": entities}
         )
         self.log.debug("Master documents aggregation end.")
 

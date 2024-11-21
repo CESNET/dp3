@@ -2,9 +2,9 @@
 auxiliary/utility functions and classes
 """
 
-import datetime
 import re
 from collections.abc import Iterable, Iterator
+from datetime import datetime, timedelta
 from functools import partial
 from itertools import islice
 from typing import Union
@@ -65,8 +65,8 @@ def parse_rfc_time(time_str):
         us = int(us_str)
         zonestr = res.group(8)
         zoneoffset = 0 if zonestr in (None, "z", "Z") else int(zonestr[:3]) * 60 + int(zonestr[4:6])
-        zonediff = datetime.timedelta(minutes=zoneoffset)
-        return datetime.datetime(year, month, day, hour, minute, second, us) - zonediff
+        zonediff = timedelta(minutes=zoneoffset)
+        return datetime(year, month, day, hour, minute, second, us) - zonediff
     else:
         raise ValueError("Wrong timestamp format")
 
@@ -74,18 +74,18 @@ def parse_rfc_time(time_str):
 time_duration_pattern = re.compile(r"^\s*(\d+)([smhd])?$")
 
 
-def parse_time_duration(duration_string: Union[str, int, datetime.timedelta]) -> datetime.timedelta:
+def parse_time_duration(duration_string: Union[str, int, timedelta]) -> timedelta:
     """
     Parse duration in format <num><s/m/h/d> (or just "0").
 
     Return datetime.timedelta
     """
     # if it's already timedelta, just return it unchanged
-    if isinstance(duration_string, datetime.timedelta):
+    if isinstance(duration_string, timedelta):
         return duration_string
     # if number is passed, consider it number of seconds
     if isinstance(duration_string, (int, float)):
-        return datetime.timedelta(seconds=duration_string)
+        return timedelta(seconds=duration_string)
 
     d = 0
     h = 0
@@ -105,7 +105,7 @@ def parse_time_duration(duration_string: Union[str, int, datetime.timedelta]) ->
     else:
         raise ValueError("Invalid time duration string")
 
-    return datetime.timedelta(days=d, hours=h, minutes=m, seconds=s)
+    return timedelta(days=d, hours=h, minutes=m, seconds=s)
 
 
 # *** object (de)serialization ***
@@ -118,14 +118,14 @@ def conv_to_json(obj):
     - datetime
     - timedelta
     """
-    if isinstance(obj, datetime.datetime):
+    if isinstance(obj, datetime):
         if obj.tzinfo:
             raise NotImplementedError(
                 "Can't serialize timezone-aware datetime object "
                 "(DP3 policy is to use naive datetimes in UTC everywhere)"
             )
         return {"$datetime": obj.strftime("%Y-%m-%dT%H:%M:%S.%f")}
-    if isinstance(obj, datetime.timedelta):
+    if isinstance(obj, timedelta):
         return {"$timedelta": f"{obj.days},{obj.seconds},{obj.microseconds}"}
     raise TypeError(f"{repr(obj)}%r is not JSON serializable")
 
@@ -140,10 +140,10 @@ def conv_from_json(dct):
     """
     if "$datetime" in dct:
         val = dct["$datetime"]
-        return datetime.datetime.strptime(val, "%Y-%m-%dT%H:%M:%S.%f")
+        return datetime.strptime(val, "%Y-%m-%dT%H:%M:%S.%f")
     if "$timedelta" in dct:
         days, seconds, microseconds = dct["$timedelta"].split(",")
-        return datetime.timedelta(int(days), int(seconds), int(microseconds))
+        return timedelta(int(days), int(seconds), int(microseconds))
     return dct
 
 

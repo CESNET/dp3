@@ -5,6 +5,7 @@ import common
 from pydantic import RootModel
 
 from dp3.api.internal.entity_response_models import EntityEidData, EntityEidMasterRecord
+from dp3.common.types import UTC
 
 DATAPOINT_COUNT = 6
 
@@ -14,9 +15,9 @@ class GetEntityEidData(common.APITest):
 
     def setUp(self) -> None:
         super().setUpClass()
-        t1 = datetime.now() - timedelta(minutes=30)
+        t1 = datetime.now(UTC) - timedelta(minutes=30)
         t2 = t1 + timedelta(minutes=10)
-        self.eid = f"test_get_data__{datetime.now()}"
+        self.eid = f"test_get_data__{datetime.now(UTC)}"
         dp_base = {
             "src": "setup@test",
             "attr": "test_attr_history",

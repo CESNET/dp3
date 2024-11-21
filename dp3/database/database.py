@@ -24,7 +24,7 @@ from dp3.common.datapoint import DataPointBase
 from dp3.common.datatype import AnyEidT
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
-from dp3.common.types import EventGroupType
+from dp3.common.types import UTC, EventGroupType
 from dp3.database.config import MongoConfig, MongoReplicaConfig, MongoStandaloneConfig
 from dp3.database.encodings import get_codec_options
 from dp3.database.exceptions import DatabaseError
@@ -319,7 +319,7 @@ class EntityDatabase:
                 continue
 
             # Create wildcard index for attribute histories
-            index_name = f"wildcard_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            index_name = f"wildcard_{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
             try:
                 master_col.create_index(
                     [("$**", 1)],
@@ -395,6 +395,7 @@ class EntityDatabase:
 
         # Update master document
         master_changes = {"pushes": defaultdict(list), "$set": {}}
+        dt_now = datetime.now(UTC)
         for dp in dps:
             attr_spec = self._db_schema_config.attr(etype, dp.attr)
 
@@ -405,7 +406,7 @@ class EntityDatabase:
 
             # Rewrite value of plain attribute
             if attr_spec.t == AttrType.PLAIN:
-                master_changes["$set"][dp.attr] = {"v": v, "ts_last_update": datetime.now()}
+                master_changes["$set"][dp.attr] = {"v": v, "ts_last_update": dt_now}
 
             # Push new data of observation
             if attr_spec.t == AttrType.OBSERVATIONS:
@@ -419,7 +420,7 @@ class EntityDatabase:
 
         if new_entity:
             master_changes["$set"]["#hash"] = HASH(f"{etype}:{eid}")
-            master_changes["$set"]["#time_created"] = datetime.now()
+            master_changes["$set"]["#time_created"] = dt_now
 
         with self._master_buffer_locks[etype]:
             if eid in self._master_buffers[etype]:
@@ -851,7 +852,7 @@ class EntityDatabase:
         metadata["_id"] = self._get_metadata_id(module, time, worker_id)
         metadata["#module"] = module
         metadata["#time_created"] = time
-        metadata["#last_update"] = datetime.now()
+        metadata["#last_update"] = datetime.now(UTC)
         try:
             self._db["#metadata"].insert_one(metadata)
             self.log.debug("Inserted metadata %s: %s", metadata["_id"], metadata)
@@ -864,7 +865,7 @@ class EntityDatabase:
         """Updates existing metadata of caller module and passed timestamp."""
         module = get_caller_id()
         metadata_id = self._get_metadata_id(module, time, worker_id)
-        metadata["#last_update"] = datetime.now()
+        metadata["#last_update"] = datetime.now(UTC)
 
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}
 
@@ -902,7 +903,7 @@ class EntityDatabase:
             list of dicts (reduced datapoints)
         """
         t1 = datetime.fromtimestamp(0) if t1 is None else t1.replace(tzinfo=None)
-        t2 = datetime.now() if t2 is None else t2.replace(tzinfo=None)
+        t2 = datetime.utcnow() if t2 is None else t2.replace(tzinfo=None)
 
         # Get attribute history
         mr = self.get_master_record(etype, eid)
@@ -957,7 +958,7 @@ class EntityDatabase:
              list of dicts (reduced datapoints) - each represents just one point at time
         """
         t1 = datetime.fromtimestamp(0) if t1 is None else t1.replace(tzinfo=None)
-        t2 = datetime.now() if t2 is None else t2.replace(tzinfo=None)
+        t2 = datetime.now(UTC) if t2 is None else t2.replace(tzinfo=None)
 
         attr_history = self.get_observation_history(etype, attr_name, eid, t1, t2, sort)
         if not attr_history:

@@ -14,7 +14,7 @@ from pymongo.results import UpdateResult
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, task_context
-from dp3.common.types import EventGroupType, ParsedTimedelta
+from dp3.common.types import UTC, EventGroupType, ParsedTimedelta
 from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -79,7 +79,7 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
     @classmethod
     def new(cls, hooks: dict, period: float, entity_type: str, eid_only: bool = False):
         """Create a new instance initialized with hooks and thread_id components."""
-        now = datetime.now()
+        now = datetime.now(UTC)
         return cls(
             t_created=now,
             t_last_update=now,
@@ -102,7 +102,7 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
 
     def reset(self):
         """Resets counters and timestamps."""
-        now = datetime.now()
+        now = datetime.now(UTC)
         self.t_created = now
         self.t_last_update = now
         self.t_end = now + timedelta(seconds=self.period)
@@ -399,7 +399,7 @@ class Updater:
             state.period,
             state.eid_only,
         )
-        start = datetime.now()
+        start = datetime.now(UTC)
         iteration_cnt = state.total_iterations
         iteration = state.iteration
 
@@ -418,7 +418,7 @@ class Updater:
             hook_runner(hooks, entity_type, record)
 
             state.processed += 1
-        state.t_last_update = datetime.now()
+        state.t_last_update = datetime.now(UTC)
 
         duration = state.t_last_update - start
         state.runtime_secs += duration.total_seconds()

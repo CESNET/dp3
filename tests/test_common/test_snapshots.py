@@ -10,6 +10,7 @@ from event_count_logger import DummyEventGroup
 
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
 from dp3.common.task import Task
+from dp3.common.types import UTC
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.snapshots.snapshot_hooks import SnapshotCorrelationHookContainer
 
@@ -153,7 +154,7 @@ class TestSnapshotOperation(unittest.TestCase):
         config = read_config_dir(config_base_path, recursive=True)
         self.model_spec = ModelSpec(config.get("db_entities"))
 
-        self.now = datetime.datetime.now()
+        self.now = datetime.datetime.now(UTC)
         self.t1 = self.now - datetime.timedelta(minutes=30)
         self.t2 = self.now + datetime.timedelta(minutes=30)
 

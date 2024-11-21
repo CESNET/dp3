@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from ipaddress import IPv4Address, IPv6Address
 from json import JSONEncoder
 from typing import Annotated, Any, Union
@@ -8,6 +8,8 @@ from pydantic import AfterValidator, BeforeValidator
 from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.utils import parse_time_duration, time_duration_pattern
+
+UTC = timezone.utc
 
 
 def parse_timedelta_or_passthrough(v):

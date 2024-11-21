@@ -6,7 +6,6 @@ import queue
 import sys
 import threading
 import time
-from datetime import datetime
 from functools import partial
 
 from dp3.common.config import PlatformConfig
@@ -204,14 +203,14 @@ class TaskDistributor:
                 continue
 
             # Process the task
-            start_time = datetime.now()
+            start_time = time.time()
             try:
                 created, new_tasks = self.task_executor.process_task(task)
             except Exception:
                 self.log.error(f"Error has occurred during processing task: {task}")
                 raise
 
-            duration = (datetime.now() - start_time).total_seconds()
+            duration = time.time() - start_time
             # self.log.debug("Task {} finished in {:.3f} seconds.".format(msg_id, duration))
             if duration > 1.0:
                 self.log.debug(

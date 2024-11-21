@@ -15,6 +15,7 @@ from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.datatype import AnyEidT
 from dp3.common.task import DataPointTask, parse_eids_from_cache
+from dp3.common.types import UTC
 from dp3.database.database import EntityDatabase
 
 DB_SEND_CHUNK = 1000
@@ -158,7 +159,7 @@ class GarbageCollector:
     def collect_weak(self, etype: str):
         """Deletes weak entities when their last reference has expired."""
         self.log.debug("Starting removal of '%s' weak entities", etype)
-        start = datetime.now()
+        start = datetime.now(UTC)
         entities = 0
         deleted = 0
 
@@ -203,7 +204,7 @@ class GarbageCollector:
 
         self.db.update_metadata(
             start,
-            metadata={"weak_collect_end": datetime.now()},
+            metadata={"weak_collect_end": datetime.now(UTC)},
             increase={"entities": entities, "deleted": deleted},
         )
         self.log.info(
@@ -216,8 +217,7 @@ class GarbageCollector:
     def collect_ttl(self, etype: str):
         """Deletes entities after their TTL lifetime has expired."""
         self.log.debug("Starting removal of '%s' entities by TTL", etype)
-        start = datetime.now()
-        utc_now = datetime.utcnow()
+        now = datetime.utcnow()
         entities = 0
         deleted = 0
 
@@ -225,7 +225,7 @@ class GarbageCollector:
         expired_ttls = {}
 
         self.db.save_metadata(
-            start, {"entities": 0, "deleted": 0, "ttl_collect_start": start, "entity": etype}
+            now, {"entities": 0, "deleted": 0, "ttl_collect_start": now, "entity": etype}
         )
 
         records_cursor = self.db.get_worker_master_records(
@@ -237,12 +237,12 @@ class GarbageCollector:
                 if "#ttl" not in master_document:
                     continue  # TTL not set, ignore for now
 
-                if all(ttl < utc_now for ttl in master_document["#ttl"].values()):
+                if all(ttl < now for ttl in master_document["#ttl"].values()):
                     deleted += 1
                     to_delete.append(master_document["_id"])
                 else:
                     eid_expired_ttls = [
-                        name for name, ttl in master_document["#ttl"].items() if ttl < start
+                        name for name, ttl in master_document["#ttl"].items() if ttl < now
                     ]
                     if eid_expired_ttls:
                         expired_ttls[master_document["_id"]] = eid_expired_ttls
@@ -265,8 +265,8 @@ class GarbageCollector:
             records_cursor.close()
 
         self.db.update_metadata(
-            start,
-            metadata={"ttl_collect_end": datetime.now()},
+            now,
+            metadata={"ttl_collect_end": datetime.now(UTC)},
             increase={"entities": entities, "deleted": deleted},
         )
         self.log.info(

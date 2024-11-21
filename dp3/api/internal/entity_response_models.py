@@ -52,6 +52,12 @@ class EntityEidList(BaseModel):
     data: EntityEidSnapshots
 
 
+class EntityEidCount(BaseModel):
+    """Total count of documents available under specified filter."""
+
+    total_count: int
+
+
 class EntityEidData(BaseModel):
     """Data of entity eid
 

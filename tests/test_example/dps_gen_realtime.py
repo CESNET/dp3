@@ -70,9 +70,7 @@ if __name__ == "__main__":
     dps = []
 
     # One-time datapoints
-    for n in bus_lines:
-        bus_line = bus_lines[n]
-
+    for n, bus_line in bus_lines.items():
         dps.append(
             {
                 "type": "bus",
@@ -87,9 +85,7 @@ if __name__ == "__main__":
 
     # Realtime datapoints
     while True:
-        for n in bus_lines:
-            bus_line = bus_lines[n]
-
+        for n, bus_line in bus_lines.items():
             dps.append(
                 {
                     "type": "bus",

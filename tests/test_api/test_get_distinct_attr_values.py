@@ -22,14 +22,14 @@ class GetDistinctAttrValues(APITest):
         }
 
         # Push datapoints
-        for attr in dps_attr_value:
+        for attr, attr_val in dps_attr_value.items():
             res = cls.push_datapoints(
                 [
                     {
                         "type": "test_entity_type",
                         "id": "test_entity_id",
                         "attr": attr,
-                        "v": dps_attr_value[attr],
+                        "v": attr_val,
                     }
                 ]
             )

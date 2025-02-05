@@ -58,9 +58,7 @@ bus_lines = {
     "S20": {"label": "School bus 20", "location": random_initial_location()},
 }
 
-for n in bus_lines:
-    bus_line = bus_lines[n]
-
+for n, bus_line in bus_lines.items():
     dps.append(
         {
             "type": "bus",

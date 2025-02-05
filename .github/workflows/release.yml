@@ -16,7 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: jpetrucciani/ruff-check@main
+      - uses: astral-sh/ruff-action@v3
+        with:
+          version: "0.9.4"
 
   # Tests
   api-tests:

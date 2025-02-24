@@ -246,7 +246,7 @@ class TypedSnapshotCollection(abc.ABC):
         query["latest"] = True
 
         # Process fulltext filters
-        for attr, attr_filter in fulltext_filters:
+        for attr, attr_filter in fulltext_filters.items():
             fulltext_filter = {"$regex": attr_filter, "$options": "i"}
 
             # EID filter

@@ -353,13 +353,14 @@ class ModelSpec(BaseModel):
             linked_entity = attr_spec.relation_to
             linked_attr = attr_spec.mirror_as
 
-            mirror_attr = AttrSpecReadOnly(
-                id=linked_attr,
-                name=linked_attr,
-                data_type=f"set<link<{entity}>>",
-                type="plain",
-                description=f"Read-only mirror attribute of {entity}.{attr}",
-            )
+            with entity_context(self.entities[entity], self.entities):
+                mirror_attr = AttrSpecReadOnly(
+                    id=linked_attr,
+                    name=linked_attr,
+                    data_type=f"set<link<{entity}>>",
+                    type="plain",
+                    description=f"Read-only mirror attribute of {entity}.{attr}",
+                )
 
             # We will accept correct definitions of mirrored attributes to fix errors when
             # a `ModelSpec` instance is validated again (e.g. when passed to `PlatformConfig`)

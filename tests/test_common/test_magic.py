@@ -68,8 +68,8 @@ class TestSearchAndReplace(unittest.TestCase):
         query = {"_id": "$$Binary_ID{$$IPv4{127.0.0.1}}"}
         expected = {
             "_id": {
-                "$gte": Binary(b"\x7F\x00\x00\x01" + (b"\x00" * 8), subtype=BINARY_SUBTYPE),
-                "$lt": Binary(b"\x7F\x00\x00\x01" + (b"\xFF" * 8), subtype=BINARY_SUBTYPE),
+                "$gte": Binary(b"\x7f\x00\x00\x01" + (b"\x00" * 8), subtype=BINARY_SUBTYPE),
+                "$lt": Binary(b"\x7f\x00\x00\x01" + (b"\xff" * 8), subtype=BINARY_SUBTYPE),
             }
         }
         self.assertEqual(search_and_replace(query), expected)
@@ -84,7 +84,7 @@ class TestSearchAndReplace(unittest.TestCase):
         expected = {
             "_id": {
                 "$gte": Binary(b"\x00\x11\x22\x33\x44\x55" + (b"\x00" * 8), subtype=BINARY_SUBTYPE),
-                "$lt": Binary(b"\x00\x11\x22\x33\x44\x55" + (b"\xFF" * 8), subtype=BINARY_SUBTYPE),
+                "$lt": Binary(b"\x00\x11\x22\x33\x44\x55" + (b"\xff" * 8), subtype=BINARY_SUBTYPE),
             }
         }
         self.assertEqual(search_and_replace(query), expected)

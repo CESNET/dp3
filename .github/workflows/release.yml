@@ -11,6 +11,7 @@ jobs:
       - uses: psf/black@stable
         with:
           options: "--check --verbose --diff --color"
+          version: "25.1.0"
 
   ruff:
     runs-on: ubuntu-latest

@@ -83,7 +83,7 @@ def instanciate_dps(v, info: FieldValidationInfo):
     if isinstance(v, DataPointBase):
         return v
     # Return to give clearer error message if etype or attr is not present
-    if "etype" not in info.data or "attr" not in info.data:
+    if "etype" not in v or "attr" not in v:
         return v
 
     etype = v.get("etype")

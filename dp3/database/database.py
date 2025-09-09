@@ -426,10 +426,9 @@ class EntityDatabase:
                 for attr, push_dps in master_changes["pushes"].items():
                     if "pushes" not in self._master_buffers[etype][eid]:
                         self._master_buffers[etype][eid]["pushes"] = {}
-                    if attr in self._master_buffers[etype][eid]["pushes"]:
-                        self._master_buffers[etype][eid]["pushes"][attr].extend(push_dps)
-                    else:
-                        self._master_buffers[etype][eid]["pushes"][attr] = push_dps
+                    if attr not in self._master_buffers[etype][eid]["pushes"]:
+                        self._master_buffers[etype][eid]["pushes"][attr] = []
+                    self._master_buffers[etype][eid]["pushes"][attr].extend(push_dps)
                 if "$set" not in self._master_buffers[etype][eid]:
                     self._master_buffers[etype][eid]["$set"] = {}
                 self._master_buffers[etype][eid]["$set"].update(master_changes["$set"])

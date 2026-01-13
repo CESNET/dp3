@@ -334,14 +334,22 @@ on the data of the snapshot.
 
 #### Snapshots Correlation Hook
 
+There are two correlation hooks available:
+
+- [`register_correlation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
+- [`register_correlation_hook_with_master_record`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook_with_master_record]
+
+Both do the same thing, but as the naming suggests, the latter also provides a master record.
 The [`register_correlation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
 method expects a callable with the following signature: 
 `Callable[[str, dict], Union[None, list[DataPointTask]]]`, where the first argument is the entity type, and the second is a dict
 containing the current values of the entity and its linked entities.
-The method can optionally return a list of DataPointTask objects to be inserted into the system.
+The [`register_correlation_hook_with_master_record`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook_with_master_record] method expects a callable with the following signature: 
+`Callable[[str, dict, dict], Union[None, list[DataPointTask]]]` - the first two arguments are identical (entity type and dict with current values), but there is also a third argument: a dictionary of values stored in the master record of the entity.
+The method (applicable to both variants) can optionally return a list of `DataPointTask` objects to be inserted into the system.
 
 As correlation hooks can depend on each other, the hook inputs and outputs must be specified
-using the depends_on and may_change arguments. Both arguments are lists of lists of strings,
+using the `depends_on` and `may_change` arguments. Both arguments are lists of lists of strings,
 where each list of strings is a path from the specified entity type to individual attributes (even on linked entities).
 For example, if the entity type is `test_entity_type`, and the hook depends on the attribute `test_attr_type1`,
 the path is simply `[["test_attr_type1"]]`. If the hook depends on the attribute `test_attr_type1` 
@@ -351,8 +359,20 @@ of an  entity linked using `test_attr_link`, the path will be `[["test_attr_link
 def correlation_hook(entity_type: str, values: dict):
     ...
 
+def correlation_hook_with_master_record(entity_type: str, values: dict, master_record: dict):
+    ...
+
+# Without master record
 registrar.register_correlation_hook(
     correlation_hook, "test_entity_type", [["test_attr_type1"]], [["test_attr_type2"]]
+)
+
+# Or with master record
+registrar.register_correlation_hook_with_master_record(
+    correlation_hook_with_master_record,
+    "test_entity_type",
+    [["test_attr_type1"]],
+    [["test_attr_type2"]]
 )
 ```
 

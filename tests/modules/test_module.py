@@ -14,9 +14,11 @@ def modify_value(_: str, record: dict, attr: str, value):
     record[attr] = value
 
 
-def use_master_record(_: str, record: dict, master_record: dict, target_attr: str, source_attr: str):
+def use_master_record(
+    _: str, record: dict, master_record: dict, target_attr: str, source_attr: str
+):
     """Hook that uses master record to copy a value from master to snapshot.
-    
+
     Only applies when source attribute in master record has value starting with "master_"
     to avoid interfering with other test cases.
     """

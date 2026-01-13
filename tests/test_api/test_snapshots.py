@@ -96,4 +96,3 @@ class SnapshotIntegration(common.APITest):
             self.assertEqual(snapshot["data1"], "master_test")
             # The hook should have set data2 to data1 from master record + "_from_master"
             self.assertEqual(snapshot["data2"], "master_test_from_master")
-

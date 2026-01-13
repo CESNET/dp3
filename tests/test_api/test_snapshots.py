@@ -43,8 +43,8 @@ class SnapshotIntegration(common.APITest):
             make_dp("C", "c1", "data1", "inita"),
             make_dp("C", "c1", "data2", "inita"),
             # For test_master_record_hook (A-423)
-            make_dp("A", 423, "data1", "master_test"),
-            make_dp("A", 423, "data2", "placeholder"),
+            make_dp("A", 423, "data3", "master_test"),
+            make_dp("A", 423, "data4", "placeholder"),
         ]
         res = cls.push_datapoints(entity_datapoints)
         if res.status_code != 200:
@@ -93,6 +93,6 @@ class SnapshotIntegration(common.APITest):
         data = self.get_entity_data("entity/A/423", EntityEidData)
         self.assertGreater(len(data.snapshots), 0)
         for snapshot in data.snapshots:
-            self.assertEqual(snapshot["data1"], "master_test")
-            # The hook should have set data2 to data1 from master record + "_from_master"
-            self.assertEqual(snapshot["data2"], "master_test_from_master")
+            self.assertEqual(snapshot["data3"], "master_test")
+            # The hook should have set data4 to data3 from master record + "_from_master"
+            self.assertEqual(snapshot["data4"], "master_test_from_master")

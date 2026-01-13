@@ -17,6 +17,18 @@ attribs:
     type: plain
     data_type: string
 
+  data3:
+    name: data3
+    description: entity data
+    type: plain
+    data_type: string
+
+  data4:
+    name: data4
+    description: entity data
+    type: plain
+    data_type: string
+
   as:
     name: As
     description: Link to other A entities

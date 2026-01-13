@@ -14,6 +14,22 @@ def modify_value(_: str, record: dict, attr: str, value):
     record[attr] = value
 
 
+def use_master_record(
+    _: str, record: dict, master_record: dict, target_attr: str, source_attr: str
+):
+    """Hook that uses master record to copy a value from master to snapshot.
+
+    Only applies when source attribute in master record has value starting with "master_"
+    to avoid interfering with other test cases.
+    """
+    if source_attr in master_record:
+        # Get the value from master record
+        master_value = master_record[source_attr].get("v", None)
+        if master_value is not None and str(master_value).startswith("master_"):
+            # Append a suffix to demonstrate master record was used
+            record[target_attr] = f"{master_value}_from_master"
+
+
 dummy_hook_abc = update_wrapper(partial(modify_value, attr="data2", value="abc"), modify_value)
 dummy_hook_def = update_wrapper(partial(modify_value, attr="data1", value="def"), modify_value)
 
@@ -66,4 +82,16 @@ class TestModule(BaseModule):
             "D",
             depends_on=[],
             may_change=[["data1"]],
+        )
+
+        # Testing register_correlation_hook_with_master_record
+        # This hook should copy data1 from master record to data2 with a suffix
+        registrar.register_correlation_hook_with_master_record(
+            update_wrapper(
+                partial(use_master_record, target_attr="data2", source_attr="data1"),
+                use_master_record,
+            ),
+            "A",
+            depends_on=[],
+            may_change=[["data2"]],
         )

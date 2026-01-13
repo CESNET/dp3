@@ -13,6 +13,7 @@ from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask
 from dp3.common.types import ParsedTimedelta
+from dp3.common.utils import get_func_name
 from dp3.core.updater import Updater
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.task_processing.task_executor import TaskExecutor
@@ -357,6 +358,43 @@ class CallbackRegistrar:
         Args:
             hook: `hook` callable should expect entity type as str
                 and its current values, including linked entities, as dict.
+                Can optionally return a list of DataPointTask objects to perform.
+            entity_type: specifies entity type
+            depends_on: each item should specify an attribute that is depended on
+                in the form of a path from the specified entity_type to individual attributes
+                (even on linked entities).
+            may_change: each item should specify an attribute that `hook` may change.
+                specification format is identical to `depends_on`.
+
+        Raises:
+            ValueError: On failure of specification validation.
+        """
+        # Ignore master record for this variant of the hook
+        hook_name = get_func_name(hook)
+        self._snap_shooter.register_correlation_hook(
+            lambda e, s, _m: hook(e, s), entity_type, depends_on, may_change, hook_name=hook_name
+        )
+
+    def register_correlation_hook_with_master_record(
+        self,
+        hook: Callable[[str, dict, dict], Union[None, list[DataPointTask]]],
+        entity_type: str,
+        depends_on: list[list[str]],
+        may_change: list[list[str]],
+    ):
+        """
+        Registers passed hook to be called during snapshot creation.
+
+        Identical to `register_correlation_hook`, but the hook also receives the master record.
+
+        Binds hook to specified entity_type (though same hook can be bound multiple times).
+
+        `entity_type` and attribute specifications are validated, `ValueError` is raised on failure.
+
+        Args:
+            hook: `hook` callable should expect entity type as str;
+                its current values, including linked entities, as dict;
+                and its master record as dict.
                 Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on

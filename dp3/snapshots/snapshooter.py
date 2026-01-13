@@ -185,13 +185,16 @@ class SnapShooter:
 
     def register_correlation_hook(
         self,
-        hook: Callable[[str, dict], Union[None, list[DataPointTask]]],
+        hook: Callable[[str, dict, dict], Union[None, list[DataPointTask]]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
+        hook_name: Optional[str] = None,
     ):
         """
         Registers passed hook to be called during snapshot creation.
+
+        Common implementation for hooks with and without master record.
 
         Binds hook to specified entity_type (though same hook can be bound multiple times).
 
@@ -199,7 +202,8 @@ class SnapShooter:
 
         Args:
             hook: `hook` callable should expect entity type as str
-                and its current values, including linked entities, as dict
+                and its current values, including linked entities, as dict;
+                and its master record as dict.
                 Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on
@@ -207,11 +211,15 @@ class SnapShooter:
                 (even on linked entities).
             may_change: each item should specify an attribute that `hook` may change.
                 specification format is identical to `depends_on`.
+            hook_name: Optional custom name for the hook, used for logging purposes. If not
+                provided, the function name of `hook` will be used.
 
         Raises:
             ValueError: On failure of specification validation.
         """
-        self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
+        self._correlation_hooks.register(
+            hook, entity_type, depends_on, may_change, hook_name=hook_name
+        )
 
     def register_run_init_hook(self, hook: Callable[[], list[DataPointTask]]):
         """
@@ -457,9 +465,12 @@ class SnapShooter:
         self.run_timeseries_processing(entity_type, master_record)
         values = self.get_values_at_time(entity_type, master_record, time)
         self.add_mirrored_links(entity_type, values)
-        entity_values = {(entity_type, master_record["_id"]): values}
+        entity_id = master_record["_id"]
+        entity_values = {(entity_type, entity_id): values}
 
-        tasks = self._correlation_hooks.run(entity_values)
+        tasks = self._correlation_hooks.run(
+            entity_values, {(entity_type, entity_id): master_record}
+        )
         for task in tasks:
             self.task_queue_writer.put_task(task)
 
@@ -499,6 +510,7 @@ class SnapShooter:
         The resulting snapshots are saved into DB.
         """
         entity_values = {}
+        entity_master_records = {}
         for entity_type, entity_id in task.entities:
             record = self.db.get_master_record(entity_type, entity_id) or {"_id": entity_id}
             if not self.config.keep_empty and len(record) == 1:
@@ -508,9 +520,10 @@ class SnapShooter:
             values = self.get_values_at_time(entity_type, record, task.time)
             self.add_mirrored_links(entity_type, values)
             entity_values[entity_type, entity_id] = values
+            entity_master_records[entity_type, entity_id] = record
 
         self.link_loaded_entities(entity_values)
-        created_tasks = self._correlation_hooks.run(entity_values)
+        created_tasks = self._correlation_hooks.run(entity_values, entity_master_records)
         for created_task in created_tasks:
             self.task_queue_writer.put_task(created_task)
 

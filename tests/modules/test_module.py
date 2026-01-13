@@ -88,10 +88,10 @@ class TestModule(BaseModule):
         # This hook should copy data1 from master record to data2 with a suffix
         registrar.register_correlation_hook_with_master_record(
             update_wrapper(
-                partial(use_master_record, target_attr="data2", source_attr="data1"),
+                partial(use_master_record, target_attr="data4", source_attr="data3"),
                 use_master_record,
             ),
             "A",
             depends_on=[],
-            may_change=[["data2"]],
+            may_change=[["data4"]],
         )

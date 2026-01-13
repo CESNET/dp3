@@ -84,10 +84,11 @@ class SnapshotCorrelationHookContainer:
 
     def register(
         self,
-        hook: Callable[[str, dict], Union[None, list[DataPointTask]]],
+        hook: Callable[[str, dict, dict], Union[None, list[DataPointTask]]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
+        hook_name: Union[None, str] = None,
     ) -> str:
         """
         Registers passed hook to be called during snapshot creation.
@@ -97,8 +98,9 @@ class SnapshotCorrelationHookContainer:
         If entity_type and attribute specifications are validated
         and ValueError is raised on failure.
         Args:
-            hook: `hook` callable should expect entity type as str
-                and its current values, including linked entities, as dict.
+            hook: `hook` callable should expect entity type as str;
+                its current values, including linked entities, as dict;
+                and its master record as dict.
                 Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on
@@ -106,6 +108,8 @@ class SnapshotCorrelationHookContainer:
                 (even on linked entities).
             may_change: each item should specify an attribute that `hook` may change.
                 specification format is identical to `depends_on`.
+            hook_name: Optional custom name for the hook, used for logging purposes. If not
+                provided, the function name of `hook` will be used.
         Returns:
             Generated hook id.
         """
@@ -120,7 +124,8 @@ class SnapshotCorrelationHookContainer:
         may_change = self._get_attr_path_destinations(entity_type, may_change)
 
         hook_args = f"({entity_type}, [{','.join(depends_on)}], [{','.join(may_change)}])"
-        hook_id = f"{get_func_name(hook)}{hook_args}"
+        hook_name = hook_name if hook_name is not None else get_func_name(hook)
+        hook_id = f"{hook_name}{hook_args}"
         self._short_hook_ids[hook_id] = hook_args
         self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 
@@ -191,7 +196,7 @@ class SnapshotCorrelationHookContainer:
                 position = entity_attributes[position.relation_to]
         return resolved_path
 
-    def run(self, entities: dict) -> list[DataPointTask]:
+    def run(self, entities: dict, entity_master_records: dict) -> list[DataPointTask]:
         """Runs registered hooks."""
         entity_types = {etype for etype, _ in entities}
         hook_subset = [
@@ -200,8 +205,11 @@ class SnapshotCorrelationHookContainer:
         topological_order = self._dependency_graph.topological_order
         hook_subset.sort(key=lambda x: topological_order.index(x[0]))
         entities_by_etype = defaultdict(dict)
+        entity_master_records_by_etype = defaultdict(dict)
         for (etype, eid), values in entities.items():
             entities_by_etype[etype][eid] = values
+        for (etype, eid), mr in entity_master_records.items():
+            entity_master_records_by_etype[etype][eid] = mr
 
         created_tasks = []
 
@@ -209,9 +217,10 @@ class SnapshotCorrelationHookContainer:
             for hook_id, hook, etype in hook_subset:
                 short_id = hook_id if len(hook_id) < 160 else self._short_hook_ids[hook_id]
                 for eid, entity_values in entities_by_etype[etype].items():
+                    entity_master_record = entity_master_records_by_etype[etype].get(eid, {})
                     self.log.debug("Running hook %s on entity %s", short_id, eid)
                     try:
-                        tasks = hook(etype, entity_values)
+                        tasks = hook(etype, entity_values, entity_master_record)
                         if tasks is not None and tasks:
                             created_tasks.extend(tasks)
                     except Exception as e:

@@ -42,6 +42,9 @@ class SnapshotIntegration(common.APITest):
             make_dp("C", "c1", "ds", {"eid": "d1"}, time=True),
             make_dp("C", "c1", "data1", "inita"),
             make_dp("C", "c1", "data2", "inita"),
+            # For test_master_record_hook (A-423)
+            make_dp("A", 423, "data1", "master_test"),
+            make_dp("A", 423, "data2", "placeholder"),
         ]
         res = cls.push_datapoints(entity_datapoints)
         if res.status_code != 200:
@@ -79,3 +82,18 @@ class SnapshotIntegration(common.APITest):
             for snapshot in data.snapshots:
                 self.assertEqual(snapshot["data1"], "modifd")
                 self.assertEqual(snapshot["data2"], "modifc")
+
+    def test_master_record_hook(self):
+        """
+        Test that hooks registered via register_correlation_hook_with_master_record
+        correctly receive the master record parameter.
+        """
+        # Entity A-423 has data1="master_test" in its master record
+        # The master record hook should copy data1 from master and append "_from_master"
+        data = self.get_entity_data("entity/A/423", EntityEidData)
+        self.assertGreater(len(data.snapshots), 0)
+        for snapshot in data.snapshots:
+            self.assertEqual(snapshot["data1"], "master_test")
+            # The hook should have set data2 to data1 from master record + "_from_master"
+            self.assertEqual(snapshot["data2"], "master_test_from_master")
+

@@ -392,9 +392,9 @@ class CallbackRegistrar:
         `entity_type` and attribute specifications are validated, `ValueError` is raised on failure.
 
         Args:
-            hook: `hook` callable should expect entity type as str;
-                its current values, including linked entities, as dict;
-                and its master record as dict.
+            hook: `hook` callable should have the signature
+                `hook(entity_type: str, current_values: dict, master_record: dict)`.
+                where `current_values` includes linked entities.
                 Can optionally return a list of DataPointTask objects to perform.
             entity_type: specifies entity type
             depends_on: each item should specify an attribute that is depended on

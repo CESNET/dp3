@@ -189,7 +189,6 @@ class SnapShooter:
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
-        hook_name: Optional[str] = None,
     ):
         """
         Registers passed hook to be called during snapshot creation.
@@ -211,15 +210,11 @@ class SnapShooter:
                 (even on linked entities).
             may_change: each item should specify an attribute that `hook` may change.
                 specification format is identical to `depends_on`.
-            hook_name: Optional custom name for the hook, used for logging purposes. If not
-                provided, the function name of `hook` will be used.
 
         Raises:
             ValueError: On failure of specification validation.
         """
-        self._correlation_hooks.register(
-            hook, entity_type, depends_on, may_change, hook_name=hook_name
-        )
+        self._correlation_hooks.register(hook, entity_type, depends_on, may_change)
 
     def register_run_init_hook(self, hook: Callable[[], list[DataPointTask]]):
         """

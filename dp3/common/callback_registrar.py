@@ -1,5 +1,5 @@
 import logging
-from functools import partial
+from functools import partial, wraps
 from logging import Logger
 from typing import Callable, Union
 
@@ -13,7 +13,6 @@ from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask
 from dp3.common.types import ParsedTimedelta
-from dp3.common.utils import get_func_name
 from dp3.core.updater import Updater
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.task_processing.task_executor import TaskExecutor
@@ -369,10 +368,14 @@ class CallbackRegistrar:
         Raises:
             ValueError: On failure of specification validation.
         """
+
         # Ignore master record for this variant of the hook
-        hook_name = get_func_name(hook)
+        @wraps(hook)
+        def wrapped_hook(e: str, s: dict, _m: dict):
+            return hook(e, s)
+
         self._snap_shooter.register_correlation_hook(
-            lambda e, s, _m: hook(e, s), entity_type, depends_on, may_change, hook_name=hook_name
+            wrapped_hook, entity_type, depends_on, may_change
         )
 
     def register_correlation_hook_with_master_record(

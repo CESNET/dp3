@@ -88,7 +88,6 @@ class SnapshotCorrelationHookContainer:
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
-        hook_name: Union[None, str] = None,
     ) -> str:
         """
         Registers passed hook to be called during snapshot creation.
@@ -108,8 +107,6 @@ class SnapshotCorrelationHookContainer:
                 (even on linked entities).
             may_change: each item should specify an attribute that `hook` may change.
                 specification format is identical to `depends_on`.
-            hook_name: Optional custom name for the hook, used for logging purposes. If not
-                provided, the function name of `hook` will be used.
         Returns:
             Generated hook id.
         """
@@ -124,8 +121,7 @@ class SnapshotCorrelationHookContainer:
         may_change = self._get_attr_path_destinations(entity_type, may_change)
 
         hook_args = f"({entity_type}, [{','.join(depends_on)}], [{','.join(may_change)}])"
-        hook_name = hook_name if hook_name is not None else get_func_name(hook)
-        hook_id = f"{hook_name}{hook_args}"
+        hook_id = f"{get_func_name(hook)}{hook_args}"
         self._short_hook_ids[hook_id] = hook_args
         self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 

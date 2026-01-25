@@ -45,7 +45,7 @@ class TypedSnapshotCollection(abc.ABC):
             raise ValueError(f"Entity type '{entity_type}' not found in model spec")
         self.entity_type = entity_type
         self._col_name = f"{entity_type}#snapshots"
-        self._os_col_name = f"{entity_type}#oversized_snapshots"
+        self._os_col_name = f"{entity_type}#snapshots_oversized"
 
         self.attr_specs: dict[str, AttrSpecType] = model_spec.entity_attributes[entity_type]
 

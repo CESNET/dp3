@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -354,7 +354,7 @@ async def set_eid_attr_value(
             id=eid,
             attr=attr,
             v=body.value,
-            t1=datetime.now(),
+            t1=datetime.now(timezone.utc),
             src=f"{request.client.host} via API",
         )
         dp3_dp = api_to_dp3_datapoint(dp.dict())

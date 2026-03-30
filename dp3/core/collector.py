@@ -101,7 +101,7 @@ class GarbageCollector:
         task = DataPointTask(
             etype=task.etype,
             eid=eid,
-            ttl_tokens={"base": datetime.utcnow() + base_ttl},
+            ttl_tokens={"base": datetime.now(UTC) + base_ttl},
         )
         return [task]
 
@@ -217,7 +217,7 @@ class GarbageCollector:
     def collect_ttl(self, etype: str):
         """Deletes entities after their TTL lifetime has expired."""
         self.log.debug("Starting removal of '%s' entities by TTL", etype)
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         entities = 0
         deleted = 0
 
@@ -280,7 +280,7 @@ class GarbageCollector:
         self, eid: AnyEidT, dp: DataPointBase, extend_by: timedelta
     ) -> list[DataPointTask]:
         """Extends the TTL of the entity by the specified timedelta."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         task = DataPointTask(
             etype=dp.etype,
             eid=eid,

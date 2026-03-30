@@ -1,4 +1,5 @@
 from ipaddress import IPv4Address, IPv6Address
+from zoneinfo import ZoneInfo
 
 from bson import Binary
 from bson.binary import USER_DEFINED_SUBTYPE
@@ -38,4 +39,4 @@ class DP3BinaryDecoder(TypeDecoder):
 
 def get_codec_options():
     tr = TypeRegistry([DP3BinaryDecoder()], fallback_encoder=fallback_encoder)
-    return CodecOptions(type_registry=tr)
+    return CodecOptions(type_registry=tr, tz_aware=True, tzinfo=ZoneInfo("UTC"))

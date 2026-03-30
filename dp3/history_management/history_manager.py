@@ -134,7 +134,7 @@ class HistoryManager:
             if not max_age:
                 continue
 
-            t_old = datetime.utcnow() - max_age
+            t_old = datetime.now(UTC) - max_age
 
             try:
                 self.db.delete_old_dps(etype, attr_name, t_old)
@@ -178,7 +178,7 @@ class HistoryManager:
         Updates already saved archive files, if present.
         """
 
-        t_old = datetime.utcnow() - self.keep_raw_delta
+        t_old = datetime.now(UTC) - self.keep_raw_delta
         self.log.debug("Archiving all records before %s ...", t_old)
 
         for etype in self.model_spec.entities:

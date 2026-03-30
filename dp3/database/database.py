@@ -202,7 +202,7 @@ class EntityDatabase:
     @staticmethod
     def _get_new_archive_col_name(entity: str) -> str:
         """Returns name of new archive collection for `entity`."""
-        return f"{entity}#archive_{datetime.utcnow().strftime('%Y_%m_%d_%H%M%S')}"
+        return f"{entity}#archive_{datetime.now(UTC).strftime('%Y_%m_%d_%H%M%S')}"
 
     def _archive_col_names(self, entity: str) -> list[str]:
         """Returns names of archive collections for `entity`."""
@@ -542,7 +542,7 @@ class EntityDatabase:
             if eid in buf:
                 if "$max" in buf[eid]:
                     for ttl_name, this_val in extensions.items():
-                        curr_val = buf[eid]["$max"].get(ttl_name, datetime.min)
+                        curr_val = buf[eid]["$max"].get(ttl_name, datetime.min.replace(tzinfo=UTC))
                         buf[eid]["$max"][ttl_name] = max(curr_val, this_val)
                 else:
                     self._master_buffers[etype][eid]["$max"] = extensions
@@ -902,8 +902,8 @@ class EntityDatabase:
         Returns:
             list of dicts (reduced datapoints)
         """
-        t1 = datetime.fromtimestamp(0) if t1 is None else t1.replace(tzinfo=None)
-        t2 = datetime.utcnow() if t2 is None else t2.replace(tzinfo=None)
+        t1 = datetime.fromtimestamp(0, UTC) if t1 is None else t1.astimezone(UTC)
+        t2 = datetime.now(UTC) if t2 is None else t2.astimezone(UTC)
 
         # Get attribute history
         mr = self.get_master_record(etype, eid)
@@ -957,8 +957,8 @@ class EntityDatabase:
         Returns:
              list of dicts (reduced datapoints) - each represents just one point at time
         """
-        t1 = datetime.fromtimestamp(0) if t1 is None else t1.replace(tzinfo=None)
-        t2 = datetime.now(UTC) if t2 is None else t2.replace(tzinfo=None)
+        t1 = datetime.fromtimestamp(0, UTC) if t1 is None else t1.astimezone(UTC)
+        t2 = datetime.now(UTC) if t2 is None else t2.astimezone(UTC)
 
         attr_history = self.get_observation_history(etype, attr_name, eid, t1, t2, sort)
         if not attr_history:

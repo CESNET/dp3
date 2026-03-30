@@ -42,7 +42,7 @@ from dp3.common.task import (
     parse_eids_from_cache,
     task_context,
 )
-from dp3.common.types import EventGroupType
+from dp3.common.types import UTC, EventGroupType
 from dp3.common.utils import get_func_name
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
@@ -238,7 +238,7 @@ class SnapShooter:
 
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
-        time = datetime.utcnow()
+        time = datetime.now(UTC)
         self.db.save_metadata(
             time,
             {
@@ -270,7 +270,7 @@ class SnapShooter:
         counts = {"entities": 0, "components": 0}
         try:
             linked_entities = self.get_linked_entities(time, cached)
-            times["components_loaded"] = datetime.utcnow()
+            times["components_loaded"] = datetime.now(UTC)
 
             for i, linked_entities_component in enumerate(linked_entities):
                 counts["entities"] += len(linked_entities_component)
@@ -291,7 +291,7 @@ class SnapShooter:
         except pymongo.errors.CursorNotFound as err:
             self.log.exception(err)
         finally:
-            times["task_creation_end"] = datetime.utcnow()
+            times["task_creation_end"] = datetime.now(UTC)
             self.db.update_metadata(
                 time,
                 metadata=times,

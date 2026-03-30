@@ -1,20 +1,20 @@
 # Very simple datapoint generator for bus example config
 
-import datetime
 import json
 import random
+from datetime import datetime, timedelta, timezone
 
 
 class TimeContainer:
     def __init__(self):
-        self.time = datetime.datetime.utcnow() - datetime.timedelta(days=4)
+        self.time = datetime.now(timezone.utc) - timedelta(days=4)
 
     def add_minutes(self, minutes: int):
-        self.time += datetime.timedelta(minutes=minutes)
+        self.time += timedelta(minutes=minutes)
         return self.time
 
     def add_minutes_no_modify(self, minutes: int):
-        return self.time + datetime.timedelta(minutes=minutes)
+        return self.time + timedelta(minutes=minutes)
 
 
 time = TimeContainer()
@@ -129,7 +129,7 @@ for n, bus_line in bus_lines.items():
                     "back_out": random_passenger_counts_3(),
                 },
                 "t1": random_t1_local.isoformat(),
-                "t2": (random_t1_local + datetime.timedelta(minutes=30)).isoformat(),
+                "t2": (random_t1_local + timedelta(minutes=30)).isoformat(),
                 "src": "Bus counter",
             }
         )

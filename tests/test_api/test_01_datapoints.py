@@ -6,6 +6,8 @@ from typing import Any
 import common
 from common import ACCEPTED_ERROR_CODES
 
+from dp3.common.types import UTC
+
 
 class PushDatapoints(common.APITest):
     def test_invalid_payload(self):
@@ -68,7 +70,7 @@ class PushDatapoints(common.APITest):
 
     def make_observation_datapoint(self, data_type: str, value: Any) -> dict[str, Any]:
         dp = self.make_datapoint(data_type, value)
-        dp["t1"] = datetime.utcnow().isoformat()
+        dp["t1"] = datetime.now(UTC).isoformat()
         return dp
 
     def helper_test_datatype_value(self, datapoint: dict, expected_codes: set[int]):

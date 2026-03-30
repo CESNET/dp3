@@ -2,11 +2,13 @@
 
 import random
 from argparse import ArgumentParser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sys import stderr
 from time import sleep
 
 import requests
+
+UTC = timezone.utc
 
 
 def random_initial_location():
@@ -22,11 +24,11 @@ def do_random_location_increment(current_location):
 
 
 def t1():
-    return datetime.utcnow()
+    return datetime.now(UTC)
 
 
 def random_t2():
-    return datetime.utcnow() + timedelta(minutes=random.randint(5, 15))
+    return datetime.now(UTC) + timedelta(minutes=random.randint(5, 15))
 
 
 def random_passenger_counts_3():

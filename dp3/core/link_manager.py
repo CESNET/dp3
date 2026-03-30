@@ -14,6 +14,7 @@ from dp3.common.config import PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase
 from dp3.common.datatype import AnyEidT
 from dp3.common.task import parse_eids_from_cache
+from dp3.common.types import UTC
 from dp3.database.database import EntityDatabase
 
 
@@ -35,7 +36,7 @@ class LinkManager:
         self.db.register_on_entity_delete(
             self.remove_link_cache_of_deleted, self.remove_link_cache_of_many_deleted
         )
-        self.max_date = datetime.max.replace(tzinfo=None)
+        self.max_date = datetime.max.replace(tzinfo=UTC)
         for (entity, attr), spec in self.model_spec.relations.items():
             if spec.t == AttrType.PLAIN:
                 if spec.is_iterable:

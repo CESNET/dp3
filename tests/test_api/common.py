@@ -25,7 +25,7 @@ class ConfigEnv(BaseModel):
     CONF_DIR: str
 
 
-conf_env = ConfigEnv.parse_obj(os.environ)
+conf_env = ConfigEnv.model_validate(os.environ)
 CONFIG = read_config_dir(conf_env.CONF_DIR, recursive=True)
 MODEL_SPEC = ModelSpec(CONFIG.get("db_entities"))
 
@@ -39,7 +39,7 @@ values = {
         "ipv4": ["127.0.0.1"],
         "ipv6": ["2001:0db8:85a3:0000:0000:8a2e:0370:7334", "::1"],
         "mac": ["de:ad:be:ef:ba:be", "11:22:33:44:55:66"],
-        "time": ["2020-01-01T00:00:00"],
+        "time": ["2020-01-01T00:00:00Z"],
         "json": [{"test": "test"}],
         "category": ["cat1"],
         "array": [[1, 2, 3]],

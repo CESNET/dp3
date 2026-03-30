@@ -6,13 +6,15 @@ import logging
 import os
 import time
 from argparse import ArgumentParser
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import islice
 from queue import Queue
 from threading import Event, Thread
 
 import pandas as pd
 import requests
+
+UTC = timezone.utc
 
 
 def get_valid_path(parser, arg):
@@ -43,7 +45,7 @@ def get_shifted_datapoint_from_row(row):
         del dp["t1"]
         del dp["t2"]
         return dp
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     shift = now - dp["t1"]
     dp["t1"] = now.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
 

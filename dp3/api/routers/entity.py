@@ -20,7 +20,7 @@ from dp3.api.internal.models import DataPoint, EntityId, EntityIdAdapter
 from dp3.api.internal.response_models import ErrorResponse, RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
 from dp3.common.task import DataPointTask, task_context
-from dp3.common.types import UTC
+from dp3.common.types import UTC, AwareDatetime
 from dp3.database.database import DatabaseError
 
 
@@ -43,7 +43,7 @@ ParsedEid = Annotated[EntityId, Depends(parse_eid)]
 
 
 def get_eid_master_record_handler(
-    e: EntityId, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: EntityId, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
 ):
     """Handler for getting master record of EID"""
     # TODO: This is probably not the most efficient way. Maybe gather only
@@ -67,7 +67,7 @@ def get_eid_master_record_handler(
 
 
 def get_eid_snapshots_handler(
-    e: EntityId, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: EntityId, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
 ) -> list[dict[str, Any]]:
     """Handler for getting snapshots of EID"""
     snapshots = list(DB.snapshots.get_by_eid(e.type, e.id, t1=date_from, t2=date_to))
@@ -275,7 +275,7 @@ async def count_entity_type_eids(
 
 @router.get("/{etype}/{eid}")
 async def get_eid_data(
-    e: ParsedEid, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
 ) -> EntityEidData:
     """Get data of `etype`'s `eid`.
 
@@ -295,7 +295,7 @@ async def get_eid_data(
 
 @router.get("/{etype}/{eid}/master")
 async def get_eid_master_record(
-    e: ParsedEid, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
 ) -> EntityEidMasterRecord:
     """Get master record of `etype`'s `eid`."""
     return get_eid_master_record_handler(e, date_from, date_to)
@@ -303,7 +303,7 @@ async def get_eid_master_record(
 
 @router.get("/{etype}/{eid}/snapshots")
 async def get_eid_snapshots(
-    e: ParsedEid, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None
+    e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
 ) -> EntityEidSnapshots:
     """Get snapshots of `etype`'s `eid`."""
     return get_eid_snapshots_handler(e, date_from, date_to)
@@ -313,8 +313,8 @@ async def get_eid_snapshots(
 async def get_eid_attr_value(
     e: ParsedEid,
     attr: str,
-    date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None,
+    date_from: Optional[AwareDatetime] = None,
+    date_to: Optional[AwareDatetime] = None,
 ) -> EntityEidAttrValueOrHistory:
     """Get attribute value
 
@@ -394,7 +394,7 @@ async def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, 
 
 
 @router.post("/{etype}/{eid}/ttl")
-async def extend_eid_ttls(e: ParsedEid, body: dict[str, datetime]) -> SuccessResponse:
+async def extend_eid_ttls(e: ParsedEid, body: dict[str, AwareDatetime]) -> SuccessResponse:
     """Extend TTLs of the specified entity"""
     # Construct task
     with task_context(MODEL_SPEC):

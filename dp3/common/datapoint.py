@@ -1,11 +1,10 @@
-from datetime import datetime
 from ipaddress import IPv4Address, IPv6Address
 from typing import Annotated, Any, Optional, Union
 
 from pydantic import BaseModel, BeforeValidator, Field, PlainSerializer
 
 from dp3.common.mac_address import MACAddress
-from dp3.common.types import T2Datetime
+from dp3.common.types import AwareDatetime, T2Datetime
 
 
 def to_json_friendly(v):
@@ -60,7 +59,7 @@ class DataPointObservationsBase(DataPointBase):
     Contains single raw data value received on API for observations attribute.
     """
 
-    t1: datetime
+    t1: AwareDatetime
     t2: T2Datetime = Field(None, validate_default=True)
     c: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
 
@@ -71,7 +70,7 @@ class DataPointTimeseriesBase(DataPointBase):
     Contains single raw data value received on API for observations attribute.
     """
 
-    t1: datetime
+    t1: AwareDatetime
     t2: T2Datetime = Field(None, validate_default=True)
 
 

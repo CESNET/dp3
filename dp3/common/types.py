@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from ipaddress import IPv4Address, IPv6Address
 from json import JSONEncoder
-from typing import Annotated, Any, Union
+from typing import Annotated, Any, Optional, Union
 
 from event_count_logger import DummyEventGroup, EventGroup
 from pydantic import AfterValidator, BeforeValidator
@@ -24,6 +24,18 @@ def parse_timedelta_or_passthrough(v):
 ParsedTimedelta = Annotated[timedelta, BeforeValidator(parse_timedelta_or_passthrough)]
 
 
+def ensure_timezone_aware(v: Optional[datetime]):
+    """Ensure datetime is timezone-aware by defaulting to UTC."""
+    if v is None:
+        return v
+    if v.tzinfo is None:
+        return v.replace(tzinfo=UTC)
+    return v
+
+
+AwareDatetime = Annotated[datetime, AfterValidator(ensure_timezone_aware)]
+
+
 def t2_implicity_t1(v, info: FieldValidationInfo):
     """If t2 is not specified, it is set to t1."""
     v = v or info.data.get("t1")
@@ -37,7 +49,11 @@ def t2_after_t1(v, info: FieldValidationInfo):
     return v
 
 
-T2Datetime = Annotated[datetime, BeforeValidator(t2_implicity_t1), AfterValidator(t2_after_t1)]
+T2Datetime = Annotated[
+    AwareDatetime,
+    BeforeValidator(t2_implicity_t1),
+    AfterValidator(t2_after_t1),
+]
 
 EventGroupType = Union[EventGroup, DummyEventGroup]
 

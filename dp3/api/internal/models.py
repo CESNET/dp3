@@ -1,11 +1,10 @@
-from datetime import datetime
 from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, TypeAdapter, create_model, model_validator
 
 from dp3.api.internal.config import MODEL_SPEC
 from dp3.api.internal.helpers import api_to_dp3_datapoint
-from dp3.common.types import T2Datetime
+from dp3.common.types import AwareDatetime, T2Datetime
 
 
 class DataPoint(BaseModel):
@@ -27,7 +26,7 @@ class DataPoint(BaseModel):
     id: Any
     attr: str
     v: Any
-    t1: Optional[datetime] = None
+    t1: Optional[AwareDatetime] = None
     t2: Optional[T2Datetime] = Field(None, validate_default=True)
     c: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
     src: Optional[str] = None

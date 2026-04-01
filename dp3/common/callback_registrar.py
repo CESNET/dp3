@@ -1,7 +1,7 @@
 import logging
 from functools import partial, wraps
 from logging import Logger
-from typing import Callable, Union
+from typing import Any, Callable, Union
 
 from pydantic import BaseModel
 
@@ -16,6 +16,16 @@ from dp3.common.types import ParsedTimedelta
 from dp3.core.updater import Updater
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.task_processing.task_executor import TaskExecutor
+
+
+def _drop_master(h: Callable[[str, dict], Any]) -> Callable[[str, dict, dict], Any]:
+    """Ignore master record for this variant of the hook"""
+
+    def wrapped(e: str, s: dict, _m: dict):
+        return h(e, s)
+
+    wraps(h)(wrapped)
+    return wrapped
 
 
 def write_datapoints_into_record(model_spec: ModelSpec, tasks: list[DataPointTask], record: dict):
@@ -237,8 +247,11 @@ class CallbackRegistrar:
         if refresh is not None:
             if may_change is None:
                 raise ValueError("'may_change' must be specified if 'refresh' is specified")
+            correlation_hook = partial(
+                on_entity_creation_in_snapshots, self.model_spec, refresh, hook
+            )
             self._snap_shooter.register_correlation_hook(
-                partial(on_entity_creation_in_snapshots, self.model_spec, refresh, hook),
+                _drop_master(correlation_hook),
                 entity,
                 [],
                 may_change,
@@ -294,9 +307,9 @@ class CallbackRegistrar:
             return
         if may_change is None:
             raise ValueError("'may_change' must be specified if 'refresh' is specified")
-
+        correlation_hook = partial(on_attr_change_in_snapshots, self.model_spec, refresh, hook)
         self._snap_shooter.register_correlation_hook(
-            partial(on_attr_change_in_snapshots, self.model_spec, refresh, hook),
+            _drop_master(correlation_hook),
             entity,
             [[attr]],
             may_change,
@@ -368,14 +381,8 @@ class CallbackRegistrar:
         Raises:
             ValueError: On failure of specification validation.
         """
-
-        # Ignore master record for this variant of the hook
-        @wraps(hook)
-        def wrapped_hook(e: str, s: dict, _m: dict):
-            return hook(e, s)
-
         self._snap_shooter.register_correlation_hook(
-            wrapped_hook, entity_type, depends_on, may_change
+            _drop_master(hook), entity_type, depends_on, may_change
         )
 
     def register_correlation_hook_with_master_record(

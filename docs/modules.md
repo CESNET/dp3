@@ -54,11 +54,11 @@ class MyAwesomeModule(BaseModule):
         ... # (2)!
 ```
 
-1. After calling the `BaseModule` constructor, the module should and register its [callbacks](#callbacks) in the `__init__` method.
+1. After calling the `BaseModule` constructor, the module should register its [callbacks](#callbacks) in the `__init__` method.
 2. The `load_config` method is called by the `BaseModule`'s `__init__` method, and is used to load the module-specific configuration. It can be also called during system runtime to reload the configuration.
 
 You should place loading of module's configuration inside the `load_config` method. 
-This method is called by the `BaseModule`'s `__init__` method, as you can see bellow.
+This method is called by the `BaseModule`'s `__init__` method, as you can see below.
 It can be also called during system runtime to reload the configuration using the [Control](configuration/control.md) API, 
 which enables you to change the module configuration without restarting the DP³ worker.
 
@@ -92,14 +92,14 @@ and a `log` object for the module to use for logging.
 At initialization, each module receives a [`PlatformConfig`][dp3.common.config.PlatformConfig],
 a `module_config` dictionary and a 
 [`CallbackRegistrar`][dp3.common.callback_registrar.CallbackRegistrar].
-For the module to do anything, it must read the provided configuration from `platform_config`and
+For the module to do anything, it must read the provided configuration from `platform_config` and
 `module_config` and register callbacks to perform data analysis using the `registrar` object.
 Let's go through them one at a time.
 
 ## Configuration
 
 [`PlatformConfig`][dp3.common.config.PlatformConfig] contains the entire DP³ platform configuration,
-which includes the application name, worker counts, which worker processes is the module running in
+which includes the application name, worker counts, which worker processes the module is running in,
 and a [`ModelSpec`][dp3.common.config.ModelSpec] which contains the entity specification.
 
 If you want to create configuration specific to the module itself, create a `.yml` configuration file 
@@ -107,7 +107,7 @@ named as the module itself inside the `modules/` folder,
 as described in the [modules configuration page](configuration/modules.md).
 This configuration will be then loaded into the `module_config` dictionary for convenience.
 Please place code that loads the module configuration into the `load_config` method,
-where you will recieve both the `platform_config` and `module_config` as arguments.
+where you will receive both the `platform_config` and `module_config` as arguments.
 
 ## Reloading configuration
 
@@ -117,370 +117,58 @@ For this reason it is recommended to place all configuration loading code into t
 
 Some callbacks may be called only sparsely in the lifetime of an entity,
 and it may be useful to refresh all the values derived by the module when the configuration changes.
-This is implemented for the [`on_entity_creation`](#entity-on_entity_creation-hook) 
-and [`on_new_attr`](#attribute-hooks) callbacks, 
+This is implemented for the [`on_entity_creation`](hooks.md#on_entity_creation) 
+and [`on_new_attr`](hooks.md#on_new_attr) callbacks, 
 and you can enable it by passing the `refresh` keyword argument
-to the callback registration. See the Callbacks section for more details.
-
-## Type of `eid`
-
-!!! tip "Specifying the `eid` type"
-
-    At runtime, the `eid` will be exactly the type as specified in the entity specification.
-
-All the examples on this page will show the `eid` as a string, as that is the default type.
-The type of the `eid` is can be configured in the entity specification, as is
-detailed [here](configuration//db_entities.md#entity).
-
-The typehint of the `eid` used in callback registration definitions is the [
-`AnyEidT`][dp3.common.datatype.AnyEidT] type, which is a type alias of Union of all the allowed
-types of the `eid` in the entity specification.
+to the callback registration. See the [refresh behavior reference](hooks.md#refresh-on-config-change-behavior-for-ingestion-hooks) for details.
 
 ## Callbacks
 
 The `registrar:` [`CallbackRegistrar`][dp3.common.callback_registrar.CallbackRegistrar] object
-provides the API to register callbacks to be called during the data processing.
-
-### CRON Trigger Periodic Callbacks
-
-For callbacks that need to be called periodically, 
-the [`scheduler_register`][dp3.common.callback_registrar.CallbackRegistrar.scheduler_register]
-is used. 
-The specific times the callback will be called are defined using the CRON schedule expressions.
-Here is a simplified example from the HistoryManager module:
-
-```python
-registrar.scheduler_register(
-    self.delete_old_dps, minute="*/10"  # (1)!
-)
-registrar.scheduler_register(
-    self.archive_old_dps, minute=0, hour=2  # (2)!
-)  
-```
-
-1. At every 10th minute.
-2. Every day at 2 AM.
-
-By default, the callback will receive no arguments, but you can pass static arguments for every call
-using the `func_args` and `func_kwargs` keyword arguments. 
-The function return value will always be ignored.
-
-The complete documentation can be found at the 
-[`scheduler_register`][dp3.common.callback_registrar.CallbackRegistrar.scheduler_register] page.
-As DP³ utilizes the [APScheduler](https://apscheduler.readthedocs.io/en/latest/) package internally
-to realize this functionality, specifically the [`CronTrigger`](https://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html), feel free to check their documentation for more details.
-
-
-### Callbacks within processing
-
-There are a number of possible places to register callback functions during data-point processing.
-
-#### Task `on_task_start` hook
-
-A hook will be called on task processing start.
-The callback is registered using the 
-[`register_task_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_task_hook] method.
-Required signature is `Callable[[DataPointTask], Any]`, as the return value is ignored.
-It may be useful for implementing custom statistics.
-
-```python
-def task_hook(task: DataPointTask):
-    print(task.etype)
-
-registrar.register_task_hook("on_task_start", task_hook)
-```
-
-
-
-#### Entity `allow_entity_creation` hook
-
-Receives eid and Task, may prevent entity record creation (by returning False).
-The callback is registered using the 
-[`register_allow_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_allow_entity_creation_hook] method.
-Required signature is `Callable[[AnyEidT, DataPointTask], bool]`.
-
-```python
-def entity_creation(
-        eid: str,  # (1)! 
-        task: DataPointTask,
-) -> bool:
-    return eid.startswith("1")
-
-registrar.register_allow_entity_creation_hook(
-    entity_creation, "test_entity_type"
-)
-```
-
-1. `eid` may not be string, depending on the entity configuration, see [Type of
-   `eid`](#type-of-eid).
-
-#### Entity `on_entity_creation` hook
-
-Receives eid and Task, may return new DataPointTasks.
-
-Callbacks which are called once when an entity is created are registered using the 
-[`register_on_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_entity_creation_hook] method.
-Required signature is `Callable[[AnyEidT, DataPointTask], list[DataPointTask]]`.
-
-```python
-def processing_function(
-        eid: str,  # (1)! 
-        task: DataPointTask
-) -> list[DataPointTask]:
-    output = does_work(task)
-    return [DataPointTask(
-        model_spec=task.model_spec,
-        etype="mac",
-        eid=eid,
-        data_points=[{
-            "etype": "test_enitity_type",
-            "eid": eid,
-            "attr": "derived_on_creation",
-            "src": "secondary/derived_on_creation",
-            "v": output
-        }]
-    )]
-
-registrar.register_on_entity_creation_hook(
-    processing_function, "test_entity_type"
-)
-```
-
-1. `eid` may not be string, depending on the entity configuration, see [Type of
-   `eid`](#type-of-eid).
-
-The `register_on_entity_creation_hook` method also allows for refreshing of values derived 
-by the registered hook. This can be done using the `refresh` keyword argument, (expecting a [`SharedFlag`][dp3.common.state.SharedFlag] object, which is created by default for all modules)
-and the `may_change` keyword argument, which lists all the attributes that the hook may change.
-For the above example, the registration would look like this:
-
-```python
-registrar.register_on_entity_creation_hook(
-    processing_function, 
-    "test_entity_type", 
-    refresh=self.refresh,
-    may_change=[["derived_on_creation"]]
-)
-```
-
-#### Attribute hooks
-
-Callbacks that are called on every incoming datapoint of an attribute are registered using the 
-[`register_on_new_attr_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_new_attr_hook] method.
-The callback allways receives eid, attribute and Task, and may return new DataPointTasks.
-The required signature is `Callable[[AnyEidT, DataPointBase], Union[None, list[DataPointTask]]]`.
-
-```python
-def attr_hook(
-        eid: str,  # (1)!
-        dp: DataPointBase,
-) -> list[DataPointTask]:
-    ...
-    return []
-
-registrar.register_on_new_attr_hook(
-    attr_hook, "test_entity_type", "test_attr_type",
-)
-```
-
-1. `eid` may not be string, depending on the entity configuration, see [Type of
-   `eid`](#type-of-eid).
-
-This hook can be refreshed on configuration changes if you feel like the attribute value may change too slowly
-to catch up naturally. 
-This can be done using the `refresh` keyword argument, (expecting a [`SharedFlag`][dp3.common.state.SharedFlag] object, which is created by default for all modules)
-and the `may_change` keyword argument, which lists all the attributes that the hook may change.
-For the above example, the registration would look like this:
-
-```python
-registrar.register_on_new_attr_hook(
-    attr_hook, 
-    "test_entity_type", 
-    "test_attr_type", 
-    refresh=self.refresh,
-    may_change=[]  # (1)!
-)
-```
-
-1. If the hook may change the value of any attributes, they must be listed here.
-
-#### Timeseries hook
-
-Timeseries hooks are run before snapshot creation, and allow to process the accumulated
-timeseries data into observations / plain attributes to be accessed in snapshots.
-
-Callbacks are registered using the 
-[`register_timeseries_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_timeseries_hook] method.
-The expected callback signature is `Callable[[str, str, list[dict]], list[DataPointTask]]`,
-as the callback should expect entity_type, attr_type and attribute history as arguments 
-and return a list of DataPointTask objects.
-
-```python
-def timeseries_hook(
-        entity_type: str, attr_type: str, attr_history: list[dict]
-) -> list[DataPointTask]:
-    ...
-    return []
-
-registrar.register_timeseries_hook(
-    timeseries_hook, "test_entity_type", "test_attr_type",
-)
-```
-
-### Correlation callbacks
-
-Correlation callbacks are called during snapshot creation, and allow to perform analysis
-on the data of the snapshot.
-
-#### Snapshots Correlation Hook
-
-There are two correlation hooks available:
-
-- [`register_correlation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
-- [`register_correlation_hook_with_master_record`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook_with_master_record]
-
-Both do the same thing, but as the naming suggests, the latter also provides a master record.
-The [`register_correlation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
-method expects a callable with the following signature: 
-`Callable[[str, dict], Union[None, list[DataPointTask]]]`, where the first argument is the entity type, and the second is a dict
-containing the current values of the entity and its linked entities.
-The [`register_correlation_hook_with_master_record`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook_with_master_record] method expects a callable with the following signature: 
-`Callable[[str, dict, dict], Union[None, list[DataPointTask]]]` - the first two arguments are identical (entity type and dict with current values), but there is also a third argument: a dictionary of values stored in the master record of the entity.
-The method (applicable to both variants) can optionally return a list of `DataPointTask` objects to be inserted into the system.
-
-As correlation hooks can depend on each other, the hook inputs and outputs must be specified
-using the `depends_on` and `may_change` arguments. Both arguments are lists of lists of strings,
-where each list of strings is a path from the specified entity type to individual attributes (even on linked entities).
-For example, if the entity type is `test_entity_type`, and the hook depends on the attribute `test_attr_type1`,
-the path is simply `[["test_attr_type1"]]`. If the hook depends on the attribute `test_attr_type1` 
-of an  entity linked using `test_attr_link`, the path will be `[["test_attr_link", "test_attr_type1"]]`.
-
-```python
-def correlation_hook(entity_type: str, values: dict):
-    ...
-
-def correlation_hook_with_master_record(entity_type: str, values: dict, master_record: dict):
-    ...
-
-# Without master record
-registrar.register_correlation_hook(
-    correlation_hook, "test_entity_type", [["test_attr_type1"]], [["test_attr_type2"]]
-)
-
-# Or with master record
-registrar.register_correlation_hook_with_master_record(
-    correlation_hook_with_master_record,
-    "test_entity_type",
-    [["test_attr_type1"]],
-    [["test_attr_type2"]]
-)
-```
-
-The order of running callbacks is determined automatically, based on the dependencies.
-If there is a cycle in the dependencies, a `ValueError` will be raised at registration.
-Also, if the provided dependency / output paths are invalid, a `ValueError` will be raised.
-
-#### Snapshots Init Hook
-
-This hook is called before each snapshot creation run begins.
-The use case is to enable your module to perform some initialization before the snapshot creation and associated correlation callbacks are executed.
-Your hook will recieve no arguments, and you may return a list of DataPointTask objects to be inserted into the system from this hook.
-
-```python
-def snapshot_init_hook() -> list[DataPointTask]:
-    ...
-    return [] 
-
-registrar.register_snapshot_init_hook(snapshot_init_hook)
-```
-
-#### Snapshots Finalize Hook
-
-This hook is called after each snapshot creation run ends.
-The use case is to enable your module to finish up after the snapshot creation and associated correlation callbacks are executed.
-Your hook will recieve no arguments, and you may again return a list of DataPointTask objects to be inserted into the system from this hook.
-
-```python
-def snapshot_finalize_hook() -> list[DataPointTask]:
-    ...
-    return [] 
-
-registrar.register_snapshot_finalize_hook(snapshot_init_hook)
-```
-
-### Periodic Update Callbacks
-
-Snapshots, which are designed to execute as quickly as possible parallelized over all workers,
-may not fit every use-case for updates, especially when the updates are not tied only to the entity's state.
-For example, fetching data from an external system where rate limits are a concern.
-
-This is where the updater module comes in.
-The updater module is responsible for updating all entities in the database over a longer time frame.
-Learn more about the updater module in the [updater configuration](configuration/updater.md) page.
-
-#### Periodic Update Hook
-
-The [`register_periodic_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_update_hook]
-method expects a callable with the following signature:
-`Callable[[str, AnyEidT, dict], list[DataPointTask]]`, where the arguments are the entity type,
-entity ID and master record. 
-The callable should return a list of DataPointTask objects to perform (possibly empty).
-
-You must also pass a unique `hook_id` string when registering the hook, the entity type and 
-the period over which the hook should be called for all entities.
-The following example shows how to register a periodic update hook for an entity type `test_entity_type`.
-The hook will be called for all entities of this type every day.
-
-```python
-def periodic_update_hook(
-        entity_type: str,
-        eid: str,  # (1)!
-        record: dict,
-) -> list[DataPointTask]:
-    ...
-    return []
-
-registrar.register_periodic_update_hook(
-    periodic_update_hook, "test_id", "test_entity_type", "1d"
-)
-```
-
-1. `eid` may not be string, depending on the entity configuration, see [Type of
-   `eid`](#type-of-eid).
-
-!!! warning "Set a Realistic Update Period"
-
-    Try to configure the period to match the real execution time of the registered hooks, 
-    as when the period is too short, the hooks may not finish before the next batch is run,
-    leading to missed runs and potentially even to doubling of the effective update period.
-
-
-#### Periodic Update EID Hook
-
-The periodic eid update hook is similar to the previous periodic update hook, but the entity record is not passed to the callback.
-This hook is useful when the entity record is not needed for the update, meaning the record data does not have to be fetched from the database.
-
-The [`register_periodic_eid_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_eid_update_hook]
-method expects a callable with the following signature:
-`Callable[[str, AnyEidT], list[DataPointTask]]`, where the first argument is the entity type and the second is the entity ID.
-The callable should return a list of DataPointTask objects to perform (possibly empty).
-All other arguments are the same as for the [periodic update hook](#periodic-update-hook).
-
-```python
-def periodic_eid_update_hook(
-        entity_type: str,
-        eid: str,  # (1)!
-) -> list[DataPointTask]:
-    ...
-    return []
-
-registrar.register_periodic_eid_update_hook(
-    periodic_eid_update_hook, "test_id", "test_entity_type", "1d"
-)
-```
-
-1. `eid` may not be string, depending on the entity configuration, see [Type of
-   `eid`](#type-of-eid).
+provides the API to register callbacks during data processing.
+
+The in depth hook guide is the [Module hook reference](hooks.md). Use that page
+for lifecycle timing, callback inputs, return-value behavior, refresh behavior, the way
+returned `DataPointTask` objects re-enter DP³ processing. What follows is a light index of that page.
+
+### Ingestion-time hooks
+
+- [`register_task_hook("on_task_start", ...)`](hooks.md#on_task_start) — observe every
+  incoming `DataPointTask`; the return value is ignored.
+- [`register_allow_entity_creation_hook(...)`](hooks.md#allow_entity_creation) — allow
+  or deny creation of a new entity.
+- [`register_on_entity_creation_hook(...)`](hooks.md#on_entity_creation) — react once
+  when an entity is first created.
+- [`register_on_new_attr_hook(...)`](hooks.md#on_new_attr) — react to each incoming
+  datapoint of a selected attribute.
+
+### Snapshot-time hooks
+
+- [`register_snapshot_init_hook(...)`](hooks.md#snapshot_init) — run whole-run setup
+  before snapshot processing begins.
+- [`register_timeseries_hook(...)`](hooks.md#timeseries_hook) — process accumulated
+  timeseries history before snapshot current values are finalized.
+- [`register_correlation_hook(...)`](hooks.md#register_correlation_hook) — reason over
+  snapshot-time current values.
+- [`register_correlation_hook_with_master_record(...)`](hooks.md#register_correlation_hook_with_master_record)
+  — correlation hook variant that also receives the raw `master_record`.
+- [`register_snapshot_finalize_hook(...)`](hooks.md#snapshot_finalize) — run whole-run
+  teardown after snapshot processing ends.
+
+### Periodic updater hooks
+
+Updater hooks revisit stored entities over a configured period. For the updater scheduling model
+and configuration, see the [updater configuration](configuration/updater.md) page.
+
+- [`register_periodic_update_hook(...)`](hooks.md#periodic_update_hook) — periodic
+  sweep with `master_record`.
+- [`register_periodic_eid_update_hook(...)`](hooks.md#periodic_eid_update_hook) —
+  lighter periodic sweep when only the entity identity is needed.
+
+### Scheduled callbacks
+
+- [`scheduler_register(...)`](hooks.md#scheduler_register) — CRON-style module-level
+  scheduled callback for maintenance, polling, housekeeping, or shared-state reloads.
 
 ## Running module code in a separate thread
 

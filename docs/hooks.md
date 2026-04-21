@@ -147,7 +147,7 @@ At this point no entity existence decision has been made yet, no `allow_entity_c
 In practice, this makes `on_task_start` most useful for metrics, auditing, tracing, and similar task-level bookkeeping.
 
 Real usage examples:
-[`on_task_start`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_task_hook%28%22on_task_start%22&type=code)
+{{ registrar_usage("on_task_start", 'register_task_hook("on_task_start"') }}
 
 Code reference: [`register_task_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_task_hook]
 
@@ -172,7 +172,7 @@ Returning `False` aborts processing before the entity record is created.
 Because this decision happens before creation completes, there is no persisted master record yet and no snapshot-time current values are available.
 
 Real usage examples:
-[`allow_entity_creation`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_allow_entity_creation_hook%28&type=code)
+{{ registrar_usage("allow_entity_creation", "register_allow_entity_creation_hook(") }}
 
 Code reference: [`register_allow_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_allow_entity_creation_hook]
 
@@ -198,7 +198,7 @@ Because they originate from ingestion, they are pushed to the **priority** task 
 This registration also supports `refresh=` and `may_change=` for recomputation during module-config refresh; see [Refresh-on-config-change behavior for ingestion hooks](#refresh-on-config-change-behavior-for-ingestion-hooks).
 
 Real usage examples:
-[`on_entity_creation`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_on_entity_creation_hook%28&type=code)
+{{ registrar_usage("on_entity_creation", "register_on_entity_creation_hook(") }}
 
 Code reference: [`register_on_entity_creation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_entity_creation_hook]
 
@@ -225,7 +225,7 @@ The hook may return `None` or a list of `DataPointTask` objects to be re-ingeste
 As with `on_entity_creation`, this registration also supports `refresh=` and `may_change=` for recomputation during module-config refresh; see [Refresh-on-config-change behavior for ingestion hooks](#refresh-on-config-change-behavior-for-ingestion-hooks).
 
 Real usage examples:
-[`on_new_attr`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_on_new_attr_hook%28&type=code)
+{{ registrar_usage("on_new_attr", "register_on_new_attr_hook(") }}
 
 Code reference: [`register_on_new_attr_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_on_new_attr_hook]
 
@@ -315,7 +315,7 @@ It is therefore best suited to preparing shared state before correlation callbac
 The hook may return `list[DataPointTask]`, which are queued into the main task queue.
 
 Real usage examples:
-[`snapshot_init`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_snapshot_init_hook%28&type=code)
+{{ registrar_usage("snapshot_init", "register_snapshot_init_hook(") }}
 
 Code reference: [`register_snapshot_init_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_snapshot_init_hook]
 
@@ -341,7 +341,7 @@ The hook may return `list[DataPointTask]`.
 Those tasks are queued back into ingestion, and DP3 also attempts to fold same-entity outputs into the in-memory snapshot-preparation path before correlation hooks run, so timeseries-derived values may influence the same snapshot run.
 
 Real usage examples:
-[`timeseries_hook`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_timeseries_hook%28&type=code)
+{{ registrar_usage("timeseries_hook", "register_timeseries_hook(") }}
 
 Code reference: [`register_timeseries_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_timeseries_hook]
 
@@ -372,8 +372,8 @@ In practice, `register_correlation_hook(...)` is the right choice when the modul
 Both variants run during snapshot creation, after current values have been computed from the stored master record and after linked entity records have been loaded for the relation paths used by registered hooks.
 
 Real usage examples:
-[`correlation_hook`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_correlation_hook%28&type=code)
-[`correlation_hook_with_master_record`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_correlation_hook_with_master_record%28&type=code)
+{{ registrar_usage("correlation_hook", "register_correlation_hook(") }}
+{{ registrar_usage("correlation_hook_with_master_record", "register_correlation_hook_with_master_record(") }}
 
 Code reference: [`register_correlation_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook]
 [`register_correlation_hook_with_master_record`][dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook_with_master_record]
@@ -456,7 +456,7 @@ The callback receives no arguments.
 It is mainly used to finish or clean up snapshot-run state after correlation callbacks have completed, and it may return `list[DataPointTask]` queued into the main task queue.
 
 Real usage examples:
-[`snapshot_finalize`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_snapshot_finalize_hook%28&type=code)
+{{ registrar_usage("snapshot_finalize", "register_snapshot_finalize_hook(") }}
 
 Code reference: [`register_snapshot_finalize_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_snapshot_finalize_hook]
 
@@ -471,7 +471,7 @@ For `on_entity_creation`, the refresh path re-invokes the hook with the entity `
 For `on_new_attr`, the refresh path likewise does not replay an original datapoint payload.
 In practice, refresh mode should therefore be reserved for hooks that can recompute from persisted state and do not require the original incoming datapoint contents to be present again.
 
-[Real usages of `refresh=`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+refresh%3D&type=code)
+{{ query_cesnet_apps("Real usages of `refresh=`", "refresh=") }}
 
 ## Periodic updater hooks: periodic processing over master records
 
@@ -529,7 +529,7 @@ When registering it, `hook_id` must be unique.
 It is also important to set `period` realistically for the hook's execution cost; if the period is too short, runs may overlap with later batches and effectively stretch the refresh cadence.
 
 Real usage examples:
-[`periodic_update_hook`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_periodic_update_hook%28&type=code)
+{{ registrar_usage("periodic_update_hook", "register_periodic_update_hook(") }}
 
 Code reference: [`register_periodic_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_update_hook]
 
@@ -557,7 +557,7 @@ The callback therefore receives only `entity_type` and `eid`, and it may return 
 As with `periodic_update_hook`, `hook_id` must be unique and `period` should be configured realistically so updater batches can complete before the next sweep is due.
 
 Real usage examples:
-[`periodic_eid_update_hook`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_periodic_eid_update_hook%28&type=code)
+{{ registrar_usage("periodic_eid_update_hook", "register_periodic_eid_update_hook(") }}
 
 Code reference: [`register_periodic_eid_update_hook`][dp3.common.callback_registrar.CallbackRegistrar.register_periodic_eid_update_hook]
 
@@ -592,7 +592,7 @@ Its return value is ignored by DP3.
 In practice, this hook is most useful for housekeeping, external polling, maintenance, metrics emission, periodic cleanup, and similar module-level maintenance work.
 
 Real usage examples:
-[`scheduler_register`](https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.scheduler_register%28&type=code)
+{{ registrar_usage("scheduler_register", "scheduler_register(") }}
 
 Code reference: [`scheduler_register`][dp3.common.callback_registrar.CallbackRegistrar.scheduler_register]
 

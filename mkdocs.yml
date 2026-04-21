@@ -107,6 +107,9 @@ markdown_extensions:
 plugins:
   # Default search bar
   - search
+  # Macros/helpers for shared docs snippets and generated links
+  - macros:
+      module_name: macros
   # Automatically link across pages
   - autorefs
   # Generating code reference

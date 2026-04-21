@@ -15,6 +15,8 @@ This page covers the DP³ API for secondary modules,
 for primary module implementation, the [API documentation](../api/#insert-datapoints) may be useful, 
 also feel free to check out the dummy_sender script in `/scripts/dummy_sender.py`.
 
+If you are integrating a module into a DP³ application, start with the task guides [How to add a secondary module](howto/add-module.md) and [How to add an attribute](howto/add-attribute.md), then return here for the reference details.
+
 ## Creating a new Module
 
 First, make a directory that will contain all modules of the application.

@@ -3,6 +3,8 @@
 DP³'s has HTTP API which you can use to post datapoints and to read data stored in DP³.
 As the API is made using FastAPI, there is also an interactive documentation available at `/docs` endpoint.
 
+If you are wiring a new producer into a DP³ application, start with [How to add an input module](howto/add-input.md), then use this page as the endpoint reference.
+
 There are several API endpoints:
 
 - [`GET /`](#index): check if API is running (just returns `It works!` message)

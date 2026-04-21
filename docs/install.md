@@ -1,11 +1,19 @@
 # Installing DP³ platform
 
+For task-oriented guides, start with:
+
+- [Get started with local DP³ app development](howto/get-started.md)
+- [How to deploy a DP³ application](howto/deploy-app.md)
+- [How to set up for DP³ platform development](howto/develop-dp3.md)
+
 When talking about installing the DP³ platform, a distinction must be made between installing
 for [**platform development**](#platform-development), installing for [**application development**](#application-development) (i.e. platform usage) 
 and installing for [**application deployment**](#application-deployment) using supervisor. 
 We will cover all three cases separately.
 
 ## Application development
+
+For a task-oriented version of this setup aimed at DP³ application developers, see [Get started with local DP³ app development](howto/get-started.md).
 
 Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
 
@@ -174,6 +182,8 @@ You are now ready to start developing your application!
 ---
 
 ## Application deployment
+
+For a task-oriented deployment and operations guide, see [How to deploy a DP³ application](howto/deploy-app.md).
 
 The application development installation above is not suitable for production use.
 For production use, we recommend using the [`supervisor`](http://supervisord.org/) process manager,
@@ -429,6 +439,8 @@ You can view the generated configuration in `/etc/<APP_NAME>` and the full logs 
 ---
 
 ## Platform development
+
+For a task-oriented contributor setup guide, see [How to set up for DP³ platform development](howto/develop-dp3.md).
 
 Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
 

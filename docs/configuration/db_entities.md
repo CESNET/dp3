@@ -4,7 +4,7 @@ Files in `db_entities` folder describe *entities* and their *attributes*. You ca
 This serves as sort of schema for the database DP³ uses.
 How DP³ deals with changes to the `db_entities` is described in the [schema tracking](#schema-tracking) section.
 
-Below is YAML file (e.g. `db_entities/bus.yml`) corresponding to bus tracking system example from [Data model](../../data_model/#exemplary-system) chapter.
+Below is YAML file (e.g. `db_entities/bus.yml`) corresponding to bus tracking system example from the [Data model](../../data_model/#exemplary-system) page.
 
 ```yaml
 entity:
@@ -161,7 +161,7 @@ Description of `history_params` subobject (see table above).
 
 | Parameter             | Data-type                    | Default value | Description                                                                                        |
 |-----------------------|------------------------------|---------------|----------------------------------------------------------------------------------------------------|
-| **`timeseries_type`** | string                       | *(mandatory)* | One of: `regular`, `irregular` or `irregular_intervals`. See chapter *Data model* for explanation. |
+| **`timeseries_type`** | string                       | *(mandatory)* | One of: `regular`, `irregular` or `irregular_intervals`. See the *Data model* page for explanation. |
 | **`series`**          | object of objects, see below | *(mandatory)* | Configuration of series of data represented by this timeseries attribute.                          |
 | `timeseries_params`   | object, see below            |               | Other timeseries parameters. A subobject with fields described by the table below.                 |
 

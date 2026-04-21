@@ -10,7 +10,7 @@ Entities may be mutually connected. See [Relationships](#relationships) below.
 
 ## Exemplary system
 
-In this chapter, we will illustrate details on an exemplary system. Imagine you
+On this page, we will illustrate details on an exemplary system. Imagine you
 are developing data model for bus tracking system. You have to store these data:
 
 - **label**: Custom label for the bus set by administrator in web interface.
@@ -24,7 +24,7 @@ are developing data model for bus tracking system. You have to store these data:
 Also, map displaying current position of all buses is required.
 
 (In case you are interested, configuration of database entities for this system
-is available in [DB entities](../configuration/db_entities/) chapter.)
+is available on the [DB entities](../configuration/db_entities/) page.)
 
 To make everything clear and more readable, all example references below are
 typesetted as quotes.

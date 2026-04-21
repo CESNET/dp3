@@ -153,11 +153,11 @@ To serve them locally while editing:
 mkdocs serve
 ```
 
-For documentation-specific conventions, see [Extending Documentation](../extending.md).
+For documentation-specific conventions, see [Extending Documentation](extending.md).
 
 ## Related pages
 
 - [How-to guides](index.md)
 - [Get started with local DP³ app development](get-started.md)
-- [Extending Documentation](../extending.md)
+- [Extending Documentation](extending.md)
 - [Configuration overview](../configuration/index.md)

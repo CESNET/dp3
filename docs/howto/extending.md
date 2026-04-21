@@ -53,7 +53,7 @@ If the URL is `https://example.com/some/page/#anchor-name` then you know that th
 
 To make a reference to another page within the documentation, use the path to the Markdown source file, followed by the desired anchor. For example, this [link](index.md#repository-structure) was created as `[link](index.md#repository-structure)`.
 
-When making references to the generated [Code Reference](reference/index.md), there are two options. Links can be made either using the standard Markdown syntax, where some reverse-engineering of the generated files is required, or, with the support of mkdocstrings, using the `[example][full.path.to.object]` syntax. A real link like this can be for example [this one][dp3.common.config.ModelSpec] to the Platform Model Specification.
+When making references to the generated [Code Reference](../reference/index.md), there are two options. Links can be made either using the standard Markdown syntax, where some reverse-engineering of the generated files is required, or, with the support of mkdocstrings, using the `[example][full.path.to.object]` syntax. A real link like this can be for example [this one][dp3.common.config.ModelSpec] to the Platform Model Specification.
 
 ## Code reference generation
 

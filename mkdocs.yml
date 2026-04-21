@@ -51,6 +51,7 @@ nav:
     - Add a secondary module: howto/add-module.md
     - Deploy an app: howto/deploy-app.md
     - Develop DP3 itself: howto/develop-dp3.md
+    - Extend Docs: howto/extending.md
   - Concepts:
     - Architecture: architecture.md
     - Data model: data_model.md
@@ -75,7 +76,6 @@ nav:
   - Code Reference: reference/
   - Scripts: scripts.md
   - Grafana plugin: grafana_plugin.md
-  - Extending Documentation: extending.md
 
 markdown_extensions:
   # Adds option to create permalinks to headings

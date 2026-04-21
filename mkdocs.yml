@@ -51,12 +51,13 @@ nav:
     - Add a secondary module: howto/add-module.md
     - Deploy an app: howto/deploy-app.md
     - Develop DP3 itself: howto/develop-dp3.md
-  - Architecture: architecture.md
-  - Data model: data_model.md
-  - History Management: history_management.md
+  - Concepts:
+    - Architecture: architecture.md
+    - Data model: data_model.md
+    - History management: history_management.md
+    - Modules: modules.md
+    - Hooks: hooks.md
   - API: api.md
-  - Modules: modules.md
-  - Hooks: hooks.md
   - Configuration:
     - configuration/index.md
     - API: configuration/api.md

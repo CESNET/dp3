@@ -4,27 +4,56 @@
   ![DP3 logo](img/dp3-logo-min.svg){ width="300" }
 </figure>
 
-DP³ is a platform helps to keep a database of information (attributes) about individual
-entities (designed for IP addresses and other network identifiers, but may be anything),
-when the data constantly changes in time.
+DP³ is a platform for maintaining information about entities that vary over time.
+It stores attributes of entities such as IP addresses, devices, users, or other identifiers,
+accepts incoming datapoints over time, and lets application-specific logic derive additional results.
 
-DP³ doesn't do much by itself, it must be supplemented by application-specific modules providing
-and processing data.
+DP³ provides the processing core, storage model, API, worker runtime, and the operational machinery around them.
+It handles the repetitive backend work such as database schema updates, state persistence, and parallel execution across multiple workers.
 
-This is a basis of CESNET's "Asset Discovery Classification and Tagging" (ADiCT) project,
-focused on discovery and classification of network devices,
-but the platform itself is general and should be usable for any kind of data.
+For application developers, the main building blocks are the **entity model** and **secondary modules**.
+You define entities and their attributes, then attach your own logic to the platform using hooks inserted into DP³'s existing pipelines.
+That lets you build application-specific behavior on top of DP³ primitives, while DP³ takes care of the underlying execution and storage concerns.
 
-For an introduction about how it works, see please check out the 
-[architecture](architecture.md), [data-model](data_model.md) 
-and [database config](configuration/db_entities.md) pages.
-The mechanics of how the platform handles history of data is described in the [history management](history_management.md) page.
+## Start here
 
-Then you should be able to create a DP³ app using the provided setup utility as described in [Get started with local DP³ app development](howto/get-started.md) and start tinkering!
+If you are new to DP³, start with the task you want to accomplish:
+
+- **Build a new local DP³ application** → [Get started with local DP³ app development](howto/get-started.md)
+- **Add a new attribute to your data model** → [How to add an attribute](howto/add-attribute.md)
+- **Connect an external producer** → [How to add an input module](howto/add-input.md)
+- **Add worker-side logic reacting to data** → [How to add a secondary module](howto/add-module.md)
+- **Deploy an application** → [How to deploy a DP³ application](howto/deploy-app.md)
+- **Work on DP³ itself** → [How to set up for DP³ platform development](howto/develop-dp3.md)
+
+The [How-to guides](howto/index.md) are the best starting point when you know what you want to do.
+They link out to the concept and reference pages when you need more detail.
+
+## Core concepts
+
+As you start building an application, some DP³ concepts become important.
+You do not need to read all of them up front; use them when you need a clearer mental model:
+
+- [Architecture](architecture.md) - how the API, workers, database, queues, and modules fit together
+- [Data model](data_model.md) - entities, attributes, datapoints, and links
+- [History management](history_management.md) - validity intervals, current value, aggregation, and time-based behavior
+- [Modules](modules.md) - how secondary modules extend DP³
+- [Hooks](hooks.md) - when module callbacks run and what data is available to them
+
+A practical reading order for new application developers is usually:
+**Get started** → **Add an attribute / add a module** → return to **Data model**, **History management**, **Modules**, and **Hooks** when questions come up.
+
+## Reference docs for exact details
+
+When you already know the concept or task and need exact syntax, switch to the reference pages:
+
+- [API](api.md) - HTTP endpoints, request formats, and responses
+- [Configuration](configuration/index.md) - file-by-file configuration reference
+- [Code Reference](reference/) - generated Python API reference for DP³ internals
 
 ## Repository structure
 
-* `dp3` - Python package containing code of the processing core and the API
-* `config` - default/example configuration
-* `install` - deployment configuration
+- `dp3` - Python package containing the processing core and API
+- `config` - example/default configuration
+- `install` - deployment configuration
 

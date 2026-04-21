@@ -1,6 +1,6 @@
 # Database
 
-File `database.yml` specifies mainly MongoDB database connection details and credentials.
+File `database.yml` specifies mainly MongoDB database connection details, credentials, and database storage settings.
 
 It looks like this:
 
@@ -16,6 +16,9 @@ connection:
   host:
     address: "127.0.0.1"
     port: 27017
+
+storage:
+  snapshot_bucket_size: 32
 ```
 
 ## Authentication and database
@@ -66,5 +69,22 @@ connection:
     - address: "127.0.0.3"
       port: 27017
 ```
+
+## Storage
+
+Storage settings affect how DP³ stores snapshots in MongoDB.
+
+| Parameter              | Data-type | Default value | Description |
+|------------------------|-----------|---------------|-------------|
+| `snapshot_bucket_size` | int       | `32`          | Number of snapshots grouped together in one storage bucket. This affects snapshot storage layout and snapshot cleanup behavior. |
+
+Example:
+
+```yaml
+storage:
+  snapshot_bucket_size: 32
+```
+
+This setting is mainly relevant for deployments with significant snapshot volume. Changing it on an existing deployment changes the snapshot storage schema and may require a schema update workflow.
 
 

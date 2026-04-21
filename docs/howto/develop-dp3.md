@@ -159,6 +159,5 @@ For documentation-specific conventions, see [Extending Documentation](../extendi
 
 - [How-to guides](index.md)
 - [Get started with local DP³ app development](get-started.md)
-- [Install](../install.md)
 - [Extending Documentation](../extending.md)
 - [Configuration overview](../configuration/index.md)

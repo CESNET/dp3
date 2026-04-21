@@ -293,7 +293,6 @@ docker compose logs redis
 ## Related pages
 
 - [How-to guides](index.md)
-- [Install](../install.md)
 - [Configuration overview](../configuration/index.md)
 - [Modules](../modules.md)
 - [API](../api.md)

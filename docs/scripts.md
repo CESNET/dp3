@@ -32,4 +32,4 @@ Reads the JSON datapoint log from the API and sends it to the specified DP3 inst
 ### `dp3-script rmq_reconfigure.sh`
 
 Used during RabbitMQ (re)configuration, sets up the appropriate queues and exchanges for 
-the specified number of workers. For details, see the [deployment installation guide](install.md#rabbitmq).
+the specified number of workers. For details, see [How to deploy a DP³ application](howto/deploy-app.md#update-a-deployed-application-safely) and [Processing Core](configuration/processing_core.md#worker-processes).

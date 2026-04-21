@@ -1,6 +1,6 @@
 # Install
 
-Please follow the supervisor deployment guide in the official [DP3 documentation](https://cesnet.github.io/dp3/install).
+Please follow the supervisor deployment guide in the official [DP3 documentation](https://cesnet.github.io/dp3/howto/deploy-app/).
 
 ## Supervisord
 

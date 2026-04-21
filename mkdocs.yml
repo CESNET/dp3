@@ -51,7 +51,6 @@ nav:
     - Add a secondary module: howto/add-module.md
     - Deploy an app: howto/deploy-app.md
     - Develop DP3 itself: howto/develop-dp3.md
-  - Install: install.md
   - Architecture: architecture.md
   - Data model: data_model.md
   - History Management: history_management.md

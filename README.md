@@ -30,7 +30,7 @@ See the [documentation](https://cesnet.github.io/dp3/) for more details.
 
 ## Installation
 
-See the [docs](https://cesnet.github.io/dp3/install/) for more details.
+See the [docs](https://cesnet.github.io/dp3/howto/get-started/) for more details.
 
 ### Installing for application development
 

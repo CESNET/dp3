@@ -20,7 +20,7 @@ For an introduction about how it works, see please check out the
 and [database config](configuration/db_entities.md) pages.
 The mechanics of how the platform handles history of data is described in the [history management](history_management.md) page.
 
-Then you should be able to create a DP³ app using the provided setup utility as described in the [install](install.md) page and start tinkering!
+Then you should be able to create a DP³ app using the provided setup utility as described in [Get started with local DP³ app development](howto/get-started.md) and start tinkering!
 
 ## Repository structure
 

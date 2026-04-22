@@ -12,4 +12,4 @@ RUN pip install --upgrade pip; \
     pip install -r requirements.txt
 
 COPY . /dp3/
-RUN pip install -e /dp3
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 pip install -e /dp3

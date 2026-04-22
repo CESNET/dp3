@@ -1,6 +1,5 @@
 services:
   rabbitmq:
-    container_name: "rabbitmq"
     image: "dp3_rabbitmq"
     build: "docker/rabbitmq"
     ports:
@@ -19,14 +18,12 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: test
 
   redis:
-    container_name: "redis"
     image: redis
     ports:
       - "6379:6379"
     command: [ "redis-server", "--appendonly", "yes" ]
 
   receiver_api:
-    container_name: "dp3_api"
     image: "dp3_interpreter"
     build:
       context: .
@@ -42,7 +39,6 @@ services:
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000" ]
 
   worker:
-    container_name: "dp3_worker"
     image: "dp3_interpreter"
     build:
       context: .

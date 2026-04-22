@@ -171,10 +171,16 @@ you need direct database access.
 
 === "CLI (`dp3 sh`)"
 
+    Set the config directory once for the session:
+
+    ```shell
+    export DP3_CONFIG_DIR=/path/to/config
+    ```
+
     Check whether datapoints for the attribute reached current raw storage:
 
     ```shell
-    dp3 sh --config /path/to/config entity raw device \
+    dp3 sh entity device raw \
       --attr risk_score \
       --limit 5 \
       --format ndjson
@@ -184,7 +190,7 @@ you need direct database access.
     snapshots and extract their ids:
 
     ```shell
-    dp3 sh --config /path/to/config entity list device \
+    dp3 sh entity device list \
       --has-attr risk_score \
       --limit 5 \
       | jq -r '.data[].eid'
@@ -193,15 +199,13 @@ you need direct database access.
     Then inspect the attribute directly on a specific entity:
 
     ```shell
-    dp3 sh --config /path/to/config entity attr \
-      device device-123 risk_score
+    dp3 sh entity device device-123 attr risk_score get
     ```
 
     Or inspect the full master record in context:
 
     ```shell
-    dp3 sh --config /path/to/config entity master \
-      device device-123
+    dp3 sh entity device device-123 master
     ```
 
 === "MongoDB (`mongosh`)"

@@ -5,7 +5,7 @@ from time import sleep
 
 import common
 
-from dp3.api.internal.entity_response_models import EntityEidData
+from dp3.api.internal.entity_response_models import EntityEidData, EntityEidSnapshots
 from dp3.common.types import UTC
 
 
@@ -97,3 +97,9 @@ class SnapshotIntegration(common.APITest):
             self.assertEqual(snapshot["data3"], "master_test")
             # The hook should have set data4 to data3 from master record + "_from_master"
             self.assertEqual(snapshot["data4"], "master_test_from_master")
+
+    def test_paged_snapshots_on_main_endpoint(self):
+        response = self.get_request("entity/A/420/snapshots", limit=1)
+        self.assertEqual(response.status_code, 200)
+        data = EntityEidSnapshots(response.json())
+        self.assertEqual(len(data), 1)

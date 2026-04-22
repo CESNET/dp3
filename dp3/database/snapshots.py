@@ -249,7 +249,12 @@ class TypedSnapshotCollection(abc.ABC):
         return query
 
     def get_by_eid(
-        self, eid: AnyEidT, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+        self,
+        eid: AnyEidT,
+        t1: Optional[datetime] = None,
+        t2: Optional[datetime] = None,
+        skip: int = 0,
+        limit: int = 0,
     ) -> Union[Cursor, CommandCursor]:
         """Get all (or filtered) snapshots of given `eid`.
 
@@ -259,6 +264,8 @@ class TypedSnapshotCollection(abc.ABC):
             eid: id of entity, to which data-points correspond
             t1: left value of time interval (inclusive)
             t2: right value of time interval (inclusive)
+            skip: number of snapshots to skip
+            limit: max number of snapshots to return, `0` means no limit
         """
         snapshot_col = self._col()
 
@@ -270,7 +277,7 @@ class TypedSnapshotCollection(abc.ABC):
         )
         doc = next(doc, None)
         if doc and doc.get("oversized", False):
-            return self._get_oversized(eid, t1, t2)
+            return self._get_oversized(eid, t1, t2, skip, limit)
 
         query = {"_time_created": {}}
         pipeline = [
@@ -288,7 +295,12 @@ class TypedSnapshotCollection(abc.ABC):
         # Unset if empty
         if query["_time_created"]:
             pipeline.append({"$match": query})
+
         pipeline.append({"$sort": {"_time_created": pymongo.ASCENDING}})
+        if skip:
+            pipeline.append({"$skip": skip})
+        if limit:
+            pipeline.append({"$limit": limit})
         return snapshot_col.aggregate(pipeline)
 
     def get_distinct_val_count(self, attr: str) -> dict[Any, int]:
@@ -346,7 +358,12 @@ class TypedSnapshotCollection(abc.ABC):
         return distinct_counts
 
     def _get_oversized(
-        self, eid: AnyEidT, t1: Optional[datetime] = None, t2: Optional[datetime] = None
+        self,
+        eid: AnyEidT,
+        t1: Optional[datetime] = None,
+        t2: Optional[datetime] = None,
+        skip: int = 0,
+        limit: int = 0,
     ) -> Cursor:
         """Get all (or filtered) snapshots of given `eid` from oversized snapshots collection."""
         snapshot_col = self._os_col()
@@ -362,9 +379,14 @@ class TypedSnapshotCollection(abc.ABC):
         if not query["_time_created"]:
             del query["_time_created"]
 
-        return snapshot_col.find(query, projection={"_id": False}).sort(
+        cursor = snapshot_col.find(query, projection={"_id": False}).sort(
             [("_time_created", pymongo.ASCENDING)]
         )
+        if skip:
+            cursor = cursor.skip(skip)
+        if limit:
+            cursor = cursor.limit(limit)
+        return cursor
 
     def _migrate_to_oversized(self, eid: AnyEidT, snapshot: dict):
         snapshot_col = self._col()
@@ -822,6 +844,8 @@ class SnapshotCollectionContainer:
         eid: AnyEidT,
         t1: Optional[datetime] = None,
         t2: Optional[datetime] = None,
+        skip: int = 0,
+        limit: int = 0,
     ) -> Union[Cursor, CommandCursor]:
         """Get all (or filtered) snapshots of given `eid`.
 
@@ -832,8 +856,10 @@ class SnapshotCollectionContainer:
             eid: id of entity, to which data-points correspond
             t1: left value of time interval (inclusive)
             t2: right value of time interval (inclusive)
+            skip: number of snapshots to skip
+            limit: max number of snapshots to return, `0` means no limit
         """
-        return self[entity_type].get_by_eid(eid, t1, t2)
+        return self[entity_type].get_by_eid(eid, t1, t2, skip, limit)
 
     def get_distinct_val_count(self, entity_type: str, attr: str) -> dict[Any, int]:
         """Counts occurrences of distinct values of given attribute in snapshots.

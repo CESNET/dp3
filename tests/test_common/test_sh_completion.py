@@ -15,9 +15,13 @@ class TestShCompletion(unittest.TestCase):
         init_parser(parser)
         return parser
 
-    def _get_completions(self, comp_words, prefix):
+    def _finder_with_completions(self, comp_words, prefix):
         finder = CompletionFinder(self._create_parser(), always_complete_options=False)
-        return finder._get_completions(comp_words, prefix, "", None)
+        values = finder._get_completions(comp_words, prefix, "", None)
+        return finder, values
+
+    def _get_completions(self, comp_words, prefix):
+        return self._finder_with_completions(comp_words, prefix)[1]
 
     def test_top_level_completion_includes_entity_commands(self):
         values = self._get_completions(["dpsh"], "e")
@@ -40,7 +44,7 @@ class TestShCompletion(unittest.TestCase):
             ),
         ):
             values = complete_entity_type_names("A", args)
-        self.assertEqual(["A"], values)
+        self.assertEqual({"A": "Configured entity type."}, values)
 
     def test_entity_scope_completion_includes_eid_placeholder(self):
         values = self._get_completions(["dpsh", "--config", "tests/test_config", "entity", "A"], "")
@@ -56,6 +60,17 @@ class TestShCompletion(unittest.TestCase):
         self.assertIn("--to", values)
         self.assertIn("--limit", values)
 
+    def test_snapshot_option_completion_includes_descriptions(self):
+        finder, values = self._finder_with_completions(
+            ["dpsh", "--config", "tests/test_config", "entity", "A", "10", "snapshots"],
+            "--",
+        )
+        self.assertIn("--from", values)
+        self.assertEqual(
+            "Lower bound of the snapshot time range.",
+            finder._display_completions.get("--from"),
+        )
+
     def test_entity_type_attr_completion_uses_config(self):
         values = self._get_completions(
             ["dpsh", "--config", "tests/test_config", "entity", "A", "attr"], "d"
@@ -63,6 +78,13 @@ class TestShCompletion(unittest.TestCase):
         self.assertIn("data1", values)
         self.assertIn("data2", values)
         self.assertIn("data3", values)
+
+    def test_entity_type_completion_includes_descriptions(self):
+        finder, values = self._finder_with_completions(
+            ["dpsh", "--config", "tests/test_config", "entity"], "A"
+        )
+        self.assertIn("A ", values)
+        self.assertTrue(finder._display_completions.get("A", "").startswith("test entity A"))
 
     def test_entity_instance_attr_action_completion(self):
         values = self._get_completions(

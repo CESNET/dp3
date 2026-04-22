@@ -5,6 +5,7 @@ import argparse
 from typing import Optional
 
 from . import etype, instance
+from .common import complete_entity_rest, complete_entity_selector
 
 
 def _build_overview_parser() -> argparse.ArgumentParser:
@@ -15,8 +16,12 @@ def _build_overview_parser() -> argparse.ArgumentParser:
             "then continue with either type-scope commands or an entity id."
         ),
     )
-    parser.add_argument("selector", nargs="?", metavar="ENTITY_TYPE", help="Entity type.")
-    parser.add_argument("rest", nargs=argparse.REMAINDER, metavar="...")
+    selector_action = parser.add_argument(
+        "selector", nargs="?", metavar="ENTITY_TYPE", help="Entity type."
+    )
+    selector_action.completer = complete_entity_selector
+    rest_action = parser.add_argument("rest", nargs=argparse.REMAINDER, metavar="...")
+    rest_action.completer = complete_entity_rest
     return parser
 
 
@@ -58,6 +63,10 @@ def register_parser(commands) -> None:
         help="Inspect and modify entity data.",
         description=overview_parser.description,
     )
-    entity_parser.add_argument("selector", nargs="?", metavar="ENTITY_TYPE", help="Entity type.")
-    entity_parser.add_argument("rest", nargs=argparse.REMAINDER, metavar="...")
+    selector_action = entity_parser.add_argument(
+        "selector", nargs="?", metavar="ENTITY_TYPE", help="Entity type."
+    )
+    selector_action.completer = complete_entity_selector
+    rest_action = entity_parser.add_argument("rest", nargs=argparse.REMAINDER, metavar="...")
+    rest_action.completer = complete_entity_rest
     entity_parser.set_defaults(handler=handle_entity_command, prepare_args=parse_entity_command)

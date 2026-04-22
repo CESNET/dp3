@@ -4,6 +4,8 @@
 import argparse
 import sys
 
+import argcomplete
+
 from dp3.bin.api import init_parser as init_api_parser
 from dp3.bin.api import main as api_main
 from dp3.bin.check import init_parser as init_check_parser
@@ -72,6 +74,7 @@ def init_parser():
 
 def run():
     parser = init_parser()
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     if args.command == "worker":

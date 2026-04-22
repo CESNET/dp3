@@ -4,12 +4,13 @@
 import json
 import os
 import sys
+from functools import lru_cache
 from typing import Any, Optional
 from urllib.parse import urljoin
 
 import requests
 
-from dp3.common.config import ModelSpec
+from dp3.common.config import ModelSpec, read_config_dir
 
 
 class APIError(RuntimeError):
@@ -213,3 +214,54 @@ def resolve_config_dir(config_dir: Optional[str]) -> str:
     if os.environ.get("DP3_CONFIG_DIR"):
         return os.path.abspath(os.environ["DP3_CONFIG_DIR"])
     return os.path.abspath("config")
+
+
+@lru_cache(maxsize=32)
+def load_completion_model_spec(config_dir: str) -> Optional[ModelSpec]:
+    """Load the model specification used by shell completion."""
+    try:
+        config = read_config_dir(config_dir, recursive=True)
+        return ModelSpec(config.get("db_entities"))
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=32)
+def load_completion_entity_catalog(
+    config_dir: str, base_url: Optional[str], timeout: float
+) -> Optional[dict[str, Any]]:
+    """Load entity metadata from the API when config-based completion is unavailable."""
+    try:
+        client = DP3APIClient(config_dir, base_url, timeout)
+        payload = client.request("GET", "/entities").json()
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def get_completion_context(
+    parsed_args,
+) -> tuple[Optional[ModelSpec], Optional[dict[str, Any]]]:
+    """Return completion metadata derived from config and API sources."""
+    config_dir = resolve_config_dir(getattr(parsed_args, "config", None))
+    model_spec = load_completion_model_spec(config_dir)
+    entity_catalog = None
+    if model_spec is None:
+        entity_catalog = load_completion_entity_catalog(
+            config_dir,
+            getattr(parsed_args, "url", None),
+            getattr(parsed_args, "timeout", 5.0),
+        )
+    return model_spec, entity_catalog
+
+
+def complete_entity_type_names(prefix: str, parsed_args, **_kwargs) -> list[str]:
+    """Complete entity type names from config or API metadata."""
+    model_spec, entity_catalog = get_completion_context(parsed_args)
+    if model_spec is not None:
+        values = sorted(model_spec.entities)
+    elif entity_catalog is not None:
+        values = sorted(entity_catalog)
+    else:
+        values = []
+    return [value for value in values if value.startswith(prefix)]

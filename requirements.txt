@@ -1,5 +1,6 @@
 AMQPStorm~=2.7.2
 apscheduler~=3.10.0
+argcomplete~=3.6.0
 event-count-logger>=1.1
 fastapi>=0.109.1
 pydantic>=2.4.0

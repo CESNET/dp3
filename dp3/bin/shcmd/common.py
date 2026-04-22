@@ -255,7 +255,26 @@ def get_completion_context(
     return model_spec, entity_catalog
 
 
-def complete_entity_type_names(prefix: str, parsed_args, **_kwargs) -> list[str]:
+def _entity_type_description(
+    etype: str,
+    model_spec: Optional[ModelSpec],
+    entity_catalog: Optional[dict[str, Any]],
+) -> str:
+    if model_spec is not None and etype in model_spec.entities:
+        entity_spec = model_spec.entity(etype)
+        return f"{entity_spec.name} ({entity_spec.id_data_type.root} ids)"
+    if entity_catalog is not None and etype in entity_catalog:
+        entry = entity_catalog[etype]
+        name = entry.get("name")
+        id_data_type = entry.get("id_data_type")
+        if name and id_data_type:
+            return f"{name} ({id_data_type} ids)"
+        if name:
+            return str(name)
+    return "Configured entity type."
+
+
+def complete_entity_type_names(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:
     """Complete entity type names from config or API metadata."""
     model_spec, entity_catalog = get_completion_context(parsed_args)
     if model_spec is not None:
@@ -264,4 +283,8 @@ def complete_entity_type_names(prefix: str, parsed_args, **_kwargs) -> list[str]
         values = sorted(entity_catalog)
     else:
         values = []
-    return [value for value in values if value.startswith(prefix)]
+    return {
+        value: _entity_type_description(value, model_spec, entity_catalog)
+        for value in values
+        if value.startswith(prefix)
+    }

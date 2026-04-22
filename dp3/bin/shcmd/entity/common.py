@@ -31,6 +31,50 @@ TYPE_COUNT_OPTIONS = ["--fulltext-json", "--filter-json", "--has-attr"]
 RAW_OPTIONS = ["--attr", "--src", "--skip", "--limit", "--format"]
 TIME_RANGE_OPTIONS = ["--from", "--to"]
 SNAPSHOT_OPTIONS = ["--from", "--to", "--skip", "--limit", "--format"]
+TYPE_COMMAND_DESCRIPTIONS = {
+    "list": "List latest entity snapshots for the entity type.",
+    "count": "Count latest entity snapshots for the entity type.",
+    "raw": RAW_HELP,
+    "attr": "Query one attribute across the entity type.",
+}
+INSTANCE_COMMAND_DESCRIPTIONS = {
+    "get": "Get the combined entity view.",
+    "master": "Get the current master record.",
+    "snapshots": "Browse snapshots of a single entity.",
+    "raw": RAW_HELP,
+    "ttl": "Extend TTL values for the entity.",
+    "delete": "Delete the entity data.",
+    "attr": "Get or modify one entity attribute.",
+}
+TYPE_OPTION_DESCRIPTIONS = {
+    "--fulltext-json": "JSON object with fulltext search filters.",
+    "--filter-json": "JSON object with additional generic filters.",
+    "--has-attr": "Limit results to entities where the attribute has data present.",
+    "--skip": "Skip this many results before returning data.",
+    "--limit": "Return at most this many results.",
+}
+RAW_OPTION_DESCRIPTIONS = {
+    "--attr": "Limit raw datapoints to one attribute.",
+    "--src": "Limit raw datapoints to one source.",
+    "--skip": "Skip this many raw datapoints before returning data.",
+    "--limit": "Return at most this many raw datapoints.",
+    "--format": "Choose JSON or NDJSON output.",
+}
+TIME_RANGE_OPTION_DESCRIPTIONS = {
+    "--from": "Lower bound of the time range.",
+    "--to": "Upper bound of the time range.",
+}
+SNAPSHOT_OPTION_DESCRIPTIONS = {
+    "--from": "Lower bound of the snapshot time range.",
+    "--to": "Upper bound of the snapshot time range.",
+    "--skip": "Skip this many snapshots before returning data.",
+    "--limit": "Return at most this many snapshots.",
+    "--format": "Choose JSON or NDJSON output.",
+}
+VALUE_CHOICE_DESCRIPTIONS = {
+    "json": "Return structured JSON output.",
+    "ndjson": "Return newline-delimited JSON output.",
+}
 
 
 def add_time_range_args(parser: argparse.ArgumentParser) -> None:
@@ -169,6 +213,10 @@ def _filter_matches(values: Iterable[str], prefix: str) -> list[str]:
     return [value for value in values if value.startswith(prefix)]
 
 
+def _match_descriptions(values: dict[str, str], prefix: str) -> dict[str, str]:
+    return {value: description for value, description in values.items() if value.startswith(prefix)}
+
+
 def _entity_types(model_spec, entity_catalog: Optional[dict[str, Any]] = None) -> list[str]:
     if model_spec is not None:
         return sorted(model_spec.entities)
@@ -187,38 +235,80 @@ def _entity_attrs(
     return []
 
 
+def _entity_attr_descriptions(
+    model_spec, etype: str, entity_catalog: Optional[dict[str, Any]] = None
+) -> dict[str, str]:
+    attrs = _entity_attrs(model_spec, etype, entity_catalog)
+    descriptions = {attr: f"Attribute on entity type '{etype}'." for attr in attrs}
+    if model_spec is not None and etype in model_spec.entities:
+        for attr in attrs:
+            attr_spec = model_spec.attr(etype, attr)
+            descriptions[attr] = f"{attr_spec.t.name.lower()} attribute on entity type '{etype}'."
+    return descriptions
+
+
 def _complete_options(
     args: Sequence[str],
     prefix: str,
     *,
     options: Sequence[str],
+    option_descriptions: Optional[dict[str, str]] = None,
     value_choices: Optional[dict[str, Sequence[str]]] = None,
-) -> list[str]:
+    value_descriptions: Optional[dict[str, dict[str, str]]] = None,
+) -> dict[str, str]:
+    option_descriptions = option_descriptions or {}
     value_choices = value_choices or {}
+    value_descriptions = value_descriptions or {}
     if args and args[-1] in value_choices:
-        return _filter_matches(value_choices[args[-1]], prefix)
-    return _filter_matches(options, prefix)
+        choices = value_choices[args[-1]]
+        descriptions = value_descriptions.get(args[-1], {})
+        return {
+            choice: descriptions.get(choice, f"Value for {args[-1]}.")
+            for choice in choices
+            if choice.startswith(prefix)
+        }
+    return {
+        option: option_descriptions.get(option, "Command option.")
+        for option in options
+        if option.startswith(prefix)
+    }
 
 
-def complete_entity_selector(prefix: str, parsed_args, **_kwargs) -> list[str]:
+def complete_entity_selector(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:
     """Complete entity types for the path-like entity command."""
     model_spec, entity_catalog = get_completion_context(parsed_args)
-    return _filter_matches(_entity_types(model_spec, entity_catalog), prefix)
+    attr_descriptions = {}
+    for etype in _entity_types(model_spec, entity_catalog):
+        if model_spec is not None and etype in model_spec.entities:
+            entity_spec = model_spec.entity(etype)
+            attr_descriptions[etype] = f"{entity_spec.name} ({entity_spec.id_data_type.root} ids)"
+        elif entity_catalog is not None and etype in entity_catalog:
+            entry = entity_catalog[etype]
+            name = entry.get("name") or etype
+            id_data_type = entry.get("id_data_type")
+            if id_data_type:
+                attr_descriptions[etype] = f"{name} ({id_data_type} ids)"
+            else:
+                attr_descriptions[etype] = str(name)
+        else:
+            attr_descriptions[etype] = "Configured entity type."
+    return _match_descriptions(attr_descriptions, prefix)
 
 
-def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> list[str]:  # noqa: PLR0911
+def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:  # noqa: PLR0911
     """Complete type-scope and single-entity commands under `entity`."""
     model_spec, entity_catalog = get_completion_context(parsed_args)
     etype = getattr(parsed_args, "selector", None)
     if etype is None:
-        return []
+        return {}
 
     words = list(getattr(parsed_args, "rest", []))
-    attrs = _entity_attrs(model_spec, etype, entity_catalog)
+    attr_descriptions = _entity_attr_descriptions(model_spec, etype, entity_catalog)
+    attrs = list(attr_descriptions)
     if not words:
-        matches = _filter_matches(ENTITY_TYPE_COMMANDS, prefix)
+        matches = _match_descriptions(TYPE_COMMAND_DESCRIPTIONS, prefix)
         if not prefix or not prefix.startswith("-"):
-            matches.append(ENTITY_ID_PLACEHOLDER)
+            matches[ENTITY_ID_PLACEHOLDER] = "Enter an entity id to inspect one entity."
         return matches
 
     command = words[0]
@@ -228,68 +318,104 @@ def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> list[str]:  # n
             args,
             prefix,
             options=TYPE_LIST_OPTIONS,
+            option_descriptions=TYPE_OPTION_DESCRIPTIONS,
             value_choices={"--has-attr": attrs},
+            value_descriptions={"--has-attr": attr_descriptions},
         )
     if command == "count":
         return _complete_options(
             args,
             prefix,
             options=TYPE_COUNT_OPTIONS,
+            option_descriptions=TYPE_OPTION_DESCRIPTIONS,
             value_choices={"--has-attr": attrs},
+            value_descriptions={"--has-attr": attr_descriptions},
         )
     if command == "raw":
         return _complete_options(
             args,
             prefix,
             options=RAW_OPTIONS,
+            option_descriptions=RAW_OPTION_DESCRIPTIONS,
             value_choices={"--attr": attrs, "--format": ["json", "ndjson"]},
+            value_descriptions={
+                "--attr": attr_descriptions,
+                "--format": VALUE_CHOICE_DESCRIPTIONS,
+            },
         )
     if command == "attr":
         if not args:
-            return _filter_matches(attrs, prefix)
+            return _match_descriptions(attr_descriptions, prefix)
         if len(args) == 1:
-            return _filter_matches(["distinct"], prefix)
-        return []
+            return _match_descriptions(
+                {"distinct": "Get distinct latest values of this attribute."}, prefix
+            )
+        return {}
     if command in ENTITY_TYPE_COMMANDS:
-        return _filter_matches(ENTITY_TYPE_COMMANDS, prefix)
+        return _match_descriptions(TYPE_COMMAND_DESCRIPTIONS, prefix)
 
     if not args:
-        return _filter_matches(ENTITY_INSTANCE_COMMANDS, prefix)
+        return _match_descriptions(INSTANCE_COMMAND_DESCRIPTIONS, prefix)
 
     entity_command = args[0]
     entity_args = args[1:]
     if entity_command in {"get", "master"}:
-        return _complete_options(entity_args, prefix, options=TIME_RANGE_OPTIONS)
+        return _complete_options(
+            entity_args,
+            prefix,
+            options=TIME_RANGE_OPTIONS,
+            option_descriptions=TIME_RANGE_OPTION_DESCRIPTIONS,
+        )
     if entity_command == "snapshots":
         return _complete_options(
             entity_args,
             prefix,
             options=SNAPSHOT_OPTIONS,
+            option_descriptions=SNAPSHOT_OPTION_DESCRIPTIONS,
             value_choices={"--format": ["json", "ndjson"]},
+            value_descriptions={"--format": VALUE_CHOICE_DESCRIPTIONS},
         )
     if entity_command == "raw":
         return _complete_options(
             entity_args,
             prefix,
             options=RAW_OPTIONS,
+            option_descriptions=RAW_OPTION_DESCRIPTIONS,
             value_choices={"--attr": attrs, "--format": ["json", "ndjson"]},
+            value_descriptions={
+                "--attr": attr_descriptions,
+                "--format": VALUE_CHOICE_DESCRIPTIONS,
+            },
         )
     if entity_command == "ttl":
-        return _filter_matches(["--body-json"], prefix)
+        return _match_descriptions(
+            {"--body-json": "JSON body describing the TTL update request."}, prefix
+        )
     if entity_command == "delete":
-        return []
+        return {}
     if entity_command == "attr":
         if not entity_args:
-            return _filter_matches(attrs, prefix)
+            return _match_descriptions(attr_descriptions, prefix)
         attr = entity_args[0]
         attr_args = entity_args[1:]
         if not attr_args:
-            return _filter_matches(["get", "set"], prefix)
+            return _match_descriptions(
+                {
+                    "get": "Get the current value of this attribute.",
+                    "set": "Set the current value of this attribute.",
+                },
+                prefix,
+            )
         if attr_args[0] == "get":
-            return _complete_options(attr_args[1:], prefix, options=TIME_RANGE_OPTIONS)
+            return _complete_options(
+                attr_args[1:],
+                prefix,
+                options=TIME_RANGE_OPTIONS,
+                option_descriptions=TIME_RANGE_OPTION_DESCRIPTIONS,
+            )
         if attr_args[0] == "set":
-            return []
+            return {}
         if attr.startswith(prefix):
-            return [attr]
-        return []
-    return _filter_matches(ENTITY_INSTANCE_COMMANDS, prefix)
+            return {attr: attr_descriptions.get(attr, f"Attribute on entity type '{etype}'.")}
+        return {}
+    return _match_descriptions(INSTANCE_COMMAND_DESCRIPTIONS, prefix)

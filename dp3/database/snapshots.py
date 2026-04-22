@@ -649,7 +649,7 @@ class TypedSnapshotCollection(abc.ABC):
             raise SnapshotCollectionError(f"Delete of olds snapshots failed: {e}") from e
         return deleted
 
-    def delete_eid(self, eid: AnyEidT):
+    def delete_eid(self, eid: AnyEidT) -> int:
         """Delete all snapshots of `eid`."""
         try:
             res = self._col().delete_many(self._filter_from_eid(eid))
@@ -660,10 +660,11 @@ class TypedSnapshotCollection(abc.ABC):
             self.log.debug(
                 "Deleted %s oversized snapshots of %s/%s.", res.deleted_count, self.entity_type, eid
             )
+            return del_cnt + res.deleted_count
         except Exception as e:
             raise SnapshotCollectionError(f"Delete of failed: {e}\n{eid}") from e
 
-    def delete_eids(self, eids: list[Any]):
+    def delete_eids(self, eids: list[Any]) -> int:
         """Delete all snapshots of `eids`."""
         try:
             res = self._col().delete_many(self._filter_from_eids(eids))
@@ -676,6 +677,7 @@ class TypedSnapshotCollection(abc.ABC):
                 self.entity_type,
                 len(eids),
             )
+            return del_cnt + res.deleted_count
         except Exception as e:
             raise SnapshotCollectionError(f"Delete of snapshots failed: {e}\n{eids}") from e
 

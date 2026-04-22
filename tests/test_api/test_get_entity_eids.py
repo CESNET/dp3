@@ -24,7 +24,7 @@ class GetEntityEids(common.APITest):
         sleep(6)
 
     def test_get_entity_eids(self):
-        eids = self.get_entity_data("entity/A", EntityEidList)
+        eids = self.get_entity_data("entity/A/get", EntityEidList)
         self.assertEqual(20, len(eids.data))
 
     def test_get_entity_eids_pagination(self):
@@ -32,24 +32,24 @@ class GetEntityEids(common.APITest):
         received_eids = set()
 
         for i in range(0, 100, 10):
-            eids = self.get_entity_data("entity/A", EntityEidList, skip=i, limit=10)
+            eids = self.get_entity_data("entity/A/get", EntityEidList, skip=i, limit=10)
             self.assertEqual(10, len(eids.data), f"Failed at {i}")
             received_eids.update(x["eid"] for x in eids.data)
 
-        eids = self.get_entity_data("entity/A", EntityEidList, skip=102, limit=20)
+        eids = self.get_entity_data("entity/A/get", EntityEidList, skip=102, limit=20)
         self.assertEqual(0, len(eids.data))
         self.assertSetEqual(expected_eids, received_eids)
 
     def test_get_entity_eids_generic_filter(self):
         eids = self.get_entity_data(
-            "entity/A", EntityEidList, generic_filter=json.dumps({"last.eid": 0})
+            "entity/A/get", EntityEidList, generic_filter=json.dumps({"last.eid": 0})
         )
         self.assertEqual(1, len(eids.data))
         self.assertEqual(0, eids.data[0]["eid"])
 
     def test_get_entity_eids_generic_filters_eid(self):
         eids = self.get_entity_data(
-            "entity/A",
+            "entity/A/get",
             EntityEidList,
             generic_filter=json.dumps(
                 {"$or": [{"last.eid": 5}, {"last.eid": {"$gte": 50, "$lt": 60}}]}

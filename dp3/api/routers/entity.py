@@ -67,12 +67,16 @@ def get_eid_master_record_handler(
 
 
 def get_eid_snapshots_handler(
-    e: EntityId, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
+    e: EntityId,
+    date_from: Optional[AwareDatetime] = None,
+    date_to: Optional[AwareDatetime] = None,
+    skip: int = 0,
+    limit: int = 0,
 ) -> list[dict[str, Any]]:
-    """Handler for getting snapshots of EID"""
-    snapshots = list(DB.snapshots.get_by_eid(e.type, e.id, t1=date_from, t2=date_to))
-
-    return snapshots
+    """Handler for getting snapshots of EID."""
+    return list(
+        DB.snapshots.get_by_eid(e.type, e.id, t1=date_from, t2=date_to, skip=skip, limit=limit)
+    )
 
 
 router = APIRouter(dependencies=[Depends(check_etype)])
@@ -236,7 +240,7 @@ async def count_entity_type_eids(
 async def get_eid_data(
     e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
 ) -> EntityEidData:
-    """Get data of `etype`'s `eid`.
+    """Get data of the entity identified by `etype` and `eid`.
 
     Contains all snapshots and master record.
     Snapshots are ordered by ascending creation time.
@@ -256,16 +260,24 @@ async def get_eid_data(
 async def get_eid_master_record(
     e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
 ) -> EntityEidMasterRecord:
-    """Get master record of `etype`'s `eid`."""
+    """Get the master record of the entity identified by `etype` and `eid`."""
     return get_eid_master_record_handler(e, date_from, date_to)
 
 
 @router.get("/{etype}/{eid}/snapshots")
 async def get_eid_snapshots(
-    e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
+    e: ParsedEid,
+    date_from: Optional[AwareDatetime] = None,
+    date_to: Optional[AwareDatetime] = None,
+    skip: NonNegativeInt = 0,
+    limit: NonNegativeInt = 0,
 ) -> EntityEidSnapshots:
-    """Get snapshots of `etype`'s `eid`."""
-    return get_eid_snapshots_handler(e, date_from, date_to)
+    """Get snapshots of the entity identified by `etype` and `eid`.
+
+    Supports optional pagination via `skip` and `limit`.
+    Setting `limit` to `0` returns all matching snapshots.
+    """
+    return get_eid_snapshots_handler(e, date_from, date_to, skip, limit)
 
 
 @router.get("/{etype}/{eid}/get/{attr}")

@@ -217,12 +217,19 @@ sudo systemctl enable <APP_NAME>
 sudo systemctl start <APP_NAME>
 ```
 
-This creates an `<APPNAME>ctl` helper that wraps `supervisorctl` for the app:
+This creates two app-specific helpers:
+
+- `<APPNAME>ctl` wraps `supervisorctl` for the app
+- `<APPNAME>sh` wraps `dp3 sh` with the app config directory already set
 
 ```shell
 <APPNAME>ctl start all
 <APPNAME>ctl status
+<APPNAME>sh health
+<APPNAME>sh entities | jq keys
 ```
+
+`<APPNAME>sh entities` returns the full entity-type configuration map exposed by the API. When you only need the configured entity type names, pipe it through `jq keys`.
 
 The generated supervisor configuration lives under `/etc/<APP_NAME>` and the process logs are written under `/var/log/<APP_NAME>`.
 For more on supervisor itself, see the [supervisorctl documentation](http://supervisord.org/running.html#running-supervisorctl).
@@ -307,7 +314,10 @@ Use the API to confirm that the deployment still answers health and data request
 
 - `GET /` for health
 - `/docs` for interactive endpoint reference
-- entity or attribute endpoints for spot checks against real data
+- `dp3 sh entities | jq keys` to list the configured entity type names exposed by the running app (`dp3 sh entities` returns the full entity-type configuration map)
+- `dp3 sh entity <ETYPE> <EID> master` or `dp3 sh entity <ETYPE> <EID> attr <ATTR> get` for spot checks against real data
+
+When you are working directly on the deployment host, prefer `<APPNAME>sh ...` because it already knows the production config directory.
 
 ### RabbitMQ management
 

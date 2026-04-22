@@ -1,2 +1,2 @@
 #!/bin/sh
-exec {{DP3_EXE}} sh --config "{{CONFIG_DIR}}" "$@"
+DP3_CONFIG_DIR="{{CONFIG_DIR}}" exec {{DP3_EXE}} sh "$@"

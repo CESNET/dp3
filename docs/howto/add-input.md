@@ -165,7 +165,8 @@ slow on large collections, and keep the `mongosh` flow as a fallback.
 === "CLI (`dp3 sh`)"
 
     ```shell
-    dp3 sh --config /path/to/config entity raw device \
+    export DP3_CONFIG_DIR=/path/to/config
+    dp3 sh entity device raw \
       --attr risk_score \
       --limit 5 \
       --format ndjson
@@ -175,7 +176,7 @@ slow on large collections, and keep the `mongosh` flow as a fallback.
     data for the attribute and extract their ids:
 
     ```shell
-    dp3 sh --config /path/to/config entity list device \
+    dp3 sh entity device list \
       --has-attr risk_score \
       --limit 5 \
       | jq -r '.data[].eid'

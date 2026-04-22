@@ -162,56 +162,96 @@ If the attribute still does not appear where you expect it, use the checks below
 
 For secondary DP³ modules, worker logs are often the first place where callback failures or type mismatches become visible.
 
-### Check MongoDB directly
+### Inspect raw ingestion and stored state
 
-Use direct database inspection when API-level checks are not enough, especially when debugging raw ingestion or module-produced datapoints.
+When API-level checks are not enough, inspect the raw datapoints first and then follow up with
+entity-level reads. The CLI path below is preferred for common troubleshooting. Raw inspection can
+be slow on large collections, so keep the query narrow. Keep the `mongosh` flow as a fallback when
+you need direct database access.
 
-```shell
-mongosh "mongodb://<user>:<password>@<host>:<port>/"
-```
+=== "CLI (`dp3 sh`)"
 
-```javascript
-use <db_name>
-entity = "device";
-attr = "risk_score";
+    Check whether datapoints for the attribute reached current raw storage:
 
-// `#raw` contains incoming datapoints.
-db.getCollection(`${entity}#raw`).findOne({attr: attr})
-db.getCollection(`${entity}#raw`).find({attr: attr}).sort({t1: -1}).limit(5)
+    ```shell
+    dp3 sh --config /path/to/config entity raw device \
+      --attr risk_score \
+      --limit 5 \
+      --format ndjson
+    ```
 
-// `#master` contains the current stored state.
-// Plain attribute
-// db.getCollection(`${entity}#master`).find({[attr]: {$exists: true}}).limit(5)
+    If you need entity ids that currently have stored data for the attribute, list a few latest
+    snapshots and extract their ids:
 
-// Observations attribute
-// db.getCollection(`${entity}#master`).find({$and: [{[attr]: {$exists: true}}, {[attr]: {$ne: []}}]}).limit(5)
-```
+    ```shell
+    dp3 sh --config /path/to/config entity list device \
+      --has-attr risk_score \
+      --limit 5 \
+      | jq -r '.data[].eid'
+    ```
 
-To print only the stored value of a plain attribute:
+    Then inspect the attribute directly on a specific entity:
 
-```javascript
-(db
-  .getCollection(`${entity}#master`)
-  .find({[attr]: {$exists: true}})
-  .limit(5)
-  .forEach((x) => print(x[attr]["v"]))
-)
-```
+    ```shell
+    dp3 sh --config /path/to/config entity attr \
+      device device-123 risk_score
+    ```
 
-To print compact observation history:
+    Or inspect the full master record in context:
 
-```javascript
-(db
-  .getCollection(`${entity}#master`)
-  .find({$and: [{[attr]: {$exists: true}}, {[attr]: {$ne: []}}]})
-  .limit(5)
-  .forEach((y) => {
-    print(y["_id"]);
-    y[attr].forEach((z) => print(z["t1"], z["t2"], z["v"]));
-    print();
-  })
-)
-```
+    ```shell
+    dp3 sh --config /path/to/config entity master \
+      device device-123
+    ```
+
+=== "MongoDB (`mongosh`)"
+
+    ```shell
+    mongosh "mongodb://<user>:<password>@<host>:<port>/"
+    ```
+
+    ```javascript
+    use <db_name>
+    entity = "device";
+    attr = "risk_score";
+
+    // `#raw` contains incoming datapoints.
+    db.getCollection(`${entity}#raw`).findOne({attr: attr})
+    db.getCollection(`${entity}#raw`).find({attr: attr}).sort({t1: -1}).limit(5)
+
+    // `#master` contains the current stored state.
+    // Plain attribute
+    // db.getCollection(`${entity}#master`).find({[attr]: {$exists: true}}).limit(5)
+
+    // Observations attribute
+    // db.getCollection(`${entity}#master`).find({$and: [{[attr]: {$exists: true}}, {[attr]: {$ne: []}}]}).limit(5)
+    ```
+
+    To print only the stored value of a plain attribute:
+
+    ```javascript
+    (db
+      .getCollection(`${entity}#master`)
+      .find({[attr]: {$exists: true}})
+      .limit(5)
+      .forEach((x) => print(x[attr]["v"]))
+    )
+    ```
+
+    To print compact observation history:
+
+    ```javascript
+    (db
+      .getCollection(`${entity}#master`)
+      .find({$and: [{[attr]: {$exists: true}}, {[attr]: {$ne: []}}]})
+      .limit(5)
+      .forEach((y) => {
+        print(y["_id"]);
+        y[attr].forEach((z) => print(z["t1"], z["t2"], z["v"]));
+        print();
+      })
+    )
+    ```
 
 ## Common failure modes
 

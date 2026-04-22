@@ -10,7 +10,8 @@ from urllib.parse import urljoin
 
 import requests
 
-from dp3.common.config import read_config_dir
+from dp3.common.attrspec import AttrType
+from dp3.common.config import ModelSpec, read_config_dir
 
 
 class APIError(RuntimeError):
@@ -20,8 +21,15 @@ class APIError(RuntimeError):
 class DP3APIClient:
     """Small HTTP client for the DP3 API."""
 
-    def __init__(self, config_dir: str, base_url: Optional[str] = None, timeout: float = 5.0):
+    def __init__(
+        self,
+        config_dir: str,
+        base_url: Optional[str] = None,
+        timeout: float = 5.0,
+        model_spec: Optional[ModelSpec] = None,
+    ):
         self.config_dir = os.path.abspath(config_dir)
+        self.model_spec = model_spec
         self.base_url = self._resolve_base_url(base_url)
         self.timeout = timeout
         self.session = requests.Session()
@@ -182,6 +190,40 @@ def _common_time_params(args) -> dict[str, Any]:
     return params
 
 
+def _read_json_object(raw_value: str, flag_name: str) -> dict[str, Any]:
+    value = _read_json_value(raw_value)
+    if not isinstance(value, dict):
+        raise APIError(f"{flag_name} must decode to a JSON object.")
+    return value
+
+
+def _build_has_attr_filter(client: DP3APIClient, etype: str, attr: str) -> dict[str, Any]:
+    if client.model_spec is None:
+        raise APIError("Attribute-presence filtering requires a readable model specification.")
+    if etype not in client.model_spec.entities:
+        raise APIError(f"Unknown entity type '{etype}'.")
+    if attr not in client.model_spec.attribs(etype):
+        raise APIError(f"Attribute '{attr}' doesn't exist on entity type '{etype}'.")
+
+    query = {f"last.{attr}": {"$exists": True}}
+    attr_spec = client.model_spec.attr(etype, attr)
+    if attr_spec.t in AttrType.TIMESERIES | AttrType.OBSERVATIONS:
+        query[f"last.{attr}"]["$ne"] = []
+    return query
+
+
+def _entity_generic_filter_param(client: DP3APIClient, args) -> Optional[str]:
+    query = None
+    if getattr(args, "filter_json", None) is not None:
+        query = _read_json_object(args.filter_json, "--filter-json")
+    if getattr(args, "has_attr", None) is not None:
+        has_attr_filter = _build_has_attr_filter(client, args.etype, args.has_attr)
+        query = has_attr_filter if query is None else {"$and": [query, has_attr_filter]}
+    if query is None:
+        return None
+    return json.dumps(query)
+
+
 def handle_health(client: DP3APIClient, _args) -> int:
     return _print_response_json(client.request("GET", "/"))
 
@@ -199,8 +241,9 @@ def handle_entity_list(client: DP3APIClient, args) -> int:
     params = {"skip": args.skip, "limit": args.limit}
     if args.fulltext_json is not None:
         params["fulltext_filters"] = args.fulltext_json
-    if args.filter_json is not None:
-        params["generic_filter"] = args.filter_json
+    generic_filter = _entity_generic_filter_param(client, args)
+    if generic_filter is not None:
+        params["generic_filter"] = generic_filter
     return _print_response_json(client.request("GET", f"/entity/{args.etype}/get", params=params))
 
 
@@ -208,9 +251,25 @@ def handle_entity_count(client: DP3APIClient, args) -> int:
     params = {}
     if args.fulltext_json is not None:
         params["fulltext_filters"] = args.fulltext_json
-    if args.filter_json is not None:
-        params["generic_filter"] = args.filter_json
+    generic_filter = _entity_generic_filter_param(client, args)
+    if generic_filter is not None:
+        params["generic_filter"] = generic_filter
     return _print_response_json(client.request("GET", f"/entity/{args.etype}/count", params=params))
+
+
+def handle_entity_raw(client: DP3APIClient, args) -> int:
+    params = {"skip": args.skip, "limit": args.limit}
+    if args.eid is not None:
+        params["eid"] = args.eid
+    if args.attr is not None:
+        params["attr"] = args.attr
+    if args.src is not None:
+        params["src"] = args.src
+    path = f"/entity/{args.etype}/raw/get"
+    if args.format == "ndjson":
+        base_params = {key: value for key, value in params.items() if key not in {"skip", "limit"}}
+        return _stream_json_pages(client, path, base_params, args.skip, args.limit)
+    return _print_response_json(client.request("GET", path, params=params))
 
 
 def handle_entity_get(client: DP3APIClient, args) -> int:
@@ -388,6 +447,11 @@ def init_parser(parser: argparse.ArgumentParser) -> None:
     entity_list_parser.add_argument("etype")
     entity_list_parser.add_argument("--fulltext-json", default=None)
     entity_list_parser.add_argument("--filter-json", default=None)
+    entity_list_parser.add_argument(
+        "--has-attr",
+        default=None,
+        help="Limit results to latest snapshots where the attribute has data present.",
+    )
     entity_list_parser.add_argument("--skip", type=int, default=0)
     entity_list_parser.add_argument("--limit", type=int, default=20)
     entity_list_parser.set_defaults(handler=handle_entity_list)
@@ -396,7 +460,28 @@ def init_parser(parser: argparse.ArgumentParser) -> None:
     entity_count_parser.add_argument("etype")
     entity_count_parser.add_argument("--fulltext-json", default=None)
     entity_count_parser.add_argument("--filter-json", default=None)
+    entity_count_parser.add_argument(
+        "--has-attr",
+        default=None,
+        help="Limit results to latest snapshots where the attribute has data present.",
+    )
     entity_count_parser.set_defaults(handler=handle_entity_count)
+
+    entity_raw_parser = entity_commands.add_parser(
+        "raw",
+        help=(
+            "Browse current raw datapoints for troubleshooting ingestion. "
+            "Can be slow on large raw collections."
+        ),
+    )
+    entity_raw_parser.add_argument("etype")
+    entity_raw_parser.add_argument("--eid")
+    entity_raw_parser.add_argument("--attr")
+    entity_raw_parser.add_argument("--src")
+    entity_raw_parser.add_argument("--skip", type=int, default=0)
+    entity_raw_parser.add_argument("--limit", type=int, default=20)
+    entity_raw_parser.add_argument("--format", choices=["json", "ndjson"], default="json")
+    entity_raw_parser.set_defaults(handler=handle_entity_raw)
 
     entity_get_parser = entity_commands.add_parser("get", help="Get full entity data.")
     entity_get_parser.add_argument("etype")
@@ -530,13 +615,14 @@ def run() -> None:
 
 def main(args) -> int:
     try:
-        read_config_dir(os.path.abspath(args.config), recursive=True)
+        config = read_config_dir(os.path.abspath(args.config), recursive=True)
+        model_spec = ModelSpec(config.get("db_entities"))
     except Exception as e:
         print(f"Cannot read config directory '{args.config}': {e}", file=sys.stderr)
         return 1
 
     try:
-        client = DP3APIClient(args.config, args.url, args.timeout)
+        client = DP3APIClient(args.config, args.url, args.timeout, model_spec=model_spec)
         return args.handler(client, args)
     except APIError as e:
         print(str(e), file=sys.stderr)

@@ -156,19 +156,43 @@ If the request succeeds but the data still does not appear as expected, inspect 
     tail -f /var/log/<APPNAME>/worker0.log
     ```
 
-### Check MongoDB directly when needed
+### Inspect raw ingestion when needed
 
-If you need to distinguish between ingestion and later processing, check whether the datapoint reached raw storage:
+If you need to distinguish between ingestion and later processing, inspect current raw datapoints first.
+Prefer the CLI path for common troubleshooting, keep the query narrow because raw inspection can be
+slow on large collections, and keep the `mongosh` flow as a fallback.
 
-```javascript
-use <db_name>
-entity = "device";
-attr = "risk_score";
+=== "CLI (`dp3 sh`)"
 
-db.getCollection(`${entity}#raw`).find({attr: attr}).sort({t1: -1}).limit(5)
-```
+    ```shell
+    dp3 sh --config /path/to/config entity raw device \
+      --attr risk_score \
+      --limit 5 \
+      --format ndjson
+    ```
 
-If the datapoint is present in `#raw` but not visible where you expect it later, inspect the model, worker logs, and attribute definition again.
+    If you need candidate entity ids for follow-up checks, list entities whose latest snapshot has
+    data for the attribute and extract their ids:
+
+    ```shell
+    dp3 sh --config /path/to/config entity list device \
+      --has-attr risk_score \
+      --limit 5 \
+      | jq -r '.data[].eid'
+    ```
+
+=== "MongoDB (`mongosh`)"
+
+    ```javascript
+    use <db_name>
+    entity = "device";
+    attr = "risk_score";
+
+    db.getCollection(`${entity}#raw`).find({attr: attr}).sort({t1: -1}).limit(5)
+    ```
+
+If the datapoint is present in `#raw` but not visible where you expect it later, inspect the model,
+worker logs, and attribute definition again.
 
 ## Common failure modes
 

@@ -152,12 +152,12 @@ class TypedSnapshotCollection(abc.ABC):
             self._col().find_one(self._filter_from_eid(eid), {"last": 1}, sort=[("_id", -1)]) or {}
         ).get("last", {})
 
-    def get_latest(
+    def find_latest(
         self,
         fulltext_filters: Optional[dict[str, str]] = None,
         generic_filter: Optional[dict[str, Any]] = None,
-    ) -> tuple[Cursor, int]:
-        """Get latest snapshots of given `etype`.
+    ) -> Cursor:
+        """Find latest snapshots of given `etype`.
 
         This method is useful for displaying data on web.
 
@@ -180,29 +180,7 @@ class TypedSnapshotCollection(abc.ABC):
 
         Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
-        Also returns total document count (after filtering).
-
         May raise `SnapshotCollectionError` if query is invalid.
-        """
-        snapshot_col = self._col()
-        query = self._prepare_latest_query(fulltext_filters or {}, generic_filter or {})
-
-        try:
-            return snapshot_col.find(query, {"last": 1}).sort(
-                [("_id", pymongo.ASCENDING)]
-            ), snapshot_col.count_documents(query)
-        except OperationFailure as e:
-            raise SnapshotCollectionError(f"Query is invalid: {e}") from e
-
-    def find_latest(
-        self,
-        fulltext_filters: Optional[dict[str, str]] = None,
-        generic_filter: Optional[dict[str, Any]] = None,
-    ) -> Cursor:
-        """Find latest snapshots of given `etype`.
-
-        See [`get_latest`][dp3.database.snapshots.SnapshotCollectionContainer.get_latest]
-        for more information.
 
         Returns only documents matching `generic_filter` and `fulltext_filters`,
         does not count them.
@@ -220,12 +198,12 @@ class TypedSnapshotCollection(abc.ABC):
     ) -> int:
         """Count latest snapshots of given `etype`.
 
-        See [`get_latest`][dp3.database.snapshots.SnapshotCollectionContainer.get_latest]
+        See [`find_latest`][dp3.database.snapshots.SnapshotCollectionContainer.find_latest]
         for more information.
 
         Returns only count of documents matching `generic_filter` and `fulltext_filters`.
 
-        Note that this method may take much longer than `get_latest` on larger databases,
+        Note that this method may take much longer than `find_latest` on larger databases,
         as it does count all documents, not just return the first few.
         """
         query = self._prepare_latest_query(fulltext_filters or {}, generic_filter or {})
@@ -784,13 +762,13 @@ class SnapshotCollectionContainer:
         """
         return self[entity_type].get_latest_one(eid)
 
-    def get_latest(
+    def find_latest(
         self,
         entity_type: str,
         fulltext_filters: Optional[dict[str, str]] = None,
         generic_filter: Optional[dict[str, Any]] = None,
-    ) -> tuple[Cursor, int]:
-        """Get latest snapshots of given `etype`.
+    ) -> Cursor:
+        """Find latest snapshots of given `etype`.
 
         This method is useful for displaying data on web.
 
@@ -813,22 +791,7 @@ class SnapshotCollectionContainer:
 
         Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
-        Also returns total document count (after filtering).
-
         May raise `SnapshotCollectionError` if query is invalid.
-        """
-        return self[entity_type].get_latest(fulltext_filters, generic_filter)
-
-    def find_latest(
-        self,
-        entity_type: str,
-        fulltext_filters: Optional[dict[str, str]] = None,
-        generic_filter: Optional[dict[str, Any]] = None,
-    ) -> Cursor:
-        """Find latest snapshots of given `etype`.
-
-        see [`get_latest`][dp3.database.snapshots.SnapshotCollectionContainer.get_latest]
-        for more information.
 
         Returns only documents matching `generic_filter` and `fulltext_filters`,
         does not count them.
@@ -843,12 +806,12 @@ class SnapshotCollectionContainer:
     ) -> int:
         """Count latest snapshots of given `etype`.
 
-        see [`get_latest`][dp3.database.snapshots.SnapshotCollectionContainer.get_latest]
+        see [`find_latest`][dp3.database.snapshots.SnapshotCollectionContainer.find_latest]
         for more information.
 
         Returns only count of documents matching `generic_filter` and `fulltext_filters`.
 
-        Note that this method may take much longer than `get_latest` on larger databases,
+        Note that this method may take much longer than `find_latest` on larger databases,
         as it does count all documents, not just return the first few.
         """
         return self[entity_type].count_latest(fulltext_filters, generic_filter)

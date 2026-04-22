@@ -38,17 +38,15 @@ EntityEidSnapshots = list[SnapshotType]
 
 
 class EntityEidList(BaseModel):
-    """List of entity eids and their data based on latest snapshot
+    """List of entity eids and their data based on latest snapshot.
 
-    Includes timestamp of latest snapshot creation, count of returned documents
-    and total count of documents available under specified filter.
+    Includes timestamp of latest snapshot creation and count of returned documents.
 
     Data does not include history of observations attributes and timeseries.
     """
 
     time_created: Optional[datetime] = None
     count: int
-    total_count: int
     data: EntityEidSnapshots
 
 

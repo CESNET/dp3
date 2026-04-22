@@ -98,46 +98,6 @@ def _validate_snapshot_filters(fulltext_filters, generic_filter):
 
 
 @router.get(
-    "/{etype}",
-    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
-    deprecated=True,
-)
-async def list_entity_type_eids(
-    etype: str,
-    fulltext_filters: Json = None,
-    generic_filter: Json = None,
-    skip: NonNegativeInt = 0,
-    limit: NonNegativeInt = 20,
-) -> EntityEidList:
-    """List latest snapshots of all `id`s present in database under `etype`.
-
-    Deprecated in favor of `/entity/{etype}/get` and `/entity/{etype}/count` endpoints,
-    which provide more flexibility and better performance.
-
-    See `/entity/{etype}/get` for more information.
-    """
-    fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
-
-    try:
-        cursor, total_count = DB.snapshots.get_latest(etype, fulltext_filters, generic_filter)
-        cursor_page = cursor.skip(skip).limit(limit)
-    except DatabaseError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    time_created = None
-
-    # Remove _id field
-    result = [r["last"] for r in cursor_page]
-    for r in result:
-        time_created = r["_time_created"]
-        del r["_time_created"]
-
-    return EntityEidList(
-        time_created=time_created, count=len(result), total_count=total_count, data=result
-    )
-
-
-@router.get(
     "/{etype}/get",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
@@ -151,7 +111,6 @@ async def get_entity_type_eids(
     """List latest snapshots of all `id`s present in database under `etype`.
 
     Contains only latest snapshot.
-    The `total_count` returned is always 0, use `/entity/{etype}/count` to get total count.
 
     Uses pagination.
     Setting `limit` to 0 is interpreted as no limit (return all results).
@@ -243,7 +202,7 @@ async def get_entity_type_eids(
         time_created = r["_time_created"]
         del r["_time_created"]
 
-    return EntityEidList(time_created=time_created, count=len(result), total_count=0, data=result)
+    return EntityEidList(time_created=time_created, count=len(result), data=result)
 
 
 @router.get(

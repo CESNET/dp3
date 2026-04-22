@@ -22,7 +22,7 @@ To see the changes made to the documentation page locally, a local instance of `
 You can install all the required packages using:
 
 ```shell
-pip install -r requirements.doc.txt
+pip install -r requirements.dev.txt
 ```
 
 After installing, you can use the following `mkdocs` commands:

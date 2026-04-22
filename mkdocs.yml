@@ -137,6 +137,29 @@ plugins:
             merge_init_into_class: true
             show_signature_annotations: true
             separate_signature: true
+  # Generate llms.txt and llms-full.txt for LLM-friendly documentation access
+  - llmstxt:
+      markdown_description: >-
+        DP3 is a configurable data processing platform for building applications
+        around entities, attributes, modules, hooks, and processing pipelines.
+        The documentation covers getting started, extending deployments and
+        modules, architecture concepts, and configuration reference material.
+      sections:
+        Overview:
+          - index.md: Introduction to DP3
+        How-to guides:
+          - howto/*.md
+        Concepts:
+          - architecture.md
+          - data_model.md
+          - history_management.md
+          - modules.md
+          - hooks.md
+        Reference:
+          - api.md
+          - configuration/*.md
+          - scripts.md
+          - grafana_plugin.md
 
 watch:
   - dp3

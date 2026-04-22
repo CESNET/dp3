@@ -14,6 +14,8 @@ from dp3.bin.schema_update import init_parser as init_schema_update_parser
 from dp3.bin.schema_update import main as schema_update_main
 from dp3.bin.setup import init_parser as init_setup_parser
 from dp3.bin.setup import main as setup_main
+from dp3.bin.sh import init_parser as init_sh_parser
+from dp3.bin.sh import main as sh_main
 from dp3.bin.worker import init_parser as init_worker_parser
 from dp3.bin.worker import main as worker_main
 
@@ -58,6 +60,13 @@ def init_parser():
         description="Update the database schema after making conflicting changes to the model. ",
     )
     init_schema_update_parser(schema_update_parser)
+
+    sh_parser = commands.add_parser(
+        "sh",
+        help="Shell-oriented interface to a running DP3 API.",
+        description="Shell-oriented interface to a running DP3 API.",
+    )
+    init_sh_parser(sh_parser)
     return parser
 
 
@@ -77,6 +86,8 @@ def run():
         config_main(args)
     elif args.command == "schema-update":
         schema_update_main(args)
+    elif args.command == "sh":
+        sh_main(args)
     else:
         parser.print_help()
         sys.exit(1)

@@ -148,6 +148,15 @@ def config_supervisor(app_name, config_dir):
     replace_template_file(appctl_path, "{{DP3_APP}}", app_name)
     appctl_path.chmod(0o755)
 
+    appsh_path = Path(f"/usr/bin/{app_name}sh")
+    shutil.copy(
+        package_dir / "template" / "appsh",
+        appsh_path,
+    )
+    replace_template_file(appsh_path, "{{DP3_EXE}}", dp3_executable_path)
+    replace_template_file(appsh_path, "{{CONFIG_DIR}}", str(abs_config_dir))
+    appsh_path.chmod(0o755)
+
 
 def main(args):
     required_args = []

@@ -11,6 +11,7 @@ There are several API endpoints:
 - [`POST /datapoints`](#insert-datapoints): insert datapoints into DP³
 - [`GET /entity/<entity_type>/get`](#get-entities): get current snapshots of entities of entity type
 - [`GET /entity/<entity_type>/count`](#count-entities): get total document count for query of entity type
+- [`GET /entity/<entity_type>/raw/get`](#get-raw-datapoints): get raw datapoints from the current raw collection for troubleshooting
 - [`GET /entity/<entity_type>/<entity_id>`](#get-eid-data): get data of the entity identified by type and id
 - [`GET /entity/<entity_type>/<entity_id>/master`](#get-master-record): get the master record of the entity identified by type and id
 - [`GET /entity/<entity_type>/<entity_id>/snapshots`](#get-snapshots): get snapshot history of the entity identified by type and id, optionally with `skip` and `limit`
@@ -275,6 +276,52 @@ See [`GET /entity/<entity_type>/get`](#get-entities) for details on filter forma
 ```json
 {
   "total_count": 0
+}
+```
+
+---
+
+## Get raw datapoints
+
+Browse the current raw datapoints stored in `{entity_type}#raw`.
+
+This endpoint is intended for troubleshooting ingestion. It exposes the raw datapoints received by DP³,
+before you inspect the derived master record or snapshots. It can be slow on large raw collections,
+so prefer narrow filters and small limits.
+
+Filtering is intentionally narrow: use `attr`, `eid`, and `limit` to inspect a small recent slice.
+When `attr` refers to an observations or timeseries attribute, matching datapoints are returned in
+newest-first order by `t1`. For plain attributes, the database's natural order is used.
+
+### Request
+
+`GET /entity/<entity_type>/raw/get`
+
+**Optional query parameters:**
+
+- eid: entity id to match exactly
+- attr: attribute id to match exactly
+- src: datapoint source string to match exactly
+- skip: how many datapoints to skip (default: 0)
+- limit: how many datapoints to return (default: 20, `0` means no limit)
+
+### Response
+
+```json
+{
+  "count": 2,
+  "data": [
+    {
+      "type": "device",
+      "id": "device-123",
+      "attr": "risk_score",
+      "v": 0.82,
+      "src": "manual_test",
+      "t1": null,
+      "t2": null,
+      "c": null
+    }
+  ]
 }
 ```
 

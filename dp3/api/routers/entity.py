@@ -13,12 +13,14 @@ from dp3.api.internal.entity_response_models import (
     EntityEidList,
     EntityEidMasterRecord,
     EntityEidSnapshots,
+    EntityRawDataPage,
     JsonVal,
 )
 from dp3.api.internal.helpers import api_to_dp3_datapoint
 from dp3.api.internal.models import DataPoint, EntityId, EntityIdAdapter
 from dp3.api.internal.response_models import ErrorResponse, RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
+from dp3.common.datapoint import to_json_friendly
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import UTC, AwareDatetime
 from dp3.database.database import DatabaseError
@@ -40,6 +42,33 @@ async def parse_eid(etype: str, eid: str):
 
 
 ParsedEid = Annotated[EntityId, Depends(parse_eid)]
+
+
+def _parse_optional_eid(etype: str, eid: Optional[str]) -> Any:
+    """Parse optional entity id query parameter for entity-scoped endpoints."""
+    if eid is None:
+        return None
+    try:
+        return EntityIdAdapter.validate_python({"etype": etype, "eid": eid}).id
+    except ValidationError as e:
+        raise RequestValidationError(["query", "eid"], e.errors()[0]["msg"]) from e
+
+
+def _jsonify_raw_value(value: Any) -> Any:
+    """Convert raw datapoint values to JSON-friendly Python objects."""
+    if isinstance(value, dict):
+        return {key: _jsonify_raw_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_jsonify_raw_value(item) for item in value]
+    return to_json_friendly(value)
+
+
+def _raw_datapoint_to_response(raw_datapoint: dict[str, Any]) -> dict[str, Any]:
+    """Convert a raw datapoint document to the API response shape."""
+    payload = {key: _jsonify_raw_value(value) for key, value in raw_datapoint.items()}
+    payload["type"] = payload.pop("etype")
+    payload["id"] = payload.pop("eid")
+    return payload
 
 
 def get_eid_master_record_handler(
@@ -234,6 +263,44 @@ async def count_entity_type_eids(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     return EntityEidCount(total_count=count)
+
+
+@router.get(
+    "/{etype}/raw/get",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
+async def get_entity_type_raw_datapoints(
+    etype: str,
+    eid: Optional[str] = None,
+    attr: Optional[str] = None,
+    src: Optional[str] = None,
+    skip: NonNegativeInt = 0,
+    limit: NonNegativeInt = 20,
+) -> EntityRawDataPage:
+    """List raw datapoints from the current raw collection for troubleshooting ingestion."""
+    if attr is not None and attr not in MODEL_SPEC.attribs(etype):
+        raise RequestValidationError(["query", "attr"], f"Attribute '{attr}' doesn't exist")
+
+    parsed_eid = _parse_optional_eid(etype, eid)
+
+    try:
+        datapoints = list(
+            DB.find_raw_datapoints(
+                etype,
+                eid=parsed_eid,
+                attr=attr,
+                src=src,
+                skip=skip,
+                limit=limit,
+            )
+        )
+    except DatabaseError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return EntityRawDataPage(
+        count=len(datapoints),
+        data=[_raw_datapoint_to_response(datapoint) for datapoint in datapoints],
+    )
 
 
 @router.get("/{etype}/{eid}")

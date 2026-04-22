@@ -56,6 +56,16 @@ class EntityEidCount(BaseModel):
     total_count: int
 
 
+RawDataPoint = dict[str, Any]
+
+
+class EntityRawDataPage(BaseModel):
+    """Page of raw datapoints for troubleshooting raw ingestion."""
+
+    count: int
+    data: list[RawDataPoint]
+
+
 class EntityEidData(BaseModel):
     """Data of entity eid
 

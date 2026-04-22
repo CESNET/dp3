@@ -199,6 +199,43 @@ class EntityDatabase:
         """
         return self._db.get_collection(f"{entity}#raw", **kwargs)
 
+    def find_raw_datapoints(
+        self,
+        etype: str,
+        eid: AnyEidT = None,
+        attr: str = None,
+        src: str = None,
+        skip: int = 0,
+        limit: int = 0,
+    ) -> Cursor:
+        """Find raw datapoints for an entity type with optional troubleshooting filters."""
+        self._assert_etype_exists(etype)
+
+        query = {}
+        if eid is not None:
+            self._assert_eid_correct_dtype(etype, eid)
+            query["eid"] = eid
+        if attr is not None:
+            query["attr"] = attr
+        if src is not None:
+            query["src"] = src
+
+        try:
+            cursor = self._raw_col(etype).find(query, projection={"_id": False})
+            sort = [("$natural", pymongo.DESCENDING)]
+            if attr is not None and attr in self._db_schema_config.attribs(etype):
+                attr_spec = self._db_schema_config.attr(etype, attr)
+                if attr_spec.t in AttrType.TIMESERIES | AttrType.OBSERVATIONS:
+                    sort = [("t1", pymongo.DESCENDING), ("_id", pymongo.DESCENDING)]
+            cursor = cursor.sort(sort)
+            if skip:
+                cursor = cursor.skip(skip)
+            if limit:
+                cursor = cursor.limit(limit)
+            return cursor
+        except Exception as e:
+            raise DatabaseError(f"Raw datapoint fetch failed: {e}") from e
+
     @staticmethod
     def _get_new_archive_col_name(entity: str) -> str:
         """Returns name of new archive collection for `entity`."""

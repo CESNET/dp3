@@ -877,6 +877,45 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
 
+    def find_metadata(
+        self,
+        module: str = None,
+        date_from: datetime = None,
+        date_to: datetime = None,
+        newest_first: bool = True,
+        extra_filter: dict = None,
+    ) -> Cursor:
+        """Find metadata documents with optional filtering."""
+        query = dict(extra_filter or {})
+        if module is not None:
+            query["#module"] = module
+
+        time_filter = {}
+        if date_from is not None:
+            time_filter["$gte"] = date_from
+        if date_to is not None:
+            time_filter["$lte"] = date_to
+        if time_filter:
+            query["#time_created"] = time_filter
+
+        sort_dir = pymongo.DESCENDING if newest_first else pymongo.ASCENDING
+        return (
+            self._db["#metadata"].find(query).sort([("#time_created", sort_dir), ("_id", sort_dir)])
+        )
+
+    def count_entities_per_attr(self) -> dict[str, dict[str, int]]:
+        """Count entities with data present for each configured attribute per entity type."""
+        counts: dict[str, dict[str, int]] = {}
+        for (etype, attr), spec in self._db_schema_config.attributes.items():
+            if spec.t in AttrType.TIMESERIES | AttrType.OBSERVATIONS:
+                field = f"#min_t2s.{attr}"
+            else:
+                field = f"{attr}.ts_last_update"
+            counts.setdefault(etype, {})[attr] = self._master_col(etype).count_documents(
+                {field: {"$exists": True}}
+            )
+        return counts
+
     def get_observation_history(
         self,
         etype: str,

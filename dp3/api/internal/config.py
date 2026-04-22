@@ -81,4 +81,9 @@ CONTROL_WRITER = TaskQueueWriter(
 )
 DP_LOGGER = DPLogger(CONFIG.get("api.datapoint_logger"))
 ROOT_PATH = conf_env.ROOT_PATH
-TELEMETRY_READER = TelemetryReader(DB)
+TELEMETRY_READER = TelemetryReader(
+    DB,
+    conf_env.APP_NAME,
+    CONFIG.get("processing_core.worker_processes"),
+    CONFIG.get("processing_core.msg_broker"),
+)

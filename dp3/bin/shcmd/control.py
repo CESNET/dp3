@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Control commands for the shell-oriented DP3 CLI."""
 
-from dp3.bin.shcmd.common import print_response_json
+from dp3.bin.shcmd.common import complete_entity_type_names, print_response_json
 
 
 def handle_make_snapshots(client, _args) -> int:
@@ -45,7 +45,8 @@ def register_parser(commands) -> None:
         "refresh-on-entity-creation",
         help="Re-run entity creation callbacks for an entity type.",
     )
-    refresh_entity_creation_parser.add_argument("etype")
+    etype_action = refresh_entity_creation_parser.add_argument("etype")
+    etype_action.completer = complete_entity_type_names
     refresh_entity_creation_parser.set_defaults(handler=handle_refresh_on_entity_creation)
 
     refresh_module_config_parser = control_commands.add_parser(

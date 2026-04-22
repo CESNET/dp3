@@ -231,6 +231,24 @@ This creates two app-specific helpers:
 
 `<APPNAME>sh entities` returns the full entity-type configuration map exposed by the API. When you only need the configured entity type names, pipe it through `jq keys`.
 
+You can also enable shell completion for the wrapper or for `dp3 sh` itself:
+
+```shell
+# Bash
+source <(<APPNAME>sh completion bash --command <APPNAME>sh)
+source <(dp3 sh completion bash --command dp3)
+
+# Zsh
+source <(<APPNAME>sh completion zsh --command <APPNAME>sh)
+source <(dp3 sh completion zsh --command dp3)
+
+# Fish
+<APPNAME>sh completion fish --command <APPNAME>sh | source
+dp3 sh completion fish --command dp3 | source
+```
+
+The generated completion is config-aware. It can suggest entity types and attribute names from the resolved DP3 configuration.
+
 The generated supervisor configuration lives under `/etc/<APP_NAME>` and the process logs are written under `/var/log/<APP_NAME>`.
 For more on supervisor itself, see the [supervisorctl documentation](http://supervisord.org/running.html#running-supervisorctl).
 

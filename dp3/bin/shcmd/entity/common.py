@@ -3,12 +3,14 @@
 
 import argparse
 import json
+from collections.abc import Iterable, Sequence
 from typing import Any, Optional
 
 from dp3.bin.shcmd.common import (
     JSON_LITERAL_HELP,
     APIError,
     common_time_params,
+    get_completion_context,
     print_response_json,
     read_json_object,
     read_json_value,
@@ -21,6 +23,14 @@ RAW_HELP = (
     "Can be slow on large raw collections."
 )
 ATTR_VALUE_HELP = "JSON literal value, for example '\"hello\"', '42', 'true', or '{\"k\":1}'."
+ENTITY_TYPE_COMMANDS = ["list", "count", "raw", "attr"]
+ENTITY_INSTANCE_COMMANDS = ["get", "master", "snapshots", "raw", "ttl", "delete", "attr"]
+ENTITY_ID_PLACEHOLDER = "<EID>"
+TYPE_LIST_OPTIONS = ["--fulltext-json", "--filter-json", "--has-attr", "--skip", "--limit"]
+TYPE_COUNT_OPTIONS = ["--fulltext-json", "--filter-json", "--has-attr"]
+RAW_OPTIONS = ["--attr", "--src", "--skip", "--limit", "--format"]
+TIME_RANGE_OPTIONS = ["--from", "--to"]
+SNAPSHOT_OPTIONS = ["--from", "--to", "--skip", "--limit", "--format"]
 
 
 def add_time_range_args(parser: argparse.ArgumentParser) -> None:
@@ -153,3 +163,133 @@ def build_time_page_params(args) -> dict[str, Any]:
     params["skip"] = args.skip
     params["limit"] = args.limit
     return params
+
+
+def _filter_matches(values: Iterable[str], prefix: str) -> list[str]:
+    return [value for value in values if value.startswith(prefix)]
+
+
+def _entity_types(model_spec, entity_catalog: Optional[dict[str, Any]] = None) -> list[str]:
+    if model_spec is not None:
+        return sorted(model_spec.entities)
+    if entity_catalog is not None:
+        return sorted(entity_catalog)
+    return []
+
+
+def _entity_attrs(
+    model_spec, etype: str, entity_catalog: Optional[dict[str, Any]] = None
+) -> list[str]:
+    if model_spec is not None and etype in model_spec.entities:
+        return sorted(model_spec.attribs(etype))
+    if entity_catalog is not None and etype in entity_catalog:
+        return sorted(entity_catalog[etype].get("attribs", []))
+    return []
+
+
+def _complete_options(
+    args: Sequence[str],
+    prefix: str,
+    *,
+    options: Sequence[str],
+    value_choices: Optional[dict[str, Sequence[str]]] = None,
+) -> list[str]:
+    value_choices = value_choices or {}
+    if args and args[-1] in value_choices:
+        return _filter_matches(value_choices[args[-1]], prefix)
+    return _filter_matches(options, prefix)
+
+
+def complete_entity_selector(prefix: str, parsed_args, **_kwargs) -> list[str]:
+    """Complete entity types for the path-like entity command."""
+    model_spec, entity_catalog = get_completion_context(parsed_args)
+    return _filter_matches(_entity_types(model_spec, entity_catalog), prefix)
+
+
+def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> list[str]:  # noqa: PLR0911
+    """Complete type-scope and single-entity commands under `entity`."""
+    model_spec, entity_catalog = get_completion_context(parsed_args)
+    etype = getattr(parsed_args, "selector", None)
+    if etype is None:
+        return []
+
+    words = list(getattr(parsed_args, "rest", []))
+    attrs = _entity_attrs(model_spec, etype, entity_catalog)
+    if not words:
+        matches = _filter_matches(ENTITY_TYPE_COMMANDS, prefix)
+        if not prefix or not prefix.startswith("-"):
+            matches.append(ENTITY_ID_PLACEHOLDER)
+        return matches
+
+    command = words[0]
+    args = words[1:]
+    if command == "list":
+        return _complete_options(
+            args,
+            prefix,
+            options=TYPE_LIST_OPTIONS,
+            value_choices={"--has-attr": attrs},
+        )
+    if command == "count":
+        return _complete_options(
+            args,
+            prefix,
+            options=TYPE_COUNT_OPTIONS,
+            value_choices={"--has-attr": attrs},
+        )
+    if command == "raw":
+        return _complete_options(
+            args,
+            prefix,
+            options=RAW_OPTIONS,
+            value_choices={"--attr": attrs, "--format": ["json", "ndjson"]},
+        )
+    if command == "attr":
+        if not args:
+            return _filter_matches(attrs, prefix)
+        if len(args) == 1:
+            return _filter_matches(["distinct"], prefix)
+        return []
+    if command in ENTITY_TYPE_COMMANDS:
+        return _filter_matches(ENTITY_TYPE_COMMANDS, prefix)
+
+    if not args:
+        return _filter_matches(ENTITY_INSTANCE_COMMANDS, prefix)
+
+    entity_command = args[0]
+    entity_args = args[1:]
+    if entity_command in {"get", "master"}:
+        return _complete_options(entity_args, prefix, options=TIME_RANGE_OPTIONS)
+    if entity_command == "snapshots":
+        return _complete_options(
+            entity_args,
+            prefix,
+            options=SNAPSHOT_OPTIONS,
+            value_choices={"--format": ["json", "ndjson"]},
+        )
+    if entity_command == "raw":
+        return _complete_options(
+            entity_args,
+            prefix,
+            options=RAW_OPTIONS,
+            value_choices={"--attr": attrs, "--format": ["json", "ndjson"]},
+        )
+    if entity_command == "ttl":
+        return _filter_matches(["--body-json"], prefix)
+    if entity_command == "delete":
+        return []
+    if entity_command == "attr":
+        if not entity_args:
+            return _filter_matches(attrs, prefix)
+        attr = entity_args[0]
+        attr_args = entity_args[1:]
+        if not attr_args:
+            return _filter_matches(["get", "set"], prefix)
+        if attr_args[0] == "get":
+            return _complete_options(attr_args[1:], prefix, options=TIME_RANGE_OPTIONS)
+        if attr_args[0] == "set":
+            return []
+        if attr.startswith(prefix):
+            return [attr]
+        return []
+    return _filter_matches(ENTITY_INSTANCE_COMMANDS, prefix)

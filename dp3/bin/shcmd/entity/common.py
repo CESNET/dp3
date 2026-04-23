@@ -3,8 +3,9 @@
 
 import argparse
 import json
-from collections.abc import Iterable, Sequence
 from typing import Any, Optional
+
+from argcomplete.finders import CompletionFinder
 
 from dp3.bin.shcmd.common import (
     JSON_LITERAL_HELP,
@@ -23,81 +24,76 @@ RAW_HELP = (
     "Can be slow on large raw collections."
 )
 ATTR_VALUE_HELP = "JSON literal value, for example '\"hello\"', '42', 'true', or '{\"k\":1}'."
-ENTITY_TYPE_COMMANDS = ["list", "count", "raw", "attr-values"]
-ENTITY_INSTANCE_COMMANDS = ["get", "master", "snapshots", "raw", "ttl", "delete", "attr"]
 ENTITY_ID_PLACEHOLDER = "<EID>"
-TYPE_LIST_OPTIONS = ["--fulltext-json", "--filter-json", "--has-attr", "--skip", "--limit"]
-TYPE_COUNT_OPTIONS = ["--fulltext-json", "--filter-json", "--has-attr"]
-RAW_OPTIONS = ["--attr", "--src", "--skip", "--limit", "--format"]
-TIME_RANGE_OPTIONS = ["--from", "--to"]
-SNAPSHOT_OPTIONS = ["--from", "--to", "--skip", "--limit", "--format"]
-TYPE_COMMAND_DESCRIPTIONS = {
-    "list": "List latest entity snapshots for the entity type.",
-    "count": "Count latest entity snapshots for the entity type.",
-    "raw": RAW_HELP,
-    "attr-values": "Get distinct latest values of one attribute across the entity type.",
-}
-INSTANCE_COMMAND_DESCRIPTIONS = {
-    "get": "Get the combined entity view.",
-    "master": "Get the current master record.",
-    "snapshots": "Browse snapshots of a single entity.",
-    "raw": RAW_HELP,
-    "ttl": "Extend TTL values for the entity.",
-    "delete": "Delete the entity data.",
-    "attr": "Get or modify one entity attribute.",
-}
-TYPE_OPTION_DESCRIPTIONS = {
-    "--fulltext-json": "JSON object with fulltext search filters.",
-    "--filter-json": "JSON object with additional generic filters.",
-    "--has-attr": "Limit results to entities where the attribute has data present.",
-    "--skip": "Skip this many results before returning data.",
-    "--limit": "Return at most this many results.",
-}
-RAW_OPTION_DESCRIPTIONS = {
-    "--attr": "Limit raw datapoints to one attribute.",
-    "--src": "Limit raw datapoints to one source.",
-    "--skip": "Skip this many raw datapoints before returning data.",
-    "--limit": "Return at most this many raw datapoints.",
-    "--format": "Choose JSON or NDJSON output.",
-}
-TIME_RANGE_OPTION_DESCRIPTIONS = {
-    "--from": "Lower bound of the time range.",
-    "--to": "Upper bound of the time range.",
-}
-SNAPSHOT_OPTION_DESCRIPTIONS = {
-    "--from": "Lower bound of the snapshot time range.",
-    "--to": "Upper bound of the snapshot time range.",
-    "--skip": "Skip this many snapshots before returning data.",
-    "--limit": "Return at most this many snapshots.",
-    "--format": "Choose JSON or NDJSON output.",
-}
-VALUE_CHOICE_DESCRIPTIONS = {
-    "json": "Return structured JSON output.",
-    "ndjson": "Return newline-delimited JSON output.",
-}
 
 
-def add_time_range_args(parser: argparse.ArgumentParser) -> None:
+def suppress_completion(_prefix: str, **_kwargs) -> dict[str, str]:
+    """Return no completion candidates for free-form values."""
+    return {}
+
+
+def add_time_range_args(
+    parser: argparse.ArgumentParser,
+    *,
+    scope: str = "time range",
+) -> None:
     """Add common time-range arguments to a parser."""
-    parser.add_argument("--from", dest="date_from")
-    parser.add_argument("--to", dest="date_to")
+    from_action = parser.add_argument(
+        "--from",
+        dest="date_from",
+        help=f"Lower bound of the {scope}.",
+    )
+    from_action.completer = suppress_completion
+    to_action = parser.add_argument(
+        "--to",
+        dest="date_to",
+        help=f"Upper bound of the {scope}.",
+    )
+    to_action.completer = suppress_completion
 
 
-def add_page_args(parser: argparse.ArgumentParser, *, default_limit: int) -> None:
+def add_page_args(
+    parser: argparse.ArgumentParser,
+    *,
+    default_limit: int,
+    subject: str = "results",
+) -> None:
     """Add common paging arguments to a parser."""
-    parser.add_argument("--skip", type=int, default=0)
-    parser.add_argument("--limit", type=int, default=default_limit)
+    skip_action = parser.add_argument(
+        "--skip",
+        type=int,
+        default=0,
+        help=f"Skip this many {subject} before returning data.",
+    )
+    skip_action.completer = suppress_completion
+    limit_action = parser.add_argument(
+        "--limit",
+        type=int,
+        default=default_limit,
+        help=f"Return at most this many {subject}.",
+    )
+    limit_action.completer = suppress_completion
 
 
 def add_ndjson_format_arg(parser: argparse.ArgumentParser) -> None:
     """Add common JSON/NDJSON output selection."""
-    parser.add_argument("--format", choices=["json", "ndjson"], default="json")
+    parser.add_argument(
+        "--format",
+        choices=["json", "ndjson"],
+        default="json",
+        help="Choose JSON or NDJSON output.",
+    )
 
 
 def add_raw_filter_args(parser: argparse.ArgumentParser) -> None:
     """Add common raw datapoint filters to a parser."""
-    parser.add_argument("--attr")
-    parser.add_argument("--src")
+    attr_action = parser.add_argument(
+        "--attr",
+        help="Limit raw datapoints to one attribute.",
+    )
+    attr_action.completer = complete_entity_attr_names
+    src_action = parser.add_argument("--src", help="Limit raw datapoints to one source.")
+    src_action.completer = suppress_completion
 
 
 def add_type_filter_args(
@@ -107,13 +103,24 @@ def add_type_filter_args(
     default_limit: int = 20,
 ) -> None:
     """Add common entity-type filters to a parser."""
-    parser.add_argument("--fulltext-json", default=None)
-    parser.add_argument("--filter-json", default=None)
-    parser.add_argument(
+    fulltext_action = parser.add_argument(
+        "--fulltext-json",
+        default=None,
+        help="JSON object with fulltext search filters.",
+    )
+    fulltext_action.completer = suppress_completion
+    filter_action = parser.add_argument(
+        "--filter-json",
+        default=None,
+        help="JSON object with additional generic filters.",
+    )
+    filter_action.completer = suppress_completion
+    has_attr_action = parser.add_argument(
         "--has-attr",
         default=None,
         help="Limit results to latest snapshots where the attribute has data present.",
     )
+    has_attr_action.completer = complete_entity_attr_names
     if include_paging:
         add_page_args(parser, default_limit=default_limit)
 
@@ -197,8 +204,14 @@ def handle_attr_set_request(client, args) -> int:
 
 def add_entity_attr_set_args(parser: argparse.ArgumentParser) -> None:
     """Add the value argument for entity attribute updates."""
-    parser.add_argument("value_json", metavar="VALUE_JSON", help=ATTR_VALUE_HELP)
-    parser.add_argument("--value-json", dest="value_json_flag", help=argparse.SUPPRESS)
+    value_action = parser.add_argument("value_json", metavar="VALUE_JSON", help=ATTR_VALUE_HELP)
+    value_action.completer = suppress_completion
+    value_flag_action = parser.add_argument(
+        "--value-json",
+        dest="value_json_flag",
+        help=argparse.SUPPRESS,
+    )
+    value_flag_action.completer = suppress_completion
 
 
 def build_time_page_params(args) -> dict[str, Any]:
@@ -207,10 +220,6 @@ def build_time_page_params(args) -> dict[str, Any]:
     params["skip"] = args.skip
     params["limit"] = args.limit
     return params
-
-
-def _filter_matches(values: Iterable[str], prefix: str) -> list[str]:
-    return [value for value in values if value.startswith(prefix)]
 
 
 def _match_descriptions(values: dict[str, str], prefix: str) -> dict[str, str]:
@@ -247,30 +256,27 @@ def _entity_attr_descriptions(
     return descriptions
 
 
-def _complete_options(
-    args: Sequence[str],
+def _normalize_completion(value: str) -> str:
+    return value.rstrip()
+
+
+def _complete_from_parser(
+    parser: argparse.ArgumentParser,
+    words: list[str],
     prefix: str,
-    *,
-    options: Sequence[str],
-    option_descriptions: Optional[dict[str, str]] = None,
-    value_choices: Optional[dict[str, Sequence[str]]] = None,
-    value_descriptions: Optional[dict[str, dict[str, str]]] = None,
+    parsed_args,
 ) -> dict[str, str]:
-    option_descriptions = option_descriptions or {}
-    value_choices = value_choices or {}
-    value_descriptions = value_descriptions or {}
-    if args and args[-1] in value_choices:
-        choices = value_choices[args[-1]]
-        descriptions = value_descriptions.get(args[-1], {})
-        return {
-            choice: descriptions.get(choice, f"Value for {args[-1]}.")
-            for choice in choices
-            if choice.startswith(prefix)
-        }
+    parser.set_defaults(
+        config=getattr(parsed_args, "config", None),
+        url=getattr(parsed_args, "url", None),
+        timeout=getattr(parsed_args, "timeout", 5.0),
+    )
+    finder = CompletionFinder(parser, always_complete_options=False)
+    values = finder._get_completions([parser.prog, *words], prefix, "", None)
+    descriptions = getattr(finder, "_display_completions", {})
     return {
-        option: option_descriptions.get(option, "Command option.")
-        for option in options
-        if option.startswith(prefix)
+        _normalize_completion(value): descriptions.get(_normalize_completion(value), "")
+        for value in values
     }
 
 
@@ -295,123 +301,33 @@ def complete_entity_selector(prefix: str, parsed_args, **_kwargs) -> dict[str, s
     return _match_descriptions(attr_descriptions, prefix)
 
 
-def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:  # noqa: PLR0911
-    """Complete type-scope and single-entity commands under `entity`."""
+def complete_entity_attr_names(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:
+    """Complete attribute names for one entity type."""
+    etype = getattr(parsed_args, "etype", None) or getattr(parsed_args, "selector", None)
+    if etype is None:
+        return {}
     model_spec, entity_catalog = get_completion_context(parsed_args)
+    return _match_descriptions(_entity_attr_descriptions(model_spec, etype, entity_catalog), prefix)
+
+
+def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:
+    """Complete type-scope and single-entity commands under `entity`."""
     etype = getattr(parsed_args, "selector", None)
     if etype is None:
         return {}
 
+    from . import etype as entity_etype
+    from . import instance as entity_instance
+
     words = list(getattr(parsed_args, "rest", []))
-    attr_descriptions = _entity_attr_descriptions(model_spec, etype, entity_catalog)
-    attrs = list(attr_descriptions)
+    type_parser = entity_etype.build_parser(etype)
     if not words:
-        matches = _match_descriptions(TYPE_COMMAND_DESCRIPTIONS, prefix)
+        matches = _complete_from_parser(type_parser, [], prefix, parsed_args)
         if not prefix or not prefix.startswith("-"):
             matches[ENTITY_ID_PLACEHOLDER] = "Enter an entity id to inspect one entity."
         return matches
+    if words[0] in entity_etype.TYPE_COMMANDS:
+        return _complete_from_parser(type_parser, words, prefix, parsed_args)
 
-    command = words[0]
-    args = words[1:]
-    if command == "list":
-        return _complete_options(
-            args,
-            prefix,
-            options=TYPE_LIST_OPTIONS,
-            option_descriptions=TYPE_OPTION_DESCRIPTIONS,
-            value_choices={"--has-attr": attrs},
-            value_descriptions={"--has-attr": attr_descriptions},
-        )
-    if command == "count":
-        return _complete_options(
-            args,
-            prefix,
-            options=TYPE_COUNT_OPTIONS,
-            option_descriptions=TYPE_OPTION_DESCRIPTIONS,
-            value_choices={"--has-attr": attrs},
-            value_descriptions={"--has-attr": attr_descriptions},
-        )
-    if command == "raw":
-        return _complete_options(
-            args,
-            prefix,
-            options=RAW_OPTIONS,
-            option_descriptions=RAW_OPTION_DESCRIPTIONS,
-            value_choices={"--attr": attrs, "--format": ["json", "ndjson"]},
-            value_descriptions={
-                "--attr": attr_descriptions,
-                "--format": VALUE_CHOICE_DESCRIPTIONS,
-            },
-        )
-    if command == "attr-values":
-        if not args:
-            return _match_descriptions(attr_descriptions, prefix)
-        return {}
-    if command in ENTITY_TYPE_COMMANDS:
-        return _match_descriptions(TYPE_COMMAND_DESCRIPTIONS, prefix)
-
-    if not args:
-        return _match_descriptions(INSTANCE_COMMAND_DESCRIPTIONS, prefix)
-
-    entity_command = args[0]
-    entity_args = args[1:]
-    if entity_command in {"get", "master"}:
-        return _complete_options(
-            entity_args,
-            prefix,
-            options=TIME_RANGE_OPTIONS,
-            option_descriptions=TIME_RANGE_OPTION_DESCRIPTIONS,
-        )
-    if entity_command == "snapshots":
-        return _complete_options(
-            entity_args,
-            prefix,
-            options=SNAPSHOT_OPTIONS,
-            option_descriptions=SNAPSHOT_OPTION_DESCRIPTIONS,
-            value_choices={"--format": ["json", "ndjson"]},
-            value_descriptions={"--format": VALUE_CHOICE_DESCRIPTIONS},
-        )
-    if entity_command == "raw":
-        return _complete_options(
-            entity_args,
-            prefix,
-            options=RAW_OPTIONS,
-            option_descriptions=RAW_OPTION_DESCRIPTIONS,
-            value_choices={"--attr": attrs, "--format": ["json", "ndjson"]},
-            value_descriptions={
-                "--attr": attr_descriptions,
-                "--format": VALUE_CHOICE_DESCRIPTIONS,
-            },
-        )
-    if entity_command == "ttl":
-        return _match_descriptions(
-            {"--body-json": "JSON body describing the TTL update request."}, prefix
-        )
-    if entity_command == "delete":
-        return {}
-    if entity_command == "attr":
-        if not entity_args:
-            return _match_descriptions(attr_descriptions, prefix)
-        attr = entity_args[0]
-        attr_args = entity_args[1:]
-        if not attr_args:
-            return _match_descriptions(
-                {
-                    "get": "Get the current value of this attribute.",
-                    "set": "Set the current value of this attribute.",
-                },
-                prefix,
-            )
-        if attr_args[0] == "get":
-            return _complete_options(
-                attr_args[1:],
-                prefix,
-                options=TIME_RANGE_OPTIONS,
-                option_descriptions=TIME_RANGE_OPTION_DESCRIPTIONS,
-            )
-        if attr_args[0] == "set":
-            return {}
-        if attr.startswith(prefix):
-            return {attr: attr_descriptions.get(attr, f"Attribute on entity type '{etype}'.")}
-        return {}
-    return _match_descriptions(INSTANCE_COMMAND_DESCRIPTIONS, prefix)
+    instance_parser = entity_instance.build_parser(etype, words[0])
+    return _complete_from_parser(instance_parser, words[1:], prefix, parsed_args)

@@ -12,6 +12,7 @@ from .common import (
     add_raw_filter_args,
     add_type_filter_args,
     build_type_query_params,
+    complete_entity_attr_names,
     handle_raw,
 )
 
@@ -45,6 +46,7 @@ def build_parser(etype: str) -> argparse.ArgumentParser:
             f"Query entities of type '{etype}' or continue with an entity id to inspect one entity."
         ),
     )
+    parser.set_defaults(etype=etype)
     commands = parser.add_subparsers(dest="entity_type_command", required=True)
 
     list_parser = commands.add_parser("list", help="List latest entity snapshots.")
@@ -57,7 +59,7 @@ def build_parser(etype: str) -> argparse.ArgumentParser:
 
     raw_parser = commands.add_parser("raw", help=RAW_HELP)
     add_raw_filter_args(raw_parser)
-    add_page_args(raw_parser, default_limit=20)
+    add_page_args(raw_parser, default_limit=20, subject="raw datapoints")
     add_ndjson_format_arg(raw_parser)
     raw_parser.set_defaults(handler=handle_raw, etype=etype, eid=None)
 
@@ -66,9 +68,10 @@ def build_parser(etype: str) -> argparse.ArgumentParser:
         help="Get distinct latest values of one attribute across the entity type.",
         description="Get distinct latest values of one attribute across the entity type.",
     )
-    attr_values_parser.add_argument(
+    attr_action = attr_values_parser.add_argument(
         "attr", metavar="ATTR", help="Attribute to query across the entity type."
     )
+    attr_action.completer = complete_entity_attr_names
     attr_values_parser.set_defaults(handler=handle_distinct, etype=etype)
 
     return parser

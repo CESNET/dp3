@@ -19,6 +19,7 @@ from .common import (
     add_time_range_args,
     build_time_page_params,
     handle_raw,
+    suppress_completion,
 )
 
 
@@ -65,6 +66,7 @@ def build_parser(etype: str, eid: str) -> argparse.ArgumentParser:
         prog=f"dp3 sh entity {etype} {eid}",
         description=f"Inspect or modify entity '{etype}/{eid}'.",
     )
+    parser.set_defaults(etype=etype, eid=eid)
     commands = parser.add_subparsers(dest="entity_instance_command", required=True)
 
     get_parser = commands.add_parser("get", help="Get full entity data.")
@@ -76,21 +78,26 @@ def build_parser(etype: str, eid: str) -> argparse.ArgumentParser:
     master_parser.set_defaults(handler=handle_master, etype=etype, eid=eid)
 
     snapshots_parser = commands.add_parser("snapshots", help="Get snapshots of a single entity.")
-    add_time_range_args(snapshots_parser)
-    add_page_args(snapshots_parser, default_limit=0)
+    add_time_range_args(snapshots_parser, scope="snapshot time range")
+    add_page_args(snapshots_parser, default_limit=0, subject="snapshots")
     add_ndjson_format_arg(snapshots_parser)
     snapshots_parser.set_defaults(handler=handle_snapshots, etype=etype, eid=eid)
 
     raw_parser = commands.add_parser("raw", help=RAW_HELP)
     add_raw_filter_args(raw_parser)
-    add_page_args(raw_parser, default_limit=20)
+    add_page_args(raw_parser, default_limit=20, subject="raw datapoints")
     add_ndjson_format_arg(raw_parser)
     raw_parser.set_defaults(handler=handle_raw, etype=etype, eid=eid)
 
     attr.add_instance_attr_parser(commands, etype, eid)
 
     ttl_parser = commands.add_parser("ttl", help="Extend entity TTLs.")
-    ttl_parser.add_argument("--body-json", required=True)
+    body_action = ttl_parser.add_argument(
+        "--body-json",
+        required=True,
+        help="JSON body describing the TTL update request.",
+    )
+    body_action.completer = suppress_completion
     ttl_parser.set_defaults(handler=handle_ttl, etype=etype, eid=eid)
 
     delete_parser = commands.add_parser("delete", help="Delete entity data.")

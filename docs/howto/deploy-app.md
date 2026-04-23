@@ -333,7 +333,7 @@ Use the API to confirm that the deployment still answers health and data request
 - `GET /` for health
 - `/docs` for interactive endpoint reference
 - `dp3 sh entities | jq keys` to list the configured entity type names exposed by the running app (`dp3 sh entities` returns the full entity-type configuration map)
-- `dp3 sh entity <ETYPE> <EID> master` or `dp3 sh entity <ETYPE> <EID> attr <ATTR> get` for spot checks against real data
+- `dp3 sh entity <ETYPE> id <EID> master` or `dp3 sh entity <ETYPE> id <EID> attr <ATTR> get` for spot checks against real data
 
 When you are working directly on the deployment host, prefer `<APPNAME>sh ...` because it already knows the production config directory.
 

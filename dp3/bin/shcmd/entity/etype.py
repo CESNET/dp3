@@ -5,6 +5,7 @@ import argparse
 
 from dp3.bin.shcmd.common import print_response_json
 
+from . import instance
 from .common import (
     RAW_HELP,
     add_ndjson_format_arg,
@@ -15,8 +16,6 @@ from .common import (
     complete_entity_attr_names,
     handle_raw,
 )
-
-TYPE_COMMANDS = {"list", "count", "raw", "attr-values", "-h", "--help"}
 
 
 def handle_list(client, args) -> int:
@@ -42,9 +41,7 @@ def build_parser(etype: str) -> argparse.ArgumentParser:
     """Build the parser for entity type-scope commands."""
     parser = argparse.ArgumentParser(
         prog=f"dp3 sh entity {etype}",
-        description=(
-            f"Query entities of type '{etype}' or continue with an entity id to inspect one entity."
-        ),
+        description=(f"Query entities of type '{etype}' or use 'id' to inspect one entity by id."),
     )
     parser.set_defaults(etype=etype)
     commands = parser.add_subparsers(dest="entity_type_command", required=True)
@@ -73,5 +70,7 @@ def build_parser(etype: str) -> argparse.ArgumentParser:
     )
     attr_action.completer = complete_entity_attr_names
     attr_values_parser.set_defaults(handler=handle_distinct, etype=etype)
+
+    instance.add_id_parser(commands, etype)
 
     return parser

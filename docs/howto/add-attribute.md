@@ -199,13 +199,13 @@ you need direct database access.
     Then inspect the attribute directly on a specific entity:
 
     ```shell
-    dp3 sh entity device device-123 attr risk_score get
+    dp3 sh entity device id device-123 attr risk_score get
     ```
 
     Or inspect the full master record in context:
 
     ```shell
-    dp3 sh entity device device-123 master
+    dp3 sh entity device id device-123 master
     ```
 
 === "MongoDB (`mongosh`)"

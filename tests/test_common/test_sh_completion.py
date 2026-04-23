@@ -46,14 +46,20 @@ class TestShCompletion(unittest.TestCase):
             values = complete_entity_type_names("A", args)
         self.assertEqual({"A": "Configured entity type."}, values)
 
-    def test_entity_scope_completion_includes_eid_placeholder(self):
+    def test_entity_scope_completion_includes_id_subcommand(self):
         values = self._get_completions(["dpsh", "--config", "tests/test_config", "entity", "A"], "")
-        self.assertIn("\\<EID\\>", values)
+        self.assertIn("id", values)
         self.assertIn("list", values)
+
+    def test_entity_id_completion_includes_eid_placeholder(self):
+        values = self._get_completions(
+            ["dpsh", "--config", "tests/test_config", "entity", "A", "id"], ""
+        )
+        self.assertTrue(any("EID" in value for value in values))
 
     def test_snapshot_option_completion(self):
         values = self._get_completions(
-            ["dpsh", "--config", "tests/test_config", "entity", "A", "10", "snapshots"],
+            ["dpsh", "--config", "tests/test_config", "entity", "A", "id", "10", "snapshots"],
             "--",
         )
         self.assertIn("--from", values)
@@ -62,7 +68,7 @@ class TestShCompletion(unittest.TestCase):
 
     def test_snapshot_option_completion_includes_descriptions(self):
         finder, values = self._finder_with_completions(
-            ["dpsh", "--config", "tests/test_config", "entity", "A", "10", "snapshots"],
+            ["dpsh", "--config", "tests/test_config", "entity", "A", "id", "10", "snapshots"],
             "--",
         )
         self.assertIn("--from", values)
@@ -94,6 +100,7 @@ class TestShCompletion(unittest.TestCase):
                 "tests/test_config",
                 "entity",
                 "A",
+                "id",
                 "entity-1",
                 "attr",
                 "data1",

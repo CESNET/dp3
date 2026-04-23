@@ -89,7 +89,7 @@ def register_parser(commands) -> None:
     metadata_parser.add_argument("-s", "--skip", type=int, default=0)
     metadata_parser.add_argument("-l", "--limit", type=int, default=0)
     metadata_parser.add_argument("-S", "--sort", choices=["newest", "oldest"], default="newest")
-    metadata_parser.add_argument("-F", "--format", choices=["json", "ndjson"], default="json")
+    metadata_parser.add_argument("-F", "--format", choices=["json", "ndjson"], default="ndjson")
     metadata_parser.set_defaults(handler=handle_metadata)
 
     rabbitmq_queues_parser = telemetry_commands.add_parser(

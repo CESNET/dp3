@@ -105,6 +105,12 @@ class TestShCompletion(unittest.TestCase):
         self.assertEqual(2, parsed_args.limit)
         self.assertEqual("ndjson", parsed_args.format)
 
+    def test_entity_list_default_format_is_ndjson(self):
+        args = self._parse_args(["entity", "A", "list"])
+        parsed_args, exit_code = args.prepare_args(args)
+        self.assertIsNone(exit_code)
+        self.assertEqual("ndjson", parsed_args.format)
+
     def test_telemetry_short_options_parse(self):
         args = self._parse_args(
             [
@@ -132,6 +138,10 @@ class TestShCompletion(unittest.TestCase):
         self.assertEqual(1, args.skip)
         self.assertEqual(2, args.limit)
         self.assertEqual("oldest", args.sort)
+        self.assertEqual("ndjson", args.format)
+
+    def test_telemetry_metadata_default_format_is_ndjson(self):
+        args = self._parse_args(["telemetry", "metadata"])
         self.assertEqual("ndjson", args.format)
 
     def test_snapshot_option_completion(self):

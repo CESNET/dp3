@@ -241,7 +241,7 @@ you need direct database access.
     dp3 sh entity device list \
       --has-attr risk_score \
       --limit 5 \
-      | jq -r '.data[].eid'
+      | jq -r '.eid'
     ```
 
     Then inspect the attribute directly on a specific entity:

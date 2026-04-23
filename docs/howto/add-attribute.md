@@ -81,56 +81,104 @@ Once the configuration is live, enable the producer that emits the new attribute
 - For an external producer or primary input module, start sending datapoints to the DP³ API.
 - For a secondary DP³ module, restart the worker if needed, then trigger the callback path that emits the datapoint.
 
-A quick way to prove the configuration works independently of your real producer is to submit one test datapoint manually. Using the `risk_score` example above:
+A quick way to prove the configuration works independently of your real producer is to submit one test datapoint manually. Using the `risk_score` example above, prefer `dp3 sh` for routine same-host checks and keep `curl` as a fallback when you need to work with the raw HTTP request.
 
-```shell
-curl -X POST 'http://localhost:5000/datapoints' \
-  -H 'Content-Type: application/json' \
-  --data '[
-    {
-      "type": "device",
-      "id": "device-123",
-      "attr": "risk_score",
-      "v": 0.82,
-      "t1": "2026-04-21T12:00:00Z",
-      "t2": "2026-04-21T12:05:00Z",
-      "src": "manual_test"
-    }
-  ]'
-```
+=== "CLI (`dp3 sh`)"
+
+    Set the config directory once for the session:
+
+    ```shell
+    export DP3_CONFIG_DIR=/path/to/config
+    ```
+
+    Then submit one test datapoint:
+
+    ```shell
+    printf '%s\n' '[
+      {
+        "type": "device",
+        "id": "device-123",
+        "attr": "risk_score",
+        "v": 0.82,
+        "t1": "2026-04-21T12:00:00Z",
+        "t2": "2026-04-21T12:05:00Z",
+        "src": "manual_test"
+      }
+    ]' | dp3 sh datapoints
+    ```
+
+=== "HTTP (`curl`)"
+
+    ```shell
+    curl -X POST 'http://localhost:5000/datapoints' \
+      -H 'Content-Type: application/json' \
+      --data '[
+        {
+          "type": "device",
+          "id": "device-123",
+          "attr": "risk_score",
+          "v": 0.82,
+          "t1": "2026-04-21T12:00:00Z",
+          "t2": "2026-04-21T12:05:00Z",
+          "src": "manual_test"
+        }
+      ]'
+    ```
 
 Adjust the URL, entity type, entity id, attribute id, and payload to match your application.
 
 ## 5. Verify through the API
 
-Prefer API-level verification first.
+Prefer API-level verification first. For routine checks on the same host, prefer `dp3 sh` and keep `curl` as a fallback.
 
-Start by reading the attribute directly:
+=== "CLI (`dp3 sh`)"
 
-```shell
-curl -X GET 'http://localhost:5000/entity/device/device-123/get/risk_score' \
-  -H 'Accept: application/json'
-```
+    Start by reading the attribute directly:
 
-What you should expect depends on the attribute type:
+    ```shell
+    dp3 sh entity device id device-123 attr risk_score get
+    ```
 
-- `plain` attributes return the current value.
-- `observations` attributes return the current value together with history.
-- `timeseries` attributes return history samples.
+    What you should expect depends on the attribute type:
 
-Then inspect the full master record if you want to see the attribute in context:
+    - `plain` attributes return the current value.
+    - `observations` attributes return the current value together with history.
+    - `timeseries` attributes return history samples.
 
-```shell
-curl -X GET 'http://localhost:5000/entity/device/device-123/master' \
-  -H 'Accept: application/json'
-```
+    Then inspect the full master record if you want to see the attribute in context:
 
-If snapshots are enabled for the entity type, you can also check the snapshot view after a snapshot run:
+    ```shell
+    dp3 sh entity device id device-123 master
+    ```
 
-```shell
-curl -X GET 'http://localhost:5000/entity/device/device-123/snapshots' \
-  -H 'Accept: application/json'
-```
+    If snapshots are enabled for the entity type, you can also check the snapshot view after a snapshot run:
+
+    ```shell
+    dp3 sh entity device id device-123 snapshots
+    ```
+
+=== "HTTP (`curl`)"
+
+    Start by reading the attribute directly:
+
+    ```shell
+    curl -X GET 'http://localhost:5000/entity/device/device-123/get/risk_score' \
+      -H 'Accept: application/json'
+    ```
+
+    Then inspect the full master record if you want to see the attribute in context:
+
+    ```shell
+    curl -X GET 'http://localhost:5000/entity/device/device-123/master' \
+      -H 'Accept: application/json'
+    ```
+
+    If snapshots are enabled for the entity type, you can also check the snapshot view after a snapshot run:
+
+    ```shell
+    curl -X GET 'http://localhost:5000/entity/device/device-123/snapshots' \
+      -H 'Accept: application/json'
+    ```
 
 ## 6. Deeper checks and troubleshooting
 

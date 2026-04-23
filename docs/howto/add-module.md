@@ -135,28 +135,60 @@ If you also changed `db_entities` because the module emits a new attribute, relo
 
 Now trigger the event that should make the module run.
 
-For the example above, send or replay a datapoint for the `device.hostname` attribute. A manual test through the API is often the fastest way to confirm the module is wired correctly:
+For the example above, send or replay a datapoint for the `device.hostname` attribute. For routine same-host checks, prefer `dp3 sh` and keep `curl` as a fallback.
 
-```shell
-curl -X POST 'http://localhost:5000/datapoints' \
-  -H 'Content-Type: application/json' \
-  --data '[
-    {
-      "type": "device",
-      "id": "device-123",
-      "attr": "hostname",
-      "v": "Example.Host",
-      "src": "manual_test"
-    }
-  ]'
-```
+=== "CLI (`dp3 sh`)"
 
-If the module emits `hostname_normalized`, verify it through the API:
+    Set the config directory once for the session:
 
-```shell
-curl -X GET 'http://localhost:5000/entity/device/device-123/get/hostname_normalized' \
-  -H 'Accept: application/json'
-```
+    ```shell
+    export DP3_CONFIG_DIR=/path/to/config
+    ```
+
+    A manual test datapoint is often the fastest way to confirm the module is wired correctly:
+
+    ```shell
+    printf '%s\n' '[
+      {
+        "type": "device",
+        "id": "device-123",
+        "attr": "hostname",
+        "v": "Example.Host",
+        "src": "manual_test"
+      }
+    ]' | dp3 sh datapoints
+    ```
+
+    If the module emits `hostname_normalized`, verify it directly:
+
+    ```shell
+    dp3 sh entity device id device-123 attr hostname_normalized get
+    ```
+
+=== "HTTP (`curl`)"
+
+    A manual test datapoint is often the fastest way to confirm the module is wired correctly:
+
+    ```shell
+    curl -X POST 'http://localhost:5000/datapoints' \
+      -H 'Content-Type: application/json' \
+      --data '[
+        {
+          "type": "device",
+          "id": "device-123",
+          "attr": "hostname",
+          "v": "Example.Host",
+          "src": "manual_test"
+        }
+      ]'
+    ```
+
+    If the module emits `hostname_normalized`, verify it through the API:
+
+    ```shell
+    curl -X GET 'http://localhost:5000/entity/device/device-123/get/hostname_normalized' \
+      -H 'Accept: application/json'
+    ```
 
 ## 7. Check logs and troubleshoot
 

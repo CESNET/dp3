@@ -91,28 +91,43 @@ The repository's compose setup uses `tests/test_config` as the application confi
 
 ## 4. Confirm that the test platform is running
 
-Check the API health endpoint:
+Check the API health endpoint. For routine same-host checks, prefer `dp3 sh` and keep `curl` as a fallback.
 
-```shell
-curl -X GET 'http://localhost:5000/' \
-  -H 'Accept: application/json'
-```
+=== "CLI (`dp3 sh`)"
 
-A healthy API responds with:
+    ```shell
+    export DP3_CONFIG_DIR=tests/test_config
+    dp3 sh health
+    ```
 
-```json
-{
-  "detail": "It works!"
-}
-```
+    You can also send a sample datapoint through the running test API:
 
-You can also send a sample datapoint through the running test API:
+    ```shell
+    printf '%s\n' '[{"type": "test_entity_type", "id": "abc", "attr": "test_attr_int", "v": 123, "t1": "2023-07-01T12:00:00", "t2": "2023-07-01T13:00:00"}]' | dp3 sh datapoints
+    ```
 
-```shell
-curl -X POST 'http://localhost:5000/datapoints' \
-  -H 'Content-Type: application/json' \
-  --data '[{"type": "test_entity_type", "id": "abc", "attr": "test_attr_int", "v": 123, "t1": "2023-07-01T12:00:00", "t2": "2023-07-01T13:00:00"}]'
-```
+=== "HTTP (`curl`)"
+
+    ```shell
+    curl -X GET 'http://localhost:5000/' \
+      -H 'Accept: application/json'
+    ```
+
+    A healthy API responds with:
+
+    ```json
+    {
+      "detail": "It works!"
+    }
+    ```
+
+    You can also send a sample datapoint through the running test API:
+
+    ```shell
+    curl -X POST 'http://localhost:5000/datapoints' \
+      -H 'Content-Type: application/json' \
+      --data '[{"type": "test_entity_type", "id": "abc", "attr": "test_attr_int", "v": 123, "t1": "2023-07-01T12:00:00", "t2": "2023-07-01T13:00:00"}]'
+    ```
 
 ## 5. Run tests as you work
 

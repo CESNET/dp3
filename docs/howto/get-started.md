@@ -220,12 +220,21 @@ For module and configuration development, the local-shell option is often easier
 
 ## 6. Confirm that the local app is working
 
-Run a simple API health check:
+Run a simple API health check. For routine same-host checks, prefer `dp3 sh` and keep `curl` as a fallback.
 
-```shell
-curl -X GET 'http://localhost:5000/' \
-  -H 'Accept: application/json'
-```
+=== "CLI (`dp3 sh`)"
+
+    ```shell
+    export DP3_CONFIG_DIR=config
+    dp3 sh health
+    ```
+
+=== "HTTP (`curl`)"
+
+    ```shell
+    curl -X GET 'http://localhost:5000/' \
+      -H 'Accept: application/json'
+    ```
 
 A healthy API responds with:
 

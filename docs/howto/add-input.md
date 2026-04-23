@@ -229,7 +229,7 @@ slow on large collections, and keep the `mongosh` flow as a fallback.
     dp3 sh entity device list \
       --has-attr risk_score \
       --limit 5 \
-      | jq -r '.data[].eid'
+      | jq -r '.eid'
     ```
 
 === "MongoDB (`mongosh`)"

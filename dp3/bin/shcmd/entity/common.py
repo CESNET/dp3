@@ -85,7 +85,7 @@ def add_ndjson_format_arg(parser: argparse.ArgumentParser) -> None:
         "-F",
         "--format",
         choices=["json", "ndjson"],
-        default="json",
+        default="ndjson",
         help="Choose JSON or NDJSON output.",
     )
 

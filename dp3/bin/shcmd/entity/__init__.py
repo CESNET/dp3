@@ -4,7 +4,7 @@
 import argparse
 from typing import Optional
 
-from . import etype, instance
+from . import etype
 from .common import complete_entity_rest, complete_entity_selector
 
 
@@ -13,7 +13,7 @@ def _build_overview_parser() -> argparse.ArgumentParser:
         prog="dp3 sh entity",
         description=(
             "Inspect and modify entity data. Use 'dp3 sh entities' to list entity types, "
-            "then continue with either type-scope commands or an entity id."
+            "then continue with a type-scope command or 'id' for a single entity."
         ),
     )
     selector_action = parser.add_argument(
@@ -37,16 +37,7 @@ def parse_entity_command(args) -> tuple[Optional[argparse.Namespace], Optional[i
         etype.build_parser(entity_type).print_help()
         return None, 2
 
-    first = args.rest[0]
-    if first in etype.TYPE_COMMANDS:
-        parsed = etype.build_parser(entity_type).parse_args(args.rest)
-    else:
-        eid = first
-        if len(args.rest) == 1:
-            instance.build_parser(entity_type, eid).print_help()
-            return None, 2
-        parsed = instance.build_parser(entity_type, eid).parse_args(args.rest[1:])
-
+    parsed = etype.build_parser(entity_type).parse_args(args.rest)
     return parsed, None
 
 

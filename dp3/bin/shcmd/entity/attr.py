@@ -23,18 +23,18 @@ def handle_get(client, args) -> int:
     )
 
 
-def add_instance_attr_parser(commands, etype: str, eid: str) -> None:
+def add_instance_attr_parser(commands, etype: str) -> None:
     """Register entity attribute commands under a single-entity parser."""
     attr_parser = commands.add_parser("attr", help="Get or modify an entity attribute value.")
-    attr_parser.set_defaults(etype=etype, eid=eid)
+    attr_parser.set_defaults(etype=etype)
     attr_action = attr_parser.add_argument("attr", metavar="ATTR")
     attr_action.completer = complete_entity_attr_names
     attr_commands = attr_parser.add_subparsers(dest="entity_attr_command", required=True)
 
     get_parser = attr_commands.add_parser("get", help="Get an entity attribute value.")
     add_time_range_args(get_parser)
-    get_parser.set_defaults(handler=handle_get, etype=etype, eid=eid)
+    get_parser.set_defaults(handler=handle_get, etype=etype)
 
     set_parser = attr_commands.add_parser("set", help="Set a current entity attribute value.")
     add_entity_attr_set_args(set_parser)
-    set_parser.set_defaults(handler=handle_attr_set_request, etype=etype, eid=eid)
+    set_parser.set_defaults(handler=handle_attr_set_request, etype=etype)

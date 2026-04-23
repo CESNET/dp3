@@ -317,17 +317,6 @@ def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:
         return {}
 
     from . import etype as entity_etype
-    from . import instance as entity_instance
 
     words = list(getattr(parsed_args, "rest", []))
-    type_parser = entity_etype.build_parser(etype)
-    if not words:
-        matches = _complete_from_parser(type_parser, [], prefix, parsed_args)
-        if not prefix or not prefix.startswith("-"):
-            matches[ENTITY_ID_PLACEHOLDER] = "Enter an entity id to inspect one entity."
-        return matches
-    if words[0] in entity_etype.TYPE_COMMANDS:
-        return _complete_from_parser(type_parser, words, prefix, parsed_args)
-
-    instance_parser = entity_instance.build_parser(etype, words[0])
-    return _complete_from_parser(instance_parser, words[1:], prefix, parsed_args)
+    return _complete_from_parser(entity_etype.build_parser(etype), words, prefix, parsed_args)

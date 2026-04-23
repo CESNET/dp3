@@ -71,9 +71,9 @@ class TestShCompletion(unittest.TestCase):
             finder._display_completions.get("--from"),
         )
 
-    def test_entity_type_attr_completion_uses_config(self):
+    def test_entity_type_attr_values_completion_uses_config(self):
         values = self._get_completions(
-            ["dpsh", "--config", "tests/test_config", "entity", "A", "attr"], "d"
+            ["dpsh", "--config", "tests/test_config", "entity", "A", "attr-values"], "d"
         )
         self.assertIn("data1", values)
         self.assertIn("data2", values)

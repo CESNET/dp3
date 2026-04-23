@@ -15,7 +15,7 @@ from .common import (
     handle_raw,
 )
 
-TYPE_COMMANDS = {"list", "count", "raw", "attr", "-h", "--help"}
+TYPE_COMMANDS = {"list", "count", "raw", "attr-values", "-h", "--help"}
 
 
 def handle_list(client, args) -> int:
@@ -61,14 +61,14 @@ def build_parser(etype: str) -> argparse.ArgumentParser:
     add_ndjson_format_arg(raw_parser)
     raw_parser.set_defaults(handler=handle_raw, etype=etype, eid=None)
 
-    attr_parser = commands.add_parser(
-        "attr", help="Query a single attribute across the entity type."
+    attr_values_parser = commands.add_parser(
+        "attr-values",
+        help="Get distinct latest values of one attribute across the entity type.",
+        description="Get distinct latest values of one attribute across the entity type.",
     )
-    attr_parser.add_argument("attr", metavar="ATTR")
-    attr_commands = attr_parser.add_subparsers(dest="entity_type_attr_command", required=True)
-    distinct_parser = attr_commands.add_parser(
-        "distinct", help="Get distinct latest values of an attribute."
+    attr_values_parser.add_argument(
+        "attr", metavar="ATTR", help="Attribute to query across the entity type."
     )
-    distinct_parser.set_defaults(handler=handle_distinct, etype=etype)
+    attr_values_parser.set_defaults(handler=handle_distinct, etype=etype)
 
     return parser

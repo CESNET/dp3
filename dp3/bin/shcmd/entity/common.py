@@ -23,7 +23,7 @@ RAW_HELP = (
     "Can be slow on large raw collections."
 )
 ATTR_VALUE_HELP = "JSON literal value, for example '\"hello\"', '42', 'true', or '{\"k\":1}'."
-ENTITY_TYPE_COMMANDS = ["list", "count", "raw", "attr"]
+ENTITY_TYPE_COMMANDS = ["list", "count", "raw", "attr-values"]
 ENTITY_INSTANCE_COMMANDS = ["get", "master", "snapshots", "raw", "ttl", "delete", "attr"]
 ENTITY_ID_PLACEHOLDER = "<EID>"
 TYPE_LIST_OPTIONS = ["--fulltext-json", "--filter-json", "--has-attr", "--skip", "--limit"]
@@ -35,7 +35,7 @@ TYPE_COMMAND_DESCRIPTIONS = {
     "list": "List latest entity snapshots for the entity type.",
     "count": "Count latest entity snapshots for the entity type.",
     "raw": RAW_HELP,
-    "attr": "Query one attribute across the entity type.",
+    "attr-values": "Get distinct latest values of one attribute across the entity type.",
 }
 INSTANCE_COMMAND_DESCRIPTIONS = {
     "get": "Get the combined entity view.",
@@ -343,13 +343,9 @@ def complete_entity_rest(prefix: str, parsed_args, **_kwargs) -> dict[str, str]:
                 "--format": VALUE_CHOICE_DESCRIPTIONS,
             },
         )
-    if command == "attr":
+    if command == "attr-values":
         if not args:
             return _match_descriptions(attr_descriptions, prefix)
-        if len(args) == 1:
-            return _match_descriptions(
-                {"distinct": "Get distinct latest values of this attribute."}, prefix
-            )
         return {}
     if command in ENTITY_TYPE_COMMANDS:
         return _match_descriptions(TYPE_COMMAND_DESCRIPTIONS, prefix)

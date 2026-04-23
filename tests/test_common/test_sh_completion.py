@@ -57,6 +57,14 @@ class TestShCompletion(unittest.TestCase):
         )
         self.assertTrue(any("EID" in value for value in values))
 
+    def test_entity_list_option_completion(self):
+        values = self._get_completions(
+            ["dpsh", "--config", "tests/test_config", "entity", "A", "list"],
+            "--",
+        )
+        self.assertIn("--format", values)
+        self.assertIn("--limit", values)
+
     def test_snapshot_option_completion(self):
         values = self._get_completions(
             ["dpsh", "--config", "tests/test_config", "entity", "A", "id", "10", "snapshots"],
@@ -65,6 +73,16 @@ class TestShCompletion(unittest.TestCase):
         self.assertIn("--from", values)
         self.assertIn("--to", values)
         self.assertIn("--limit", values)
+
+    def test_entity_list_option_completion_includes_descriptions(self):
+        finder, values = self._finder_with_completions(
+            ["dpsh", "--config", "tests/test_config", "entity", "A", "list"],
+            "--",
+        )
+        self.assertIn("--format", values)
+        self.assertEqual(
+            "Choose JSON or NDJSON output.", finder._display_completions.get("--format")
+        )
 
     def test_snapshot_option_completion_includes_descriptions(self):
         finder, values = self._finder_with_completions(

@@ -3,7 +3,7 @@
 
 import argparse
 
-from dp3.bin.shcmd.common import print_response_json
+from dp3.bin.shcmd.common import print_response_json, stream_json_pages
 
 from . import instance
 from .common import (
@@ -20,8 +20,12 @@ from .common import (
 
 def handle_list(client, args) -> int:
     """List latest entity snapshots for one type."""
+    path = f"/entity/{args.etype}/get"
     params = build_type_query_params(client, args, include_paging=True)
-    return print_response_json(client.request("GET", f"/entity/{args.etype}/get", params=params))
+    if args.format == "ndjson":
+        base_params = {key: value for key, value in params.items() if key not in {"skip", "limit"}}
+        return stream_json_pages(client, path, base_params, args.skip, args.limit)
+    return print_response_json(client.request("GET", path, params=params))
 
 
 def handle_count(client, args) -> int:
@@ -48,6 +52,7 @@ def build_parser(etype: str) -> argparse.ArgumentParser:
 
     list_parser = commands.add_parser("list", help="List latest entity snapshots.")
     add_type_filter_args(list_parser, include_paging=True)
+    add_ndjson_format_arg(list_parser)
     list_parser.set_defaults(handler=handle_list, etype=etype)
 
     count_parser = commands.add_parser("count", help="Count latest entity snapshots.")

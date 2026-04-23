@@ -4,7 +4,7 @@
 from dp3.bin.shcmd.common import print_response_json, read_json_input
 
 
-def handle_datapoints_ingest(client, args) -> int:
+def handle_datapoints(client, args) -> int:
     """Send datapoints from JSON input to the API."""
     body = read_json_input(args.path)
     return print_response_json(client.request("POST", "/datapoints", json_body=body))
@@ -12,16 +12,15 @@ def handle_datapoints_ingest(client, args) -> int:
 
 def register_parser(commands) -> None:
     """Register datapoint commands on the root parser."""
-    datapoints_parser = commands.add_parser("datapoints", help="Send datapoints to the API.")
-    datapoints_commands = datapoints_parser.add_subparsers(dest="datapoints_command", required=True)
-
-    ingest_parser = datapoints_commands.add_parser(
-        "ingest", help="Post datapoints from JSON input."
+    datapoints_parser = commands.add_parser(
+        "datapoints",
+        help="Post datapoints from JSON input.",
+        description="Post datapoints from JSON input.",
     )
-    ingest_parser.add_argument(
+    datapoints_parser.add_argument(
         "path",
         nargs="?",
         default="-",
         help="Path to a JSON file, or '-' / omitted to read stdin.",
     )
-    ingest_parser.set_defaults(handler=handle_datapoints_ingest)
+    datapoints_parser.set_defaults(handler=handle_datapoints)

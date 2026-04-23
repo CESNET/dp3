@@ -89,6 +89,7 @@ def _add_instance_commands(parser: argparse.ArgumentParser, etype: str) -> None:
 
     ttl_parser = commands.add_parser("ttl", help="Extend entity TTLs.")
     body_action = ttl_parser.add_argument(
+        "-b",
         "--body-json",
         required=True,
         help="JSON body describing the TTL update request.",

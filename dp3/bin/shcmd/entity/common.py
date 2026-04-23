@@ -39,12 +39,14 @@ def add_time_range_args(
 ) -> None:
     """Add common time-range arguments to a parser."""
     from_action = parser.add_argument(
+        "-f",
         "--from",
         dest="date_from",
         help=f"Lower bound of the {scope}.",
     )
     from_action.completer = suppress_completion
     to_action = parser.add_argument(
+        "-t",
         "--to",
         dest="date_to",
         help=f"Upper bound of the {scope}.",
@@ -60,6 +62,7 @@ def add_page_args(
 ) -> None:
     """Add common paging arguments to a parser."""
     skip_action = parser.add_argument(
+        "-s",
         "--skip",
         type=int,
         default=0,
@@ -67,6 +70,7 @@ def add_page_args(
     )
     skip_action.completer = suppress_completion
     limit_action = parser.add_argument(
+        "-l",
         "--limit",
         type=int,
         default=default_limit,
@@ -78,6 +82,7 @@ def add_page_args(
 def add_ndjson_format_arg(parser: argparse.ArgumentParser) -> None:
     """Add common JSON/NDJSON output selection."""
     parser.add_argument(
+        "-F",
         "--format",
         choices=["json", "ndjson"],
         default="json",
@@ -88,11 +93,16 @@ def add_ndjson_format_arg(parser: argparse.ArgumentParser) -> None:
 def add_raw_filter_args(parser: argparse.ArgumentParser) -> None:
     """Add common raw datapoint filters to a parser."""
     attr_action = parser.add_argument(
+        "-a",
         "--attr",
         help="Limit raw datapoints to one attribute.",
     )
     attr_action.completer = complete_entity_attr_names
-    src_action = parser.add_argument("--src", help="Limit raw datapoints to one source.")
+    src_action = parser.add_argument(
+        "-r",
+        "--src",
+        help="Limit raw datapoints to one source.",
+    )
     src_action.completer = suppress_completion
 
 
@@ -104,18 +114,21 @@ def add_type_filter_args(
 ) -> None:
     """Add common entity-type filters to a parser."""
     fulltext_action = parser.add_argument(
+        "-q",
         "--fulltext-json",
         default=None,
         help="JSON object with fulltext search filters.",
     )
     fulltext_action.completer = suppress_completion
     filter_action = parser.add_argument(
+        "-j",
         "--filter-json",
         default=None,
         help="JSON object with additional generic filters.",
     )
     filter_action.completer = suppress_completion
     has_attr_action = parser.add_argument(
+        "-a",
         "--has-attr",
         default=None,
         help="Limit results to latest snapshots where the attribute has data present.",
@@ -207,6 +220,7 @@ def add_entity_attr_set_args(parser: argparse.ArgumentParser) -> None:
     value_action = parser.add_argument("value_json", metavar="VALUE_JSON", help=ATTR_VALUE_HELP)
     value_action.completer = suppress_completion
     value_flag_action = parser.add_argument(
+        "-v",
         "--value-json",
         dest="value_json_flag",
         help=argparse.SUPPRESS,

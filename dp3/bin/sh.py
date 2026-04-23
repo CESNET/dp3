@@ -43,6 +43,7 @@ def register_completion_parser(commands) -> None:
             shell_name, help=f"Print a {shell_name.capitalize()} completion script."
         )
         shell_parser.add_argument(
+            "-c",
             "--command",
             action="append",
             default=[],
@@ -59,6 +60,7 @@ def register_completion_parser(commands) -> None:
 def init_parser(parser: argparse.ArgumentParser) -> None:
     """Initialize the shell-oriented CLI parser."""
     config_action = parser.add_argument(
+        "-c",
         "--config",
         default=None,
         help=(
@@ -68,11 +70,13 @@ def init_parser(parser: argparse.ArgumentParser) -> None:
     )
     config_action.completer = DirectoriesCompleter()
     parser.add_argument(
+        "-u",
         "--url",
         default=None,
         help="Base URL of the DP3 API. When omitted, localhost defaults are probed.",
     )
     parser.add_argument(
+        "-t",
         "--timeout",
         type=float,
         default=5.0,

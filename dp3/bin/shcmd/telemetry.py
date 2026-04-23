@@ -62,7 +62,12 @@ def register_parser(commands) -> None:
     sources_validity_parser.set_defaults(handler=handle_sources_validity)
 
     source_age_parser = telemetry_commands.add_parser("source-age", help="Show source ages.")
-    source_age_parser.add_argument("--unit", choices=["minutes", "seconds"], default="minutes")
+    source_age_parser.add_argument(
+        "-u",
+        "--unit",
+        choices=["minutes", "seconds"],
+        default="minutes",
+    )
     source_age_parser.set_defaults(handler=handle_source_age)
 
     entities_per_attr_parser = telemetry_commands.add_parser(
@@ -78,13 +83,13 @@ def register_parser(commands) -> None:
     metadata_parser = telemetry_commands.add_parser(
         "metadata", help="Browse internal metadata records."
     )
-    metadata_parser.add_argument("--module")
-    metadata_parser.add_argument("--from", dest="date_from")
-    metadata_parser.add_argument("--to", dest="date_to")
-    metadata_parser.add_argument("--skip", type=int, default=0)
-    metadata_parser.add_argument("--limit", type=int, default=0)
-    metadata_parser.add_argument("--sort", choices=["newest", "oldest"], default="newest")
-    metadata_parser.add_argument("--format", choices=["json", "ndjson"], default="json")
+    metadata_parser.add_argument("-m", "--module")
+    metadata_parser.add_argument("-f", "--from", dest="date_from")
+    metadata_parser.add_argument("-t", "--to", dest="date_to")
+    metadata_parser.add_argument("-s", "--skip", type=int, default=0)
+    metadata_parser.add_argument("-l", "--limit", type=int, default=0)
+    metadata_parser.add_argument("-S", "--sort", choices=["newest", "oldest"], default="newest")
+    metadata_parser.add_argument("-F", "--format", choices=["json", "ndjson"], default="json")
     metadata_parser.set_defaults(handler=handle_metadata)
 
     rabbitmq_queues_parser = telemetry_commands.add_parser(

@@ -20,6 +20,9 @@ class TestShCompletion(unittest.TestCase):
         values = finder._get_completions(comp_words, prefix, "", None)
         return finder, values
 
+    def _parse_args(self, argv):
+        return self._create_parser().parse_args(argv)
+
     def _get_completions(self, comp_words, prefix):
         return self._finder_with_completions(comp_words, prefix)[1]
 
@@ -64,6 +67,72 @@ class TestShCompletion(unittest.TestCase):
         )
         self.assertIn("--format", values)
         self.assertIn("--limit", values)
+
+    def test_global_short_options_parse(self):
+        args = self._parse_args(
+            ["-c", "tests/test_config", "-u", "http://localhost:5000", "-t", "1.5", "health"]
+        )
+        self.assertEqual("tests/test_config", args.config)
+        self.assertEqual("http://localhost:5000", args.url)
+        self.assertEqual(1.5, args.timeout)
+
+    def test_entity_short_options_parse(self):
+        args = self._parse_args(
+            [
+                "entity",
+                "A",
+                "list",
+                "-q",
+                '{"k":"v"}',
+                "-j",
+                '{"x":1}',
+                "-a",
+                "data1",
+                "-s",
+                "1",
+                "-l",
+                "2",
+                "-F",
+                "ndjson",
+            ]
+        )
+        parsed_args, exit_code = args.prepare_args(args)
+        self.assertIsNone(exit_code)
+        self.assertEqual('{"k":"v"}', parsed_args.fulltext_json)
+        self.assertEqual('{"x":1}', parsed_args.filter_json)
+        self.assertEqual("data1", parsed_args.has_attr)
+        self.assertEqual(1, parsed_args.skip)
+        self.assertEqual(2, parsed_args.limit)
+        self.assertEqual("ndjson", parsed_args.format)
+
+    def test_telemetry_short_options_parse(self):
+        args = self._parse_args(
+            [
+                "telemetry",
+                "metadata",
+                "-m",
+                "SnapShooter",
+                "-f",
+                "2024-01-01",
+                "-t",
+                "2024-01-02",
+                "-s",
+                "1",
+                "-l",
+                "2",
+                "-S",
+                "oldest",
+                "-F",
+                "ndjson",
+            ]
+        )
+        self.assertEqual("SnapShooter", args.module)
+        self.assertEqual("2024-01-01", args.date_from)
+        self.assertEqual("2024-01-02", args.date_to)
+        self.assertEqual(1, args.skip)
+        self.assertEqual(2, args.limit)
+        self.assertEqual("oldest", args.sort)
+        self.assertEqual("ndjson", args.format)
 
     def test_snapshot_option_completion(self):
         values = self._get_completions(

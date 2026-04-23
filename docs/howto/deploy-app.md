@@ -260,12 +260,20 @@ Start with process status:
 <APPNAME>ctl status
 ```
 
-Then verify the API health endpoint:
+Then verify the API health endpoint. On the deployment host, prefer the generated `<APPNAME>sh` wrapper and keep `curl` as a fallback.
 
-```shell
-curl -X GET 'http://<HOSTNAME>/' \
-  -H 'Accept: application/json'
-```
+=== "CLI (`<APPNAME>sh`)"
+
+    ```shell
+    <APPNAME>sh health
+    ```
+
+=== "HTTP (`curl`)"
+
+    ```shell
+    curl -X GET 'http://<HOSTNAME>/' \
+      -H 'Accept: application/json'
+    ```
 
 A healthy API responds with:
 

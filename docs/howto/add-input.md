@@ -23,12 +23,28 @@ If the input only sends datapoints for attributes that already exist, you can co
 
 ## 2. Confirm that the API is reachable
 
-A new input module should be tested against a running DP³ API before you debug the producer itself.
+A new input module should be tested against a running DP³ API before you debug the producer itself. For routine same-host checks, prefer `dp3 sh` and keep `curl` as a fallback.
 
-```shell
-curl -X GET 'http://localhost:5000/' \
-  -H 'Accept: application/json'
-```
+=== "CLI (`dp3 sh`)"
+
+    Set the config directory once for the session:
+
+    ```shell
+    export DP3_CONFIG_DIR=/path/to/config
+    ```
+
+    Then run the health check:
+
+    ```shell
+    dp3 sh health
+    ```
+
+=== "HTTP (`curl`)"
+
+    ```shell
+    curl -X GET 'http://localhost:5000/' \
+      -H 'Accept: application/json'
+    ```
 
 A healthy API responds with:
 
@@ -73,21 +89,39 @@ Before running the real input module, send one datapoint manually. This narrows 
 - DP³ configuration and API handling, or
 - the input module implementation itself
 
-```shell
-curl -X POST 'http://localhost:5000/datapoints' \
-  -H 'Content-Type: application/json' \
-  --data '[
-    {
-      "type": "device",
-      "id": "device-123",
-      "attr": "risk_score",
-      "v": 0.82,
-      "t1": "2026-04-21T12:00:00Z",
-      "t2": "2026-04-21T12:05:00Z",
-      "src": "manual_test"
-    }
-  ]'
-```
+=== "CLI (`dp3 sh`)"
+
+    ```shell
+    printf '%s\n' '[
+      {
+        "type": "device",
+        "id": "device-123",
+        "attr": "risk_score",
+        "v": 0.82,
+        "t1": "2026-04-21T12:00:00Z",
+        "t2": "2026-04-21T12:05:00Z",
+        "src": "manual_test"
+      }
+    ]' | dp3 sh datapoints
+    ```
+
+=== "HTTP (`curl`)"
+
+    ```shell
+    curl -X POST 'http://localhost:5000/datapoints' \
+      -H 'Content-Type: application/json' \
+      --data '[
+        {
+          "type": "device",
+          "id": "device-123",
+          "attr": "risk_score",
+          "v": 0.82,
+          "t1": "2026-04-21T12:00:00Z",
+          "t2": "2026-04-21T12:05:00Z",
+          "src": "manual_test"
+        }
+      ]'
+    ```
 
 Once the manual request works, point your input module at the same API endpoint and send the same shape of payload.
 
@@ -106,21 +140,37 @@ It is worth keeping one datapoint field stable during testing, especially `src`,
 
 ## 6. Verify that data is flowing through DP³
 
-Start with API-level verification.
+Start with API-level verification. For routine checks on the same host, prefer `dp3 sh` and keep `curl` as a fallback.
 
-To read one attribute directly:
+=== "CLI (`dp3 sh`)"
 
-```shell
-curl -X GET 'http://localhost:5000/entity/device/device-123/get/risk_score' \
-  -H 'Accept: application/json'
-```
+    To read one attribute directly:
 
-To inspect the full master record for the entity:
+    ```shell
+    dp3 sh entity device id device-123 attr risk_score get
+    ```
 
-```shell
-curl -X GET 'http://localhost:5000/entity/device/device-123/master' \
-  -H 'Accept: application/json'
-```
+    To inspect the full master record for the entity:
+
+    ```shell
+    dp3 sh entity device id device-123 master
+    ```
+
+=== "HTTP (`curl`)"
+
+    To read one attribute directly:
+
+    ```shell
+    curl -X GET 'http://localhost:5000/entity/device/device-123/get/risk_score' \
+      -H 'Accept: application/json'
+    ```
+
+    To inspect the full master record for the entity:
+
+    ```shell
+    curl -X GET 'http://localhost:5000/entity/device/device-123/master' \
+      -H 'Accept: application/json'
+    ```
 
 If the attribute shows up for the manually sent datapoint but not for the real input module, the remaining problem is in the producer, not in the DP³ model.
 

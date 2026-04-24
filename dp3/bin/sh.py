@@ -21,7 +21,7 @@ def render_completion_shellcode(shell_name: str, command_names: list[str]) -> st
 
 def handle_completion(_client, args) -> int:
     """Print shell completion registration code."""
-    sys.stdout.write(render_completion_shellcode(args.shell_name, args.command))
+    sys.stdout.write(render_completion_shellcode(args.shell_name, args.completion_commands))
     if not sys.stdout.isatty():
         sys.stdout.write("\n")
     return 0
@@ -37,24 +37,25 @@ def register_completion_parser(commands) -> None:
             "output in your shell or source it from your shell startup file."
         ),
     )
-    completion_commands = completion_parser.add_subparsers(dest="shell_name", required=True)
-    for shell_name in ["bash", "zsh", "fish"]:
-        shell_parser = completion_commands.add_parser(
-            shell_name, help=f"Print a {shell_name.capitalize()} completion script."
-        )
-        shell_parser.add_argument(
-            "-c",
-            "--command",
-            action="append",
-            default=[],
-            help=(
-                "Command name to register completion for. Repeat to register multiple "
-                "commands. Use 'dp3' for 'dp3 sh' and '<APPNAME>sh' for wrapper commands."
-            ),
-        )
-        shell_parser.set_defaults(
-            handler=handle_completion, requires_api=False, load_model_spec=False
-        )
+    completion_parser.add_argument(
+        "shell_name",
+        help="Shell name.",
+        choices=["bash", "zsh", "fish", "tcsh", "powershell"],
+    )
+    completion_parser.add_argument(
+        "-c",
+        "--command",
+        dest="completion_commands",
+        action="append",
+        default=None,
+        help=(
+            "Command name to register completion for. Repeat to register multiple "
+            "commands. Use 'dp3' for 'dp3 sh' and '<APPNAME>sh' for wrapper commands."
+        ),
+    )
+    completion_parser.set_defaults(
+        handler=handle_completion, requires_api=False, load_model_spec=False
+    )
 
 
 def init_parser(parser: argparse.ArgumentParser) -> None:

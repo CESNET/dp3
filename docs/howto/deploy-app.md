@@ -210,6 +210,9 @@ Generate the base supervisor configuration for the app:
 sudo $(which dp3) config supervisor --config <CONFIG_DIR> --app-name <APP_NAME>
 ```
 
+The generated supervisor configuration lives under `/etc/<APP_NAME>` and the process logs are written under `/var/log/<APP_NAME>`.
+For more on supervisor itself, see the [supervisorctl documentation](http://supervisord.org/running.html#running-supervisorctl).
+
 Enable and start the generated system service:
 
 ```shell
@@ -231,26 +234,66 @@ This creates two app-specific helpers:
 
 `<APPNAME>sh entities` returns the full entity-type configuration map exposed by the API. When you only need the configured entity type names, pipe it through `jq keys`.
 
-You can also enable shell completion for the wrapper or for `dp3 sh` itself:
+You can also enable shell completion for the wrapper or for `dp3` itself.
+The completion is registered for the executable name seen by the shell:
 
-```shell
-# Bash
-source <(<APPNAME>sh completion bash --command <APPNAME>sh)
-source <(dp3 sh completion bash --command dp3)
+- use `--command dp3` for the main `dp3` command tree
+- use `--command <APPNAME>sh` for the generated wrapper
 
-# Zsh
-source <(<APPNAME>sh completion zsh --command <APPNAME>sh)
-source <(dp3 sh completion zsh --command dp3)
+#### Session-local autocomplete 
 
-# Fish
-<APPNAME>sh completion fish --command <APPNAME>sh | source
-dp3 sh completion fish --command dp3 | source
-```
+Enable completion in the current shell session only:
+
+=== "Bash"
+
+    ```shell
+    source <(dp3 sh completion bash --command dp3 --command <APPNAME>sh)
+    ```
+
+=== "Zsh"
+
+    ```shell
+    source <(dp3 sh completion zsh --command dp3 --command <APPNAME>sh)
+    ```
+
+=== "Fish"
+
+    ```shell
+    dp3 sh completion fish --command dp3 --command <APPNAME>sh | source
+    ```
+
+#### Persistent activation
+
+To keep completion enabled across shell sessions, add the appropriate command to your shell startup file.
+
+=== "Bash"
+
+    Add one of these to `~/.bashrc`:
+
+    ```shell
+    source <(<APPNAME>sh completion bash --command <APPNAME>sh)
+    source <(dp3 sh completion bash --command dp3)
+    ```
+
+=== "Zsh"
+
+    Add one of these to `~/.zshrc`:
+
+    ```shell
+    source <(<APPNAME>sh completion zsh --command <APPNAME>sh)
+    source <(dp3 sh completion zsh --command dp3)
+    ```
+
+=== "Fish"
+
+    Write the generated completion to a Fish completion file:
+
+    ```shell
+    <APPNAME>sh completion fish --command <APPNAME>sh > ~/.config/fish/completions/<APPNAME>sh.fish
+    dp3 sh completion fish --command dp3 > ~/.config/fish/completions/dp3.fish
+    ```
 
 The generated completion is config-aware. It can suggest entity types and attribute names from the resolved DP3 configuration.
-
-The generated supervisor configuration lives under `/etc/<APP_NAME>` and the process logs are written under `/var/log/<APP_NAME>`.
-For more on supervisor itself, see the [supervisorctl documentation](http://supervisord.org/running.html#running-supervisorctl).
 
 ### 6. Check that the deployment is healthy
 

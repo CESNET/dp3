@@ -246,6 +246,62 @@ A healthy API responds with:
 
 At this point, you have a local DP³ environment ready for trying configuration changes and testing new code.
 
+### Optional: enable shell completion for `dp3`
+
+By default, the following will generate completion for the `dp3` executable.
+
+#### Session-local activation
+
+Enable completion in the current shell session only:
+
+=== "Bash"
+
+    ```shell
+    source <(dp3 sh completion bash)
+    ```
+
+=== "Zsh"
+
+    ```shell
+    source <(dp3 sh completion zsh)
+    ```
+
+=== "Fish"
+
+    ```shell
+    dp3 sh completion fish | source
+    ```
+
+#### Persistent activation
+
+To keep completion enabled across shell sessions, add the appropriate command to your shell startup file.
+
+=== "Bash"
+
+    Add this to `~/.bashrc`:
+
+    ```shell
+    source <(dp3 sh completion bash)
+    ```
+
+=== "Zsh"
+
+    Add this to `~/.zshrc`:
+
+    ```shell
+    source <(dp3 sh completion zsh)
+    ```
+
+=== "Fish"
+
+    Write the generated completion to a Fish completion file:
+
+    ```shell
+    dp3 sh completion fish > ~/.config/fish/completions/dp3.fish
+    ```
+
+The generated completion is config-aware. It can suggest entity types and attribute names from the resolved DP3 configuration.
+
 ## 7. Sanity-check configuration changes as you iterate
 
 When you change configuration, especially `config/db_entities`, validate it before restarting services:

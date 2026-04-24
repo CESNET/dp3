@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from argcomplete.finders import CompletionFinder
 
+from dp3.bin.cli import init_parser as init_root_parser
 from dp3.bin.sh import init_parser, render_completion_shellcode
 from dp3.bin.shcmd.common import complete_entity_type_names
 
@@ -230,3 +231,9 @@ class TestShCompletion(unittest.TestCase):
         script = render_completion_shellcode("fish", ["dp3", "appsh"])
         self.assertIn("complete --command dp3", script)
         self.assertIn("complete --command appsh", script)
+
+    def test_completion_command_flag_does_not_override_root_command(self):
+        parser = init_root_parser()
+        args = parser.parse_args(["sh", "completion", "zsh", "-c", "dp3"])
+        self.assertEqual("sh", args.command)
+        self.assertEqual(["dp3"], args.completion_commands)

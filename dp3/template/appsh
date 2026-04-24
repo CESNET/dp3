@@ -1,2 +1,12 @@
 #!/bin/sh
+
+if [ -n "${_ARGCOMPLETE:-}" ] && [ -n "${COMP_LINE:-}" ] && [ -n "${COMP_POINT:-}" ]; then
+    wrapper_name="${0##*/}"
+    completion_prefix="{{DP3_EXE}} sh"
+    completion_suffix="${COMP_LINE#"$wrapper_name"}"
+    COMP_LINE="$completion_prefix$completion_suffix"
+    COMP_POINT=$((COMP_POINT + ${#completion_prefix} - ${#wrapper_name}))
+    export COMP_LINE COMP_POINT
+fi
+
 DP3_CONFIG_DIR="{{CONFIG_DIR}}" exec {{DP3_EXE}} sh "$@"

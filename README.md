@@ -96,15 +96,12 @@ docker compose -f docker-compose.app.yml up -d --build
 
 Either way, to test that everything is running properly, you can run:
 ```shell
-curl -X 'GET' 'http://localhost:5000/' \
-     -H 'Accept: application/json' 
+dp3 sh health
 ```
 
 Which should return a JSON response with the following content:
 ```json
-{
-   "detail": "It works!"
-}
+{"detail": "It works!"}
 ```
 
 Final note, to simplify the experience of adjusting the app configuration, 
@@ -155,16 +152,14 @@ The `docker-compose.yml` configuration contains the configuration for the servic
 as well as a testing setup of the DP³ platform itself. 
 The full configuration is in `tests/test_config`.
 The setup includes one worker process and one API process to handle requests. 
-The API process is exposed on port 5000, so you can send requests to it using `curl` or from your browser:
+The API process is exposed on port 5000, so you can send requests to it using `curl`, from your browser, or using the `dp3 sh` CLI:
 
 ```shell
-curl -X 'GET' 'http://localhost:5000/' \
-     -H 'Accept: application/json' 
+dp3 sh health
 ```
 ```shell
-curl -X 'POST' 'http://localhost:5000/datapoints' \
-     -H 'Content-Type: application/json' \
-     --data '[{"type": "test_entity_type", "id": "abc", "attr": "test_attr_int", "v": 123, "t1": "2023-07-01T12:00:00", "t2": "2023-07-01T13:00:00"}]'
+echo '[{"type": "test_entity_type", "id": "abc", "attr": "test_attr_int", "v": 123, "t1": "2023-07-01T12:00:00", "t2": "2023-07-01T13:00:00"}]\n' \
+  | dp3 sh datapoints
 ```
 
 ### Testing

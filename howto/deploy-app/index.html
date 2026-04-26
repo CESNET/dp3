@@ -1,0 +1,3059 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dynamic Profile Processing Platform">
+      
+      
+      
+        <link rel="canonical" href="https://cesnet.github.io/dp3/howto/deploy-app/">
+      
+      
+        <link rel="prev" href="../add-module/">
+      
+      
+        <link rel="next" href="../develop-dp3/">
+      
+      <link rel="icon" href="../../img/dp3-favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.0.12">
+    
+    
+      
+        <title>Deploy an app - DP3</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.0d440cfe.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.2505c338.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/slate.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/mermaid.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#how-to-deploy-a-dp3-application" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="DP3" class="md-header__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DP3
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Deploy an app
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      <form class="md-header__option" data-md-component="palette">
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+          
+            <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+          
+            <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+      </form>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="DP3" class="md-nav__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    DP3
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../">How-to</a>
+          
+            <label for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          How-to
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../get-started/" class="md-nav__link">
+        Get started
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-attribute/" class="md-nav__link">
+        Add an attribute
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-input/" class="md-nav__link">
+        Add an input module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-module/" class="md-nav__link">
+        Add a secondary module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Deploy an app
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Deploy an app
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#initial-deployment" class="md-nav__link">
+    Initial Deployment
+  </a>
+  
+    <nav class="md-nav" aria-label="Initial Deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    Before you start
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1-prepare-the-server-and-python-environment" class="md-nav__link">
+    1. Prepare the server and Python environment
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-create-the-application-user" class="md-nav__link">
+    2. Create the application user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-install-and-start-the-backing-services" class="md-nav__link">
+    3. Install and start the backing services
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Install and start the backing services">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#redis" class="md-nav__link">
+    Redis
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mongodb" class="md-nav__link">
+    MongoDB
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rabbitmq" class="md-nav__link">
+    RabbitMQ
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-configure-the-web-server" class="md-nav__link">
+    4. Configure the web server
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-generate-the-supervisor-configuration" class="md-nav__link">
+    5. Generate the supervisor configuration
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Generate the supervisor configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#session-local-autocomplete" class="md-nav__link">
+    Session-local autocomplete
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#persistent-activation" class="md-nav__link">
+    Persistent activation
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-check-that-the-deployment-is-healthy" class="md-nav__link">
+    6. Check that the deployment is healthy
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update-a-deployed-application-safely" class="md-nav__link">
+    Update a deployed application safely
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#watch-the-deployment-after-changes" class="md-nav__link">
+    Watch the deployment after changes
+  </a>
+  
+    <nav class="md-nav" aria-label="Watch the deployment after changes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#process-status-and-logs" class="md-nav__link">
+    Process status and logs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api-level-checks" class="md-nav__link">
+    API-level checks
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rabbitmq-management" class="md-nav__link">
+    RabbitMQ management
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-pages" class="md-nav__link">
+    Related pages
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop-dp3/" class="md-nav__link">
+        Develop DP3 itself
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extending/" class="md-nav__link">
+        Extend Docs
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          Concepts
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          Concepts
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        Architecture
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data_model/" class="md-nav__link">
+        Data model
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history_management/" class="md-nav__link">
+        History management
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hooks/" class="md-nav__link">
+        Hooks
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../configuration/">Configuration</a>
+          
+            <label for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          Configuration
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/control/" class="md-nav__link">
+        Control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/database/" class="md-nav__link">
+        Database
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/db_entities/" class="md-nav__link">
+        Database entities
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lifetimes/" class="md-nav__link">
+        Entity Lifetimes
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/event_logging/" class="md-nav__link">
+        Event logging
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/history_manager/" class="md-nav__link">
+        History manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/processing_core/" class="md-nav__link">
+        Processing core
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/snapshots/" class="md-nav__link">
+        Snapshots
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/garbage_collector/" class="md-nav__link">
+        Garbage Collector
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/updater/" class="md-nav__link">
+        Updater
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          Code Reference
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Code Reference
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/">dp3</a>
+          
+            <label for="__nav_6_1">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1">
+          <span class="md-nav__icon md-icon"></span>
+          dp3
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_1" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/api/">api</a>
+          
+            <label for="__nav_6_1_1">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_1">
+          <span class="md-nav__icon md-icon"></span>
+          api
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_1_1" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/api/internal/">internal</a>
+          
+            <label for="__nav_6_1_1_1">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_6_1_1_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_1_1">
+          <span class="md-nav__icon md-icon"></span>
+          internal
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/internal/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/internal/dp_logger/" class="md-nav__link">
+        dp_logger
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/internal/entity_response_models/" class="md-nav__link">
+        entity_response_models
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/internal/helpers/" class="md-nav__link">
+        helpers
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/internal/models/" class="md-nav__link">
+        models
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/internal/response_models/" class="md-nav__link">
+        response_models
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/main/" class="md-nav__link">
+        main
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_1_3" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/api/routers/">routers</a>
+          
+            <label for="__nav_6_1_1_3">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_6_1_1_3_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_1_3">
+          <span class="md-nav__icon md-icon"></span>
+          routers
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/routers/control/" class="md-nav__link">
+        control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/routers/entity/" class="md-nav__link">
+        entity
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/routers/root/" class="md-nav__link">
+        root
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/routers/telemetry/" class="md-nav__link">
+        telemetry
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_2" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/bin/">bin</a>
+          
+            <label for="__nav_6_1_2">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_2">
+          <span class="md-nav__icon md-icon"></span>
+          bin
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/api/" class="md-nav__link">
+        api
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/check/" class="md-nav__link">
+        check
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/cli/" class="md-nav__link">
+        cli
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/schema_update/" class="md-nav__link">
+        schema_update
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/setup/" class="md-nav__link">
+        setup
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/sh/" class="md-nav__link">
+        sh
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_2_8" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/bin/shcmd/">shcmd</a>
+          
+            <label for="__nav_6_1_2_8">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_6_1_2_8_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_2_8">
+          <span class="md-nav__icon md-icon"></span>
+          shcmd
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/common/" class="md-nav__link">
+        common
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/control/" class="md-nav__link">
+        control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/datapoints/" class="md-nav__link">
+        datapoints
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/entities/" class="md-nav__link">
+        entities
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_2_8_5" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/bin/shcmd/entity/">entity</a>
+          
+            <label for="__nav_6_1_2_8_5">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="5" aria-labelledby="__nav_6_1_2_8_5_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_2_8_5">
+          <span class="md-nav__icon md-icon"></span>
+          entity
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/entity/attr/" class="md-nav__link">
+        attr
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/entity/common/" class="md-nav__link">
+        common
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/entity/etype/" class="md-nav__link">
+        etype
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/entity/instance/" class="md-nav__link">
+        instance
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/health/" class="md-nav__link">
+        health
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/shcmd/telemetry/" class="md-nav__link">
+        telemetry
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/bin/worker/" class="md-nav__link">
+        worker
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_3" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/common/">common</a>
+          
+            <label for="__nav_6_1_3">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_3_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_3">
+          <span class="md-nav__icon md-icon"></span>
+          common
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/attrspec/" class="md-nav__link">
+        attrspec
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/base_module/" class="md-nav__link">
+        base_module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/callback_registrar/" class="md-nav__link">
+        callback_registrar
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/context/" class="md-nav__link">
+        context
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/control/" class="md-nav__link">
+        control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/datapoint/" class="md-nav__link">
+        datapoint
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/datatype/" class="md-nav__link">
+        datatype
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/entityspec/" class="md-nav__link">
+        entityspec
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/mac_address/" class="md-nav__link">
+        mac_address
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/scheduler/" class="md-nav__link">
+        scheduler
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/state/" class="md-nav__link">
+        state
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/task/" class="md-nav__link">
+        task
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/types/" class="md-nav__link">
+        types
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/common/utils/" class="md-nav__link">
+        utils
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_4" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/core/">core</a>
+          
+            <label for="__nav_6_1_4">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_4_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_4">
+          <span class="md-nav__icon md-icon"></span>
+          core
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core/collector/" class="md-nav__link">
+        collector
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core/link_manager/" class="md-nav__link">
+        link_manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/core/updater/" class="md-nav__link">
+        updater
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_5" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/database/">database</a>
+          
+            <label for="__nav_6_1_5">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_5_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_5">
+          <span class="md-nav__icon md-icon"></span>
+          database
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/database/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/database/database/" class="md-nav__link">
+        database
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/database/encodings/" class="md-nav__link">
+        encodings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/database/exceptions/" class="md-nav__link">
+        exceptions
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/database/magic/" class="md-nav__link">
+        magic
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/database/schema_cleaner/" class="md-nav__link">
+        schema_cleaner
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/database/snapshots/" class="md-nav__link">
+        snapshots
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_6" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/history_management/">history_management</a>
+          
+            <label for="__nav_6_1_6">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_6">
+          <span class="md-nav__icon md-icon"></span>
+          history_management
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/history_management/history_manager/" class="md-nav__link">
+        history_manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/history_management/telemetry/" class="md-nav__link">
+        telemetry
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_7" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/scripts/">scripts</a>
+          
+            <label for="__nav_6_1_7">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_7_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_7">
+          <span class="md-nav__icon md-icon"></span>
+          scripts
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/add_hashes/" class="md-nav__link">
+        add_hashes
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/add_min_t2s/" class="md-nav__link">
+        add_min_t2s
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/datapoint_log_converter/" class="md-nav__link">
+        datapoint_log_converter
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/dummy_sender/" class="md-nav__link">
+        dummy_sender
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/migrate_snapshots/" class="md-nav__link">
+        migrate_snapshots
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/scripts/script_runner/" class="md-nav__link">
+        script_runner
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_8" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/snapshots/">snapshots</a>
+          
+            <label for="__nav_6_1_8">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_8_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_8">
+          <span class="md-nav__icon md-icon"></span>
+          snapshots
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/snapshots/snapshooter/" class="md-nav__link">
+        snapshooter
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/snapshots/snapshot_hooks/" class="md-nav__link">
+        snapshot_hooks
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_9" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../reference/task_processing/">task_processing</a>
+          
+            <label for="__nav_6_1_9">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_9_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_9">
+          <span class="md-nav__icon md-icon"></span>
+          task_processing
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task_processing/task_distributor/" class="md-nav__link">
+        task_distributor
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task_processing/task_executor/" class="md-nav__link">
+        task_executor
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task_processing/task_hooks/" class="md-nav__link">
+        task_hooks
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task_processing/task_queue/" class="md-nav__link">
+        task_queue
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/worker/" class="md-nav__link">
+        worker
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../scripts/" class="md-nav__link">
+        Scripts
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../grafana_plugin/" class="md-nav__link">
+        Grafana plugin
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#initial-deployment" class="md-nav__link">
+    Initial Deployment
+  </a>
+  
+    <nav class="md-nav" aria-label="Initial Deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    Before you start
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1-prepare-the-server-and-python-environment" class="md-nav__link">
+    1. Prepare the server and Python environment
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-create-the-application-user" class="md-nav__link">
+    2. Create the application user
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-install-and-start-the-backing-services" class="md-nav__link">
+    3. Install and start the backing services
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Install and start the backing services">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#redis" class="md-nav__link">
+    Redis
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mongodb" class="md-nav__link">
+    MongoDB
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rabbitmq" class="md-nav__link">
+    RabbitMQ
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-configure-the-web-server" class="md-nav__link">
+    4. Configure the web server
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-generate-the-supervisor-configuration" class="md-nav__link">
+    5. Generate the supervisor configuration
+  </a>
+  
+    <nav class="md-nav" aria-label="5. Generate the supervisor configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#session-local-autocomplete" class="md-nav__link">
+    Session-local autocomplete
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#persistent-activation" class="md-nav__link">
+    Persistent activation
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-check-that-the-deployment-is-healthy" class="md-nav__link">
+    6. Check that the deployment is healthy
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#update-a-deployed-application-safely" class="md-nav__link">
+    Update a deployed application safely
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#watch-the-deployment-after-changes" class="md-nav__link">
+    Watch the deployment after changes
+  </a>
+  
+    <nav class="md-nav" aria-label="Watch the deployment after changes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#process-status-and-logs" class="md-nav__link">
+    Process status and logs
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api-level-checks" class="md-nav__link">
+    API-level checks
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rabbitmq-management" class="md-nav__link">
+    RabbitMQ management
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-pages" class="md-nav__link">
+    Related pages
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+
+<h1 id="how-to-deploy-a-dp3-application">How to deploy a DP³ application<a class="headerlink" href="#how-to-deploy-a-dp3-application" title="Permanent link">&para;</a></h1>
+<p>This guide walks through deploying a DP³ application to a server and operating it once it is live.</p>
+<p>For production deployments, the recommended setup is:</p>
+<ul>
+<li><a href="http://supervisord.org/"><code>supervisor</code></a> to manage the long-lived API and worker processes</li>
+<li><a href="https://gunicorn.org/"><code>gunicorn</code></a> as the API server</li>
+<li><a href="https://www.nginx.com/"><code>nginx</code></a> as a reverse proxy in front of the API</li>
+</ul>
+<p>The recommended workflow is:</p>
+<ol>
+<li>develop and test the application locally first</li>
+<li>deploy the tested configuration and code to the server</li>
+<li>run the long-lived API and worker processes under a process manager</li>
+<li>use logs, status checks, and telemetry to watch the deployment after changes</li>
+</ol>
+<p>If you do not already have a working local development setup, start with <a href="../get-started/">Get started with local DP³ app development</a>.</p>
+<h2 id="initial-deployment">Initial Deployment<a class="headerlink" href="#initial-deployment" title="Permanent link">&para;</a></h2>
+<h3 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h3>
+<p>This guide assumes:</p>
+<ul>
+<li>you already have a DP³ application directory with working configuration, or you are ready to create one with <code>dp3 setup</code></li>
+<li>you have tested important changes locally before deploying them</li>
+<li>you are deploying on a Linux server</li>
+<li>you want long-lived API and worker processes managed by <code>supervisor</code></li>
+</ul>
+<p>If you do not yet have an application directory, create one locally with <code>dp3 setup</code>, fill in the application-specific configuration, test it, and only then deploy it to the server.</p>
+<h3 id="1-prepare-the-server-and-python-environment">1. Prepare the server and Python environment<a class="headerlink" href="#1-prepare-the-server-and-python-environment" title="Permanent link">&para;</a></h3>
+<p>Install the base packages:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>git<span class="w"> </span>wget<span class="w"> </span>nginx<span class="w"> </span>supervisor<span class="w"> </span>redis<span class="w">  </span><span class="c1"># (1)!</span>
+</code></pre></div>
+<ol>
+<li>Package names vary by distribution. Adjust them if you are not on an RPM-based system.</li>
+</ol>
+<div class="admonition warning">
+<p class="admonition-title">Application placement</p>
+<p>We recommend placing both the application and its virtual environment outside the home directory, for example under <code>/opt/&lt;APP_NAME&gt;</code>.
+This keeps permissions and service management simpler.</p>
+</div>
+<p>Create a virtual environment for the deployment and install DP³ with the deployment extras:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>/opt/&lt;APP_NAME&gt;/venv<span class="w">  </span><span class="c1"># (1)!</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">source</span><span class="w"> </span>/opt/&lt;APP_NAME&gt;/venv/bin/activate
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>pip
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>pip<span class="w"> </span>install<span class="w"> </span>dp-cubed<span class="o">[</span>deploy<span class="o">]</span><span class="w">  </span><span class="c1"># (2)!</span>
+</code></pre></div>
+<ol>
+<li>Creates the Python environment that will be used by the deployed services.</li>
+<li>The <code>deploy</code> extras include the <code>gunicorn</code> server used by the generated supervisor configuration.</li>
+</ol>
+<p>Deploy or copy your application directory onto the server. The deployment should include at least:</p>
+<ul>
+<li>the application configuration directory</li>
+<li>the application's <code>modules/</code> directory</li>
+<li>any other code or files your application depends on</li>
+</ul>
+<h3 id="2-create-the-application-user">2. Create the application user<a class="headerlink" href="#2-create-the-application-user" title="Permanent link">&para;</a></h3>
+<p>Run the deployment under a dedicated user and group:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>sudo<span class="w"> </span>useradd<span class="w"> </span>&lt;APP_NAME&gt;
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>sudo<span class="w"> </span>groupadd<span class="w"> </span>&lt;APP_NAME&gt;
+</code></pre></div>
+<p>Adjust ownership of the deployed application files so the application user can read the configuration and write to the paths you expect it to use.</p>
+<h3 id="3-install-and-start-the-backing-services">3. Install and start the backing services<a class="headerlink" href="#3-install-and-start-the-backing-services" title="Permanent link">&para;</a></h3>
+<h4 id="redis">Redis<a class="headerlink" href="#redis" title="Permanent link">&para;</a></h4>
+<p>Enable and start Redis:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>redis
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>redis
+</code></pre></div>
+<h4 id="mongodb">MongoDB<a class="headerlink" href="#mongodb" title="Permanent link">&para;</a></h4>
+<p>If you already have a MongoDB instance that matches your application configuration, you can reuse it. Otherwise install MongoDB and create a database user for the app.</p>
+<p>For the most up-to-date instructions, follow the official MongoDB installation guide for your platform:</p>
+<ul>
+<li><a href="https://www.mongodb.com/docs/manual/administration/install-community/">MongoDB installation overview</a></li>
+<li><a href="https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-red-hat/#install-mongodb-community-edition">MongoDB installation on RPM-based Linux</a></li>
+</ul>
+<p>A minimal RPM-based installation looks like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cat<span class="w"> </span>&gt;<span class="w"> </span>/etc/yum.repos.d/mongodb-org-6.0.repo<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s">[mongodb-org-6.0]</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s">name=MongoDB Repository</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s">baseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/6.0/x86_64/</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s">gpgcheck=1</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s">enabled=1</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="s">gpgkey=https://www.mongodb.org/static/pgp/server-6.0.asc</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="s">EOF</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>-y<span class="w"> </span>install<span class="w"> </span>mongodb-org<span class="w"> </span>mongodb-mongosh
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>daemon-reload
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>mongod
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>mongod
+</code></pre></div>
+<p>Create the MongoDB user that matches your <code>database.yml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nx">use</span><span class="w"> </span><span class="nx">admin</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nx">db</span><span class="p">.</span><span class="nx">createUser</span><span class="p">(</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nx">user</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;&lt;USER&gt;&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nx">pwd</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;&lt;PASSWORD&gt;&quot;</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nx">roles</span><span class="o">:</span><span class="p">[</span><span class="s2">&quot;readWrite&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;dbAdmin&quot;</span><span class="p">]</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="p">);</span>
+</code></pre></div>
+<h4 id="rabbitmq">RabbitMQ<a class="headerlink" href="#rabbitmq" title="Permanent link">&para;</a></h4>
+<p>RabbitMQ setup is the most distribution-specific part of the deployment. For the most up-to-date instructions, follow RabbitMQ's official documentation for your platform:</p>
+<ul>
+<li><a href="https://www.rabbitmq.com/download.html">RabbitMQ download and installation guides</a></li>
+<li><a href="https://www.rabbitmq.com/install-rpm.html">RabbitMQ installation on RPM-based Linux</a></li>
+</ul>
+<p>Install RabbitMQ and configure it to listen on localhost. On RPM-based systems, one possible setup is:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sudo<span class="w"> </span>rpm<span class="w"> </span>--import<span class="w"> </span><span class="s1">&#39;https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc&#39;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>sudo<span class="w"> </span>rpm<span class="w"> </span>--import<span class="w"> </span><span class="s1">&#39;https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-erlang/gpg.E495BB49CC4BBE5B.key&#39;</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>sudo<span class="w"> </span>rpm<span class="w"> </span>--import<span class="w"> </span><span class="s1">&#39;https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-server/gpg.9F4587F226208342.key&#39;</span>
+</code></pre></div>
+<p>Then add the RabbitMQ and Erlang repositories for your platform, install the packages, and start the service:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>update<span class="w"> </span>-y
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>socat<span class="w"> </span>logrotate<span class="w"> </span>-y
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>erlang-25.3.2.3<span class="w"> </span>rabbitmq-server
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nb">printf</span><span class="w"> </span><span class="s1">&#39;HOSTNAME=localhost\n&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/etc/rabbitmq/rabbitmq-env.conf<span class="w">  </span><span class="c1"># (1)!</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>rabbitmq-server
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>rabbitmq-server
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>sudo<span class="w"> </span>rabbitmq-plugins<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>rabbitmq_management<span class="w">  </span><span class="c1"># (2)!</span>
+</code></pre></div>
+<ol>
+<li>This keeps RabbitMQ bound to localhost, which is a good default when <code>nginx</code> is the public entry point.</li>
+<li>Enables the RabbitMQ <a href="https://www.rabbitmq.com/management.html">management interface</a>, which is useful both during setup and later troubleshooting.</li>
+</ol>
+<p>Install the <code>rabbitmqadmin</code> helper and configure the queues for your app:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>wget<span class="w"> </span><span class="s1">&#39;http://localhost:15672/cli/rabbitmqadmin&#39;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>sudo<span class="w"> </span>chmod<span class="w"> </span>+x<span class="w"> </span>rabbitmqadmin
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>sudo<span class="w"> </span>mv<span class="w"> </span>rabbitmqadmin<span class="w"> </span>/usr/bin/
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>sudo<span class="w"> </span>/opt/&lt;APP_NAME&gt;/venv/bin/dp3-script<span class="w"> </span>rmq_reconfigure.sh<span class="w"> </span>&lt;APP_NAME&gt;<span class="w"> </span>&lt;NUM_WORKERS&gt;
+</code></pre></div>
+<p>If you later change the worker count, rerun <code>rmq_reconfigure.sh</code> with the new number of workers before restarting the deployment.</p>
+<h3 id="4-configure-the-web-server">4. Configure the web server<a class="headerlink" href="#4-configure-the-web-server" title="Permanent link">&para;</a></h3>
+<p>Having the application dependencies installed and running, you can now set up the web server. DP³ can generate a basic <code>nginx</code> configuration for the application. The generated configuration assumes DP³ is the main service on the web server, so if that is not your case, adjust it to your environment.</p>
+<p>DP³ can generate a basic <code>nginx</code> configuration for the application:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>sudo<span class="w"> </span><span class="k">$(</span>which<span class="w"> </span>dp3<span class="k">)</span><span class="w"> </span>config<span class="w"> </span>nginx<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>--hostname<span class="w"> </span>&lt;SERVER_HOSTNAME&gt;<span class="w"> </span><span class="se">\ </span><span class="w"> </span><span class="c1"># (1)!</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--app-name<span class="w"> </span>&lt;APP_NAME&gt;<span class="w"> </span><span class="se">\ </span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--www-root<span class="w"> </span>&lt;DIRECTORY&gt;<span class="w">  </span><span class="c1"># (2)!</span>
+</code></pre></div>
+<ol>
+<li>For example <code>dp3.example.com</code>.</li>
+<li>For example <code>/var/www/dp3</code>.</li>
+</ol>
+<p>The generated config sets up a simple landing page and reverse proxies for the API, its docs, and the RabbitMQ management interface.</p>
+<p>Enable and start <code>nginx</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>nginx
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>nginx
+</code></pre></div>
+<p>If the server is protected by a firewall, open HTTP access:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>unmask<span class="w"> </span>firewalld
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>firewalld
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>firewalld
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>sudo<span class="w"> </span>firewall-cmd<span class="w"> </span>--add-port<span class="w"> </span><span class="m">80</span>/tcp<span class="w"> </span>--permanent
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>sudo<span class="w"> </span>firewall-cmd<span class="w"> </span>--reload
+</code></pre></div>
+<p>At this point, the landing page and the RabbitMQ management interface should be reachable, but the API is still not running under process supervision. The next step is to generate the supervisor configuration.</p>
+<h3 id="5-generate-the-supervisor-configuration">5. Generate the supervisor configuration<a class="headerlink" href="#5-generate-the-supervisor-configuration" title="Permanent link">&para;</a></h3>
+<p>Generate the base supervisor configuration for the app:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>sudo<span class="w"> </span><span class="k">$(</span>which<span class="w"> </span>dp3<span class="k">)</span><span class="w"> </span>config<span class="w"> </span>supervisor<span class="w"> </span>--config<span class="w"> </span>&lt;CONFIG_DIR&gt;<span class="w"> </span>--app-name<span class="w"> </span>&lt;APP_NAME&gt;
+</code></pre></div>
+<p>The generated supervisor configuration lives under <code>/etc/&lt;APP_NAME&gt;</code> and the process logs are written under <code>/var/log/&lt;APP_NAME&gt;</code>.
+For more on supervisor itself, see the <a href="http://supervisord.org/running.html#running-supervisorctl">supervisorctl documentation</a>.</p>
+<p>Enable and start the generated system service:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>&lt;APP_NAME&gt;
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>sudo<span class="w"> </span>systemctl<span class="w"> </span>start<span class="w"> </span>&lt;APP_NAME&gt;
+</code></pre></div>
+<p>This creates two app-specific helpers:</p>
+<ul>
+<li><code>&lt;APPNAME&gt;ctl</code> wraps <code>supervisorctl</code> for the app</li>
+<li><code>&lt;APPNAME&gt;sh</code> wraps <code>dp3 sh</code> with the app config directory already set</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>&lt;APPNAME&gt;ctl<span class="w"> </span>start<span class="w"> </span>all
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>&lt;APPNAME&gt;ctl<span class="w"> </span>status
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>&lt;APPNAME&gt;sh<span class="w"> </span>health
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>&lt;APPNAME&gt;sh<span class="w"> </span>entities<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>keys
+</code></pre></div>
+<p><code>&lt;APPNAME&gt;sh entities</code> returns the full entity-type configuration map exposed by the API. When you only need the configured entity type names, pipe it through <code>jq keys</code>.</p>
+<p>You can also enable shell completion for the wrapper or for <code>dp3</code> itself.
+The completion is registered for the executable name seen by the shell:</p>
+<ul>
+<li>use <code>--command dp3</code> for the main <code>dp3</code> command tree</li>
+<li>use <code>--command &lt;APPNAME&gt;sh</code> for the generated wrapper</li>
+</ul>
+<h4 id="session-local-autocomplete">Session-local autocomplete<a class="headerlink" href="#session-local-autocomplete" title="Permanent link">&para;</a></h4>
+<p>Enable completion in the current shell session only:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Bash</label><label for="__tabbed_1_2">Zsh</label><label for="__tabbed_1_3">Fish</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">source</span><span class="w"> </span>&lt;<span class="o">(</span>dp3<span class="w"> </span>sh<span class="w"> </span>completion<span class="w"> </span>bash<span class="w"> </span>--command<span class="w"> </span>dp3<span class="w"> </span>--command<span class="w"> </span>&lt;APPNAME&gt;sh<span class="o">)</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">source</span><span class="w"> </span>&lt;<span class="o">(</span>dp3<span class="w"> </span>sh<span class="w"> </span>completion<span class="w"> </span>zsh<span class="w"> </span>--command<span class="w"> </span>dp3<span class="w"> </span>--command<span class="w"> </span>&lt;APPNAME&gt;sh<span class="o">)</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>completion<span class="w"> </span>fish<span class="w"> </span>--command<span class="w"> </span>dp3<span class="w"> </span>--command<span class="w"> </span>&lt;APPNAME&gt;sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="nb">source</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+<h4 id="persistent-activation">Persistent activation<a class="headerlink" href="#persistent-activation" title="Permanent link">&para;</a></h4>
+<p>To keep completion enabled across shell sessions, add the appropriate command to your shell startup file.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">Bash</label><label for="__tabbed_2_2">Zsh</label><label for="__tabbed_2_3">Fish</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>Add one of these to <code>~/.bashrc</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">source</span><span class="w"> </span>&lt;<span class="o">(</span>&lt;APPNAME&gt;sh<span class="w"> </span>completion<span class="w"> </span>bash<span class="w"> </span>--command<span class="w"> </span>&lt;APPNAME&gt;sh<span class="o">)</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nb">source</span><span class="w"> </span>&lt;<span class="o">(</span>dp3<span class="w"> </span>sh<span class="w"> </span>completion<span class="w"> </span>bash<span class="w"> </span>--command<span class="w"> </span>dp3<span class="o">)</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>Add one of these to <code>~/.zshrc</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">source</span><span class="w"> </span>&lt;<span class="o">(</span>&lt;APPNAME&gt;sh<span class="w"> </span>completion<span class="w"> </span>zsh<span class="w"> </span>--command<span class="w"> </span>&lt;APPNAME&gt;sh<span class="o">)</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="nb">source</span><span class="w"> </span>&lt;<span class="o">(</span>dp3<span class="w"> </span>sh<span class="w"> </span>completion<span class="w"> </span>zsh<span class="w"> </span>--command<span class="w"> </span>dp3<span class="o">)</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>Write the generated completion to a Fish completion file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>&lt;APPNAME&gt;sh<span class="w"> </span>completion<span class="w"> </span>fish<span class="w"> </span>--command<span class="w"> </span>&lt;APPNAME&gt;sh<span class="w"> </span>&gt;<span class="w"> </span>~/.config/fish/completions/&lt;APPNAME&gt;sh.fish
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>dp3<span class="w"> </span>sh<span class="w"> </span>completion<span class="w"> </span>fish<span class="w"> </span>--command<span class="w"> </span>dp3<span class="w"> </span>&gt;<span class="w"> </span>~/.config/fish/completions/dp3.fish
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>The generated completion is config-aware. It can suggest entity types and attribute names from the resolved DP3 configuration.</p>
+<h3 id="6-check-that-the-deployment-is-healthy">6. Check that the deployment is healthy<a class="headerlink" href="#6-check-that-the-deployment-is-healthy" title="Permanent link">&para;</a></h3>
+<p>Start with process status:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>&lt;APPNAME&gt;ctl<span class="w"> </span>status
+</code></pre></div>
+<p>Then verify the API health endpoint. On the deployment host, prefer the generated <code>&lt;APPNAME&gt;sh</code> wrapper and keep <code>curl</code> as a fallback.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">CLI (<code>&lt;APPNAME&gt;sh</code>)</label><label for="__tabbed_3_2">HTTP (<code>curl</code>)</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>&lt;APPNAME&gt;sh<span class="w"> </span>health
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>GET<span class="w"> </span><span class="s1">&#39;http://&lt;HOSTNAME&gt;/&#39;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Accept: application/json&#39;</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+<p>A healthy API responds with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="p">{</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="nt">&quot;detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;It works!&quot;</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="p">}</span>
+</code></pre></div>
+<p>If your reverse proxy exposes the FastAPI docs, also check <code>/docs</code> in a browser.</p>
+<h2 id="update-a-deployed-application-safely">Update a deployed application safely<a class="headerlink" href="#update-a-deployed-application-safely" title="Permanent link">&para;</a></h2>
+<p>When the application is already live, the safest pattern is:</p>
+<ol>
+<li>test the change locally first</li>
+<li>update the code and configuration on the server</li>
+<li>validate the configuration</li>
+<li>restart only the processes that need the new state</li>
+<li>watch status and logs after the restart</li>
+</ol>
+<p>A typical update sequence looks like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nb">source</span><span class="w"> </span>/opt/&lt;APP_NAME&gt;/venv/bin/activate
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="nb">cd</span><span class="w"> </span>/opt/&lt;APP_NAME&gt;/&lt;APP_DIR&gt;
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>git<span class="w"> </span>pull<span class="w">  </span><span class="c1"># (1)!</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>dp3<span class="w"> </span>check<span class="w"> </span>&lt;CONFIG_DIR&gt;<span class="w">  </span><span class="c1"># (2)!</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>&lt;APPNAME&gt;ctl<span class="w"> </span>restart<span class="w"> </span>api<span class="w"> </span>w:*<span class="w">  </span><span class="c1"># (3)!</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>&lt;APPNAME&gt;ctl<span class="w"> </span>status
+</code></pre></div>
+<ol>
+<li>Replace this with your real deployment update mechanism if you do not deploy with <code>git pull</code>.</li>
+<li>Validate the exact configuration directory used in production before restarting anything.</li>
+<li>For smaller changes, restart only the affected process group if you prefer.</li>
+</ol>
+<p>A few update scenarios need extra care:</p>
+<ul>
+<li><strong>Destructive schema changes</strong>: if workers refuse to start and request <code>dp3 schema-update</code>, run that command and approve the required changes. Take care as this will usually delete the existing affected attribute data.</li>
+<li><strong>Only module YAML changes</strong>: if your module uses <code>load_config</code>, you can use <a href="../../configuration/control/#refresh_module_config"><code>refresh_module_config</code></a> instead of a full worker restart.</li>
+<li><strong>Changed worker count</strong>: rerun <code>dp3-script rmq_reconfigure.sh &lt;APP_NAME&gt; &lt;NUM_WORKERS&gt;</code> before restarting workers - <a href="../../configuration/processing_core/#worker-processes">read more details here</a>.</li>
+</ul>
+<h2 id="watch-the-deployment-after-changes">Watch the deployment after changes<a class="headerlink" href="#watch-the-deployment-after-changes" title="Permanent link">&para;</a></h2>
+<p>After every deployment or restart, watch the system for a few minutes. The main observability points in a DP³ deployment are supervisor status, process logs under <code>/var/log/&lt;APPNAME&gt;</code>, API health and data endpoints, RabbitMQ management, API datapoint logging configured in <code>api.yml</code>, event counters configured in <code>event_logging.yml</code>, and telemetry endpoints such as <code>/telemetry/sources_validity</code>.</p>
+<h3 id="process-status-and-logs">Process status and logs<a class="headerlink" href="#process-status-and-logs" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>&lt;APPNAME&gt;ctl<span class="w"> </span>status
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>tail<span class="w"> </span>-f<span class="w"> </span>/var/log/&lt;APPNAME&gt;/api.log
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>tail<span class="w"> </span>-f<span class="w"> </span>/var/log/&lt;APPNAME&gt;/worker0.log
+</code></pre></div>
+<p>For a broader scan across workers:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>grep<span class="w"> </span><span class="s2">&quot;Exception\|Error\|Traceback\|File \&quot;&quot;</span><span class="w"> </span>-B1<span class="w"> </span>-A1<span class="w"> </span>/var/log/&lt;APPNAME&gt;/worker*.log
+</code></pre></div>
+<h3 id="api-level-checks">API-level checks<a class="headerlink" href="#api-level-checks" title="Permanent link">&para;</a></h3>
+<p>Use the API to confirm that the deployment still answers health and data requests:</p>
+<ul>
+<li><code>GET /</code> for health</li>
+<li><code>/docs</code> for interactive endpoint reference</li>
+<li><code>dp3 sh entities | jq keys</code> to list the configured entity type names exposed by the running app (<code>dp3 sh entities</code> returns the full entity-type configuration map)</li>
+<li><code>dp3 sh entity &lt;ETYPE&gt; id &lt;EID&gt; master</code> or <code>dp3 sh entity &lt;ETYPE&gt; id &lt;EID&gt; attr &lt;ATTR&gt; get</code> for spot checks against real data</li>
+</ul>
+<p>When you are working directly on the deployment host, prefer <code>&lt;APPNAME&gt;sh ...</code> because it already knows the production config directory.</p>
+<h3 id="rabbitmq-management">RabbitMQ management<a class="headerlink" href="#rabbitmq-management" title="Permanent link">&para;</a></h3>
+<p>If you enabled the management plugin and proxy it through <code>nginx</code>, the RabbitMQ management UI is a useful place to confirm that queues exist and are behaving normally. Right after initial setup, it is normal to verify that the interface is reachable with the default <code>guest/guest</code> credentials before tightening the surrounding deployment.</p>
+<p>If you want more detailed datapoint-level debugging during a rollout, temporarily enable <code>api.datapoint_logger.good_log</code> or <code>api.datapoint_logger.bad_log</code> and point them at writable log files. For longer-running operational visibility, configure Redis-backed event counters in <code>event_logging.yml</code> and use the API telemetry endpoints when source-validity information is relevant.</p>
+<h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../get-started/">Get started with local DP³ app development</a></li>
+<li><a href="../../configuration/">Configuration overview</a></li>
+<li><a href="../../configuration/api/">API configuration</a></li>
+<li><a href="../../configuration/database/">Database configuration</a></li>
+<li><a href="../../configuration/event_logging/">Event logging configuration</a></li>
+<li><a href="../../configuration/processing_core/">Processing core configuration</a></li>
+<li><a href="../../configuration/control/">Control configuration</a></li>
+</ul>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.db81ec45.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.4b2c34cd.min.js"></script>
+      
+        <script src="../../javascripts/mermaid.js"></script>
+      
+    
+  </body>
+</html>

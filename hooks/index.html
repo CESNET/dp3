@@ -1,0 +1,3469 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dynamic Profile Processing Platform">
+      
+      
+      
+        <link rel="canonical" href="https://cesnet.github.io/dp3/hooks/">
+      
+      
+        <link rel="prev" href="../modules/">
+      
+      
+        <link rel="next" href="../api/">
+      
+      <link rel="icon" href="../img/dp3-favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.0.12">
+    
+    
+      
+        <title>Hooks - DP3</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.0d440cfe.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.2505c338.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/slate.css">
+    
+      <link rel="stylesheet" href="../stylesheets/mermaid.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#module-hook-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="DP3" class="md-header__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DP3
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Hooks
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      <form class="md-header__option" data-md-component="palette">
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+          
+            <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+          
+            <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+      </form>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DP3" class="md-nav__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    DP3
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../howto/">How-to</a>
+          
+            <label for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          How-to
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/get-started/" class="md-nav__link">
+        Get started
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/add-attribute/" class="md-nav__link">
+        Add an attribute
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/add-input/" class="md-nav__link">
+        Add an input module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/add-module/" class="md-nav__link">
+        Add a secondary module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/deploy-app/" class="md-nav__link">
+        Deploy an app
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/develop-dp3/" class="md-nav__link">
+        Develop DP3 itself
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/extending/" class="md-nav__link">
+        Extend Docs
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          Concepts
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          Concepts
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        Architecture
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data_model/" class="md-nav__link">
+        Data model
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../history_management/" class="md-nav__link">
+        History management
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Hooks
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Hooks
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#at-a-glance" class="md-nav__link">
+    At a glance
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-hook-placement-guide" class="md-nav__link">
+    Quick hook placement guide
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick hook placement guide">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingestion" class="md-nav__link">
+    Ingestion
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshots" class="md-nav__link">
+    Snapshots
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#periodic-updates" class="md-nav__link">
+    Periodic updates
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cron-timer" class="md-nav__link">
+    CRON timer
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datapoint-ingestion-pipeline-hooks" class="md-nav__link">
+    DataPoint ingestion pipeline hooks
+  </a>
+  
+    <nav class="md-nav" aria-label="DataPoint ingestion pipeline hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#end-to-end-ingestion-flow" class="md-nav__link">
+    End-to-end ingestion flow
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-on_task_start-hook" class="md-nav__link">
+    Task on_task_start hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entity-allow_entity_creation-hook" class="md-nav__link">
+    Entity allow_entity_creation hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entity-on_entity_creation-hook" class="md-nav__link">
+    Entity on_entity_creation hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attribute-on_new_attr-hook" class="md-nav__link">
+    Attribute on_new_attr hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-available-during-ingestion" class="md-nav__link">
+    Data available during ingestion
+  </a>
+  
+    <nav class="md-nav" aria-label="Data available during ingestion">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incoming-datapointtask" class="md-nav__link">
+    Incoming DataPointTask
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incoming-datapointbase-passed-to-on_new_attr" class="md-nav__link">
+    Incoming DataPointBase passed to on_new_attr
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#special-ingestion-cases" class="md-nav__link">
+    Special ingestion cases
+  </a>
+  
+    <nav class="md-nav" aria-label="Special ingestion cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#delete-tasks" class="md-nav__link">
+    Delete tasks
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returned-tasks-recurse-through-the-same-pipeline" class="md-nav__link">
+    Returned tasks recurse through the same pipeline
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#snapshot-time-hooks-periodic-processing-over-stored-data" class="md-nav__link">
+    Snapshot-time hooks: periodic processing over stored data
+  </a>
+  
+    <nav class="md-nav" aria-label="Snapshot-time hooks: periodic processing over stored data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-run-flow" class="md-nav__link">
+    Snapshot run flow
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-snapshot_init-hook" class="md-nav__link">
+    Snapshot snapshot_init hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-timeseries_hook" class="md-nav__link">
+    Snapshot timeseries_hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#correlation-hooks" class="md-nav__link">
+    Correlation hooks
+  </a>
+  
+    <nav class="md-nav" aria-label="Correlation hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#current_values-input" class="md-nav__link">
+    current_values input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#master_record-input" class="md-nav__link">
+    master_record input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-correlation-hook-may-do" class="md-nav__link">
+    What a correlation hook may do
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-snapshot_finalize-hook" class="md-nav__link">
+    Snapshot snapshot_finalize hook
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refresh-on-config-change-behavior-for-ingestion-hooks" class="md-nav__link">
+    Refresh-on-config-change behavior for ingestion hooks
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#periodic-updater-hooks-periodic-processing-over-master-records" class="md-nav__link">
+    Periodic updater hooks: periodic processing over master records
+  </a>
+  
+    <nav class="md-nav" aria-label="Periodic updater hooks: periodic processing over master records">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#updater-flow" class="md-nav__link">
+    Updater flow
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updater-periodic_update_hook" class="md-nav__link">
+    Updater periodic_update_hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updater-periodic_eid_update_hook" class="md-nav__link">
+    Updater periodic_eid_update_hook
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#general-scheduled-callbacks" class="md-nav__link">
+    General scheduled callbacks
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hook-outputs-and-re-entry-into-dp3" class="md-nav__link">
+    Hook outputs and re-entry into DP3
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#type-of-eid" class="md-nav__link">
+    Type of eid
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../configuration/">Configuration</a>
+          
+            <label for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          Configuration
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/control/" class="md-nav__link">
+        Control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/database/" class="md-nav__link">
+        Database
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/db_entities/" class="md-nav__link">
+        Database entities
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/lifetimes/" class="md-nav__link">
+        Entity Lifetimes
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/event_logging/" class="md-nav__link">
+        Event logging
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/history_manager/" class="md-nav__link">
+        History manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/processing_core/" class="md-nav__link">
+        Processing core
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/snapshots/" class="md-nav__link">
+        Snapshots
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/garbage_collector/" class="md-nav__link">
+        Garbage Collector
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/updater/" class="md-nav__link">
+        Updater
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          Code Reference
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Code Reference
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/">dp3</a>
+          
+            <label for="__nav_6_1">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1">
+          <span class="md-nav__icon md-icon"></span>
+          dp3
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_1" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/api/">api</a>
+          
+            <label for="__nav_6_1_1">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_1">
+          <span class="md-nav__icon md-icon"></span>
+          api
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_1_1" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/api/internal/">internal</a>
+          
+            <label for="__nav_6_1_1_1">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_6_1_1_1_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_1_1">
+          <span class="md-nav__icon md-icon"></span>
+          internal
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/internal/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/internal/dp_logger/" class="md-nav__link">
+        dp_logger
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/internal/entity_response_models/" class="md-nav__link">
+        entity_response_models
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/internal/helpers/" class="md-nav__link">
+        helpers
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/internal/models/" class="md-nav__link">
+        models
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/internal/response_models/" class="md-nav__link">
+        response_models
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/main/" class="md-nav__link">
+        main
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_1_3" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/api/routers/">routers</a>
+          
+            <label for="__nav_6_1_1_3">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_6_1_1_3_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_1_3">
+          <span class="md-nav__icon md-icon"></span>
+          routers
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/routers/control/" class="md-nav__link">
+        control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/routers/entity/" class="md-nav__link">
+        entity
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/routers/root/" class="md-nav__link">
+        root
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/routers/telemetry/" class="md-nav__link">
+        telemetry
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_2" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/bin/">bin</a>
+          
+            <label for="__nav_6_1_2">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_2">
+          <span class="md-nav__icon md-icon"></span>
+          bin
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/api/" class="md-nav__link">
+        api
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/check/" class="md-nav__link">
+        check
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/cli/" class="md-nav__link">
+        cli
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/schema_update/" class="md-nav__link">
+        schema_update
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/setup/" class="md-nav__link">
+        setup
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/sh/" class="md-nav__link">
+        sh
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_2_8" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/bin/shcmd/">shcmd</a>
+          
+            <label for="__nav_6_1_2_8">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="4" aria-labelledby="__nav_6_1_2_8_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_2_8">
+          <span class="md-nav__icon md-icon"></span>
+          shcmd
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/common/" class="md-nav__link">
+        common
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/control/" class="md-nav__link">
+        control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/datapoints/" class="md-nav__link">
+        datapoints
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/entities/" class="md-nav__link">
+        entities
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_2_8_5" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/bin/shcmd/entity/">entity</a>
+          
+            <label for="__nav_6_1_2_8_5">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="5" aria-labelledby="__nav_6_1_2_8_5_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_2_8_5">
+          <span class="md-nav__icon md-icon"></span>
+          entity
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/entity/attr/" class="md-nav__link">
+        attr
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/entity/common/" class="md-nav__link">
+        common
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/entity/etype/" class="md-nav__link">
+        etype
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/entity/instance/" class="md-nav__link">
+        instance
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/health/" class="md-nav__link">
+        health
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/shcmd/telemetry/" class="md-nav__link">
+        telemetry
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/bin/worker/" class="md-nav__link">
+        worker
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_3" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/common/">common</a>
+          
+            <label for="__nav_6_1_3">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_3_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_3">
+          <span class="md-nav__icon md-icon"></span>
+          common
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/attrspec/" class="md-nav__link">
+        attrspec
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/base_module/" class="md-nav__link">
+        base_module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/callback_registrar/" class="md-nav__link">
+        callback_registrar
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/context/" class="md-nav__link">
+        context
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/control/" class="md-nav__link">
+        control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/datapoint/" class="md-nav__link">
+        datapoint
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/datatype/" class="md-nav__link">
+        datatype
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/entityspec/" class="md-nav__link">
+        entityspec
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/mac_address/" class="md-nav__link">
+        mac_address
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/scheduler/" class="md-nav__link">
+        scheduler
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/state/" class="md-nav__link">
+        state
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/task/" class="md-nav__link">
+        task
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/types/" class="md-nav__link">
+        types
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/common/utils/" class="md-nav__link">
+        utils
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_4" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/core/">core</a>
+          
+            <label for="__nav_6_1_4">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_4_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_4">
+          <span class="md-nav__icon md-icon"></span>
+          core
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/core/collector/" class="md-nav__link">
+        collector
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/core/link_manager/" class="md-nav__link">
+        link_manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/core/updater/" class="md-nav__link">
+        updater
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_5" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/database/">database</a>
+          
+            <label for="__nav_6_1_5">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_5_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_5">
+          <span class="md-nav__icon md-icon"></span>
+          database
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/config/" class="md-nav__link">
+        config
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/database/" class="md-nav__link">
+        database
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/encodings/" class="md-nav__link">
+        encodings
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/exceptions/" class="md-nav__link">
+        exceptions
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/magic/" class="md-nav__link">
+        magic
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/schema_cleaner/" class="md-nav__link">
+        schema_cleaner
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/database/snapshots/" class="md-nav__link">
+        snapshots
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_6" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/history_management/">history_management</a>
+          
+            <label for="__nav_6_1_6">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_6">
+          <span class="md-nav__icon md-icon"></span>
+          history_management
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/history_management/history_manager/" class="md-nav__link">
+        history_manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/history_management/telemetry/" class="md-nav__link">
+        telemetry
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_7" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/scripts/">scripts</a>
+          
+            <label for="__nav_6_1_7">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_7_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_7">
+          <span class="md-nav__icon md-icon"></span>
+          scripts
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/scripts/add_hashes/" class="md-nav__link">
+        add_hashes
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/scripts/add_min_t2s/" class="md-nav__link">
+        add_min_t2s
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/scripts/datapoint_log_converter/" class="md-nav__link">
+        datapoint_log_converter
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/scripts/dummy_sender/" class="md-nav__link">
+        dummy_sender
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/scripts/migrate_snapshots/" class="md-nav__link">
+        migrate_snapshots
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/scripts/script_runner/" class="md-nav__link">
+        script_runner
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_8" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/snapshots/">snapshots</a>
+          
+            <label for="__nav_6_1_8">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_8_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_8">
+          <span class="md-nav__icon md-icon"></span>
+          snapshots
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/snapshots/snapshooter/" class="md-nav__link">
+        snapshooter
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/snapshots/snapshot_hooks/" class="md-nav__link">
+        snapshot_hooks
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_1_9" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../reference/task_processing/">task_processing</a>
+          
+            <label for="__nav_6_1_9">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_6_1_9_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6_1_9">
+          <span class="md-nav__icon md-icon"></span>
+          task_processing
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/task_processing/task_distributor/" class="md-nav__link">
+        task_distributor
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/task_processing/task_executor/" class="md-nav__link">
+        task_executor
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/task_processing/task_hooks/" class="md-nav__link">
+        task_hooks
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/task_processing/task_queue/" class="md-nav__link">
+        task_queue
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/worker/" class="md-nav__link">
+        worker
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        Scripts
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana_plugin/" class="md-nav__link">
+        Grafana plugin
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#at-a-glance" class="md-nav__link">
+    At a glance
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-hook-placement-guide" class="md-nav__link">
+    Quick hook placement guide
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick hook placement guide">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ingestion" class="md-nav__link">
+    Ingestion
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshots" class="md-nav__link">
+    Snapshots
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#periodic-updates" class="md-nav__link">
+    Periodic updates
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cron-timer" class="md-nav__link">
+    CRON timer
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datapoint-ingestion-pipeline-hooks" class="md-nav__link">
+    DataPoint ingestion pipeline hooks
+  </a>
+  
+    <nav class="md-nav" aria-label="DataPoint ingestion pipeline hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#end-to-end-ingestion-flow" class="md-nav__link">
+    End-to-end ingestion flow
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-on_task_start-hook" class="md-nav__link">
+    Task on_task_start hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entity-allow_entity_creation-hook" class="md-nav__link">
+    Entity allow_entity_creation hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entity-on_entity_creation-hook" class="md-nav__link">
+    Entity on_entity_creation hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attribute-on_new_attr-hook" class="md-nav__link">
+    Attribute on_new_attr hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-available-during-ingestion" class="md-nav__link">
+    Data available during ingestion
+  </a>
+  
+    <nav class="md-nav" aria-label="Data available during ingestion">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#incoming-datapointtask" class="md-nav__link">
+    Incoming DataPointTask
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incoming-datapointbase-passed-to-on_new_attr" class="md-nav__link">
+    Incoming DataPointBase passed to on_new_attr
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#special-ingestion-cases" class="md-nav__link">
+    Special ingestion cases
+  </a>
+  
+    <nav class="md-nav" aria-label="Special ingestion cases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#delete-tasks" class="md-nav__link">
+    Delete tasks
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#returned-tasks-recurse-through-the-same-pipeline" class="md-nav__link">
+    Returned tasks recurse through the same pipeline
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#snapshot-time-hooks-periodic-processing-over-stored-data" class="md-nav__link">
+    Snapshot-time hooks: periodic processing over stored data
+  </a>
+  
+    <nav class="md-nav" aria-label="Snapshot-time hooks: periodic processing over stored data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-run-flow" class="md-nav__link">
+    Snapshot run flow
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-snapshot_init-hook" class="md-nav__link">
+    Snapshot snapshot_init hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-timeseries_hook" class="md-nav__link">
+    Snapshot timeseries_hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#correlation-hooks" class="md-nav__link">
+    Correlation hooks
+  </a>
+  
+    <nav class="md-nav" aria-label="Correlation hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#current_values-input" class="md-nav__link">
+    current_values input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#master_record-input" class="md-nav__link">
+    master_record input
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-correlation-hook-may-do" class="md-nav__link">
+    What a correlation hook may do
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-snapshot_finalize-hook" class="md-nav__link">
+    Snapshot snapshot_finalize hook
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refresh-on-config-change-behavior-for-ingestion-hooks" class="md-nav__link">
+    Refresh-on-config-change behavior for ingestion hooks
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#periodic-updater-hooks-periodic-processing-over-master-records" class="md-nav__link">
+    Periodic updater hooks: periodic processing over master records
+  </a>
+  
+    <nav class="md-nav" aria-label="Periodic updater hooks: periodic processing over master records">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#updater-flow" class="md-nav__link">
+    Updater flow
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updater-periodic_update_hook" class="md-nav__link">
+    Updater periodic_update_hook
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#updater-periodic_eid_update_hook" class="md-nav__link">
+    Updater periodic_eid_update_hook
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#general-scheduled-callbacks" class="md-nav__link">
+    General scheduled callbacks
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hook-outputs-and-re-entry-into-dp3" class="md-nav__link">
+    Hook outputs and re-entry into DP3
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#type-of-eid" class="md-nav__link">
+    Type of eid
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+
+<h1 id="module-hook-reference">Module Hook Reference<a class="headerlink" href="#module-hook-reference" title="Permanent link">&para;</a></h1>
+<p>This page is the reference for the secondary-module callbacks exposed through <a class="autorefs autorefs-internal" title="CallbackRegistrar" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar"><code>CallbackRegistrar</code></a>, with emphasis on <strong>when each hook runs</strong>, <strong>what data is available at that moment</strong>, and <strong>how returned tasks re-enter DP3</strong>.</p>
+<p>The <a href="../modules/">Modules</a> page links here for hook behavior and hook selection, while the API reference remains useful for method-level signatures and generated reference details.</p>
+<h2 id="at-a-glance">At a glance<a class="headerlink" href="#at-a-glance" title="Permanent link">&para;</a></h2>
+<p>DP3 exposes four distinct callback groups:</p>
+<ol>
+<li><strong>DataPoint ingestion hooks</strong>: run while a <code>DataPointTask</code> is being processed. Use them for
+   <strong>immediate reaction to incoming data</strong>: first-seen enrichment, per-attribute derivation,
+   admission control, and task-level telemetry.</li>
+<li><strong>Snapshot hooks</strong>: run during periodic snapshot creation from data already stored in master
+   records. Use them for <strong>snapshot-time fusion and synthesis</strong>: reasoning over the entity's
+   current state, often across multiple attributes or linked entities.</li>
+<li><strong>Updater hooks</strong>: run periodically over entities already stored in the database. Use them for
+   <strong>background revisits of stored entities</strong>: refreshing external enrichments and recomputing
+   derived values from stored record history.</li>
+<li><strong>Scheduler callbacks</strong>: general CRON-style callbacks, not tied to one entity or one datapoint.
+   Use them for <strong>module-level timed maintenance</strong>: reloading shared state, polling, housekeeping,
+   or triggering refresh logic that later entity hooks will use.</li>
+</ol>
+<p>The most important split is:</p>
+<ul>
+<li><strong>Ingestion-time</strong> hooks see the incoming task or datapoint.</li>
+<li><strong>Periodic / already-in-system</strong> hooks see persisted data (<code>master_record</code>) or snapshot-time derived values.</li>
+</ul>
+<h2 id="quick-hook-placement-guide">Quick hook placement guide<a class="headerlink" href="#quick-hook-placement-guide" title="Permanent link">&para;</a></h2>
+<p>Use this as a fast way to choose the right hook family.</p>
+<h5 id="ingestion">Ingestion<a class="headerlink" href="#ingestion" title="Permanent link">&para;</a></h5>
+<p>Do you want to react while an incoming <code>DataPointTask</code> is being processed? <a href="#snapshots">No?</a> </p>
+<p>If Yes:</p>
+<ul>
+<li>Run <strong>once when a new entity is first created</strong> → <a href="#entity-on_entity_creation-hook"><code>register_on_entity_creation_hook(...)</code></a></li>
+<li>Run for <strong>each incoming datapoint</strong> of a specific attribute → <a href="#attribute-on_new_attr-hook"><code>register_on_new_attr_hook(...)</code></a></li>
+<li><strong>Allow or deny</strong> creation of a new entity → <a href="#entity-allow_entity_creation-hook"><code>register_allow_entity_creation_hook(...)</code></a></li>
+<li>Observe <strong>every task</strong> at processing start → <a href="#task-on_task_start-hook"><code>register_task_hook("on_task_start", ...)</code></a></li>
+</ul>
+<h5 id="snapshots">Snapshots<a class="headerlink" href="#snapshots" title="Permanent link">&para;</a></h5>
+<p>When data is already in the system, do you want the snapshot-time current state of the entity and linked entities? <a href="#periodic-updates">No?</a></p>
+<p>If Yes:</p>
+<ul>
+<li>Need the entity's <strong>snapshot-time current values</strong>, possibly including linked entities → <a href="#correlation-hooks"><code>register_correlation_hook(...)</code></a></li>
+<li>Need snapshot-time current values <strong>plus</strong> the raw persisted master record → <a href="#correlation-hooks"><code>register_correlation_hook_with_master_record(...)</code></a></li>
+<li>Need <strong>whole-run setup</strong> before snapshot processing begins → <a href="#snapshot-snapshot_init-hook"><code>register_snapshot_init_hook(...)</code></a></li>
+<li>Need <strong>whole-run teardown</strong> after snapshot processing ends → <a href="#snapshot-snapshot_finalize-hook"><code>register_snapshot_finalize_hook(...)</code></a></li>
+<li>Need <strong>timeseries history before it is reduced into snapshot values</strong> → <a href="#snapshot-timeseries_hook"><code>register_timeseries_hook(...)</code></a></li>
+</ul>
+<h5 id="periodic-updates">Periodic updates<a class="headerlink" href="#periodic-updates" title="Permanent link">&para;</a></h5>
+<p>Do you want to run periodically over entities already stored in the database? <a href="#cron-timer">No?</a></p>
+<p>If Yes:</p>
+<ul>
+<li>Need only <code>entity_type</code> + <code>eid</code> → <a href="#updater-periodic_eid_update_hook"><code>register_periodic_eid_update_hook(...)</code></a></li>
+<li>Need <code>entity_type</code> + <code>eid</code> + <code>master_record</code> → <a href="#updater-periodic_update_hook"><code>register_periodic_update_hook(...)</code></a></li>
+</ul>
+<h5 id="cron-timer">CRON timer<a class="headerlink" href="#cron-timer" title="Permanent link">&para;</a></h5>
+<p>Do you just need a time-based callback, not tied to an incoming datapoint, snapshot entity, or updater sweep?</p>
+<ul>
+<li>Yes → <a href="#general-scheduled-callbacks"><code>scheduler_register(...)</code></a></li>
+</ul>
+<h2 id="datapoint-ingestion-pipeline-hooks">DataPoint ingestion pipeline hooks<a class="headerlink" href="#datapoint-ingestion-pipeline-hooks" title="Permanent link">&para;</a></h2>
+<p>Ingestion hooks are the place for <strong>immediate reaction to newly arriving data</strong>. They run while a
+<code>DataPointTask</code> is being processed, before DP3 moves on to later periodic mechanisms such as
+snapshots or updater sweeps.</p>
+<p>In real module usage, they are typically used for four distinct kinds of work:</p>
+<ul>
+<li><strong>entity initialization on first sight</strong>, where the entity ID alone is enough to derive an
+  initial enrichment, such as geolocation, reverse-DNS hostname lookup, static labeling, or other
+  first-seen attributes,</li>
+<li><strong>attribute-driven derivation</strong>, where the arrival of one specific datapoint immediately produces
+  another datapoint, such as classifying a hostname, deriving labels from open ports, or creating
+  links from one entity to another while preserving the incoming datapoint's timing,</li>
+<li><strong>admission control</strong>, where entity creation is allowed only for entities that match some rule,
+  such as a configured prefix filter,</li>
+<li><strong>task-level observation</strong>, usually for telemetry, metrics, or tracing around task processing
+  rather than for deriving entity state.</li>
+</ul>
+<p>The practical pattern is that ingestion hooks are chosen when the logic should happen <strong>right away</strong>
+from the incoming task or datapoint itself, rather than from a later snapshot view or periodic
+revisit of stored entities.</p>
+<p>A useful rule of thumb is:</p>
+<ul>
+<li>use <code>on_entity_creation</code> for <strong>first-seen entity enrichment or initialization</strong>,</li>
+<li>use <code>on_new_attr</code> for <strong>immediate reactions to one incoming attribute</strong>,</li>
+<li>use <code>allow_entity_creation</code> for <strong>admission control</strong>, and</li>
+<li>use <code>on_task_start</code> mainly for <strong>telemetry or bookkeeping</strong>.</li>
+</ul>
+<h3 id="end-to-end-ingestion-flow">End-to-end ingestion flow<a class="headerlink" href="#end-to-end-ingestion-flow" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    A["Incoming DataPointTask&lt;br/&gt;from API or another module"] --&gt; B["TaskExecutor.process_task"]
+    B --&gt; C["on_task_start"]
+    C --&gt; D{"task.delete?"}
+    D --&gt;|yes| E["Delete entity and stop"]
+    D --&gt;|no| F{"Entity exists?"}
+    F --&gt;|no| G["allow_entity_creation"]
+    G --&gt;|False| H["Abort task"]
+    G --&gt;|True| I["on_entity_creation"]
+    F --&gt;|yes| J["Stage TTL + datapoint writes"]
+    I --&gt; J
+    J --&gt; K["For each datapoint: on_new_attr"]
+
+    classDef actionNode fill:#ffffff,stroke:#6b7280,stroke-width:1.5px,stroke-dasharray: 5 3,color:#111827;
+    classDef hookNode fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px,color:#111827;
+    classDef taskProducer fill:#fff3cd,stroke:#d97706,stroke-width:2px,color:#111827;
+    class A,B,D,E,F,H,J actionNode;
+    class C,G hookNode;
+    class I,K taskProducer;</code></pre>
+<div class="diagram-legend">
+  <span class="diagram-legend-label">Legend:</span>
+  <span class="diagram-legend-item action">pipeline action / decision</span>
+  <span class="diagram-legend-item hook">hook</span>
+  <span class="diagram-legend-item producer">hook that may emit <code>DataPointTask</code>s</span>
+</div>
+
+<h3 id="task-on_task_start-hook">Task <code>on_task_start</code> hook<a class="headerlink" href="#task-on_task_start-hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_task_hook</span><span class="p">(</span><span class="s2">&quot;on_task_start&quot;</span><span class="p">,</span> <span class="n">hook</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="n">DataPointTask</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span>
+</code></pre></div>
+<p>The return value is ignored, so this hook is suited to observing task processing rather than emitting follow-up datapoints.</p>
+<p>This hook runs as the first callback point inside <code>TaskExecutor.process_task</code>, and it runs for <strong>every</strong> <a class="autorefs autorefs-internal" title="DataPointTask" href="../reference/common/task/#dp3.common.task.DataPointTask"><code>DataPointTask</code></a> that reaches a worker, including tasks with <code>delete=True</code>.
+The callback receives the full incoming task, so it can inspect <code>etype</code>, <code>eid</code>, <code>data_points</code>, <code>tags</code>, <code>ttl_tokens</code>, and <code>delete</code>.
+At this point no entity existence decision has been made yet, no <code>allow_entity_creation</code> or <code>on_entity_creation</code> hook has run, and no datapoints from the task have been staged into persistence.
+In practice, this makes <code>on_task_start</code> most useful for metrics, auditing, tracing, and similar task-level bookkeeping.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_task_hook%28%22on_task_start%22&amp;type=code"><code>on_task_start</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_task_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_task_hook"><code>register_task_hook</code></a></p>
+<h3 id="entity-allow_entity_creation-hook">Entity <code>allow_entity_creation</code> hook<a class="headerlink" href="#entity-allow_entity_creation-hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_allow_entity_creation_hook</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="n">AnyEidT</span><span class="p">,</span> <span class="n">DataPointTask</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span>
+</code></pre></div>
+<p>This hook is called only when the target entity does <strong>not</strong> exist yet.
+It runs after <code>on_task_start</code> and before any creation side effects, so it is the point where a module can decide whether the entity may be created at all.
+The callback receives the <code>eid</code> that would be created together with the original incoming <code>DataPointTask</code>.
+Returning <code>False</code> aborts processing before the entity record is created.
+Because this decision happens before creation completes, there is no persisted master record yet and no snapshot-time current values are available.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_allow_entity_creation_hook%28&amp;type=code"><code>allow_entity_creation</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_allow_entity_creation_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_allow_entity_creation_hook"><code>register_allow_entity_creation_hook</code></a></p>
+<h3 id="entity-on_entity_creation-hook">Entity <code>on_entity_creation</code> hook<a class="headerlink" href="#entity-on_entity_creation-hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_on_entity_creation_hook</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="n">AnyEidT</span><span class="p">,</span> <span class="n">DataPointTask</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]</span>
+</code></pre></div>
+<p>This hook is called once for a newly created entity, after <code>allow_entity_creation</code> has accepted creation and before the task's datapoints are staged into raw and master persistence.
+The callback receives the new <code>eid</code> together with the original <code>DataPointTask</code> that caused the entity to be created, so it can inspect the incoming datapoints through <code>task.data_points</code>.
+It should not assume that the entity's new state is already readable as a persisted master record, because the creation-triggering task has not been written through the normal persistence path yet.
+The hook may return a list of <code>DataPointTask</code> objects, and those tasks are queued back into the ingestion pipeline, where they trigger the usual hooks again.
+Because they originate from ingestion, they are pushed to the <strong>priority</strong> task queue.
+This registration also supports <code>refresh=</code> and <code>may_change=</code> for recomputation during module-config refresh; see <a href="#refresh-on-config-change-behavior-for-ingestion-hooks">Refresh-on-config-change behavior for ingestion hooks</a>.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_on_entity_creation_hook%28&amp;type=code"><code>on_entity_creation</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_on_entity_creation_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_on_entity_creation_hook"><code>register_on_entity_creation_hook</code></a></p>
+<h3 id="attribute-on_new_attr-hook">Attribute <code>on_new_attr</code> hook<a class="headerlink" href="#attribute-on_new_attr-hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_on_new_attr_hook</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">attr</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="n">AnyEidT</span><span class="p">,</span> <span class="n">DataPointBase</span><span class="p">],</span> <span class="n">Union</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]]</span>
+</code></pre></div>
+<p>This hook runs after DP3 stages the current task's TTL changes and datapoint writes, and it runs once for <strong>each datapoint</strong> in <code>task.data_points</code>.
+If a single task contains three datapoints, the hook is invoked three times.
+The callback receives the entity <code>eid</code> and the exact incoming datapoint object <code>dp</code> for the registered attribute.
+That datapoint is presented in its original ingestion form: plain datapoints expose the plain value, observation datapoints expose <code>t1</code>, <code>t2</code>, <code>v</code>, and optionally <code>c</code>, and timeseries datapoints expose the incoming chunk payload.
+DP3 stages the writes before calling <code>on_new_attr</code>, but the database flush itself is buffered and asynchronous, so the new datapoint is always available in <code>dp</code> even if an immediate independent database read still lags behind the in-memory staged state.
+The hook may return <code>None</code> or a list of <code>DataPointTask</code> objects to be re-ingested.
+As with <code>on_entity_creation</code>, this registration also supports <code>refresh=</code> and <code>may_change=</code> for recomputation during module-config refresh; see <a href="#refresh-on-config-change-behavior-for-ingestion-hooks">Refresh-on-config-change behavior for ingestion hooks</a>.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_on_new_attr_hook%28&amp;type=code"><code>on_new_attr</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_on_new_attr_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_on_new_attr_hook"><code>register_on_new_attr_hook</code></a></p>
+<h3 id="data-available-during-ingestion">Data available during ingestion<a class="headerlink" href="#data-available-during-ingestion" title="Permanent link">&para;</a></h3>
+<p>For reference, the ingestion pipeline works with these data objects:</p>
+<h4 id="incoming-datapointtask">Incoming <code>DataPointTask</code><a class="headerlink" href="#incoming-datapointtask" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">DataPointTask</span><span class="p">(</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">etype</span><span class="o">=</span><span class="s2">&quot;device&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">eid</span><span class="o">=</span><span class="s2">&quot;dev-123&quot;</span><span class="p">,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">data_points</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">ttl_tokens</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">delete</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="p">)</span>
+</code></pre></div>
+<h4 id="incoming-datapointbase-passed-to-on_new_attr">Incoming <code>DataPointBase</code> passed to <code>on_new_attr</code><a class="headerlink" href="#incoming-datapointbase-passed-to-on_new_attr" title="Permanent link">&para;</a></h4>
+<p>Conceptually, this object contains <code>etype</code>, <code>eid</code>, <code>attr</code>, <code>src</code>, and <code>v</code>, and for historical datapoints it also carries <code>t1</code>, <code>t2</code>, and possibly <code>c</code>.</p>
+<h3 id="special-ingestion-cases">Special ingestion cases<a class="headerlink" href="#special-ingestion-cases" title="Permanent link">&para;</a></h3>
+<h4 id="delete-tasks">Delete tasks<a class="headerlink" href="#delete-tasks" title="Permanent link">&para;</a></h4>
+<p>If <code>task.delete</code> is <code>True</code>, <code>on_task_start</code> still runs and entity deletion is performed, but <code>allow_entity_creation</code>, <code>on_entity_creation</code>, and <code>on_new_attr</code> do <strong>not</strong> run.</p>
+<h4 id="returned-tasks-recurse-through-the-same-pipeline">Returned tasks recurse through the same pipeline<a class="headerlink" href="#returned-tasks-recurse-through-the-same-pipeline" title="Permanent link">&para;</a></h4>
+<p>Any <code>DataPointTask</code> returned by <code>on_entity_creation</code> or <code>on_new_attr</code> is sent back to the main task queue and later processed again by <code>TaskExecutor.process_task</code>.
+In other words, module-generated datapoints re-enter DP3 exactly like primary datapoints from the API, so they can trigger <code>on_task_start</code>, <code>allow_entity_creation</code>, <code>on_entity_creation</code>, <code>on_new_attr</code>, and later snapshot or updater hooks.</p>
+<h2 id="snapshot-time-hooks-periodic-processing-over-stored-data">Snapshot-time hooks: periodic processing over stored data<a class="headerlink" href="#snapshot-time-hooks-periodic-processing-over-stored-data" title="Permanent link">&para;</a></h2>
+<p>Snapshot hooks operate on data that is <strong>already in the system</strong>.
+They are driven by <code>SnapShooter</code>, not by the live task currently being ingested.</p>
+<h3 id="snapshot-run-flow">Snapshot run flow<a class="headerlink" href="#snapshot-run-flow" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    A["Snapshot scheduler&lt;br/&gt;on worker 0"] --&gt; B["Broadcast run_start"]
+    B --&gt; C["Snapshot init hooks&lt;br/&gt;(all workers)"]
+    C --&gt; D["Enumerate entities / linked components"]
+    D --&gt; E["Load entity master records"]
+    E --&gt; F["Timeseries hooks&lt;br/&gt;per timeseries attr"]
+    F --&gt; G["Compute current values&lt;br/&gt;plain + observations"]
+    G --&gt; H["Load linked entity records&lt;br/&gt;for used relation paths"]
+    H --&gt; I["Correlation hooks&lt;br/&gt;ordered by depends_on / may_change"]
+    I --&gt; J["Save snapshot documents"]
+    J --&gt; K["Broadcast run_end"]
+    K --&gt; L["Snapshot finalize hooks&lt;br/&gt;(all workers)"]
+
+    classDef actionNode fill:#ffffff,stroke:#6b7280,stroke-width:1.5px,stroke-dasharray: 5 3,color:#111827;
+    classDef taskProducer fill:#fff3cd,stroke:#d97706,stroke-width:2px,color:#111827;
+    class A,B,D,E,G,H,J,K actionNode;
+    class C,F,I,L taskProducer;</code></pre>
+<div class="diagram-legend">
+  <span class="diagram-legend-label">Legend:</span>
+  <span class="diagram-legend-item action">pipeline action / orchestration step</span>
+  <span class="diagram-legend-item producer">hook that may emit <code>DataPointTask</code>s</span>
+</div>
+
+<h3 id="snapshot-snapshot_init-hook">Snapshot <code>snapshot_init</code> hook<a class="headerlink" href="#snapshot-snapshot_init-hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_snapshot_init_hook</span><span class="p">(</span><span class="n">hook</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="n">Callable</span><span class="p">[[],</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]</span>
+</code></pre></div>
+<p>This hook runs after a snapshot run starts and before any snapshot tasks for that run are processed.
+Because the run-start message is broadcast, it runs once per worker.
+The callback receives no arguments and must obtain any context it needs on its own.
+It is therefore best suited to preparing shared state before correlation callbacks for that snapshot run.
+The hook may return <code>list[DataPointTask]</code>, which are queued into the main task queue.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_snapshot_init_hook%28&amp;type=code"><code>snapshot_init</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_snapshot_init_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_snapshot_init_hook"><code>register_snapshot_init_hook</code></a></p>
+<h3 id="snapshot-timeseries_hook">Snapshot <code>timeseries_hook</code><a class="headerlink" href="#snapshot-timeseries_hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_timeseries_hook</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">attr_type</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]],</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]</span>
+</code></pre></div>
+<p>This hook runs during snapshot creation, before current values are materialized for the entity, and it is invoked for each registered timeseries attribute that is present in the entity master record.
+The callback receives <code>entity_type</code>, <code>attr_type</code>, and <code>attr_history</code>, where <code>attr_history</code> is the raw stored history for that attribute from the master record.
+It does not receive a <code>DataPointTask</code>, a single incoming datapoint, or a snapshot <code>current_values</code> dictionary.
+Its role is to process accumulated history into derived plain or observation datapoints that later snapshot-time hooks can use.
+The hook may return <code>list[DataPointTask]</code>.
+Those tasks are queued back into ingestion, and DP3 also attempts to fold same-entity outputs into the in-memory snapshot-preparation path before correlation hooks run, so timeseries-derived values may influence the same snapshot run.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_timeseries_hook%28&amp;type=code"><code>timeseries_hook</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_timeseries_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_timeseries_hook"><code>register_timeseries_hook</code></a></p>
+<h3 id="correlation-hooks">Correlation hooks<a class="headerlink" href="#correlation-hooks" title="Permanent link">&para;</a></h3>
+<p>Registration APIs:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_correlation_hook</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_correlation_hook_with_master_record</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signatures:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span> <span class="n">Union</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]]</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span> <span class="n">Union</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]]</span>
+</code></pre></div>
+<p>In practice, correlation hooks are the place for <strong>snapshot-time fusion and synthesis</strong>.
+They are used when a module needs to look at the entity as a whole and derive a value from a combination of attributes, including attributes pulled in through links.
+Typical examples include combining several signals into one derived snapshot attribute, condensing low-level indicators into a higher-level classification, working across linked entities, or exporting selected snapshot-time values after they have already been reduced to the current view.
+The <code>with_master_record</code> variant is intended for cases where the reduced snapshot view is not sufficient and the module also needs the raw stored record, for example to inspect full history arrays, exact timestamps, or other persistence-oriented details that are not present in <code>current_values</code>.</p>
+<p>Both registration variants also take <code>depends_on</code> and <code>may_change</code>, expressed as <code>list[list[str]]</code> paths from the registered entity type to the relevant attribute.
+For example, <code>[["hostname"]]</code> refers to a local attribute, while <code>[["site", "name"]]</code> refers to an attribute on an entity reached through the <code>site</code> relation.
+In practice, <code>register_correlation_hook(...)</code> is the right choice when the module wants to reason over the current snapshot state of an entity, while <code>register_correlation_hook_with_master_record(...)</code> is the right choice when it needs that snapshot state together with the underlying stored history.
+Both variants run during snapshot creation, after current values have been computed from the stored master record and after linked entity records have been loaded for the relation paths used by registered hooks.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_correlation_hook%28&amp;type=code"><code>correlation_hook</code></a>
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_correlation_hook_with_master_record%28&amp;type=code"><code>correlation_hook_with_master_record</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_correlation_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook"><code>register_correlation_hook</code></a>
+<a class="autorefs autorefs-internal" title="register_correlation_hook_with_master_record" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_correlation_hook_with_master_record"><code>register_correlation_hook_with_master_record</code></a></p>
+<h4 id="current_values-input"><code>current_values</code> input<a class="headerlink" href="#current_values-input" title="Permanent link">&para;</a></h4>
+<p>The <code>current_values</code> dict is the snapshot-time view of the entity.
+It always contains <code>{"eid": &lt;entity_id&gt;}</code>.
+Plain attributes are exposed as their plain value, observation attributes are reduced to their current value at snapshot time, and observations with confidence enabled expose the current confidence in a sibling key named <code>&lt;attr&gt;#c</code>.
+Relation attributes may contain nested linked records in <code>record</code> fields once linked entities have been loaded.</p>
+<p>Conceptual example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>    <span class="s2">&quot;eid&quot;</span><span class="p">:</span> <span class="s2">&quot;dev-123&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>    <span class="s2">&quot;hostname&quot;</span><span class="p">:</span> <span class="s2">&quot;edge-01&quot;</span><span class="p">,</span>               <span class="c1"># plain attribute</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>    <span class="s2">&quot;ip&quot;</span><span class="p">:</span> <span class="s2">&quot;192.0.2.10&quot;</span><span class="p">,</span>                 <span class="c1"># current observation value</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>    <span class="s2">&quot;ip#c&quot;</span><span class="p">:</span> <span class="mf">0.93</span><span class="p">,</span>                         <span class="c1"># current confidence</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>    <span class="s2">&quot;site&quot;</span><span class="p">:</span> <span class="p">{</span>                             <span class="c1"># relation value</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>        <span class="s2">&quot;eid&quot;</span><span class="p">:</span> <span class="s2">&quot;site-prg&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>        <span class="s2">&quot;record&quot;</span><span class="p">:</span> <span class="p">{</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>            <span class="s2">&quot;eid&quot;</span><span class="p">:</span> <span class="s2">&quot;site-prg&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Prague&quot;</span><span class="p">,</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>        <span class="p">},</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>    <span class="p">},</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="p">}</span>
+</code></pre></div>
+<p><code>depends_on</code> and <code>may_change</code> are used for <strong>validation</strong>, <strong>dependency ordering</strong>, and <strong>discovering which links must be loaded</strong>.
+They do <strong>not</strong> make DP3 skip the hook when a dependency is missing; the hook still runs, and the callback should handle missing keys itself.
+Correlation hooks for the same entity type are ordered topologically from their <code>depends_on</code> and <code>may_change</code> declarations.
+Invalid dependency paths, invalid output paths, and dependency cycles raise <code>ValueError</code> at registration time.</p>
+<h4 id="master_record-input"><code>master_record</code> input<a class="headerlink" href="#master_record-input" title="Permanent link">&para;</a></h4>
+<p>Only <code>register_correlation_hook_with_master_record</code> receives the raw <code>master_record</code> as a third argument.</p>
+<p>That record is the persisted entity document from <code>{entity}#master</code>, for example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>    <span class="s2">&quot;_id&quot;</span><span class="p">:</span> <span class="s2">&quot;dev-123&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>    <span class="s2">&quot;#hash&quot;</span><span class="p">:</span> <span class="mi">41712</span><span class="p">,</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>    <span class="s2">&quot;#time_created&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>    <span class="s2">&quot;hostname&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;v&quot;</span><span class="p">:</span> <span class="s2">&quot;edge-01&quot;</span><span class="p">,</span> <span class="s2">&quot;ts_last_update&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">},</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>    <span class="s2">&quot;ip&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>        <span class="p">{</span><span class="s2">&quot;t1&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;t2&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;v&quot;</span><span class="p">:</span> <span class="s2">&quot;192.0.2.10&quot;</span><span class="p">,</span> <span class="s2">&quot;c&quot;</span><span class="p">:</span> <span class="mf">0.93</span><span class="p">},</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>    <span class="p">],</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>    <span class="s2">&quot;traffic_ts&quot;</span><span class="p">:</span> <span class="p">[</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>        <span class="p">{</span><span class="s2">&quot;t1&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;t2&quot;</span><span class="p">:</span> <span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="s2">&quot;v&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mf">1.2</span><span class="p">,</span> <span class="mf">3.4</span><span class="p">]},</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>    <span class="p">],</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="p">}</span>
+</code></pre></div>
+<p>In short, <code>current_values</code> is the snapshot-time interpreted current state, while <code>master_record</code> is the raw stored history and persistence representation.</p>
+<h4 id="what-a-correlation-hook-may-do">What a correlation hook may do<a class="headerlink" href="#what-a-correlation-hook-may-do" title="Permanent link">&para;</a></h4>
+<p>A correlation hook may mutate <code>current_values</code> in place to enrich the snapshot being saved, return <code>list[DataPointTask]</code> to feed new datapoints back into ingestion, or do both.
+This is the main hook family that directly shapes snapshot content.</p>
+<h3 id="snapshot-snapshot_finalize-hook">Snapshot <code>snapshot_finalize</code> hook<a class="headerlink" href="#snapshot-snapshot_finalize-hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_snapshot_finalize_hook</span><span class="p">(</span><span class="n">hook</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">Callable</span><span class="p">[[],</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]</span>
+</code></pre></div>
+<p>This hook runs after a snapshot run ends.
+Because the run-end message is broadcast, it runs once per worker.
+The callback receives no arguments.
+It is mainly used to finish or clean up snapshot-run state after correlation callbacks have completed, and it may return <code>list[DataPointTask]</code> queued into the main task queue.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_snapshot_finalize_hook%28&amp;type=code"><code>snapshot_finalize</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_snapshot_finalize_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_snapshot_finalize_hook"><code>register_snapshot_finalize_hook</code></a></p>
+<h2 id="refresh-on-config-change-behavior-for-ingestion-hooks">Refresh-on-config-change behavior for ingestion hooks<a class="headerlink" href="#refresh-on-config-change-behavior-for-ingestion-hooks" title="Permanent link">&para;</a></h2>
+<p>Two ingestion hooks have an extra refresh mode: <code>register_on_entity_creation_hook(..., refresh=..., may_change=...)</code> and <code>register_on_new_attr_hook(..., refresh=..., may_change=...)</code>.
+When <code>refresh</code> is supplied, DP3 also registers an internal snapshot correlation wrapper, so a later module-config refresh can cause these hooks to be re-executed during a snapshot run.</p>
+<p>The important practical consequence is that this refresh path does <strong>not</strong> replay the original incoming datapoint stream.
+It is a recomputation path over already-known entities during snapshot processing, so hooks using refresh should be able to derive their results from persisted state rather than relying exclusively on ephemeral ingestion-only context.
+For <code>on_entity_creation</code>, the refresh path re-invokes the hook with the entity <code>eid</code> and a synthetic empty <code>DataPointTask(etype=..., eid=..., data_points=[])</code> instead of the original creation task.
+For <code>on_new_attr</code>, the refresh path likewise does not replay an original datapoint payload.
+In practice, refresh mode should therefore be reserved for hooks that can recompute from persisted state and do not require the original incoming datapoint contents to be present again.</p>
+<p><a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+refresh%3D&amp;type=code">Real usages of <code>refresh=</code></a></p>
+<h2 id="periodic-updater-hooks-periodic-processing-over-master-records">Periodic updater hooks: periodic processing over master records<a class="headerlink" href="#periodic-updater-hooks-periodic-processing-over-master-records" title="Permanent link">&para;</a></h2>
+<p>Updater hooks revisit entities that are <strong>already stored in DP3</strong>.
+In real module usage, they are mainly used either to refresh external enrichments on a schedule or to recompute derived attributes from the entity's stored master record and history.
+A common pattern is that an <code>on_entity_creation</code> hook performs the initial lookup when the entity first appears, and an updater hook refreshes that enrichment later.
+That is how modules such as reverse DNS hostname lookup, DNSBL checks, passive DNS enrichment, and Redis-backed blacklist checks are structured: they do the first lookup on entity creation and then revisit the same IP every day or every week.</p>
+<p>The two updater variants map cleanly to those common use cases.
+<code>register_periodic_eid_update_hook(...)</code> is the lighter variant and is used when the module only needs the entity ID to query an external source again.
+<code>register_periodic_update_hook(...)</code> is used when the module needs the full <code>master_record</code> during the periodic sweep, for example to recompute a derived attribute from stored history.
+Unlike snapshot hooks, updater hooks do not build snapshot current-value views or load linked entity graphs; instead, they iterate over stored entities over a longer configured period.</p>
+<h3 id="updater-flow">Updater flow<a class="headerlink" href="#updater-flow" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>flowchart TD
+    A["Updater batch scheduler&lt;br/&gt;(worker 0 only)"] --&gt; B["Pick one updater thread state&lt;br/&gt;(period, entity_type, eid_only)"]
+    B --&gt; C["Fetch next batch of entities"]
+    C --&gt; D{"Hook kind"}
+    D --&gt;|record hook| E["periodic_update_hook&lt;br/&gt;entity_type, eid, master_record"]
+    D --&gt;|eid hook| F["periodic_eid_update_hook&lt;br/&gt;entity_type, eid"]
+
+    classDef actionNode fill:#ffffff,stroke:#6b7280,stroke-width:1.5px,stroke-dasharray: 5 3,color:#111827;
+    classDef taskProducer fill:#fff3cd,stroke:#d97706,stroke-width:2px,color:#111827;
+    class A,B,C,D actionNode;
+    class E,F taskProducer;</code></pre>
+<div class="diagram-legend">
+  <span class="diagram-legend-label">Legend:</span>
+  <span class="diagram-legend-item action">pipeline action / decision</span>
+  <span class="diagram-legend-item producer">hook that may emit <code>DataPointTask</code>s</span>
+</div>
+
+<h3 id="updater-periodic_update_hook">Updater <code>periodic_update_hook</code><a class="headerlink" href="#updater-periodic_update_hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_periodic_update_hook</span><span class="p">(</span><span class="n">hook</span><span class="p">,</span> <span class="n">hook_id</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">entity_type</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span> <span class="n">period</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AnyEidT</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]</span>
+</code></pre></div>
+<p>This hook runs in updater batches rather than all at once for all entities.
+The configured <code>period</code> is the time window over which <strong>all entities of that type</strong> should be visited once.
+The callback receives <code>entity_type</code>, <code>eid</code>, and the raw persisted <code>master_record</code> for that entity, which is the same persistence-oriented representation described above for correlation hooks with master-record access.
+The hook may return <code>list[DataPointTask]</code>.
+When registering it, <code>hook_id</code> must be unique.
+It is also important to set <code>period</code> realistically for the hook's execution cost; if the period is too short, runs may overlap with later batches and effectively stretch the refresh cadence.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_periodic_update_hook%28&amp;type=code"><code>periodic_update_hook</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_periodic_update_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_periodic_update_hook"><code>register_periodic_update_hook</code></a></p>
+<h3 id="updater-periodic_eid_update_hook">Updater <code>periodic_eid_update_hook</code><a class="headerlink" href="#updater-periodic_eid_update_hook" title="Permanent link">&para;</a></h3>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">register_periodic_eid_update_hook</span><span class="p">(</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>    <span class="n">hook</span><span class="p">,</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="n">hook_id</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    <span class="n">entity_type</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">period</span><span class="o">=</span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="p">)</span>
+</code></pre></div>
+<p>Expected callback signature:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">,</span> <span class="n">AnyEidT</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="n">DataPointTask</span><span class="p">]]</span>
+</code></pre></div>
+<p>This hook follows the same updater scheduling model as <code>periodic_update_hook</code>, but it is intended for cases where the callback only needs entity identity and should avoid fetching full records.
+The callback therefore receives only <code>entity_type</code> and <code>eid</code>, and it may return <code>list[DataPointTask]</code>.
+As with <code>periodic_update_hook</code>, <code>hook_id</code> must be unique and <code>period</code> should be configured realistically so updater batches can complete before the next sweep is due.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.register_periodic_eid_update_hook%28&amp;type=code"><code>periodic_eid_update_hook</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="register_periodic_eid_update_hook" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.register_periodic_eid_update_hook"><code>register_periodic_eid_update_hook</code></a></p>
+<h2 id="general-scheduled-callbacks">General scheduled callbacks<a class="headerlink" href="#general-scheduled-callbacks" title="Permanent link">&para;</a></h2>
+<p><code>scheduler_register</code> is the hook for <strong>application-wide time-based jobs</strong>.
+In the module examples here, it is not used for per-entity processing at all.
+Instead, it is used for background tasks such as reloading external rule files or other shared module state on a schedule.</p>
+<p>A representative pattern is that <code>scheduler_register(...)</code> periodically reloads some in-memory configuration or auxiliary data, the module updates its shared state or sets a refresh flag, and normal entity hooks then pick up that new state on later processing or refresh runs.
+A common example is file-backed labeling or grouping logic: the cron callback reloads labeling rules from files, while the actual per-entity datapoint creation still happens in entity hooks such as <code>on_entity_creation</code>.</p>
+<p>So, in real usage, scheduler hooks are best thought of as <strong>module-level maintenance or refresh
+triggers</strong>, not as a substitute for ingestion hooks, snapshot hooks, or updater sweeps.</p>
+<p>Schedules are expressed with CRON-style fields passed to APScheduler's <code>CronTrigger</code>, for example <code>minute="*/10"</code> for every tenth minute or <code>minute=0, hour=2</code> for a daily 02:00 callback.</p>
+<p>Registration API:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="n">registrar</span><span class="o">.</span><span class="n">scheduler_register</span><span class="p">(</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">func</span><span class="p">,</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>    <span class="n">minute</span><span class="o">=</span><span class="s2">&quot;*/10&quot;</span><span class="p">,</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>    <span class="n">func_args</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>    <span class="n">func_kwargs</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">},</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="p">)</span>
+</code></pre></div>
+<p>The callback runs according to the supplied CRON expression on the local worker's scheduler.
+It receives no automatic entity or task context; only the static <code>func_args</code> and <code>func_kwargs</code> supplied during registration are passed in.
+Its return value is ignored by DP3.
+In practice, this hook is most useful for housekeeping, external polling, maintenance, metrics emission, periodic cleanup, and similar module-level maintenance work.</p>
+<p>Real usage examples:
+<a href="https://github.com/search?q=repo%3ACESNET%2FAmfora+OR+repo%3ACESNET%2FADiCT+OR+repo%3ACESNET%2FNERD2+registrar.scheduler_register%28&amp;type=code"><code>scheduler_register</code></a></p>
+<p>Code reference: <a class="autorefs autorefs-internal" title="scheduler_register" href="../reference/common/callback_registrar/#dp3.common.callback_registrar.CallbackRegistrar.scheduler_register"><code>scheduler_register</code></a></p>
+<h2 id="hook-outputs-and-re-entry-into-dp3">Hook outputs and re-entry into DP3<a class="headerlink" href="#hook-outputs-and-re-entry-into-dp3" title="Permanent link">&para;</a></h2>
+<p>Most user-facing hooks return <code>list[DataPointTask]</code>.
+Whenever that happens, the returned tasks are fed back into the main ingestion system.</p>
+<p>This creates a feedback loop:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>hook returns DataPointTask(s)
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>  -&gt; task queue
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>  -&gt; TaskExecutor.process_task
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>  -&gt; ingestion hooks run again
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>  -&gt; data reaches master/raw storage
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>  -&gt; later snapshot / updater cycles can see it
+</code></pre></div>
+<p>The queueing path differs slightly by hook family.
+Ingestion hooks such as <code>on_entity_creation</code> and <code>on_new_attr</code> push returned tasks to the priority queue.
+Snapshot hooks and updater hooks push returned tasks to the normal task queue.
+<code>scheduler_register</code> callbacks do not have an automatic task-return path.</p>
+<h2 id="type-of-eid">Type of <code>eid</code><a class="headerlink" href="#type-of-eid" title="Permanent link">&para;</a></h2>
+<div class="admonition tip">
+<p class="admonition-title">Specifying the <code>eid</code> type</p>
+<p>At runtime, the <code>eid</code> will be exactly the type as specified in the entity specification.</p>
+</div>
+<p>All the examples on this page show the <code>eid</code> as a string, as that is the default type.
+The type of the <code>eid</code> can be configured in the entity specification, as detailed
+<a href="../configuration/db_entities/#entity">here</a>.</p>
+<p>The type hint of the <code>eid</code> used in callback registration definitions is
+<a class="autorefs autorefs-internal" title="AnyEidT
+
+
+  
+      module-attribute
+  " href="../reference/common/datatype/#dp3.common.datatype.AnyEidT"><code>AnyEidT</code></a>, which is a type alias of the allowed
+<code>eid</code> types in the entity specification.</p>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.db81ec45.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.4b2c34cd.min.js"></script>
+      
+        <script src="../javascripts/mermaid.js"></script>
+      
+    
+  </body>
+</html>

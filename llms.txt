@@ -1,0 +1,48 @@
+# DP3
+
+> Dynamic Profile Processing Platform
+
+DP3 is a configurable data processing platform for building applications around entities, attributes, modules, hooks, and processing pipelines. The documentation covers getting started, extending deployments and modules, architecture concepts, and configuration reference material.
+
+## Overview
+
+- [Overview](https://cesnet.github.io/dp3/index.md): Introduction to DP3
+
+## How-to guides
+
+- [How-to](https://cesnet.github.io/dp3/howto/index.md)
+- [Add an attribute](https://cesnet.github.io/dp3/howto/add-attribute/index.md)
+- [Add an input module](https://cesnet.github.io/dp3/howto/add-input/index.md)
+- [Add a secondary module](https://cesnet.github.io/dp3/howto/add-module/index.md)
+- [Deploy an app](https://cesnet.github.io/dp3/howto/deploy-app/index.md)
+- [Develop DP3 itself](https://cesnet.github.io/dp3/howto/develop-dp3/index.md)
+- [Extend Docs](https://cesnet.github.io/dp3/howto/extending/index.md)
+- [Get started](https://cesnet.github.io/dp3/howto/get-started/index.md)
+
+## Concepts
+
+- [Architecture](https://cesnet.github.io/dp3/architecture/index.md)
+- [Data model](https://cesnet.github.io/dp3/data_model/index.md)
+- [History management](https://cesnet.github.io/dp3/history_management/index.md)
+- [Modules](https://cesnet.github.io/dp3/modules/index.md)
+- [Hooks](https://cesnet.github.io/dp3/hooks/index.md)
+
+## Reference
+
+- [API](https://cesnet.github.io/dp3/api/index.md)
+- [Configuration](https://cesnet.github.io/dp3/configuration/index.md)
+- [API](https://cesnet.github.io/dp3/configuration/api/index.md)
+- [Control](https://cesnet.github.io/dp3/configuration/control/index.md)
+- [Database](https://cesnet.github.io/dp3/configuration/database/index.md)
+- [Database entities](https://cesnet.github.io/dp3/configuration/db_entities/index.md)
+- [Event logging](https://cesnet.github.io/dp3/configuration/event_logging/index.md)
+- [Garbage Collector](https://cesnet.github.io/dp3/configuration/garbage_collector/index.md)
+- [History manager](https://cesnet.github.io/dp3/configuration/history_manager/index.md)
+- [Entity Lifetimes](https://cesnet.github.io/dp3/configuration/lifetimes/index.md)
+- [Modules](https://cesnet.github.io/dp3/configuration/modules/index.md)
+- [Processing core](https://cesnet.github.io/dp3/configuration/processing_core/index.md)
+- [Snapshots](https://cesnet.github.io/dp3/configuration/snapshots/index.md)
+- [Updater](https://cesnet.github.io/dp3/configuration/updater/index.md)
+- [Scripts](https://cesnet.github.io/dp3/scripts/index.md)
+- [Grafana plugin](https://cesnet.github.io/dp3/grafana_plugin/index.md)
+

@@ -172,6 +172,16 @@ and configuration, see the [updater configuration](configuration/updater.md) pag
 - [`scheduler_register(...)`](hooks.md#scheduler_register) — CRON-style module-level
   scheduled callback for maintenance, polling, housekeeping, or shared-state reloads.
 
+## Testing modules
+
+Secondary modules can be unit-tested without running a full DP3 worker by using
+[`DP3ModuleTestCase`][dp3.testing.modules.DP3ModuleTestCase]. The helper loads an application's
+real `db_entities` model from `DP3_CONFIG_DIR` or an explicit test fixture path, instantiates a
+module with a test callback registrar, and lets tests call registered hooks directly with validated
+`DataPointTask` and datapoint objects.
+
+See [Test a secondary module](howto/test-module.md) for examples and supported hook runners.
+
 ## Running module code in a separate thread
 
 The module is free to run its own code in separate threads or processes.

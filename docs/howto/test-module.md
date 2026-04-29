@@ -72,8 +72,10 @@ Common runners are available on the test case:
 - `run_correlation_hooks(entity_type, record, master_record=None)`
 - `run_periodic_update(entity_type, eid, master_record, hook_id=None)`
 - `run_periodic_eid_update(entity_type, eid, hook_id=None)`
+- `run_scheduler_job(index_or_func)`
 
 Correlation tests pass the snapshot `record` explicitly. The record must contain `eid`.
+Scheduler jobs can be selected by registration index, callable, or callable name.
 
 ## Assertions
 
@@ -88,6 +90,21 @@ self.assertRecordContains(record, exposure_score=10)
 
 Snake-case aliases are also available: `assert_datapoint`, `assert_task_emitted`,
 `assert_no_tasks`, and `assert_record_contains`.
+
+## Registration assertions
+
+Use registration assertions when a test needs to verify callback coverage or dynamic hook
+registration.
+
+```python
+self.assert_registered("on_new_attr", entity="ip", attr="hostname")
+self.assert_registered_once("correlation", entity_type="service")
+self.assert_registered_attrs("service", expected_service_attrs)
+self.assert_scheduler_registered(func="reload_ip_groups", minute="*/10")
+```
+
+`assert_scheduler_registered()` accepts scheduler fields such as `minute`, `hour`, and `second`,
+along with `func` for matching the registered callable by object or function name.
 
 ## Mocking external dependencies
 

@@ -14,6 +14,7 @@ from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 from dp3.common.task import DataPointTask, task_context
+from dp3.common.utils import get_func_name
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
     SnapshotTimeseriesHookContainer,
@@ -418,8 +419,26 @@ class TestCallbackRegistrar:
                     tasks.extend(hook_tasks)
         return tasks
 
-    def run_scheduler_job(self, job_id: int):
-        reg = self._scheduler_jobs[job_id]
+    def get_scheduler_job(
+        self, job: Union[int, str, Callable, HookRegistration]
+    ) -> HookRegistration:
+        """Return a registered scheduler job by index, callable, or callable name."""
+        if isinstance(job, int):
+            return self._scheduler_jobs[job]
+        if isinstance(job, HookRegistration):
+            if job.kind != "scheduler":
+                raise ValueError(f"Registration kind '{job.kind}' is not a scheduler job.")
+            return job
+
+        matches = [reg for reg in self._scheduler_jobs if _callable_matches(reg.hook, job)]
+        if not matches:
+            raise ValueError(f"No scheduler job matches {job!r}.")
+        if len(matches) > 1:
+            raise ValueError(f"Multiple scheduler jobs match {job!r}.")
+        return matches[0]
+
+    def run_scheduler_job(self, job: Union[int, str, Callable, HookRegistration]):
+        reg = self.get_scheduler_job(job)
         return reg.hook(*reg.extra["func_args"], **reg.extra["func_kwargs"])
 
     def _record(self, registration: HookRegistration) -> None:
@@ -457,3 +476,10 @@ class TestCallbackRegistrar:
         if hook_id is not None:
             return list(hooks[entity_type, hook_id])
         return [reg for (etype, _), regs in hooks.items() if etype == entity_type for reg in regs]
+
+
+def _callable_matches(func: Callable, expected: Union[str, Callable]) -> bool:
+    if callable(expected):
+        return func == expected
+    func_name = get_func_name(func)
+    return func_name == expected or func_name.endswith(f".{expected}")

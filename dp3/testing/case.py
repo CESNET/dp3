@@ -2,14 +2,16 @@
 
 import copy
 import unittest
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Generic, Optional, TypeVar, Union
+from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
 from dp3.common.base_module import BaseModule
 from dp3.common.config import HierarchicalDict, ModelSpec, PlatformConfig
 from dp3.common.datapoint import DataPointBase
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import UTC
+from dp3.common.utils import get_func_name
 from dp3.testing.assertions import ModuleAssertions
 from dp3.testing.config import (
     CONFIG_DIR_ENV,
@@ -19,7 +21,7 @@ from dp3.testing.config import (
     load_config,
     resolve_config_dir,
 )
-from dp3.testing.registrar import TestCallbackRegistrar
+from dp3.testing.registrar import HookRegistration, TestCallbackRegistrar
 
 ModuleT = TypeVar("ModuleT", bound=BaseModule)
 
@@ -184,3 +186,97 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         self, entity_type: str, eid: Any, hook_id: Optional[str] = None
     ) -> list[DataPointTask]:
         return self.registrar.run_periodic_eid_update(entity_type, eid, hook_id)
+
+    def run_scheduler_job(self, job: Union[int, str, Callable, HookRegistration]):
+        return self.registrar.run_scheduler_job(job)
+
+    def registered(self, kind: Optional[str] = None, **fields) -> list[HookRegistration]:
+        """Return registrations matching ``kind`` and the supplied registration fields."""
+        return [
+            registration
+            for registration in self.registrar.registrations
+            if self._registration_matches(registration, kind, fields)
+        ]
+
+    def assert_registered(self, kind: str, **fields) -> HookRegistration:
+        """Assert that at least one callback registration matches the supplied fields."""
+        matches = self.registered(kind, **fields)
+        if not matches:
+            self.fail(
+                f"No registration matched kind={kind!r}, fields={fields!r}. "
+                f"Registered callbacks: {self.registrar.registrations!r}"
+            )
+        return matches[0]
+
+    def assert_registered_once(self, kind: str, **fields) -> HookRegistration:
+        """Assert that exactly one callback registration matches the supplied fields."""
+        matches = self.registered(kind, **fields)
+        if len(matches) != 1:
+            self.fail(
+                f"Expected one registration matching kind={kind!r}, fields={fields!r}; "
+                f"found {len(matches)}: {matches!r}"
+            )
+        return matches[0]
+
+    def assert_registered_attrs(
+        self,
+        entity: str,
+        expected_attrs: Iterable[str],
+        *,
+        kind: str = "on_new_attr",
+        exact: bool = True,
+    ) -> list[HookRegistration]:
+        """Assert that attribute hook registrations exist for the supplied entity attributes."""
+        expected = set(expected_attrs)
+        matches = self.registered(kind, entity=entity)
+        actual = {registration.attr for registration in matches if registration.attr is not None}
+        if exact:
+            self.assertEqual(expected, actual)
+        else:
+            missing = expected - actual
+            if missing:
+                self.fail(f"Missing registrations for attributes: {sorted(missing)!r}")
+        return [registration for registration in matches if registration.attr in expected]
+
+    def assert_scheduler_registered(self, **fields) -> HookRegistration:
+        """Assert that at least one scheduler callback registration matches the supplied fields."""
+        return self.assert_registered("scheduler", **fields)
+
+    assertRegistered = assert_registered
+    assertRegisteredOnce = assert_registered_once
+    assertRegisteredAttrs = assert_registered_attrs
+    assertSchedulerRegistered = assert_scheduler_registered
+
+    def _registration_matches(
+        self, registration: HookRegistration, kind: Optional[str], fields: dict[str, Any]
+    ) -> bool:
+        if kind is not None and registration.kind != kind:
+            return False
+        for key, expected in fields.items():
+            found, actual = _registration_field(registration, key)
+            if not found:
+                return False
+            if key in {"hook", "func"} and isinstance(expected, str):
+                if not _callable_name_matches(actual, expected):
+                    return False
+            elif not self._partial_match(actual, expected):
+                return False
+        return True
+
+
+def _registration_field(registration: HookRegistration, key: str) -> tuple[bool, Any]:
+    if key == "func":
+        return True, registration.hook
+    if hasattr(registration, key):
+        return True, getattr(registration, key)
+    if key in registration.extra:
+        return True, registration.extra[key]
+    schedule = registration.extra.get("schedule", {})
+    if key in schedule:
+        return True, schedule[key]
+    return False, None
+
+
+def _callable_name_matches(func: Callable, expected: str) -> bool:
+    func_name = get_func_name(func)
+    return func_name == expected or func_name.endswith(f".{expected}")

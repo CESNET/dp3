@@ -150,6 +150,12 @@ class TestDP3ModuleTestCase(DP3ModuleTestCase):
 
         self.assertNoTasks(tasks)
         self.assertRecordContains(record, test_attr_int=6, test_attr_float=1.5)
+        self.assertRecordAttr(record, "test_attr_int", 6)
+
+    def test_no_datapoints_assertion_accepts_empty_tasks(self):
+        tasks = [self.make_task("test_entity_type", "e1")]
+
+        self.assertNoDatapoints(tasks)
 
     def test_periodic_update_hook(self):
         tasks = self.run_periodic_update(

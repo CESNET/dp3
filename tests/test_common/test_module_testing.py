@@ -1,9 +1,11 @@
 import copy
 import os
 import warnings
+from datetime import datetime, timedelta
 
 from dp3.common.base_module import BaseModule
 from dp3.common.task import DataPointTask
+from dp3.common.types import UTC
 from dp3.testing import DP3ModuleTestCase
 
 
@@ -162,6 +164,21 @@ class TestDP3ModuleTestCase(DP3ModuleTestCase):
         tasks = [self.make_task("test_entity_type", "e1")]
 
         self.assertNoDatapoints(tasks)
+
+    def test_timeseries_datapoint_helper_infers_t2_for_regular_timeseries(self):
+        t1 = datetime(2024, 1, 1, tzinfo=UTC)
+
+        dp = self.make_timeseries_datapoint(
+            "test_entity_type",
+            "e1",
+            "test_attr_timeseries",
+            {"value": [1, 2, 3]},
+            t1=t1,
+        )
+
+        self.assertEqual(t1, dp.t1)
+        self.assertEqual(t1 + timedelta(minutes=30), dp.t2)
+        self.assertEqual([1, 2, 3], dp.v.value)
 
     def test_periodic_update_hook(self):
         tasks = self.run_periodic_update(

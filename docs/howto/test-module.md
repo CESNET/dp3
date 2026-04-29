@@ -55,12 +55,31 @@ class TestIPExposureProfile(DP3ModuleTestCase):
 - loads `db_entities` from `DP3_CONFIG_DIR` or `config_dir` and builds a real `ModelSpec`,
 - creates a minimal `PlatformConfig`,
 - instantiates `module_class` with a test registrar,
-- creates validated `DataPointTask` and datapoint objects using the loaded model,
+- creates validated `DataPointTask` and plain, observation, or timeseries datapoint objects using
+  the loaded model,
 - calls registered hooks directly,
 - provides partial-match assertions for emitted tasks, datapoints, and mutated records.
 
 The helper is intended for module-level unit tests. It does not run a database, task queues,
 worker processes, recursive task ingestion, or full linked snapshot loading.
+
+## Datapoint helpers
+
+Use the datapoint helpers to build values accepted by the loaded model specification:
+
+```python
+plain = self.make_plain_datapoint("ip", "192.0.2.1", "hostname", "host.example")
+observation = self.make_observation_datapoint("ip", "192.0.2.1", "open_ports", 443)
+timeseries = self.make_timeseries_datapoint(
+    "ip",
+    "192.0.2.1",
+    "traffic",
+    {"packets": [1, 2, 3], "bytes": [100, 200, 300]},
+)
+```
+
+For regular timeseries attributes, `make_timeseries_datapoint()` infers `t2` from `t1`, the
+configured `time_step`, and the number of samples when `t2` is not supplied.
 
 ## Hook runners
 

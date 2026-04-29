@@ -2,10 +2,11 @@
 
 import copy
 import unittest
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Callable, Generic, Optional, TypeVar, Union
 
+from dp3.common.attrspec import AttrType
 from dp3.common.base_module import BaseModule
 from dp3.common.config import HierarchicalDict, ModelSpec, PlatformConfig
 from dp3.common.datapoint import DataPointBase
@@ -150,6 +151,57 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         if t2 is not None:
             data["t2"] = t2
         return self.make_datapoint(etype, eid, attr, v, src=src, **data)
+
+    def make_timeseries_datapoint(
+        self,
+        etype: str,
+        eid: Any,
+        attr: str,
+        v: Mapping[str, Sequence[Any]],
+        src: str = "test",
+        t1: Optional[datetime] = None,
+        t2: Optional[datetime] = None,
+        **fields,
+    ) -> DataPointBase:
+        """Create a validated timeseries datapoint.
+
+        For regular timeseries attributes, ``t2`` is inferred when omitted by using the
+        attribute's configured ``time_step`` and the number of samples in ``v``:
+        ``t2 = t1 + len(series) * time_step``. For irregular timeseries, ``t1`` is inferred from
+        the first ``time`` value when omitted. For irregular-interval timeseries, ``t1`` is inferred
+        from the first ``time_first`` value when omitted.
+        """
+        attr_spec = self.model_spec.attributes[etype, attr]
+        if attr_spec.t != AttrType.TIMESERIES:
+            raise ValueError(f"Attribute {etype}/{attr} is not a timeseries attribute.")
+
+        values = dict(v)
+        t1 = t1 or self._infer_timeseries_t1(attr_spec, values) or datetime.now(UTC)
+        if t2 is None and attr_spec.timeseries_type == "regular":
+            time_step = attr_spec.timeseries_params.time_step
+            if time_step is None:
+                raise ValueError(f"Regular timeseries attribute {etype}/{attr} has no time_step.")
+            t2 = t1 + self._timeseries_length(values) * time_step
+
+        data = {"t1": t1, **fields}
+        if t2 is not None:
+            data["t2"] = t2
+        return self.make_datapoint(etype, eid, attr, values, src=src, **data)
+
+    @staticmethod
+    def _infer_timeseries_t1(attr_spec, values: Mapping[str, Sequence[Any]]) -> Optional[datetime]:
+        if attr_spec.timeseries_type == "irregular" and values.get("time"):
+            return values["time"][0]
+        if attr_spec.timeseries_type == "irregular_intervals" and values.get("time_first"):
+            return values["time_first"][0]
+        return None
+
+    @staticmethod
+    def _timeseries_length(values: Mapping[str, Sequence[Any]]) -> int:
+        try:
+            return len(next(iter(values.values())))
+        except StopIteration as e:
+            raise ValueError("Timeseries datapoint values cannot be empty.") from e
 
     def run_task_hooks(self, hook_type: str, task: DataPointTask) -> None:
         self.registrar.run_task_hooks(hook_type, task)

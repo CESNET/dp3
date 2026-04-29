@@ -3,7 +3,7 @@
 import copy
 import unittest
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Generic, Optional, TypeVar, Union
 
 from dp3.common.base_module import BaseModule
 from dp3.common.config import HierarchicalDict, ModelSpec, PlatformConfig
@@ -21,8 +21,10 @@ from dp3.testing.config import (
 )
 from dp3.testing.registrar import TestCallbackRegistrar
 
+ModuleT = TypeVar("ModuleT", bound=BaseModule)
 
-class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase):
+
+class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
     """Base class for unit tests of DP3 secondary modules.
 
     By default the app configuration directory is read from ``DP3_CONFIG_DIR``. Subclasses may set
@@ -31,13 +33,13 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase):
 
     config_dir: Optional[str] = None
     config_env_var: str = CONFIG_DIR_ENV
-    module_class: Optional[type[BaseModule]] = None
+    module_class: type[ModuleT]
     module_name: Optional[str] = None
     module_config: Optional[dict] = None
     app_name: str = "test"
     process_index: int = 0
     num_processes: int = 1
-    auto_instantiate_module: bool = True
+    module: ModuleT
 
     def setUp(self) -> None:
         super().setUp()
@@ -46,11 +48,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase):
         self.model_spec = self.make_model_spec(self.config)
         self.platform_config = self.make_platform_config()
         self.registrar = self.make_registrar()
-        self.module = None
-        if self.auto_instantiate_module and self.module_class is not None:
-            self.module = self.make_module(
-                self.module_class, self.get_module_config(), self.registrar
-            )
+        self.module = self.make_module(self.module_class, self.get_module_config(), self.registrar)
 
     def resolve_config_dir(self) -> str:
         return resolve_config_dir(self.config_dir, self.config_env_var)
@@ -80,8 +78,6 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase):
     def get_module_name(self) -> Optional[str]:
         if self.module_name is not None:
             return self.module_name
-        if self.module_class is None:
-            return None
         return self.module_class.__module__.split(".")[-1]
 
     def make_registrar(self) -> TestCallbackRegistrar:
@@ -89,12 +85,11 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase):
 
     def make_module(
         self,
-        module_class: type[BaseModule],
-        module_config: Optional[dict] = None,
-        registrar: Optional[TestCallbackRegistrar] = None,
-    ) -> BaseModule:
-        config = copy.deepcopy(module_config if module_config is not None else {})
-        return module_class(self.platform_config, config, registrar or self.registrar)
+        module_class: type[ModuleT],
+        module_config: dict[str, Any],
+        registrar: TestCallbackRegistrar,
+    ) -> ModuleT:
+        return module_class(self.platform_config, module_config, registrar)
 
     def make_task(
         self,

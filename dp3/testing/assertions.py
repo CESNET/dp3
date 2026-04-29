@@ -1,5 +1,6 @@
 """Assertion helpers for DP3 module tests."""
 
+import unittest
 from collections.abc import Iterable
 from typing import Any
 
@@ -11,7 +12,7 @@ from dp3.common.task import DataPointTask
 _UNSET = object()
 
 
-class ModuleAssertions:
+class ModuleAssertions(unittest.TestCase):
     """Partial-match assertions for module hook outputs."""
 
     def assert_no_tasks(self, tasks: Iterable[DataPointTask]) -> None:

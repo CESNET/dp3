@@ -81,6 +81,16 @@ attribs:
       aggregate: true
       post_validity: 1h
       pre_validity: 1h
+  test_attr_timeseries:
+    name: test_attr_timeseries
+    type: timeseries
+    timeseries_type: regular
+    timeseries_params:
+      max_age: 7d
+      time_step: 10m
+    series:
+      value:
+        data_type: int
   test_attr_probability:
     name: test_attr_probability
     type: plain

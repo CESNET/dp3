@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from dp3.common.datapoint import DataPointBase
 from dp3.common.task import DataPointTask
 
+_UNSET = object()
+
 
 class ModuleAssertions:
     """Partial-match assertions for module hook outputs."""
@@ -15,14 +17,59 @@ class ModuleAssertions:
     def assert_no_tasks(self, tasks: Iterable[DataPointTask]) -> None:
         self.assertEqual([], list(tasks))
 
-    def assert_task_emitted(self, tasks: Iterable[DataPointTask], **expected) -> DataPointTask:
+    def assert_no_datapoints(self, tasks: Iterable[DataPointTask]) -> None:
+        self.assertEqual([], list(self.iter_datapoints(tasks)))
+
+    def assert_task_emitted(  # noqa: PLR0913
+        self,
+        tasks: Iterable[DataPointTask],
+        *,
+        etype: Any = _UNSET,
+        eid: Any = _UNSET,
+        data_points: Any = _UNSET,
+        tags: Any = _UNSET,
+        ttl_tokens: Any = _UNSET,
+        delete: Any = _UNSET,
+    ) -> DataPointTask:
+        """Assert that a task matching the supplied ``DataPointTask`` fields was emitted."""
+        expected = _selected_fields(
+            etype=etype,
+            eid=eid,
+            data_points=data_points,
+            tags=tags,
+            ttl_tokens=ttl_tokens,
+            delete=delete,
+        )
         task_list = list(tasks)
         for task in task_list:
             if self._partial_match(dump_value(task), expected):
                 return task
         self.fail(f"No emitted task matched {expected!r}. Emitted tasks: {dump_value(task_list)!r}")
 
-    def assert_datapoint(self, tasks: Iterable[DataPointTask], **expected) -> DataPointBase:
+    def assert_datapoint(  # noqa: PLR0913
+        self,
+        tasks: Iterable[DataPointTask],
+        *,
+        etype: Any = _UNSET,
+        eid: Any = _UNSET,
+        attr: Any = _UNSET,
+        src: Any = _UNSET,
+        v: Any = _UNSET,
+        c: Any = _UNSET,
+        t1: Any = _UNSET,
+        t2: Any = _UNSET,
+    ) -> DataPointBase:
+        """Assert that a datapoint matching the supplied ``DataPointBase`` fields was emitted."""
+        expected = _selected_fields(
+            etype=etype,
+            eid=eid,
+            attr=attr,
+            src=src,
+            v=v,
+            c=c,
+            t1=t1,
+            t2=t2,
+        )
         datapoints = list(self.iter_datapoints(tasks))
         for dp in datapoints:
             if self._partial_match(dump_value(dp), expected):
@@ -36,10 +83,25 @@ class ModuleAssertions:
         if not self._partial_match(record, expected):
             self.fail(f"Record {record!r} does not contain expected values {expected!r}")
 
+    def assert_record_attr(self, record: dict, attr: str, expected: Any) -> None:
+        if attr not in record:
+            self.fail(f"Record {record!r} does not contain attribute {attr!r}")
+        if not self._partial_match(record[attr], expected):
+            self.fail(
+                f"Record attribute {attr!r} value {record[attr]!r} "
+                f"does not match expected value {expected!r}"
+            )
+
+    def assert_record_unchanged(self, before: dict, after: dict) -> None:
+        self.assertEqual(dump_value(before), dump_value(after))
+
     assertNoTasks = assert_no_tasks
+    assertNoDatapoints = assert_no_datapoints
     assertTaskEmitted = assert_task_emitted
     assertDatapoint = assert_datapoint
     assertRecordContains = assert_record_contains
+    assertRecordAttr = assert_record_attr
+    assertRecordUnchanged = assert_record_unchanged
 
     @staticmethod
     def iter_datapoints(tasks: Iterable[DataPointTask]) -> Iterable[DataPointBase]:
@@ -58,6 +120,10 @@ class ModuleAssertions:
                 for key, value in expected.items()
             )
         return actual == expected
+
+
+def _selected_fields(**fields: Any) -> dict[str, Any]:
+    return {key: value for key, value in fields.items() if value is not _UNSET}
 
 
 def dump_value(value: Any) -> Any:

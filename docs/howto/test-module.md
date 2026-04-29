@@ -85,11 +85,15 @@ Assertions use partial matching: only fields supplied in the expected values are
 self.assertDatapoint(tasks, etype="ip", attr="hostname", v="example.test")
 self.assertTaskEmitted(tasks, etype="ip", eid="192.0.2.1")
 self.assertNoTasks(tasks)
+self.assertNoDatapoints(tasks)
 self.assertRecordContains(record, exposure_score=10)
+self.assertRecordAttr(record, "exposure_score", 10)
+self.assertRecordUnchanged(before, after)
 ```
 
 Snake-case aliases are also available: `assert_datapoint`, `assert_task_emitted`,
-`assert_no_tasks`, and `assert_record_contains`.
+`assert_no_tasks`, `assert_no_datapoints`, `assert_record_contains`, `assert_record_attr`, and
+`assert_record_unchanged`.
 
 ## Registration assertions
 

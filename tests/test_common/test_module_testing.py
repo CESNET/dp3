@@ -28,9 +28,11 @@ class SampleModule(BaseModule):
         registrar.register_periodic_update_hook(
             self.periodic_record, "sample", "test_entity_type", "1d"
         )
+        registrar.scheduler_register(self.reload, minute="*/5")
 
     def load_config(self, _config, module_config):
         self.prefix = module_config.get("prefix", "created")
+        self.reload_count = 0
 
     def allow_create(self, eid, _task):
         return eid != "deny"
@@ -91,6 +93,9 @@ class SampleModule(BaseModule):
                 ],
             )
         ]
+
+    def reload(self):
+        self.reload_count += 1
 
 
 class DeprecatedHookModule(BaseModule):
@@ -264,6 +269,48 @@ class TestDP3ModuleTestCase(DP3ModuleTestCase):
 
         self.assertEqual([], registrar.run_snapshot_finalize_hooks())
         self.assertEqual([], registrar.run_correlation_hooks("test_entity_type", {"eid": "e1"}))
+
+    def test_periodic_update_hook_rejects_duplicate_thread_hook_id(self):
+        registrar = self.make_registrar()
+        registrar.register_periodic_update_hook(
+            lambda _etype, _eid, _record: [], "duplicate", "test_entity_type", "1d"
+        )
+
+        with self.assertRaises(ValueError):
+            registrar.register_periodic_update_hook(
+                lambda _etype, _eid, _record: [], "duplicate", "test_entity_type", "1d"
+            )
+
+    def test_periodic_eid_update_hook_rejects_duplicate_thread_hook_id(self):
+        registrar = self.make_registrar()
+        registrar.register_periodic_eid_update_hook(
+            lambda _etype, _eid: [], "duplicate", "test_entity_type", "1d"
+        )
+
+        with self.assertRaises(ValueError):
+            registrar.register_periodic_eid_update_hook(
+                lambda _etype, _eid: [], "duplicate", "test_entity_type", "1d"
+            )
+
+    def test_periodic_update_hook_validates_batch_period(self):
+        registrar = self.make_registrar()
+
+        with self.assertRaises(ValueError):
+            registrar.register_periodic_update_hook(
+                lambda _etype, _eid, _record: [], "too-often", "test_entity_type", "1m"
+            )
+
+    def test_registration_assertions(self):
+        self.assert_registered("on_new_attr", entity="test_entity_type", attr="test_attr_string")
+        self.assert_registered_once("correlation", entity_type="test_entity_type")
+        self.assert_registered_attrs("test_entity_type", ["test_attr_string"])
+
+    def test_scheduler_helpers(self):
+        self.assert_scheduler_registered(func="reload", minute="*/5")
+
+        self.run_scheduler_job("reload")
+
+        self.assertEqual(1, self.module.reload_count)
 
     def test_deprecated_registrar_methods_are_supported_with_warnings(self):
         registrar = self.make_registrar()

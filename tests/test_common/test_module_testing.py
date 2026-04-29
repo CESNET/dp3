@@ -3,7 +3,7 @@ import warnings
 
 from dp3.common.base_module import BaseModule
 from dp3.common.task import DataPointTask
-from dp3.testing.modules import DP3ModuleTestCase
+from dp3.testing import DP3ModuleTestCase
 
 
 class SampleModule(BaseModule):

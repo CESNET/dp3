@@ -175,7 +175,7 @@ and configuration, see the [updater configuration](configuration/updater.md) pag
 ## Testing modules
 
 Secondary modules can be unit-tested without running a full DP3 worker by using
-[`DP3ModuleTestCase`][dp3.testing.modules.DP3ModuleTestCase]. The helper loads an application's
+[`DP3ModuleTestCase`][dp3.testing.DP3ModuleTestCase]. The helper loads an application's
 real `db_entities` model from `DP3_CONFIG_DIR` or an explicit test fixture path, instantiates a
 module with a test callback registrar, and lets tests call registered hooks directly with validated
 `DataPointTask` and datapoint objects.

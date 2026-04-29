@@ -3,7 +3,7 @@
 DP3 includes helpers for writing focused unit tests for secondary modules without running a full
 worker, database, message broker, or snapshot scheduler.
 
-Use [`DP3ModuleTestCase`][dp3.testing.modules.DP3ModuleTestCase] when you want to instantiate a
+Use [`DP3ModuleTestCase`][dp3.testing.DP3ModuleTestCase] when you want to instantiate a
 module with the application's real `db_entities` model and then call registered hooks directly.
 The test registrar captures callbacks during module initialization and exposes runners for the
 common hook families.
@@ -21,7 +21,7 @@ DP3_CONFIG_DIR=config python -m unittest discover -s tests -v
 ```python
 from unittest.mock import patch
 
-from dp3.testing.modules import DP3ModuleTestCase
+from dp3.testing import DP3ModuleTestCase
 from modules.ip_exposure_profile import IPExposureProfile
 
 

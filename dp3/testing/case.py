@@ -210,14 +210,18 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
     def run_allow_entity_creation(
         self, entity: str, eid: Any, task: Optional[DataPointTask] = None
     ) -> bool:
-        task = task or self.make_task(entity, eid)
+        task = task or self._make_synthetic_task(entity, eid)
         return self.registrar.run_allow_entity_creation(entity, eid, task)
 
     def run_on_entity_creation(
         self, entity: str, eid: Any, task: Optional[DataPointTask] = None
     ) -> list[DataPointTask]:
-        task = task or self.make_task(entity, eid)
+        task = task or self._make_synthetic_task(entity, eid)
         return self.registrar.run_on_entity_creation(entity, eid, task)
+
+    def _make_synthetic_task(self, etype: str, eid: Any) -> DataPointTask:
+        with task_context(self.model_spec, allow_empty_data_point_task=True):
+            return DataPointTask(etype=etype, eid=eid)
 
     def run_on_new_attr(self, entity: str, attr: str, eid: Any, dp: DataPointBase):
         return self.registrar.run_on_new_attr(entity, attr, eid, dp)

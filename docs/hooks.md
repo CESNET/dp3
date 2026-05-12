@@ -600,6 +600,8 @@ Code reference: [`scheduler_register`][dp3.common.callback_registrar.CallbackReg
 
 Most user-facing hooks return `list[DataPointTask]`.
 Whenever that happens, the returned tasks are fed back into the main ingestion system.
+Each returned task must do useful work: it must contain at least one datapoint, carry non-empty TTL tokens, or be a delete task.
+Empty `DataPointTask` objects are rejected during validation because they would be queued and processed without changing DP3 state.
 
 This creates a feedback loop:
 

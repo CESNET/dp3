@@ -11,7 +11,7 @@ from dp3.common.datapoint import DataPointType
 from dp3.common.datatype import AnyEidT
 from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import ParsedTimedelta
 from dp3.core.updater import Updater
 from dp3.snapshots.snapshooter import SnapShooter
@@ -57,7 +57,8 @@ def on_entity_creation_in_snapshots(
     if not run_flag.isset():
         return []
     eid = record["eid"]
-    mock_task = DataPointTask(etype=etype, eid=eid, data_points=[])
+    with task_context(model_spec, allow_empty_data_point_task=True):
+        mock_task = DataPointTask(etype=etype, eid=eid, data_points=[])
     tasks = original_hook(eid, mock_task)
     write_datapoints_into_record(model_spec, tasks, record)
     return tasks
@@ -74,7 +75,8 @@ def on_attr_change_in_snapshots(
     if not run_flag.isset():
         return []
     eid = record["eid"]
-    mock_task = DataPointTask(etype=etype, eid=eid, data_points=[])
+    with task_context(model_spec, allow_empty_data_point_task=True):
+        mock_task = DataPointTask(etype=etype, eid=eid, data_points=[])
     tasks = original_hook(eid, mock_task)
     if isinstance(tasks, list):
         write_datapoints_into_record(model_spec, tasks, record)

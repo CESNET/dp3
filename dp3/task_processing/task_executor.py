@@ -193,10 +193,10 @@ class TaskExecutor:
         for master_record in self.db.get_worker_master_records(
             worker_id, worker_cnt, etype, projection=projection
         ):
-            with task_context(self.model_spec):
+            with task_context(self.model_spec, allow_empty_data_point_task=True):
                 task = DataPointTask(etype=etype, eid=master_record["_id"])
-                self.log.debug(f"Refreshing {etype}/{task.eid}")
-                new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.eid, task)
+            self.log.debug(f"Refreshing {etype}/{task.eid}")
+            new_tasks += self._task_entity_hooks[task.etype].run_on_creation(task.eid, task)
 
         return new_tasks
 

@@ -17,7 +17,9 @@ from pydantic import (
     Tag,
     TypeAdapter,
     ValidationError,
+    ValidationInfo,
     field_validator,
+    model_validator,
 )
 from pydantic_core.core_schema import FieldValidationInfo
 
@@ -40,9 +42,16 @@ def HASH(key: str) -> int:
 
 
 @contextmanager
-def task_context(model_spec: ModelSpec) -> Iterator[None]:
+def task_context(
+    model_spec: ModelSpec, *, allow_empty_data_point_task: bool = False
+) -> Iterator[None]:
     """Context manager for setting the `model_spec` context variable."""
-    token = _init_context_var.set({"model_spec": model_spec})
+    token = _init_context_var.set(
+        {
+            "model_spec": model_spec,
+            "allow_empty_data_point_task": allow_empty_data_point_task,
+        }
+    )
     try:
         yield
     finally:
@@ -181,6 +190,18 @@ class DataPointTask(Task):
             return ms.entities[info.data["etype"]].validate_eid(v)
         else:
             raise AssertionError("Missing `model_spec` in context")
+
+    @model_validator(mode="after")
+    def validate_not_empty(self, info: ValidationInfo):
+        context = info.context
+        if context and context.get("allow_empty_data_point_task"):
+            return self
+        if not self.data_points and not self.ttl_tokens and not self.delete:
+            raise ValueError(
+                "DataPointTask must contain at least one datapoint, non-empty ttl_tokens, "
+                "or be a delete task."
+            )
+        return self
 
 
 def parse_data_point_task(task: str, model_spec: ModelSpec) -> DataPointTask:

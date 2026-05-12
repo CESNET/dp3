@@ -2,9 +2,11 @@ import os
 import warnings
 from datetime import datetime, timedelta
 
+from pydantic import ValidationError
+
 from dp3.common.base_module import BaseModule
 from dp3.common.state import SharedFlag
-from dp3.common.task import DataPointTask
+from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import UTC
 from dp3.testing import DP3ModuleTestCase
 
@@ -154,8 +156,20 @@ class TestDP3ModuleTestCase(DP3ModuleTestCase):
         self.assertRecordContains(record, test_attr_int=6, test_attr_float=1.5)
         self.assertRecordAttr(record, "test_attr_int", 6)
 
-    def test_no_datapoints_assertion_accepts_empty_tasks(self):
-        tasks = [self.make_task("test_entity_type", "e1")]
+    def test_empty_datapoint_task_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            self.make_task("test_entity_type", "e1")
+
+    def test_empty_datapoint_task_is_allowed_for_internal_synthetic_context(self):
+        with task_context(self.model_spec, allow_empty_data_point_task=True):
+            task = DataPointTask(etype="test_entity_type", eid="e1")
+
+        self.assertEqual("test_entity_type", task.etype)
+        self.assertEqual("e1", task.eid)
+        self.assertEqual([], task.data_points)
+
+    def test_no_datapoints_assertion_accepts_tasks_without_datapoints(self):
+        tasks = [self.make_task("test_entity_type", "e1", delete=True)]
 
         self.assertNoDatapoints(tasks)
 

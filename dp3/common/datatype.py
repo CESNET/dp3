@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
-from typing import Any, Optional, Union
+from typing import Any
 
 from pydantic import (
     BaseModel,
@@ -38,12 +38,12 @@ primitive_data_types = {
     "mac": MACAddress,
     "time": datetime,
     "special": Any,
-    "json": Union[Json[Any], dict, list],
+    "json": Json[Any] | dict | list,
 }
 
 eid_data_types = ["string", "int", "ipv4", "ipv6", "mac"]
 
-AnyEidT = Union[str, int, IPv4Address, IPv6Address, MACAddress]
+AnyEidT = str | int | IPv4Address | IPv6Address | MACAddress
 """Type alias for any of possible entity ID data types.
 
 Note that the type is determined based on the loaded entity configuration
@@ -190,7 +190,7 @@ class DataType(RootModel):
                 # Set (type, default value) for the key
                 if k_optional:
                     k = k[:-1]  # Remove question mark from key
-                    dict_spec[k] = (Optional[primitive_data_types[v]], None)
+                    dict_spec[k] = (primitive_data_types[v] | None, None)
                 else:
                     dict_spec[k] = (primitive_data_types[v], ...)
 
@@ -228,7 +228,7 @@ class DataType(RootModel):
         return self._determine_value_validator()
 
     @property
-    def data_type(self) -> Union[type, BaseModel]:
+    def data_type(self) -> type | BaseModel:
         """Type for incoming value validation"""
         return self._data_type
 
@@ -263,7 +263,7 @@ class DataType(RootModel):
         return self._mirror_link
 
     @property
-    def mirror_as(self) -> Union[str, None]:
+    def mirror_as(self) -> str | None:
         """If `mirror_link`, what is the name of the mirrored attribute"""
         return self._mirror_as
 

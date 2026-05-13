@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import Json, NonNegativeInt, ValidationError
@@ -44,7 +44,7 @@ async def parse_eid(etype: str, eid: str):
 ParsedEid = Annotated[EntityId, Depends(parse_eid)]
 
 
-def _parse_optional_eid(etype: str, eid: Optional[str]) -> Any:
+def _parse_optional_eid(etype: str, eid: str | None) -> Any:
     """Parse optional entity id query parameter for entity-scoped endpoints."""
     if eid is None:
         return None
@@ -72,7 +72,7 @@ def _raw_datapoint_to_response(raw_datapoint: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_eid_master_record_handler(
-    e: EntityId, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
+    e: EntityId, date_from: AwareDatetime | None = None, date_to: AwareDatetime | None = None
 ):
     """Handler for getting master record of EID"""
     # TODO: This is probably not the most efficient way. Maybe gather only
@@ -97,8 +97,8 @@ def get_eid_master_record_handler(
 
 def get_eid_snapshots_handler(
     e: EntityId,
-    date_from: Optional[AwareDatetime] = None,
-    date_to: Optional[AwareDatetime] = None,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
     skip: int = 0,
     limit: int = 0,
 ) -> list[dict[str, Any]]:
@@ -271,9 +271,9 @@ async def count_entity_type_eids(
 )
 async def get_entity_type_raw_datapoints(
     etype: str,
-    eid: Optional[str] = None,
-    attr: Optional[str] = None,
-    src: Optional[str] = None,
+    eid: str | None = None,
+    attr: str | None = None,
+    src: str | None = None,
     skip: NonNegativeInt = 0,
     limit: NonNegativeInt = 20,
 ) -> EntityRawDataPage:
@@ -305,7 +305,7 @@ async def get_entity_type_raw_datapoints(
 
 @router.get("/{etype}/{eid}")
 async def get_eid_data(
-    e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
+    e: ParsedEid, date_from: AwareDatetime | None = None, date_to: AwareDatetime | None = None
 ) -> EntityEidData:
     """Get data of the entity identified by `etype` and `eid`.
 
@@ -325,7 +325,7 @@ async def get_eid_data(
 
 @router.get("/{etype}/{eid}/master")
 async def get_eid_master_record(
-    e: ParsedEid, date_from: Optional[AwareDatetime] = None, date_to: Optional[AwareDatetime] = None
+    e: ParsedEid, date_from: AwareDatetime | None = None, date_to: AwareDatetime | None = None
 ) -> EntityEidMasterRecord:
     """Get the master record of the entity identified by `etype` and `eid`."""
     return get_eid_master_record_handler(e, date_from, date_to)
@@ -334,8 +334,8 @@ async def get_eid_master_record(
 @router.get("/{etype}/{eid}/snapshots")
 async def get_eid_snapshots(
     e: ParsedEid,
-    date_from: Optional[AwareDatetime] = None,
-    date_to: Optional[AwareDatetime] = None,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
     skip: NonNegativeInt = 0,
     limit: NonNegativeInt = 0,
 ) -> EntityEidSnapshots:
@@ -351,8 +351,8 @@ async def get_eid_snapshots(
 async def get_eid_attr_value(
     e: ParsedEid,
     attr: str,
-    date_from: Optional[AwareDatetime] = None,
-    date_to: Optional[AwareDatetime] = None,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
 ) -> EntityEidAttrValueOrHistory:
     """Get attribute value
 

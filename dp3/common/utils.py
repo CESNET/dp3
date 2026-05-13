@@ -7,7 +7,6 @@ from collections.abc import Iterable, Iterator
 from datetime import datetime, timedelta
 from functools import partial
 from itertools import islice
-from typing import Union
 
 # *** IP conversion functions ***
 ipv4_re = re.compile(r"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$")
@@ -74,7 +73,7 @@ def parse_rfc_time(time_str):
 time_duration_pattern = re.compile(r"^\s*(\d+)([smhd])?$")
 
 
-def parse_time_duration(duration_string: Union[str, int, timedelta]) -> timedelta:
+def parse_time_duration(duration_string: str | int | timedelta) -> timedelta:
     """
     Parse duration in format <num><s/m/h/d> (or just "0").
 
@@ -84,7 +83,7 @@ def parse_time_duration(duration_string: Union[str, int, timedelta]) -> timedelt
     if isinstance(duration_string, timedelta):
         return duration_string
     # if number is passed, consider it number of seconds
-    if isinstance(duration_string, (int, float)):
+    if isinstance(duration_string, int | float):
         return timedelta(seconds=duration_string)
 
     d = 0

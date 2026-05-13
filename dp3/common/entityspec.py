@@ -1,4 +1,4 @@
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
@@ -62,7 +62,7 @@ class EntitySpec(SpecModel):
     id_data_type: EidDataType = EidDataType("string")
     name: str
     snapshot: bool
-    lifetime: Union[ImmortalLifetime, TimeToLiveLifetime, WeakLifetime] = Field(
+    lifetime: ImmortalLifetime | TimeToLiveLifetime | WeakLifetime = Field(
         default_factory=lambda: ImmortalLifetime(type="immortal"), discriminator="type"
     )
 

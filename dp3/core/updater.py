@@ -2,10 +2,10 @@
 
 import logging
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta
 from functools import partial
-from typing import Callable, Literal
+from typing import Literal
 
 from pydantic import BaseModel, validate_call
 from pymongo.cursor import Cursor

@@ -1,6 +1,6 @@
 from datetime import timedelta
 from enum import Flag
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -68,11 +68,11 @@ class AttrType(Flag):
 class ObservationsHistoryParams(BaseModel):
     """History parameters field of observations attribute"""
 
-    max_age: Optional[ParsedTimedelta] = None
-    max_items: Optional[PositiveInt] = None
-    expire_time: Optional[ParsedTimedelta] = None
-    pre_validity: Optional[ParsedTimedelta] = timedelta()
-    post_validity: Optional[ParsedTimedelta] = timedelta()
+    max_age: ParsedTimedelta | None = None
+    max_items: PositiveInt | None = None
+    expire_time: ParsedTimedelta | None = None
+    pre_validity: ParsedTimedelta | None = timedelta()
+    post_validity: ParsedTimedelta | None = timedelta()
 
     aggregate: bool = True
 
@@ -85,8 +85,8 @@ class ObservationsHistoryParams(BaseModel):
 class TimeseriesTSParams(BaseModel):
     """Timeseries parameters field of timeseries attribute"""
 
-    max_age: Optional[ParsedTimedelta] = None
-    time_step: Optional[ParsedTimedelta] = None
+    max_age: ParsedTimedelta | None = None
+    time_step: ParsedTimedelta | None = None
 
 
 class TimeseriesSeries(BaseModel):
@@ -119,7 +119,7 @@ class AttrSpecGeneric(SpecModel, use_enum_values=True):
     id: str = Field(pattern=ID_REGEX)
     name: str
     description: str = ""
-    ttl: Optional[ParsedTimedelta] = timedelta()
+    ttl: ParsedTimedelta | None = timedelta()
 
     _dp_model = PrivateAttr()
 
@@ -298,7 +298,7 @@ class AttrSpecTimeseries(AttrSpecGeneric):
 - [AttrSpecObservations][dp3.common.attrspec.AttrSpecObservations]
 - [AttrSpecTimeseries][dp3.common.attrspec.AttrSpecTimeseries]
 """
-AttrSpecType = Union[AttrSpecTimeseries, AttrSpecObservations, AttrSpecPlain]
+AttrSpecType = AttrSpecTimeseries | AttrSpecObservations | AttrSpecPlain
 
 
 def AttrSpec(id: str, spec: dict[str, Any]) -> AttrSpecType:

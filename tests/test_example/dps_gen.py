@@ -2,12 +2,12 @@
 
 import json
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 class TimeContainer:
     def __init__(self):
-        self.time = datetime.now(timezone.utc) - timedelta(days=4)
+        self.time = datetime.now(UTC) - timedelta(days=4)
 
     def add_minutes(self, minutes: int):
         self.time += timedelta(minutes=minutes)

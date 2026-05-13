@@ -1,7 +1,8 @@
 import logging
+from collections.abc import Callable
 from functools import partial, wraps
 from logging import Logger
-from typing import Any, Callable, Union
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -68,7 +69,7 @@ def on_entity_creation_in_snapshots(
 def on_attr_change_in_snapshots(
     model_spec: ModelSpec,
     run_flag: SharedFlag,
-    original_hook: Callable[[AnyEidT, DataPointTask], Union[list[DataPointTask], None]],
+    original_hook: Callable[[AnyEidT, DataPointTask], list[DataPointTask] | None],
     etype: str,
     record: dict,
 ) -> list[DataPointTask]:
@@ -139,16 +140,16 @@ class CallbackRegistrar:
         self,
         func: Callable,
         *,
-        func_args: Union[list, tuple] = None,
+        func_args: list | tuple = None,
         func_kwargs: dict = None,
-        year: Union[int, str] = None,
-        month: Union[int, str] = None,
-        day: Union[int, str] = None,
-        week: Union[int, str] = None,
-        day_of_week: Union[int, str] = None,
-        hour: Union[int, str] = None,
-        minute: Union[int, str] = None,
-        second: Union[int, str] = None,
+        year: int | str = None,
+        month: int | str = None,
+        day: int | str = None,
+        week: int | str = None,
+        day_of_week: int | str = None,
+        hour: int | str = None,
+        minute: int | str = None,
+        second: int | str = None,
         timezone: str = "UTC",
         misfire_grace_time: int = 1,
     ) -> int:
@@ -271,7 +272,7 @@ class CallbackRegistrar:
 
     def register_on_new_attr_hook(
         self,
-        hook: Callable[[AnyEidT, DataPointType], Union[None, list[DataPointTask]]],
+        hook: Callable[[AnyEidT, DataPointType], None | list[DataPointTask]],
         entity: str,
         attr: str,
         refresh: SharedFlag = None,
@@ -353,7 +354,7 @@ class CallbackRegistrar:
 
     def register_correlation_hook(
         self,
-        hook: Callable[[str, dict], Union[None, list[DataPointTask]]],
+        hook: Callable[[str, dict], None | list[DataPointTask]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
@@ -385,7 +386,7 @@ class CallbackRegistrar:
 
     def register_correlation_hook_with_master_record(
         self,
-        hook: Callable[[str, dict, dict], Union[None, list[DataPointTask]]],
+        hook: Callable[[str, dict, dict], None | list[DataPointTask]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],

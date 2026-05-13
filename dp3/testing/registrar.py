@@ -4,10 +4,11 @@ import copy
 import logging
 import warnings
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import partial
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 from apscheduler.triggers.cron import CronTrigger
 from event_count_logger import DummyEventGroup
@@ -40,12 +41,12 @@ class HookRegistration:
 
     kind: str
     hook: Callable
-    entity: Optional[str] = None
-    attr: Optional[str] = None
-    hook_type: Optional[str] = None
-    hook_id: Optional[str] = None
-    entity_type: Optional[str] = None
-    attr_type: Optional[str] = None
+    entity: str | None = None
+    attr: str | None = None
+    hook_type: str | None = None
+    hook_id: str | None = None
+    entity_type: str | None = None
+    attr_type: str | None = None
     depends_on: list[list[str]] = field(default_factory=list)
     may_change: list[list[str]] = field(default_factory=list)
     refresh: Any = None
@@ -60,7 +61,7 @@ class TestCallbackRegistrar:
     def __init__(
         self,
         model_spec: ModelSpec,
-        log: Optional[logging.Logger] = None,
+        log: logging.Logger | None = None,
         update_batch_period: Any = None,
     ):
         self.model_spec = model_spec
@@ -92,16 +93,16 @@ class TestCallbackRegistrar:
         self,
         func: Callable,
         *,
-        func_args: Union[list, tuple] = None,
+        func_args: list | tuple = None,
         func_kwargs: dict = None,
-        year: Union[int, str] = None,
-        month: Union[int, str] = None,
-        day: Union[int, str] = None,
-        week: Union[int, str] = None,
-        day_of_week: Union[int, str] = None,
-        hour: Union[int, str] = None,
-        minute: Union[int, str] = None,
-        second: Union[int, str] = None,
+        year: int | str = None,
+        month: int | str = None,
+        day: int | str = None,
+        week: int | str = None,
+        day_of_week: int | str = None,
+        hour: int | str = None,
+        minute: int | str = None,
+        second: int | str = None,
         timezone: str = "UTC",
         misfire_grace_time: int = 1,
     ) -> int:
@@ -368,7 +369,7 @@ class TestCallbackRegistrar:
         self,
         entity_type: str,
         record: dict,
-        master_record: Optional[dict] = None,
+        master_record: dict | None = None,
     ) -> list[DataPointTask]:
         eid = self._assert_record_eid(record)
         return self.run_correlation_hooks_for_entities(
@@ -376,7 +377,7 @@ class TestCallbackRegistrar:
         )
 
     def run_correlation_hooks_for_entities(
-        self, entities: dict[tuple[str, Any], dict], master_records: Optional[dict] = None
+        self, entities: dict[tuple[str, Any], dict], master_records: dict | None = None
     ) -> list[DataPointTask]:
         master_records = master_records or {}
         for entity_type, _ in entities:
@@ -415,7 +416,7 @@ class TestCallbackRegistrar:
         entity_type: str,
         eid: Any,
         master_record: dict,
-        hook_id: Optional[str] = None,
+        hook_id: str | None = None,
     ) -> list[DataPointTask]:
         hooks = self._matching_update_hooks(self._periodic_record_hooks, entity_type, hook_id)
         tasks: list[DataPointTask] = []
@@ -426,7 +427,7 @@ class TestCallbackRegistrar:
         return tasks
 
     def run_periodic_eid_update(
-        self, entity_type: str, eid: Any, hook_id: Optional[str] = None
+        self, entity_type: str, eid: Any, hook_id: str | None = None
     ) -> list[DataPointTask]:
         hooks = self._matching_update_hooks(self._periodic_eid_hooks, entity_type, hook_id)
         tasks: list[DataPointTask] = []
@@ -436,9 +437,7 @@ class TestCallbackRegistrar:
                 tasks.extend(hook_tasks)
         return tasks
 
-    def get_scheduler_job(
-        self, job: Union[int, str, Callable, HookRegistration]
-    ) -> HookRegistration:
+    def get_scheduler_job(self, job: int | str | Callable | HookRegistration) -> HookRegistration:
         """Return a registered scheduler job by id, callable, or callable name."""
         if isinstance(job, int):
             for reg in self._scheduler_jobs:
@@ -457,7 +456,7 @@ class TestCallbackRegistrar:
             raise ValueError(f"Multiple scheduler jobs match {job!r}.")
         return matches[0]
 
-    def run_scheduler_job(self, job: Union[int, str, Callable, HookRegistration]):
+    def run_scheduler_job(self, job: int | str | Callable | HookRegistration):
         reg = self.get_scheduler_job(job)
         return reg.hook(*reg.extra["func_args"], **reg.extra["func_kwargs"])
 
@@ -536,7 +535,7 @@ class TestCallbackRegistrar:
         thread_id: UpdateThreadId = (period_seconds, entity_type, eid_only)
         return get_update_thread_hooks(update_thread_hooks, hook_id, thread_id)
 
-    def _update_batch_period_seconds(self) -> Optional[float]:
+    def _update_batch_period_seconds(self) -> float | None:
         if self.update_batch_period is None:
             return None
         return self._period_seconds(self.update_batch_period)
@@ -556,7 +555,7 @@ class TestCallbackRegistrar:
         return tasks
 
     @staticmethod
-    def _matching_update_hooks(hooks: dict, entity_type: str, hook_id: Optional[str]):
+    def _matching_update_hooks(hooks: dict, entity_type: str, hook_id: str | None):
         matches = []
         for (_, etype, _), thread_hooks in hooks.items():
             if etype != entity_type:
@@ -569,7 +568,7 @@ class TestCallbackRegistrar:
         return matches
 
 
-def _callable_matches(func: Callable, expected: Union[str, Callable]) -> bool:
+def _callable_matches(func: Callable, expected: str | Callable) -> bool:
     if callable(expected):
         return func == expected
     func_name = get_func_name(func)

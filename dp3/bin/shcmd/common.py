@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urljoin
 
 import requests
@@ -28,9 +28,9 @@ class DP3APIClient:
     def __init__(
         self,
         config_dir: str,
-        base_url: Optional[str] = None,
+        base_url: str | None = None,
         timeout: float = 5.0,
-        model_spec: Optional[ModelSpec] = None,
+        model_spec: ModelSpec | None = None,
     ):
         self.config_dir = os.path.abspath(config_dir)
         self.model_spec = model_spec
@@ -42,7 +42,7 @@ class DP3APIClient:
     def _normalize_base_url(base_url: str) -> str:
         return base_url.rstrip("/") + "/"
 
-    def _resolve_base_url(self, base_url: Optional[str]) -> str:
+    def _resolve_base_url(self, base_url: str | None) -> str:
         if base_url is not None:
             normalized = self._normalize_base_url(base_url)
             self._check_health(normalized)
@@ -84,7 +84,7 @@ class DP3APIClient:
         method: str,
         path: str,
         *,
-        params: Optional[dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
         json_body: Any = None,
         stream: bool = False,
     ) -> requests.Response:
@@ -115,7 +115,7 @@ def read_json_value(raw_value: str) -> Any:
         raise APIError(f"Invalid JSON value: {e}") from e
 
 
-def read_json_input(path: Optional[str]) -> Any:
+def read_json_input(path: str | None) -> Any:
     """Decode JSON from a file path or standard input."""
     if path in (None, "-"):
         content = sys.stdin.read()
@@ -207,7 +207,7 @@ def stream_json_pages(
     return 0
 
 
-def resolve_config_dir(config_dir: Optional[str]) -> str:
+def resolve_config_dir(config_dir: str | None) -> str:
     """Resolve the configuration directory for the shell-oriented CLI."""
     if config_dir is not None:
         return os.path.abspath(config_dir)
@@ -217,7 +217,7 @@ def resolve_config_dir(config_dir: Optional[str]) -> str:
 
 
 @lru_cache(maxsize=32)
-def load_completion_model_spec(config_dir: str) -> Optional[ModelSpec]:
+def load_completion_model_spec(config_dir: str) -> ModelSpec | None:
     """Load the model specification used by shell completion."""
     try:
         config = read_config_dir(config_dir, recursive=True)
@@ -228,8 +228,8 @@ def load_completion_model_spec(config_dir: str) -> Optional[ModelSpec]:
 
 @lru_cache(maxsize=32)
 def load_completion_entity_catalog(
-    config_dir: str, base_url: Optional[str], timeout: float
-) -> Optional[dict[str, Any]]:
+    config_dir: str, base_url: str | None, timeout: float
+) -> dict[str, Any] | None:
     """Load entity metadata from the API when config-based completion is unavailable."""
     try:
         client = DP3APIClient(config_dir, base_url, timeout)
@@ -241,7 +241,7 @@ def load_completion_entity_catalog(
 
 def get_completion_context(
     parsed_args,
-) -> tuple[Optional[ModelSpec], Optional[dict[str, Any]]]:
+) -> tuple[ModelSpec | None, dict[str, Any] | None]:
     """Return completion metadata derived from config and API sources."""
     config_dir = resolve_config_dir(getattr(parsed_args, "config", None))
     model_spec = load_completion_model_spec(config_dir)
@@ -257,8 +257,8 @@ def get_completion_context(
 
 def _entity_type_description(
     etype: str,
-    model_spec: Optional[ModelSpec],
-    entity_catalog: Optional[dict[str, Any]],
+    model_spec: ModelSpec | None,
+    entity_catalog: dict[str, Any] | None,
 ) -> str:
     if model_spec is not None and etype in model_spec.entities:
         entity_spec = model_spec.entity(etype)

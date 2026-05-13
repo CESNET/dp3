@@ -1,15 +1,13 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from ipaddress import IPv4Address, IPv6Address
 from json import JSONEncoder
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any
 
 from event_count_logger import DummyEventGroup, EventGroup
 from pydantic import AfterValidator, BeforeValidator
 from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.utils import parse_time_duration, time_duration_pattern
-
-UTC = timezone.utc
 
 
 def parse_timedelta_or_passthrough(v):
@@ -24,7 +22,7 @@ def parse_timedelta_or_passthrough(v):
 ParsedTimedelta = Annotated[timedelta, BeforeValidator(parse_timedelta_or_passthrough)]
 
 
-def ensure_timezone_aware(v: Optional[datetime]):
+def ensure_timezone_aware(v: datetime | None):
     """Ensure datetime is timezone-aware by defaulting to UTC."""
     if v is None:
         return v
@@ -55,7 +53,7 @@ T2Datetime = Annotated[
     AfterValidator(t2_after_t1),
 ]
 
-EventGroupType = Union[EventGroup, DummyEventGroup]
+EventGroupType = EventGroup | DummyEventGroup
 
 
 class DP3Encoder(JSONEncoder):
@@ -64,6 +62,6 @@ class DP3Encoder(JSONEncoder):
     def default(self, o: Any) -> Any:
         if isinstance(o, datetime):
             return o.strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4]
-        if isinstance(o, (IPv4Address, IPv6Address)):
+        if isinstance(o, IPv4Address | IPv6Address):
             return str(o)
         return super().default(o)

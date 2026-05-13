@@ -3,9 +3,8 @@ import logging
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Generator, Iterator
+from collections.abc import Callable, Generator, Iterator
 from datetime import datetime
-from typing import Callable, Optional
 
 import pymongo
 from event_count_logger import DummyEventGroup
@@ -62,7 +61,7 @@ class EntityDatabase:
         model_spec: ModelSpec,
         num_processes: int,
         process_index: int = 0,
-        elog: Optional[EventGroupType] = None,
+        elog: EventGroupType | None = None,
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
         self.elog = elog or DummyEventGroup()
@@ -559,7 +558,7 @@ class EntityDatabase:
             res = master_col.bulk_write(
                 [
                     ReplaceOne({"_id": eid}, record, upsert=True)
-                    for eid, record in zip(eids, records)
+                    for eid, record in zip(eids, records, strict=False)
                 ],
                 ordered=False,
             )
@@ -776,7 +775,7 @@ class EntityDatabase:
         try:
             updates = []
             for etype, affected_eid_list, attr_name, eid_to_list in zip(
-                etypes, affected_eids, attr_names, eids_to
+                etypes, affected_eids, attr_names, eids_to, strict=False
             ):
                 master_col = self._master_col(etype)
                 attr_type = self._db_schema_config.attr(etype, attr_name).t
@@ -836,8 +835,8 @@ class EntityDatabase:
         etype: str,
         attr_name: str,
         eid: AnyEidT,
-        t1: Optional[datetime] = None,
-        t2: Optional[datetime] = None,
+        t1: datetime | None = None,
+        t2: datetime | None = None,
     ) -> dict:
         """Gets current value and/or history of attribute for given `eid`.
 
@@ -878,12 +877,12 @@ class EntityDatabase:
         master_col = self._master_col(etype)
         return master_col.estimated_document_count({})
 
-    def _get_metadata_id(self, module: str, time: datetime, worker_id: Optional[int] = None) -> str:
+    def _get_metadata_id(self, module: str, time: datetime, worker_id: int | None = None) -> str:
         """Generates unique metadata id based on `module`, `time` and the worker index."""
         worker_id = self._process_index if worker_id is None else worker_id
         return f"{module}{time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}w{worker_id}"
 
-    def save_metadata(self, time: datetime, metadata: dict, worker_id: Optional[int] = None):
+    def save_metadata(self, time: datetime, metadata: dict, worker_id: int | None = None):
         """Saves metadata dict under the caller module and passed timestamp."""
         module = get_caller_id()
         metadata["_id"] = self._get_metadata_id(module, time, worker_id)
@@ -897,7 +896,7 @@ class EntityDatabase:
             raise DatabaseError(f"Insert of metadata failed: {e}\n{metadata}") from e
 
     def update_metadata(
-        self, time: datetime, metadata: dict, increase: dict = None, worker_id: Optional[int] = None
+        self, time: datetime, metadata: dict, increase: dict = None, worker_id: int | None = None
     ):
         """Updates existing metadata of caller module and passed timestamp."""
         module = get_caller_id()
@@ -1120,7 +1119,7 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Move of raw collection failed: {e}") from e
 
-    def get_archive_summary(self, etype: str, before: datetime) -> Optional[dict]:
+    def get_archive_summary(self, etype: str, before: datetime) -> dict | None:
         collection_summaries = []
         for archive_col_name in self._archive_col_names(etype):
             result_cursor = self._get_archive_summary(archive_col_name, before=before)
@@ -1187,7 +1186,7 @@ class EntityDatabase:
                 raise DatabaseError(f"Drop of empty archive failed: {e}") from e
         return dropped_count
 
-    def get_module_cache(self, override_called_id: Optional[str] = None):
+    def get_module_cache(self, override_called_id: str | None = None):
         """Return a persistent cache collection for given module name.
 
         Module name is determined automatically, but you can override it.

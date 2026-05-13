@@ -19,8 +19,9 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 import pymongo.errors
 from event_count_logger import DummyEventGroup
@@ -69,7 +70,7 @@ class SnapShooter:
         task_queue_writer: TaskQueueWriter,
         platform_config: PlatformConfig,
         scheduler: Scheduler,
-        elog: Optional[EventGroupType] = None,
+        elog: EventGroupType | None = None,
     ) -> None:
         self.log = logging.getLogger("SnapShooter")
 
@@ -185,7 +186,7 @@ class SnapShooter:
 
     def register_correlation_hook(
         self,
-        hook: Callable[[str, dict, dict], Union[None, list[DataPointTask]]],
+        hook: Callable[[str, dict, dict], None | list[DataPointTask]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],
@@ -543,7 +544,7 @@ class SnapShooter:
             self.db.update_metadata(task.time, metadata={"linked_finished": True}, worker_id=0)
 
     @staticmethod
-    def _remove_record_from_value(spec: AttrSpecType, value: Union[dict, list[dict]]):
+    def _remove_record_from_value(spec: AttrSpecType, value: dict | list[dict]):
         if spec.is_iterable:
             for link_dict in value:
                 if "record" in link_dict:
@@ -647,7 +648,7 @@ class SnapShooter:
 
     @staticmethod
     def _get_link_entity_ids(
-        spec: AttrSpecType, link_value: Union[list[dict], dict]
+        spec: AttrSpecType, link_value: list[dict] | dict
     ) -> set[tuple[str, str]]:
         if spec.is_iterable:
             return {(spec.relation_to, v["eid"]) for v in link_value}
@@ -664,7 +665,7 @@ class SnapShooter:
                     entity[attr] = []
                     val_conf = entity[f"{attr}#c"]
                     pruned_conf = []
-                    for v, conf in zip(val, val_conf):
+                    for v, conf in zip(val, val_conf, strict=False):
                         if self._keep_link(loaded_entities, attr_spec, v):
                             self._link_record(loaded_entities, attr_spec, v)
                             entity[attr].append(v)
@@ -682,7 +683,7 @@ class SnapShooter:
                 del entity[key]
 
     def _keep_link(
-        self, loaded_entities: dict, attr_spec: AttrSpecType, val: Union[dict, list[dict]]
+        self, loaded_entities: dict, attr_spec: AttrSpecType, val: dict | list[dict]
     ) -> bool:
         if self.config.keep_empty:
             return True
@@ -693,7 +694,7 @@ class SnapShooter:
         return loaded_entities.get((attr_spec.relation_to, val["eid"])) is not None
 
     @staticmethod
-    def _link_record(loaded_entities: dict, attr_spec: AttrSpecType, val: Union[dict, list[dict]]):
+    def _link_record(loaded_entities: dict, attr_spec: AttrSpecType, val: dict | list[dict]):
         if attr_spec.is_iterable:
             for link_dict in val:
                 link_dict["record"] = loaded_entities.get(

@@ -6,7 +6,7 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any
 
 import yaml
 from pydantic import (
@@ -177,16 +177,16 @@ class CronExpression(BaseModel, extra=Extra.forbid):
         timezone: Timezone for time specification (default is UTC).
     """
 
-    second: Optional[Union[TimeInt, CronStr]] = None
-    minute: Optional[Union[TimeInt, CronStr]] = None
-    hour: Optional[Union[TimeInt, CronStr]] = None
+    second: TimeInt | CronStr | None = None
+    minute: TimeInt | CronStr | None = None
+    hour: TimeInt | CronStr | None = None
 
-    day: Optional[Union[Annotated[int, Field(ge=1, le=31)], CronStr]] = None
-    day_of_week: Optional[Union[Annotated[int, Field(ge=0, le=6)], CronStr]] = None
+    day: Annotated[int, Field(ge=1, le=31)] | CronStr | None = None
+    day_of_week: Annotated[int, Field(ge=0, le=6)] | CronStr | None = None
 
-    week: Optional[int] = Field(default=None, ge=1, le=53)
-    month: Optional[int] = Field(default=None, ge=1, le=12)
-    year: Optional[str] = Field(default=None, pattern=r"^\d{4}$")
+    week: int | None = Field(default=None, ge=1, le=53)
+    month: int | None = Field(default=None, ge=1, le=12)
+    year: str | None = Field(default=None, pattern=r"^\d{4}$")
 
     timezone: str = "UTC"
 

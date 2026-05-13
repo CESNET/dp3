@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, NonNegativeInt, PlainSerializer
 
@@ -25,11 +25,11 @@ class EntityState(BaseModel):
 JsonVal = Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")]
 
 LinkVal = dict[str, JsonVal]
-PlainVal = Union[LinkVal, JsonVal]
+PlainVal = LinkVal | JsonVal
 MultiVal = list[PlainVal]
 HistoryVal = list[dict[str, PlainVal]]
 
-Dp3Val = Union[HistoryVal, MultiVal, PlainVal]
+Dp3Val = HistoryVal | MultiVal | PlainVal
 
 EntityEidMasterRecord = dict[str, Dp3Val]
 
@@ -45,7 +45,7 @@ class EntityEidList(BaseModel):
     Data does not include history of observations attributes and timeseries.
     """
 
-    time_created: Optional[datetime] = None
+    time_created: datetime | None = None
     count: int
     data: EntityEidSnapshots
 

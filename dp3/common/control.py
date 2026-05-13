@@ -3,8 +3,8 @@ Module enabling remote control of the platform's internal events.
 """
 
 import logging
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable
 
 from pydantic import BaseModel
 

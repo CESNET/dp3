@@ -1,4 +1,6 @@
-from typing import Annotated, Any, Literal, Optional, Union
+from functools import reduce
+from operator import or_
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter, create_model, model_validator
 
@@ -26,10 +28,10 @@ class DataPoint(BaseModel):
     id: Any
     attr: str
     v: Any
-    t1: Optional[AwareDatetime] = None
-    t2: Optional[T2Datetime] = Field(None, validate_default=True)
+    t1: AwareDatetime | None = None
+    t2: T2Datetime | None = Field(None, validate_default=True)
     c: Annotated[float, Field(ge=0.0, le=1.0)] = 1.0
-    src: Optional[str] = None
+    src: str | None = None
 
     @model_validator(mode="after")
     def validate_against_attribute(self):
@@ -66,5 +68,5 @@ for entity_type, entity_spec in MODEL_SPEC.entities.items():
         )
     )
 
-EntityId = Annotated[Union[tuple(entity_id_models)], Field(discriminator="type")]  # noqa: F811
+EntityId = Annotated[reduce(or_, entity_id_models), Field(discriminator="type")]  # noqa: F811
 EntityIdAdapter = TypeAdapter(EntityId)

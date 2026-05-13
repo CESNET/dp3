@@ -2,13 +2,11 @@
 
 import random
 from argparse import ArgumentParser
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from sys import stderr
 from time import sleep
 
 import requests
-
-UTC = timezone.utc
 
 
 def random_initial_location():

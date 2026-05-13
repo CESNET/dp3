@@ -1,5 +1,5 @@
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec

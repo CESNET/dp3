@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address, IPv6Address
-from typing import Any, Optional, Union
+from typing import Any
 
 import pymongo
 from bson import Binary
@@ -125,11 +125,11 @@ class TypedSnapshotCollection(abc.ABC):
         }
 
     @abc.abstractmethod
-    def _bucket_id(self, eid: AnyEidT, ctime: datetime) -> Union[str, Binary]:
+    def _bucket_id(self, eid: AnyEidT, ctime: datetime) -> str | Binary:
         """Returns `_id` for snapshot bucket document."""
 
     @abc.abstractmethod
-    def _filter_from_bid(self, b_id: Union[bytes, str]) -> dict:
+    def _filter_from_bid(self, b_id: bytes | str) -> dict:
         """Returns filter for snapshots with same eid as given bucket document _id.
         Args:
             b_id: the _id of the snapshot bucket, type depends on etype's data type
@@ -154,8 +154,8 @@ class TypedSnapshotCollection(abc.ABC):
 
     def find_latest(
         self,
-        fulltext_filters: Optional[dict[str, str]] = None,
-        generic_filter: Optional[dict[str, Any]] = None,
+        fulltext_filters: dict[str, str] | None = None,
+        generic_filter: dict[str, Any] | None = None,
     ) -> Cursor:
         """Find latest snapshots of given `etype`.
 
@@ -193,8 +193,8 @@ class TypedSnapshotCollection(abc.ABC):
 
     def count_latest(
         self,
-        fulltext_filters: Optional[dict[str, str]] = None,
-        generic_filter: Optional[dict[str, Any]] = None,
+        fulltext_filters: dict[str, str] | None = None,
+        generic_filter: dict[str, Any] | None = None,
     ) -> int:
         """Count latest snapshots of given `etype`.
 
@@ -251,11 +251,11 @@ class TypedSnapshotCollection(abc.ABC):
     def get_by_eid(
         self,
         eid: AnyEidT,
-        t1: Optional[datetime] = None,
-        t2: Optional[datetime] = None,
+        t1: datetime | None = None,
+        t2: datetime | None = None,
         skip: int = 0,
         limit: int = 0,
-    ) -> Union[Cursor, CommandCursor]:
+    ) -> Cursor | CommandCursor:
         """Get all (or filtered) snapshots of given `eid`.
 
         This method is useful for displaying `eid`'s history on web.
@@ -360,8 +360,8 @@ class TypedSnapshotCollection(abc.ABC):
     def _get_oversized(
         self,
         eid: AnyEidT,
-        t1: Optional[datetime] = None,
-        t2: Optional[datetime] = None,
+        t1: datetime | None = None,
+        t2: datetime | None = None,
         skip: int = 0,
         limit: int = 0,
     ) -> Cursor:
@@ -789,8 +789,8 @@ class SnapshotCollectionContainer:
     def find_latest(
         self,
         entity_type: str,
-        fulltext_filters: Optional[dict[str, str]] = None,
-        generic_filter: Optional[dict[str, Any]] = None,
+        fulltext_filters: dict[str, str] | None = None,
+        generic_filter: dict[str, Any] | None = None,
     ) -> Cursor:
         """Find latest snapshots of given `etype`.
 
@@ -825,8 +825,8 @@ class SnapshotCollectionContainer:
     def count_latest(
         self,
         entity_type: str,
-        fulltext_filters: Optional[dict[str, str]] = None,
-        generic_filter: Optional[dict[str, Any]] = None,
+        fulltext_filters: dict[str, str] | None = None,
+        generic_filter: dict[str, Any] | None = None,
     ) -> int:
         """Count latest snapshots of given `etype`.
 
@@ -844,11 +844,11 @@ class SnapshotCollectionContainer:
         self,
         entity_type: str,
         eid: AnyEidT,
-        t1: Optional[datetime] = None,
-        t2: Optional[datetime] = None,
+        t1: datetime | None = None,
+        t2: datetime | None = None,
         skip: int = 0,
         limit: int = 0,
-    ) -> Union[Cursor, CommandCursor]:
+    ) -> Cursor | CommandCursor:
         """Get all (or filtered) snapshots of given `eid`.
 
         This method is useful for displaying `eid`'s history on web.

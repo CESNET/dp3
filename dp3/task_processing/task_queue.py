@@ -36,7 +36,7 @@ import contextlib
 import logging
 import threading
 import time
-from typing import Callable, Union
+from collections.abc import Callable
 
 import amqpstorm
 
@@ -362,7 +362,7 @@ class TaskQueueReader(RobustAMQPConnection):
         worker_index: int = 0,
         rabbit_config: dict = None,
         queue: str = None,
-        priority_queue: Union[str, bool] = None,
+        priority_queue: str | bool = None,
         parent_logger: logging.Logger = None,
     ) -> None:
         rabbit_config = {} if rabbit_config is None else rabbit_config

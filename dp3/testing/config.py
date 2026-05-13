@@ -1,14 +1,13 @@
 """Configuration helpers for DP3 module tests."""
 
 import os
-from typing import Optional
 
 from dp3.common.config import HierarchicalDict, ModelSpec, PlatformConfig, read_config_dir
 
 CONFIG_DIR_ENV = "DP3_CONFIG_DIR"
 
 
-def resolve_config_dir(config_dir: Optional[str] = None, env_var: str = CONFIG_DIR_ENV) -> str:
+def resolve_config_dir(config_dir: str | None = None, env_var: str = CONFIG_DIR_ENV) -> str:
     """Return an absolute DP3 config directory path.
 
     Explicit ``config_dir`` values take precedence. If no explicit path is supplied, the path is
@@ -23,9 +22,7 @@ def resolve_config_dir(config_dir: Optional[str] = None, env_var: str = CONFIG_D
     return os.path.abspath(resolved)
 
 
-def load_config(
-    config_dir: Optional[str] = None, env_var: str = CONFIG_DIR_ENV
-) -> HierarchicalDict:
+def load_config(config_dir: str | None = None, env_var: str = CONFIG_DIR_ENV) -> HierarchicalDict:
     """Load a DP3 config directory for module tests."""
     return read_config_dir(resolve_config_dir(config_dir, env_var), recursive=True)
 
@@ -38,7 +35,7 @@ def build_model_spec(config: HierarchicalDict) -> ModelSpec:
 def build_platform_config(
     config: HierarchicalDict,
     model_spec: ModelSpec,
-    config_dir: Optional[str] = None,
+    config_dir: str | None = None,
     *,
     app_name: str = "test",
     process_index: int = 0,
@@ -57,7 +54,7 @@ def build_platform_config(
     )
 
 
-def get_module_config(config: HierarchicalDict, module_name: Optional[str]) -> dict:
+def get_module_config(config: HierarchicalDict, module_name: str | None) -> dict:
     """Return module-specific config from loaded app config."""
     if module_name is None:
         return {}

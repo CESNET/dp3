@@ -218,7 +218,7 @@ def main(args):
         unique_sources = []
         source_paths_and_errors = []
 
-        for path, source, err in zip(paths, sources, errors):
+        for path, source, err in zip(paths, sources, errors, strict=False):
             if source in unique_sources:
                 i = unique_sources.index(source)
                 source_paths_and_errors[i].add((path, err))
@@ -226,7 +226,7 @@ def main(args):
                 unique_sources.append(source)
                 source_paths_and_errors.append({(path, err)})
 
-        for source, paths_and_errors in zip(unique_sources, source_paths_and_errors):
+        for source, paths_and_errors in zip(unique_sources, source_paths_and_errors, strict=False):
             for path, err in paths_and_errors:
                 print(" -> ".join(path))
                 print("  ", err)

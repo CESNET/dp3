@@ -43,7 +43,7 @@ class Telemetry:
         """Note the latest timestamp of each source in the task"""
         latest_timestamps = {}
         for dp in task.data_points:
-            has_timestamp = isinstance(dp, (DataPointObservationsBase, DataPointTimeseriesBase))
+            has_timestamp = isinstance(dp, DataPointObservationsBase | DataPointTimeseriesBase)
             if dp.src is None or not has_timestamp:
                 continue
             latest_timestamp = dp.t2 or dp.t1

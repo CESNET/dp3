@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from pydantic import BaseModel, Field
 
@@ -18,7 +18,7 @@ class _T2Model(BaseModel):
 class TestAwareDatetime(unittest.TestCase):
     def test_naive_datetime_defaults_to_utc(self):
         model = _AwareModel(dt="2024-01-01T10:00:00")
-        self.assertEqual(model.dt.tzinfo, timezone.utc)
+        self.assertEqual(model.dt.tzinfo, UTC)
 
     def test_existing_timezone_is_preserved(self):
         cest_timezone = timezone(timedelta(hours=2), "CEST")
@@ -29,6 +29,6 @@ class TestAwareDatetime(unittest.TestCase):
     def test_t2_datetime_inherits_timezone_when_missing(self):
         model = _T2Model(t1="2024-01-01T00:00:00")
         self.assertIsNotNone(model.t2)
-        self.assertEqual(model.t1.tzinfo, timezone.utc)
-        self.assertEqual(model.t2.tzinfo, timezone.utc)
+        self.assertEqual(model.t1.tzinfo, UTC)
+        self.assertEqual(model.t2.tzinfo, UTC)
         self.assertEqual(model.t2, model.t1)

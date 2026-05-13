@@ -37,6 +37,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from typing import Literal
 
 import amqpstorm
 
@@ -94,7 +95,7 @@ class RobustAMQPConnection:
             host, port, virtual_host, username, password
     """
 
-    def __init__(self, rabbit_config: dict = None) -> None:
+    def __init__(self, rabbit_config: dict | None = None) -> None:
         rabbit_config = {} if rabbit_config is None else rabbit_config
         self.log = logging.getLogger("RobustAMQPConnection")
         self.conn_params = {
@@ -104,8 +105,8 @@ class RobustAMQPConnection:
             "username": rabbit_config.get("username", "guest"),
             "password": rabbit_config.get("password", "guest"),
         }
-        self.connection: amqpstorm.Connection = None
-        self.channel: amqpstorm.Channel = None
+        self.connection: amqpstorm.Connection | None = None
+        self.channel: amqpstorm.Channel | None = None
         self._connection_id = 0
 
     def __del__(self):
@@ -133,9 +134,10 @@ class RobustAMQPConnection:
                     # This was a repeated attempt, print success message with ERROR level
                     self.log.error("... it's OK now, we're successfully connected!")
 
-                self.channel = self.connection.channel()
-                self.channel.confirm_deliveries()
-                self.channel.basic.qos(PREFETCH_COUNT)
+                channel = self.connection.channel()
+                channel.confirm_deliveries()
+                channel.basic.qos(PREFETCH_COUNT)
+                self.channel = channel
                 break
             except amqpstorm.AMQPError as e:
                 sleep_time = RECONNECT_DELAYS[min(attempts, len(RECONNECT_DELAYS)) - 1]
@@ -152,7 +154,7 @@ class RobustAMQPConnection:
         self.connection = None
         self.channel = None
 
-    def check_queue_existence(self, queue_name: str) -> bool:
+    def check_queue_existence(self, queue_name: str | None) -> bool:
         if queue_name is None:
             return True
         assert self.channel is not None, "not connected"
@@ -191,10 +193,10 @@ class TaskQueueWriter(RobustAMQPConnection):
         self,
         app_name: str,
         workers: int = 1,
-        rabbit_config: dict = None,
-        exchange: str = None,
-        priority_exchange: str = None,
-        parent_logger: logging.Logger = None,
+        rabbit_config: dict | None = None,
+        exchange: str | None = None,
+        priority_exchange: str | None = None,
+        parent_logger: logging.Logger | None = None,
     ) -> None:
         rabbit_config = {} if rabbit_config is None else rabbit_config
         assert isinstance(workers, int) and workers >= 1, "count of workers must be positive number"
@@ -360,10 +362,10 @@ class TaskQueueReader(RobustAMQPConnection):
         parse_task: Callable[[str], Task],
         app_name: str,
         worker_index: int = 0,
-        rabbit_config: dict = None,
-        queue: str = None,
-        priority_queue: str | bool = None,
-        parent_logger: logging.Logger = None,
+        rabbit_config: dict | None = None,
+        queue: str | None = None,
+        priority_queue: str | Literal[False] | None = None,
+        parent_logger: logging.Logger | None = None,
     ) -> None:
         rabbit_config = {} if rabbit_config is None else rabbit_config
         assert callable(callback), "callback must be callable object"
@@ -391,14 +393,14 @@ class TaskQueueReader(RobustAMQPConnection):
             priority_queue = DEFAULT_PRIORITY_QUEUE.format(app_name, worker_index)
         elif priority_queue is False:
             priority_queue = None
-        self.queue_name = queue
-        self.priority_queue_name = priority_queue
+        self.queue_name: str = queue
+        self.priority_queue_name: str | None = priority_queue
         self.worker_index = worker_index
 
         self.running = False
 
-        self._consuming_thread = None
-        self._processing_thread = None
+        self._consuming_thread: threading.Thread | None = None
+        self._processing_thread: threading.Thread | None = None
 
         # Receive messages into 2 temporary queues
         # (max length should be equal to prefetch_count set in RabbitMQReader)
@@ -490,11 +492,12 @@ class TaskQueueReader(RobustAMQPConnection):
         Returns:
             Whether the message was acknowledged successfully and can be processed further.
         """
-        conn_id, msg_tag = msg_tag
+        assert self.channel is not None, "not connected"
+        conn_id, _delivery_tag = msg_tag
         if conn_id != self._connection_id:
             return False
         try:
-            self.channel.basic.ack(delivery_tag=msg_tag)
+            self.channel.basic.ack(delivery_tag=_delivery_tag)
         except amqpstorm.AMQPChannelError as why:
             self.log.error("Channel error while acknowledging message: %s", why)
             self.reconnect()
@@ -503,6 +506,7 @@ class TaskQueueReader(RobustAMQPConnection):
 
     def _consuming_thread_func(self):
         # Register consumers and start consuming loop, reconnect on error
+        assert self.channel is not None, "not connected"
         while self.running:
             try:
                 # Register consumers on both queues
@@ -587,8 +591,8 @@ class TaskQueueReader(RobustAMQPConnection):
 
         Register to be called periodically by scheduler.
         """
-        proc = self._processing_thread.is_alive()
-        cons = self._consuming_thread.is_alive()
+        proc = self._processing_thread is not None and self._processing_thread.is_alive()
+        cons = self._consuming_thread is not None and self._consuming_thread.is_alive()
 
         if not proc or not cons:
             self.log.error(
@@ -599,7 +603,8 @@ class TaskQueueReader(RobustAMQPConnection):
             self._stop_consuming_thread()
             self._stop_processing_thread()
 
-            self.channel.close()
+            if self.channel is not None:
+                self.channel.close()
             self.channel = None
             self.cache.clear()
             self.cache_pri.clear()
@@ -609,16 +614,17 @@ class TaskQueueReader(RobustAMQPConnection):
 
     def _stop_consuming_thread(self) -> None:
         if self._consuming_thread:
-            if self._consuming_thread.is_alive:
+            if self._consuming_thread.is_alive():
                 # if not connected, no problem
                 with contextlib.suppress(amqpstorm.AMQPError):
-                    self.channel.stop_consuming()
+                    if self.channel is not None:
+                        self.channel.stop_consuming()
             self._consuming_thread.join()
         self._consuming_thread = None
 
     def _stop_processing_thread(self) -> None:
         if self._processing_thread:
-            if self._processing_thread.is_alive:
+            if self._processing_thread.is_alive():
                 self.running = False  # tell processing thread to stop
                 self.cache_full.set()  # break potential wait() for data
             self._processing_thread.join()

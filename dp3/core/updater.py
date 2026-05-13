@@ -3,7 +3,7 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable, Iterator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from typing import Literal
 
@@ -14,7 +14,7 @@ from pymongo.results import UpdateResult
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, task_context
-from dp3.common.types import UTC, EventGroupType, ParsedTimedelta
+from dp3.common.types import EventGroupType, ParsedTimedelta
 from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_queue import TaskQueueWriter
 

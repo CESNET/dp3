@@ -1,7 +1,7 @@
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 
 import requests
 from pymongo import ASCENDING, UpdateOne
@@ -10,7 +10,6 @@ from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import PlatformConfig
 from dp3.common.datapoint import DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.task import DataPointTask
-from dp3.common.types import UTC
 from dp3.database.database import EntityDatabase
 
 

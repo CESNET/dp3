@@ -4,7 +4,7 @@ Core module performing deletion of entities based on specified policy.
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 
 from pydantic import BaseModel
@@ -15,7 +15,6 @@ from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.datatype import AnyEidT
 from dp3.common.task import DataPointTask, parse_eids_from_cache
-from dp3.common.types import UTC
 from dp3.database.database import EntityDatabase
 
 DB_SEND_CHUNK = 1000

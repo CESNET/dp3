@@ -1,13 +1,12 @@
 import os
 import warnings
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
 
 from dp3.common.base_module import BaseModule
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask, task_context
-from dp3.common.types import UTC
 from dp3.testing import DP3ModuleTestCase
 
 

@@ -20,7 +20,7 @@ Module managing creation of snapshots, enabling data correlation and saving snap
 import logging
 from collections import defaultdict
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import pymongo.errors
@@ -43,7 +43,7 @@ from dp3.common.task import (
     parse_eids_from_cache,
     task_context,
 )
-from dp3.common.types import UTC, EventGroupType
+from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (

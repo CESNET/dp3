@@ -1,12 +1,10 @@
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import common
 from common import ACCEPTED_ERROR_CODES
-
-from dp3.common.types import UTC
 
 
 class PushDatapoints(common.APITest):

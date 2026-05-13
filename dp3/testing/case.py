@@ -3,7 +3,7 @@
 import copy
 import unittest
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
 from dp3.common.attrspec import AttrType
@@ -11,7 +11,6 @@ from dp3.common.base_module import BaseModule
 from dp3.common.config import HierarchicalDict, ModelSpec, PlatformConfig
 from dp3.common.datapoint import DataPointBase
 from dp3.common.task import DataPointTask, task_context
-from dp3.common.types import UTC
 from dp3.common.utils import get_func_name
 from dp3.testing.assertions import ModuleAssertions
 from dp3.testing.config import (

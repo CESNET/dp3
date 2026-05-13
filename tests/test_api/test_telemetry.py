@@ -1,11 +1,10 @@
 import datetime
 import json
 import sys
+from datetime import UTC
 from time import sleep
 
 import common
-
-from dp3.common.types import UTC
 
 
 class TelemetryEndpoints(common.APITest):

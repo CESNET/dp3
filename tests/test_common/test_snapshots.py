@@ -4,13 +4,13 @@ import logging
 import os
 import unittest
 from collections.abc import Callable
+from datetime import UTC
 from functools import partial, update_wrapper
 
 from event_count_logger import DummyEventGroup
 
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
 from dp3.common.task import Task
-from dp3.common.types import UTC
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.snapshots.snapshot_hooks import SnapshotCorrelationHookContainer
 

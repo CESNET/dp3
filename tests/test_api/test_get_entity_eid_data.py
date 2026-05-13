@@ -1,11 +1,10 @@
 import sys
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import common
 from pydantic import RootModel
 
 from dp3.api.internal.entity_response_models import EntityEidData, EntityEidMasterRecord
-from dp3.common.types import UTC
 
 DATAPOINT_COUNT = 6
 

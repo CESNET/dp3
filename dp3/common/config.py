@@ -6,7 +6,7 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 import yaml
 from pydantic import (
@@ -31,6 +31,8 @@ from dp3.common.context import entity_context
 from dp3.common.datatype import AnyEidT
 from dp3.common.entityspec import EntitySpec
 
+_T = TypeVar("_T")
+
 
 class NoDefault:
     pass
@@ -49,7 +51,7 @@ class HierarchicalDict(dict):
     def copy(self):
         return HierarchicalDict(dict.copy(self))
 
-    def get(self, key, default=NoDefault):
+    def get(self, key: str, default: type[NoDefault] | _T = NoDefault) -> Any | _T:
         """
         Key may be a path (in dot notation) into a hierarchy of dicts. For example
           `dictionary.get('abc.x.y')`

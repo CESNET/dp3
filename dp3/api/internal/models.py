@@ -45,14 +45,14 @@ class DataPoint(BaseModel):
 
 
 class EntityId(BaseModel):
-    """Dummy model for entity id
+    """Common interface for validated entity identifiers.
 
     Attributes:
         type: Entity type
         id: Entity ID
     """
 
-    type: Literal["entity_type"]
+    type: str
     id: Any
 
 
@@ -62,11 +62,11 @@ for entity_type, entity_spec in MODEL_SPEC.entities.items():
     entity_id_models.append(
         create_model(
             f"EntityId{{{entity_type}}}",
-            __base__=BaseModel,
+            __base__=EntityId,
             type=(Literal[entity_type], Field(..., alias="etype")),
             id=(dtype, Field(..., alias="eid")),
         )
     )
 
-EntityId = Annotated[reduce(or_, entity_id_models), Field(discriminator="type")]  # noqa: F811
-EntityIdAdapter = TypeAdapter(EntityId)
+EntityIdType = Annotated[reduce(or_, entity_id_models), Field(discriminator="type")]
+EntityIdAdapter = TypeAdapter(EntityIdType)

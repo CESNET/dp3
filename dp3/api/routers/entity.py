@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import Json, NonNegativeInt, ValidationError
@@ -33,10 +33,10 @@ async def check_etype(etype: str):
     return etype
 
 
-async def parse_eid(etype: str, eid: str):
+async def parse_eid(etype: str, eid: str) -> EntityId:
     """Middleware to parse EID"""
     try:
-        return EntityIdAdapter.validate_python({"etype": etype, "eid": eid})
+        return cast(EntityId, EntityIdAdapter.validate_python({"etype": etype, "eid": eid}))
     except ValidationError as e:
         raise RequestValidationError(["path", "eid"], e.errors()[0]["msg"]) from e
 
@@ -49,7 +49,7 @@ def _parse_optional_eid(etype: str, eid: str | None) -> Any:
     if eid is None:
         return None
     try:
-        return EntityIdAdapter.validate_python({"etype": etype, "eid": eid}).id
+        return cast(EntityId, EntityIdAdapter.validate_python({"etype": etype, "eid": eid})).id
     except ValidationError as e:
         raise RequestValidationError(["query", "eid"], e.errors()[0]["msg"]) from e
 

@@ -29,7 +29,7 @@ config = read_config_dir(args.config, recursive=True)
 model_spec = ModelSpec(config.get("db_entities"))
 
 # Connect to database
-connection_conf = MongoConfig.parse_obj(config.get("database", {}))
+connection_conf = MongoConfig.model_validate(config.get("database", {}))
 client = EntityDatabase.connect(connection_conf)
 client.admin.command("ping")
 

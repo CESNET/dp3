@@ -44,7 +44,7 @@ class ConfigEnv(BaseModel):
 
 try:
     # Validate and parse environmental variables
-    conf_env = ConfigEnv.parse_obj(os.environ)
+    conf_env = ConfigEnv.model_validate(os.environ)
 except ValidationError as e:
     config_error = any("CONF_DIR" in x["loc"] and len(x["loc"]) > 1 for x in e.errors())
     env_error = any(len(x["loc"]) == 1 for x in e.errors())

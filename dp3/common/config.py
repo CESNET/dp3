@@ -12,7 +12,6 @@ import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
-    Extra,
     Field,
     NonNegativeInt,
     PositiveInt,
@@ -157,7 +156,7 @@ CronStr = Annotated[str, Field(pattern=CRON_EXPR_PATTERN)]
 TimeInt = Annotated[int, Field(ge=0, le=59)]
 
 
-class CronExpression(BaseModel, extra=Extra.forbid):
+class CronExpression(BaseModel):
     """
     Cron expression used for scheduling. Also support standard cron expressions, such as
 
@@ -176,6 +175,8 @@ class CronExpression(BaseModel, extra=Extra.forbid):
         second: second (0-59)
         timezone: Timezone for time specification (default is UTC).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     second: TimeInt | CronStr | None = None
     minute: TimeInt | CronStr | None = None

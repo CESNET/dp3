@@ -399,7 +399,7 @@ async def set_eid_attr_value(etype: str, eid: str, attr: str, request: Request) 
             t1=datetime.now(UTC),
             src=f"{request.client.host} via API",
         )
-        dp3_dp = api_to_dp3_datapoint(dp.dict())
+        dp3_dp = api_to_dp3_datapoint(dp.model_dump())
     except ValidationError as e:
         raise RequestValidationError(["body", "value"], e.errors()[0]["msg"]) from e
 

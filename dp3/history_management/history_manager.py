@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, ConfigDict
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
@@ -48,7 +48,7 @@ class DPArchivationConfig(BaseModel):
     archive_dir: str | None = None
 
 
-class HistoryManagerConfig(BaseModel, extra=Extra.forbid):
+class HistoryManagerConfig(BaseModel):
     """Configuration for history manager.
 
     Attributes:
@@ -58,6 +58,8 @@ class HistoryManagerConfig(BaseModel, extra=Extra.forbid):
         snapshot_cleaning: Configuration for snapshot cleaning.
         datapoint_archivation: Configuration for datapoint archivation.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     aggregation_schedule: CronExpression
     datapoint_cleaning_schedule: CronExpression

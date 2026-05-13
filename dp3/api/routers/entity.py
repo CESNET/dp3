@@ -373,9 +373,7 @@ async def get_eid_attr_value(
 
 
 @router.post("/{etype}/{eid}/set/{attr}")
-async def set_eid_attr_value(
-    etype: str, eid: str, attr: str, body: EntityEidAttrValue, request: Request
-) -> SuccessResponse:
+async def set_eid_attr_value(etype: str, eid: str, attr: str, request: Request) -> SuccessResponse:
     """Set current value of attribute
 
     Internally just creates datapoint for specified attribute and value.
@@ -385,6 +383,11 @@ async def set_eid_attr_value(
     # Check if attribute exists
     if attr not in MODEL_SPEC.attribs(etype):
         raise RequestValidationError(["path", "attr"], f"Attribute '{attr}' doesn't exist")
+
+    try:
+        body = EntityEidAttrValue.model_validate(await request.json())
+    except ValueError as e:
+        raise RequestValidationError(["body"], str(e)) from e
 
     # Construct datapoint
     try:

@@ -575,7 +575,7 @@ class SnapShooter:
             for datapoint in task.data_points:
                 if datapoint.etype != etype:
                     continue
-                dp_dict = datapoint.dict(include={"v", "t1", "t2", "c"})
+                dp_dict = datapoint.model_dump(include={"v", "t1", "t2", "c"})
                 if datapoint.attr in master_record:
                     master_record[datapoint.attr].append()
                 else:

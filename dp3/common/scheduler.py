@@ -6,7 +6,7 @@ Based on APScheduler package
 """
 
 import logging
-from typing import Callable, Union
+from collections.abc import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -39,16 +39,16 @@ class Scheduler:
     def register(
         self,
         func: Callable,
-        func_args: Union[list, tuple] = None,
+        func_args: list | tuple = None,
         func_kwargs: dict = None,
-        year: Union[int, str] = None,
-        month: Union[int, str] = None,
-        day: Union[int, str] = None,
-        week: Union[int, str] = None,
-        day_of_week: Union[int, str] = None,
-        hour: Union[int, str] = None,
-        minute: Union[int, str] = None,
-        second: Union[int, str] = None,
+        year: int | str = None,
+        month: int | str = None,
+        day: int | str = None,
+        week: int | str = None,
+        day_of_week: int | str = None,
+        hour: int | str = None,
+        minute: int | str = None,
+        second: int | str = None,
         timezone: str = "UTC",
         misfire_grace_time: int = 1,
     ) -> int:

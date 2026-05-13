@@ -58,9 +58,9 @@ Generic filter examples:
 """
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
-from typing import Any, Union
+from typing import Any
 
 from bson import Binary
 
@@ -87,9 +87,9 @@ def _binary_id_filter(value: Any, _) -> dict[str, Binary]:
             magic_type, value = match.groups()
             value = magic_string_replacements[magic_type](value, True)
 
-    if isinstance(value, (IPv4Address, IPv6Address, MACAddress)):
+    if isinstance(value, IPv4Address | IPv6Address | MACAddress):
         return _binary_snapshot_bucket_range(value.packed)
-    if isinstance(value, (IPv4Network, IPv6Network)):
+    if isinstance(value, IPv4Network | IPv6Network):
         return {
             "$gte": _pack_binary_snapshot_bucket_id(value[0].packed, 0),
             "$lte": _pack_binary_snapshot_bucket_id(value[-1].packed, -1),
@@ -100,18 +100,14 @@ def _binary_id_filter(value: Any, _) -> dict[str, Binary]:
     raise ValueError(f"Unsupported value type {type(value)}: {value}")
 
 
-def _parse_ipv4_network(
-    value: str, in_id_filter: bool
-) -> Union[IPv4Network, dict[str, IPv4Address]]:
+def _parse_ipv4_network(value: str, in_id_filter: bool) -> IPv4Network | dict[str, IPv4Address]:
     ip = IPv4Network(value)
     if in_id_filter:
         return ip
     return {"$gte": ip[0], "$lte": ip[-1]}
 
 
-def _parse_ipv6_network(
-    value: str, in_id_filter: bool
-) -> Union[IPv6Network, dict[str, IPv6Address]]:
+def _parse_ipv6_network(value: str, in_id_filter: bool) -> IPv6Network | dict[str, IPv6Address]:
     ip = IPv6Network(value)
     if in_id_filter:
         return ip
@@ -122,12 +118,12 @@ def _parse_mac_address(value: str, _) -> MACAddress:
     return MACAddress(value)
 
 
-def _parse_date_ts(value: Union[int, float], _) -> datetime:
-    return datetime.fromtimestamp(float(value), timezone.utc)
+def _parse_date_ts(value: int | float, _) -> datetime:
+    return datetime.fromtimestamp(float(value), UTC)
 
 
 def _parse_date_string(value: str, _) -> datetime:
-    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
 
 
 magic_string_replacements = {
@@ -153,7 +149,7 @@ def search_and_replace(query: dict[str, Any]) -> dict[str, Any]:
     """
     if isinstance(query, dict):
         for key, value in query.items():
-            if isinstance(value, (dict, list)):
+            if isinstance(value, dict | list):
                 search_and_replace(value)
             elif isinstance(value, str):
                 match = magic_regex.match(value)

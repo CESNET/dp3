@@ -1,5 +1,5 @@
 import urllib
-from typing import Literal, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -38,7 +38,7 @@ class MongoConfig(BaseModel, extra="forbid"):
     db_name: str = "dp3"
     username: str = "dp3"
     password: str = "dp3"
-    connection: Union[MongoStandaloneConfig, MongoReplicaConfig] = Field(..., discriminator="mode")
+    connection: MongoStandaloneConfig | MongoReplicaConfig = Field(..., discriminator="mode")
     storage: StorageConfig = StorageConfig()
 
     @field_validator("username", "password")

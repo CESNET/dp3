@@ -3,7 +3,8 @@ import os
 import sys
 import time
 import unittest
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 import requests
 from pydantic import BaseModel

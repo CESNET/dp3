@@ -4,9 +4,8 @@ Module managing registered hooks and their dependencies on one another.
 
 import logging
 from collections import defaultdict
-from collections.abc import Hashable
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass, field
-from typing import Callable, Union
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
@@ -84,7 +83,7 @@ class SnapshotCorrelationHookContainer:
 
     def register(
         self,
-        hook: Callable[[str, dict, dict], Union[None, list[DataPointTask]]],
+        hook: Callable[[str, dict, dict], None | list[DataPointTask]],
         entity_type: str,
         depends_on: list[list[str]],
         may_change: list[list[str]],

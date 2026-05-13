@@ -1,5 +1,5 @@
 from ipaddress import IPv4Address, IPv6Address
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, Field, PlainSerializer
 
@@ -8,7 +8,7 @@ from dp3.common.types import AwareDatetime, T2Datetime
 
 
 def to_json_friendly(v):
-    if isinstance(v, (IPv4Address, IPv6Address, MACAddress)):
+    if isinstance(v, IPv4Address | IPv6Address | MACAddress):
         return str(v)
     return v
 
@@ -33,7 +33,7 @@ class DataPointBase(BaseModel, use_enum_values=True):
     etype: str
     eid: Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")] = None
     attr: str
-    src: Optional[str] = None
+    src: str | None = None
     v: Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")] = None
     c: Any = None
     t1: Any = None
@@ -147,10 +147,10 @@ def dp_ts_root_validator_irregular_intervals(self):
 
     # Check time_first[i] <= time_last[i]
     assert all(
-        t[0] <= t[1] for t in zip(self.v.time_first, self.v.time_last)
+        t[0] <= t[1] for t in zip(self.v.time_first, self.v.time_last, strict=False)
     ), "'time_first[i] <= time_last[i]' isn't true for all 'i'"
 
     return self
 
 
-DataPointType = Union[DataPointPlainBase, DataPointObservationsBase, DataPointTimeseriesBase]
+DataPointType = DataPointPlainBase | DataPointObservationsBase | DataPointTimeseriesBase

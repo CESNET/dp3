@@ -4,7 +4,6 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Extra
 
@@ -46,7 +45,7 @@ class DPArchivationConfig(BaseModel):
 
     schedule: CronExpression
     older_than: ParsedTimedelta
-    archive_dir: Optional[str] = None
+    archive_dir: str | None = None
 
 
 class HistoryManagerConfig(BaseModel, extra=Extra.forbid):
@@ -237,7 +236,7 @@ class HistoryManager:
 
     def _get_raw_dps_summary(
         self, before: datetime
-    ) -> tuple[Optional[datetime], Optional[datetime], int]:
+    ) -> tuple[datetime | None, datetime | None, int]:
         date_ranges = []
         for etype in self.model_spec.entities:
             summary = self.db.get_archive_summary(etype, before=before)

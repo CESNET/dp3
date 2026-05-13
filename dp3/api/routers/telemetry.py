@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 import requests
 from fastapi import APIRouter, HTTPException
@@ -41,9 +41,9 @@ async def get_snapshot_summary() -> dict:
 
 @router.get("/metadata")
 async def get_metadata(
-    module: Optional[str] = None,
-    date_from: Optional[AwareDatetime] = None,
-    date_to: Optional[AwareDatetime] = None,
+    module: str | None = None,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
     skip: NonNegativeInt = 0,
     limit: NonNegativeInt = 0,
     sort: Literal["newest", "oldest"] = "newest",

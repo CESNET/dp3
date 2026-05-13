@@ -7,7 +7,8 @@ import json
 import logging
 import os
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pandas as pd
 from dateutil.parser import parse as parsetime

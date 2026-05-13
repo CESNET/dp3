@@ -2,7 +2,6 @@
 """Entity commands for the shell-oriented DP3 CLI."""
 
 import argparse
-from typing import Optional
 
 from . import etype
 from .common import complete_entity_rest, complete_entity_selector
@@ -25,7 +24,7 @@ def _build_overview_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_entity_command(args) -> tuple[Optional[argparse.Namespace], Optional[int]]:
+def parse_entity_command(args) -> tuple[argparse.Namespace | None, int | None]:
     """Parse the path-like entity command grammar."""
     overview_parser = _build_overview_parser()
     if args.selector is None:

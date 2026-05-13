@@ -3,8 +3,8 @@ import json
 import logging
 import os
 import unittest
+from collections.abc import Callable
 from functools import partial, update_wrapper
-from typing import Callable, Optional
 
 from event_count_logger import DummyEventGroup
 
@@ -115,7 +115,7 @@ class MockDB:
         self, f_one: Callable[[str, str], None], f_many: Callable[[str, list[str]], None]
     ): ...
 
-    def get_module_cache(self, override_called_id: Optional[str] = None):
+    def get_module_cache(self, override_called_id: str | None = None):
         return self.module_cache
 
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):

@@ -2,9 +2,9 @@
 
 import copy
 import unittest
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import datetime
-from typing import Any, Callable, Generic, Optional, TypeVar, Union
+from typing import Any, Generic, TypeVar
 
 from dp3.common.attrspec import AttrType
 from dp3.common.base_module import BaseModule
@@ -34,11 +34,11 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
     ``config_dir`` explicitly when they need a fixed fixture config.
     """
 
-    config_dir: Optional[str] = None
+    config_dir: str | None = None
     config_env_var: str = CONFIG_DIR_ENV
     module_class: type[ModuleT]
-    module_name: Optional[str] = None
-    module_config: Optional[dict] = None
+    module_name: str | None = None
+    module_config: dict | None = None
     app_name: str = "test"
     process_index: int = 0
     num_processes: int = 1
@@ -78,7 +78,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
             return copy.deepcopy(self.module_config)
         return copy.deepcopy(get_module_config(self.config, self.get_module_name()))
 
-    def get_module_name(self) -> Optional[str]:
+    def get_module_name(self) -> str | None:
         if self.module_name is not None:
             return self.module_name
         return self.module_class.__module__.split(".")[-1]
@@ -99,9 +99,9 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         self,
         etype: str,
         eid: Any,
-        data_points: Optional[list[Union[dict, DataPointBase]]] = None,
-        tags: Optional[list] = None,
-        ttl_tokens: Optional[dict] = None,
+        data_points: list[dict | DataPointBase] | None = None,
+        tags: list | None = None,
+        ttl_tokens: dict | None = None,
         delete: bool = False,
     ) -> DataPointTask:
         with task_context(self.model_spec):
@@ -142,8 +142,8 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         attr: str,
         v: Any,
         src: str = "test",
-        t1: Optional[datetime] = None,
-        t2: Optional[datetime] = None,
+        t1: datetime | None = None,
+        t2: datetime | None = None,
         c: float = 1.0,
         **fields,
     ) -> DataPointBase:
@@ -160,8 +160,8 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         attr: str,
         v: Mapping[str, Sequence[Any]],
         src: str = "test",
-        t1: Optional[datetime] = None,
-        t2: Optional[datetime] = None,
+        t1: datetime | None = None,
+        t2: datetime | None = None,
         **fields,
     ) -> DataPointBase:
         """Create a validated timeseries datapoint.
@@ -190,7 +190,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         return self._make_datapoint(etype, eid, attr, values, src=src, **data)
 
     @staticmethod
-    def _infer_timeseries_t1(attr_spec, values: Mapping[str, Sequence[Any]]) -> Optional[datetime]:
+    def _infer_timeseries_t1(attr_spec, values: Mapping[str, Sequence[Any]]) -> datetime | None:
         if attr_spec.timeseries_type == "irregular" and values.get("time"):
             return values["time"][0]
         if attr_spec.timeseries_type == "irregular_intervals" and values.get("time_first"):
@@ -208,13 +208,13 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         self.registrar.run_task_hooks(hook_type, task)
 
     def run_allow_entity_creation(
-        self, entity: str, eid: Any, task: Optional[DataPointTask] = None
+        self, entity: str, eid: Any, task: DataPointTask | None = None
     ) -> bool:
         task = task or self._make_synthetic_task(entity, eid)
         return self.registrar.run_allow_entity_creation(entity, eid, task)
 
     def run_on_entity_creation(
-        self, entity: str, eid: Any, task: Optional[DataPointTask] = None
+        self, entity: str, eid: Any, task: DataPointTask | None = None
     ) -> list[DataPointTask]:
         task = task or self._make_synthetic_task(entity, eid)
         return self.registrar.run_on_entity_creation(entity, eid, task)
@@ -230,24 +230,24 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         self,
         entity_type: str,
         record: dict,
-        master_record: Optional[dict] = None,
+        master_record: dict | None = None,
     ) -> list[DataPointTask]:
         return self.registrar.run_correlation_hooks(entity_type, record, master_record)
 
     def run_periodic_update(
-        self, entity_type: str, eid: Any, master_record: dict, hook_id: Optional[str] = None
+        self, entity_type: str, eid: Any, master_record: dict, hook_id: str | None = None
     ) -> list[DataPointTask]:
         return self.registrar.run_periodic_update(entity_type, eid, master_record, hook_id)
 
     def run_periodic_eid_update(
-        self, entity_type: str, eid: Any, hook_id: Optional[str] = None
+        self, entity_type: str, eid: Any, hook_id: str | None = None
     ) -> list[DataPointTask]:
         return self.registrar.run_periodic_eid_update(entity_type, eid, hook_id)
 
-    def run_scheduler_job(self, job: Union[int, str, Callable, HookRegistration]):
+    def run_scheduler_job(self, job: int | str | Callable | HookRegistration):
         return self.registrar.run_scheduler_job(job)
 
-    def registered(self, kind: Optional[str] = None, **fields) -> list[HookRegistration]:
+    def registered(self, kind: str | None = None, **fields) -> list[HookRegistration]:
         """Return registrations matching ``kind`` and the supplied registration fields."""
         return [
             registration
@@ -305,7 +305,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
     assertSchedulerRegistered = assert_scheduler_registered
 
     def _registration_matches(
-        self, registration: HookRegistration, kind: Optional[str], fields: dict[str, Any]
+        self, registration: HookRegistration, kind: str | None, fields: dict[str, Any]
     ) -> bool:
         if kind is not None and registration.kind != kind:
             return False

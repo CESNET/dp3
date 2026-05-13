@@ -6,15 +6,13 @@ import logging
 import os
 import time
 from argparse import ArgumentParser
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from itertools import islice
 from queue import Queue
 from threading import Event, Thread
 
 import pandas as pd
 import requests
-
-UTC = timezone.utc
 
 
 def get_valid_path(parser, arg):

@@ -1,9 +1,9 @@
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 from logging import Logger
-from typing import Callable
 
 import pymongo
 from pymongo import DeleteOne, InsertOne

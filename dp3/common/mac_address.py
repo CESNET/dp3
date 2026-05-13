@@ -1,4 +1,6 @@
-from typing import Any, Union
+from __future__ import annotations
+
+from typing import Any
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
@@ -10,7 +12,7 @@ class MACAddress:
     Can be initialized from colon or comma separated string, or from raw bytes.
     """
 
-    def __init__(self, mac: Union[bytes, str, "MACAddress"]):
+    def __init__(self, mac: bytes | str | MACAddress):
         if isinstance(mac, self.__class__):
             mac = mac.mac  # type: ignore
         if not isinstance(mac, bytes) or len(mac) != 6:
@@ -19,11 +21,11 @@ class MACAddress:
         self.mac: bytes = mac
 
     @classmethod
-    def _validate(cls, value: Any) -> "MACAddress":
+    def _validate(cls, value: Any) -> MACAddress:
         return cls(value)
 
     @classmethod
-    def _serialize(cls, value: "MACAddress", info: Any) -> Any:
+    def _serialize(cls, value: MACAddress, info: Any) -> Any:
         if info.mode == "json":
             return str(value)
         return value
@@ -33,7 +35,7 @@ class MACAddress:
         cls, source_type: Any, handler: GetCoreSchemaHandler
     ) -> CoreSchema:
         base_schema = core_schema.no_info_after_validator_function(
-            cls._validate, handler(Union[str, bytes])
+            cls._validate, handler(str | bytes)
         )
 
         python_schema = core_schema.union_schema(
@@ -52,7 +54,7 @@ class MACAddress:
         )
 
     @staticmethod
-    def _parse_mac(mac: Union[bytes, str]) -> bytes:
+    def _parse_mac(mac: bytes | str) -> bytes:
         if isinstance(mac, str):
             mac = mac.encode()
         if not isinstance(mac, bytes):

@@ -1,7 +1,7 @@
 """Test the search & replace functionality for snapshot generic filter endpoint"""
 
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from ipaddress import IPv4Address, IPv6Address
 
 from bson import Binary
@@ -34,17 +34,17 @@ class TestSearchAndReplace(unittest.TestCase):
 
     def test_replace_date(self):
         query = {"date_attr": "$$Date{2021-01-01T00:00:00Z}"}
-        expected = {"date_attr": datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone.utc)}
+        expected = {"date_attr": datetime(2021, 1, 1, 0, 0, 0, tzinfo=UTC)}
         self.assertEqual(search_and_replace(query), expected)
 
     def test_replace_date_ts(self):
         query = {"date_attr": "$$DateTs{1609459200}"}
-        expected = {"date_attr": datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone.utc)}
+        expected = {"date_attr": datetime(2021, 1, 1, 0, 0, 0, tzinfo=UTC)}
         self.assertEqual(search_and_replace(query), expected)
 
         # Test with float value
         query = {"date_attr": "$$DateTs{1609459200.5}"}
-        expected = {"date_attr": datetime(2021, 1, 1, 0, 0, 0, 500000, tzinfo=timezone.utc)}
+        expected = {"date_attr": datetime(2021, 1, 1, 0, 0, 0, 500000, tzinfo=UTC)}
         self.assertEqual(search_and_replace(query), expected)
 
     def test_replace_ipv4_prefix(self):

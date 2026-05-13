@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Base interpreter with installed requirements
-FROM python:3.9-slim as base
+FROM python:3.11-slim as base
 RUN apt-get update; apt-get install -y  git
 
 # Install requirements

@@ -3,7 +3,7 @@
 
 import argparse
 import json
-from typing import Any, Optional
+from typing import Any
 
 from argcomplete.finders import CompletionFinder
 
@@ -154,7 +154,7 @@ def build_has_attr_filter(client, etype: str, attr: str) -> dict[str, Any]:
     return query
 
 
-def build_generic_filter_param(client, args) -> Optional[str]:
+def build_generic_filter_param(client, args) -> str | None:
     """Build the generic-filter query parameter for entity type queries."""
     query = None
     if getattr(args, "filter_json", None) is not None:
@@ -240,7 +240,7 @@ def _match_descriptions(values: dict[str, str], prefix: str) -> dict[str, str]:
     return {value: description for value, description in values.items() if value.startswith(prefix)}
 
 
-def _entity_types(model_spec, entity_catalog: Optional[dict[str, Any]] = None) -> list[str]:
+def _entity_types(model_spec, entity_catalog: dict[str, Any] | None = None) -> list[str]:
     if model_spec is not None:
         return sorted(model_spec.entities)
     if entity_catalog is not None:
@@ -249,7 +249,7 @@ def _entity_types(model_spec, entity_catalog: Optional[dict[str, Any]] = None) -
 
 
 def _entity_attrs(
-    model_spec, etype: str, entity_catalog: Optional[dict[str, Any]] = None
+    model_spec, etype: str, entity_catalog: dict[str, Any] | None = None
 ) -> list[str]:
     if model_spec is not None and etype in model_spec.entities:
         return sorted(model_spec.attribs(etype))
@@ -259,7 +259,7 @@ def _entity_attrs(
 
 
 def _entity_attr_descriptions(
-    model_spec, etype: str, entity_catalog: Optional[dict[str, Any]] = None
+    model_spec, etype: str, entity_catalog: dict[str, Any] | None = None
 ) -> dict[str, str]:
     attrs = _entity_attrs(model_spec, etype, entity_catalog)
     descriptions = {attr: f"Attribute on entity type '{etype}'." for attr in attrs}

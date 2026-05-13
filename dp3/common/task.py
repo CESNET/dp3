@@ -1,12 +1,12 @@
 import hashlib
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
-from typing import Annotated, Any, Callable, Optional, Union
+from typing import Annotated, Any
 
 from pydantic import (
     AfterValidator,
@@ -150,7 +150,7 @@ class DataPointTask(Task):
     eid: Annotated[Any, PlainSerializer(to_json_friendly, when_used="json")]
     data_points: list[ValidatedDataPoint] = []
     tags: list[Any] = []
-    ttl_tokens: Optional[dict[str, datetime]] = None
+    ttl_tokens: dict[str, datetime] | None = None
     delete: bool = False
 
     def __init__(__pydantic_self__, **data: Any) -> None:
@@ -222,13 +222,11 @@ def get_discriminator_value(entity_tuple: tuple[str, Any]) -> str:
 
 
 EntityTuple = Annotated[
-    Union[
-        Annotated[tuple[str, str], Tag("string")],
-        Annotated[tuple[str, int], Tag("int")],
-        Annotated[tuple[str, IPv4Address], Tag("ipv4")],
-        Annotated[tuple[str, IPv6Address], Tag("ipv6")],
-        Annotated[tuple[str, MACAddress], Tag("mac")],
-    ],
+    Annotated[tuple[str, str], Tag("string")]
+    | Annotated[tuple[str, int], Tag("int")]
+    | Annotated[tuple[str, IPv4Address], Tag("ipv4")]
+    | Annotated[tuple[str, IPv6Address], Tag("ipv6")]
+    | Annotated[tuple[str, MACAddress], Tag("mac")],
     Discriminator(get_discriminator_value),
 ]
 
@@ -259,8 +257,8 @@ class Snapshot(Task):
         return self.model_dump_json()
 
     @staticmethod
-    def get_validator(model_spec: ModelSpec) -> Callable[[Union[str, bytes]], "Snapshot"]:
-        def json_validator(serialized: Union[str, bytes]) -> Snapshot:
+    def get_validator(model_spec: ModelSpec) -> Callable[[str | bytes], "Snapshot"]:
+        def json_validator(serialized: str | bytes) -> Snapshot:
             with entity_type_context(model_spec):
                 return Snapshot.model_validate_json(serialized)
 

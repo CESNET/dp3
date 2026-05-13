@@ -4,7 +4,7 @@ import threading
 import time
 from collections import defaultdict
 from collections.abc import Callable, Generator, Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pymongo
 from event_count_logger import DummyEventGroup
@@ -23,7 +23,7 @@ from dp3.common.datapoint import DataPointBase
 from dp3.common.datatype import AnyEidT
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
-from dp3.common.types import UTC, EventGroupType
+from dp3.common.types import EventGroupType
 from dp3.database.config import MongoConfig, MongoReplicaConfig, MongoStandaloneConfig
 from dp3.database.encodings import get_codec_options
 from dp3.database.exceptions import DatabaseError

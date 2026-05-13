@@ -1,11 +1,11 @@
 import datetime
 import json
 import sys
+from datetime import UTC
 
 import common
 
 from dp3.api.internal.entity_response_models import EntityRawDataPage
-from dp3.common.types import UTC
 
 
 class RawDatapointsIntegration(common.APITest):

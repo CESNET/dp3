@@ -2,7 +2,7 @@ import gzip
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -15,7 +15,7 @@ from dp3.common.attrspec import (
 )
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
-from dp3.common.types import UTC, DP3Encoder, ParsedTimedelta
+from dp3.common.types import DP3Encoder, ParsedTimedelta
 from dp3.common.utils import entity_expired
 from dp3.database.database import DatabaseError, EntityDatabase
 

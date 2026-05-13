@@ -2,7 +2,7 @@ import logging
 import time
 from collections import defaultdict
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from logging import Logger
 
 import pymongo
@@ -12,7 +12,6 @@ from pymongo.database import Database
 
 from dp3.common.attrspec import ID_REGEX, AttrSpecType, AttrType
 from dp3.common.config import HierarchicalDict, ModelSpec
-from dp3.common.types import UTC
 from dp3.common.utils import batched
 
 # number of seconds to wait for the i-th attempt to reconnect after error

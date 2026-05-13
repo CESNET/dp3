@@ -3,7 +3,7 @@ Core module managing links between entities.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 
 from pymongo import DeleteMany
@@ -14,7 +14,6 @@ from dp3.common.config import PlatformConfig
 from dp3.common.datapoint import DataPointBase, DataPointObservationsBase
 from dp3.common.datatype import AnyEidT
 from dp3.common.task import parse_eids_from_cache
-from dp3.common.types import UTC
 from dp3.database.database import EntityDatabase
 
 

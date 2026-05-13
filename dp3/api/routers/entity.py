@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -22,7 +22,7 @@ from dp3.api.internal.response_models import ErrorResponse, RequestValidationErr
 from dp3.common.attrspec import AttrType
 from dp3.common.datapoint import to_json_friendly
 from dp3.common.task import DataPointTask, task_context
-from dp3.common.types import UTC, AwareDatetime
+from dp3.common.types import AwareDatetime
 from dp3.database.database import DatabaseError
 
 

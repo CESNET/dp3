@@ -1,12 +1,12 @@
 import datetime
 import json
 import sys
+from datetime import UTC
 from time import sleep
 
 import common
 
 from dp3.api.internal.entity_response_models import EntityEidData, EntityEidSnapshots
-from dp3.common.types import UTC
 
 
 class SnapshotIntegration(common.APITest):

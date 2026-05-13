@@ -15,7 +15,7 @@ You will end up with:
 
 For local application development, you need:
 
-- Python 3.9 or higher
+- Python 3.11 or higher
 - `pip`
 - `git`
 - Docker

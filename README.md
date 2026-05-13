@@ -34,7 +34,7 @@ See the [docs](https://cesnet.github.io/dp3/howto/get-started/) for more details
 
 ### Installing for application development
 
-Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
+Pre-requisites: Python 3.11 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
 
 Create a virtualenv and install the DP³ platform using:
 
@@ -117,7 +117,7 @@ You are now ready to start developing your application!
 
 ## Installing for platform development
 
-Pre-requisites: Python 3.9 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
+Pre-requisites: Python 3.11 or higher, `pip` (with `virtualenv` installed), `git`, `Docker` and `Docker Compose`.
 
 Pull the repository and install using:
 

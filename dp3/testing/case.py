@@ -114,7 +114,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
                 delete=delete,
             )
 
-    def make_datapoint(
+    def _make_datapoint(
         self,
         etype: str,
         eid: Any,
@@ -133,7 +133,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
     def make_plain_datapoint(
         self, etype: str, eid: Any, attr: str, v: Any, src: str = "test", **fields
     ) -> DataPointBase:
-        return self.make_datapoint(etype, eid, attr, v, src=src, **fields)
+        return self._make_datapoint(etype, eid, attr, v, src=src, **fields)
 
     def make_observation_datapoint(
         self,
@@ -151,7 +151,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         data = {"t1": t1, "c": c, **fields}
         if t2 is not None:
             data["t2"] = t2
-        return self.make_datapoint(etype, eid, attr, v, src=src, **data)
+        return self._make_datapoint(etype, eid, attr, v, src=src, **data)
 
     def make_timeseries_datapoint(
         self,
@@ -187,7 +187,7 @@ class DP3ModuleTestCase(ModuleAssertions, unittest.TestCase, Generic[ModuleT]):
         data = {"t1": t1, **fields}
         if t2 is not None:
             data["t2"] = t2
-        return self.make_datapoint(etype, eid, attr, values, src=src, **data)
+        return self._make_datapoint(etype, eid, attr, values, src=src, **data)
 
     @staticmethod
     def _infer_timeseries_t1(attr_spec, values: Mapping[str, Sequence[Any]]) -> Optional[datetime]:

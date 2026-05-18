@@ -162,6 +162,29 @@ class UpdaterCache:
         self._cache.create_index("t_created", background=True)
 
 
+UpdateThreadId = tuple[float, str, bool]
+
+
+def validate_update_period(period: float, update_batch_period: float) -> None:
+    """Validate that an update hook period can be processed by updater batches."""
+    if period < update_batch_period:
+        raise ValueError(
+            f"The total period ({period}s) must be greater than or equal to "
+            f"the update batch period ({update_batch_period}s)."
+        )
+
+
+def get_update_thread_hooks(
+    update_thread_hooks: dict[UpdateThreadId, dict], hook_id: str, thread_id: UpdateThreadId
+) -> dict:
+    """Return the updater thread hook mapping after checking hook ID uniqueness."""
+    hooks = update_thread_hooks[thread_id]
+    _period, entity_type, _eid_only = thread_id
+    if hook_id in hooks:
+        raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
+    return hooks
+
+
 class Updater:
     """Executes periodic update callbacks."""
 
@@ -228,16 +251,10 @@ class Updater:
             return
 
         update_period_secs = self.config.update_batch_period.total_seconds()
-        if period < update_period_secs:
-            raise ValueError(
-                f"The total period {period}s is must be greater or equal than "
-                f"the update batch period {update_period_secs}s."
-            )
+        validate_update_period(period, update_period_secs)
 
-        thread_id = (period, entity_type, eid_only)
-        hooks = self.update_thread_hooks[thread_id]
-        if hook_id in hooks:
-            raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
+        thread_id: UpdateThreadId = (period, entity_type, eid_only)
+        hooks = get_update_thread_hooks(self.update_thread_hooks, hook_id, thread_id)
         self.log.info(
             "Registered hook '%s' to thread processing entity '%s' over %.1fs, eid_only = %s",
             hook_id,

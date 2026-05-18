@@ -23,6 +23,11 @@ from dp3.common.datapoint import DataPointBase
 from dp3.common.hook_types import ATTR_TYPE_TO_ON_NEW_HOOK
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.utils import get_func_name, parse_time_duration
+from dp3.core.updater import (
+    UpdateThreadId,
+    get_update_thread_hooks,
+    validate_update_period,
+)
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
     SnapshotTimeseriesHookContainer,
@@ -68,12 +73,12 @@ class TestCallbackRegistrar:
         self._attr_hooks: defaultdict[tuple[str, str], list[HookRegistration]] = defaultdict(list)
         self._snapshot_init_hooks: list[HookRegistration] = []
         self._snapshot_finalize_hooks: list[HookRegistration] = []
-        self._periodic_record_hooks: defaultdict[tuple[str, str], list[HookRegistration]] = (
-            defaultdict(list)
-        )
-        self._periodic_eid_hooks: defaultdict[tuple[str, str], list[HookRegistration]] = (
-            defaultdict(list)
-        )
+        self._periodic_record_hooks: defaultdict[
+            tuple[float, str, bool], dict[str, HookRegistration]
+        ] = defaultdict(dict)
+        self._periodic_eid_hooks: defaultdict[
+            tuple[float, str, bool], dict[str, HookRegistration]
+        ] = defaultdict(dict)
         self._scheduler_jobs: list[HookRegistration] = []
 
         self._correlation_hooks = SnapshotCorrelationHookContainer(
@@ -291,7 +296,9 @@ class TestCallbackRegistrar:
     ):
         self._validate_entity(entity_type)
         period_seconds = self._period_seconds(period)
-        self._validate_periodic_hook(entity_type, hook_id, period_seconds, eid_only=False)
+        hooks = self._validate_periodic_hook(
+            self._periodic_record_hooks, entity_type, hook_id, period_seconds, eid_only=False
+        )
         reg = HookRegistration(
             kind="periodic_update",
             hook=hook,
@@ -300,14 +307,16 @@ class TestCallbackRegistrar:
             period=period,
         )
         self._record(reg)
-        self._periodic_record_hooks[entity_type, hook_id].append(reg)
+        hooks[hook_id] = reg
 
     def register_periodic_eid_update_hook(
         self, hook: Callable, hook_id: str, entity_type: str, period: Any
     ):
         self._validate_entity(entity_type)
         period_seconds = self._period_seconds(period)
-        self._validate_periodic_hook(entity_type, hook_id, period_seconds, eid_only=True)
+        hooks = self._validate_periodic_hook(
+            self._periodic_eid_hooks, entity_type, hook_id, period_seconds, eid_only=True
+        )
         reg = HookRegistration(
             kind="periodic_eid_update",
             hook=hook,
@@ -316,7 +325,7 @@ class TestCallbackRegistrar:
             period=period,
         )
         self._record(reg)
-        self._periodic_eid_hooks[entity_type, hook_id].append(reg)
+        hooks[hook_id] = reg
 
     def run_task_hooks(self, hook_type: str, task: DataPointTask) -> None:
         for reg in self._task_hooks[hook_type]:
@@ -514,21 +523,18 @@ class TestCallbackRegistrar:
         return record["eid"]
 
     def _validate_periodic_hook(
-        self, entity_type: str, hook_id: str, period_seconds: float, eid_only: bool
-    ) -> None:
+        self,
+        update_thread_hooks: dict,
+        entity_type: str,
+        hook_id: str,
+        period_seconds: float,
+        eid_only: bool,
+    ) -> dict:
         update_period_seconds = self._update_batch_period_seconds()
-        if update_period_seconds is not None and period_seconds < update_period_seconds:
-            raise ValueError(
-                f"The total period {period_seconds}s is must be greater or equal than "
-                f"the update batch period {update_period_seconds}s."
-            )
-
-        hooks = self._periodic_eid_hooks if eid_only else self._periodic_record_hooks
-        if any(
-            self._period_seconds(reg.period) == period_seconds
-            for reg in hooks[entity_type, hook_id]
-        ):
-            raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
+        if update_period_seconds is not None:
+            validate_update_period(period_seconds, update_period_seconds)
+        thread_id: UpdateThreadId = (period_seconds, entity_type, eid_only)
+        return get_update_thread_hooks(update_thread_hooks, hook_id, thread_id)
 
     def _update_batch_period_seconds(self) -> Optional[float]:
         if self.update_batch_period is None:
@@ -551,9 +557,16 @@ class TestCallbackRegistrar:
 
     @staticmethod
     def _matching_update_hooks(hooks: dict, entity_type: str, hook_id: Optional[str]):
-        if hook_id is not None:
-            return list(hooks[entity_type, hook_id])
-        return [reg for (etype, _), regs in hooks.items() if etype == entity_type for reg in regs]
+        matches = []
+        for (_, etype, _), thread_hooks in hooks.items():
+            if etype != entity_type:
+                continue
+            if hook_id is not None:
+                if hook_id in thread_hooks:
+                    matches.append(thread_hooks[hook_id])
+            else:
+                matches.extend(thread_hooks.values())
+        return matches
 
 
 def _callable_matches(func: Callable, expected: Union[str, Callable]) -> bool:

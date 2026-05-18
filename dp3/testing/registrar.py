@@ -12,7 +12,6 @@ from typing import Any, Callable, Optional, Union
 from apscheduler.triggers.cron import CronTrigger
 from event_count_logger import DummyEventGroup
 
-from dp3.common.attrspec import AttrType
 from dp3.common.callback_registrar import (
     _drop_master,
     on_attr_change_in_snapshots,
@@ -21,6 +20,7 @@ from dp3.common.callback_registrar import (
 )
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
+from dp3.common.hook_types import ATTR_TYPE_TO_ON_NEW_HOOK
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.utils import get_func_name, parse_time_duration
 from dp3.snapshots.snapshot_hooks import (
@@ -51,12 +51,6 @@ class HookRegistration:
 
 class TestCallbackRegistrar:
     """Callback registrar implementation for module unit tests."""
-
-    attr_spec_t_to_on_attr = {
-        AttrType.PLAIN: "on_new_plain",
-        AttrType.OBSERVATIONS: "on_new_observation",
-        AttrType.TIMESERIES: "on_new_ts_chunk",
-    }
 
     def __init__(
         self,
@@ -507,7 +501,7 @@ class TestCallbackRegistrar:
 
     def _hook_type_for_attr(self, entity: str, attr: str) -> str:
         try:
-            return self.attr_spec_t_to_on_attr[self.model_spec.attributes[entity, attr].t]
+            return ATTR_TYPE_TO_ON_NEW_HOOK[self.model_spec.attributes[entity, attr].t]
         except KeyError as e:
             raise ValueError(
                 f"Cannot register hook for attribute {entity}/{attr}, are you sure it exists?"

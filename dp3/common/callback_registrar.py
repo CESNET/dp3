@@ -9,6 +9,7 @@ from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec, PlatformConfig, read_config_dir
 from dp3.common.datapoint import DataPointType
 from dp3.common.datatype import AnyEidT
+from dp3.common.hook_types import ATTR_TYPE_TO_ON_NEW_HOOK
 from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask, task_context
@@ -133,11 +134,6 @@ class CallbackRegistrar:
 
         self.log = logging.getLogger(self.__class__.__name__)
         self.model_spec = task_executor.model_spec
-        self.attr_spec_t_to_on_attr = {
-            AttrType.PLAIN: "on_new_plain",
-            AttrType.OBSERVATIONS: "on_new_observation",
-            AttrType.TIMESERIES: "on_new_ts_chunk",
-        }
 
     def scheduler_register(
         self,
@@ -298,7 +294,7 @@ class CallbackRegistrar:
             ValueError: If entity and attr do not specify a valid attribute, a ValueError is raised.
         """
         try:
-            hook_type = self.attr_spec_t_to_on_attr[self.model_spec.attributes[entity, attr].t]
+            hook_type = ATTR_TYPE_TO_ON_NEW_HOOK[self.model_spec.attributes[entity, attr].t]
         except KeyError as e:
             raise ValueError(
                 f"Cannot register hook for attribute {entity}/{attr}, are you sure it exists?"

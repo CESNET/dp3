@@ -343,11 +343,19 @@ class TestDP3ModuleTestCase(DP3ModuleTestCase):
         self.assert_registered_attrs("test_entity_type", ["test_attr_string"])
 
     def test_scheduler_helpers(self):
-        self.assert_scheduler_registered(func="reload", minute="*/5")
+        registration = self.assert_scheduler_registered(func="reload", minute="*/5")
+        self.assertEqual(1, registration.extra["job_id"])
 
+        self.run_scheduler_job(1)
         self.run_scheduler_job("reload")
 
-        self.assertEqual(1, self.module.reload_count)
+        self.assertEqual(2, self.module.reload_count)
+
+    def test_scheduler_helper_validates_cron_fields(self):
+        registrar = self.make_registrar()
+
+        with self.assertRaises(ValueError):
+            registrar.scheduler_register(lambda: None, minute="not-a-minute")
 
     def test_deprecated_registrar_methods_are_supported_with_warnings(self):
         registrar = self.make_registrar()

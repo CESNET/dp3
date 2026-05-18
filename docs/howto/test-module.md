@@ -100,6 +100,12 @@ Periodic record update tests pass the raw persisted `master_record`; plain attri
 under dictionaries such as `{"v": ...}`.
 Scheduler jobs can be selected by the id returned from `scheduler_register()`, callable, or callable name.
 
+Hook runners call module hooks directly and intentionally propagate hook exceptions to the test.
+The DP3 runtime is more resilient: worker, snapshot, and updater processing logs module errors and
+continues so one faulty secondary module hook does not stop processing. Unit tests use stricter
+behavior so failures are visible at assertion time and test authors can verify exceptional paths
+without searching runtime logs.
+
 ## Assertions
 
 Assertions use partial matching: only fields supplied in the expected values are checked.

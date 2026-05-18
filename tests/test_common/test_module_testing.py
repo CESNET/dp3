@@ -289,8 +289,18 @@ class TestDP3ModuleTestCase(DP3ModuleTestCase):
                 may_change=[["missing_attr"]],
             )
 
-    def test_may_change_without_refresh_does_not_register_snapshot_hooks(self):
+    def test_may_change_is_required_only_for_refreshed_hooks(self):
         registrar = self.make_registrar()
+        refresh = SharedFlag(True)
+
+        with self.assertRaises(ValueError):
+            registrar.register_on_entity_creation_hook(
+                lambda _eid, _task: [], "test_entity_type", refresh=refresh
+            )
+        with self.assertRaises(ValueError):
+            registrar.register_on_new_attr_hook(
+                lambda _eid, _dp: [], "test_entity_type", "test_attr_string", refresh=refresh
+            )
 
         registrar.register_on_entity_creation_hook(
             lambda _eid, _task: [],
@@ -304,8 +314,8 @@ class TestDP3ModuleTestCase(DP3ModuleTestCase):
             may_change=[["missing_attr"]],
         )
 
+        self.assertEqual([], [reg for reg in registrar.registrations if reg.kind == "correlation"])
         self.assertEqual([], registrar.run_snapshot_finalize_hooks())
-        self.assertEqual([], registrar.run_correlation_hooks("test_entity_type", {"eid": "e1"}))
 
     def test_periodic_update_hook_rejects_duplicate_thread_hook_id(self):
         registrar = self.make_registrar()

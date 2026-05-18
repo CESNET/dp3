@@ -5,6 +5,7 @@ from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 from dp3.common.datatype import AnyEidT
+from dp3.common.hook_types import ATTR_TYPE_TO_ON_NEW_HOOK
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name
@@ -130,14 +131,10 @@ class TaskAttrHooksContainer:
         self.elog = elog
         self.model_spec = model_spec
 
-        if attr_type == AttrType.PLAIN:
-            self.on_new_hook_type = "on_new_plain"
-        elif attr_type == AttrType.OBSERVATIONS:
-            self.on_new_hook_type = "on_new_observation"
-        elif attr_type == AttrType.TIMESERIES:
-            self.on_new_hook_type = "on_new_ts_chunk"
-        else:
-            raise ValueError(f"Invalid attribute type '{attr_type}'")
+        try:
+            self.on_new_hook_type = ATTR_TYPE_TO_ON_NEW_HOOK[attr_type]
+        except KeyError as e:
+            raise ValueError(f"Invalid attribute type '{attr_type}'") from e
 
         self._on_new = []
 

@@ -9,6 +9,7 @@ from datetime import timedelta
 from functools import partial
 from typing import Any, Callable, Optional, Union
 
+from apscheduler.triggers.cron import CronTrigger
 from event_count_logger import DummyEventGroup
 
 from dp3.common.attrspec import AttrType
@@ -105,6 +106,8 @@ class TestCallbackRegistrar:
         timezone: str = "UTC",
         misfire_grace_time: int = 1,
     ) -> int:
+        CronTrigger(year, month, day, week, day_of_week, hour, minute, second, timezone=timezone)
+        job_id = len(self._scheduler_jobs) + 1
         schedule = {
             "year": year,
             "month": month,
@@ -124,11 +127,12 @@ class TestCallbackRegistrar:
                 "func_args": list(func_args or []),
                 "func_kwargs": dict(func_kwargs or {}),
                 "schedule": schedule,
+                "job_id": job_id,
             },
         )
         self._record(reg)
         self._scheduler_jobs.append(reg)
-        return len(self._scheduler_jobs) - 1
+        return job_id
 
     def register_task_hook(self, hook_type: str, hook: Callable):
         if hook_type != "on_task_start":
@@ -432,9 +436,12 @@ class TestCallbackRegistrar:
     def get_scheduler_job(
         self, job: Union[int, str, Callable, HookRegistration]
     ) -> HookRegistration:
-        """Return a registered scheduler job by index, callable, or callable name."""
+        """Return a registered scheduler job by id, callable, or callable name."""
         if isinstance(job, int):
-            return self._scheduler_jobs[job]
+            for reg in self._scheduler_jobs:
+                if reg.extra["job_id"] == job:
+                    return reg
+            raise ValueError(f"No scheduler job has id {job!r}.")
         if isinstance(job, HookRegistration):
             if job.kind != "scheduler":
                 raise ValueError(f"Registration kind '{job.kind}' is not a scheduler job.")

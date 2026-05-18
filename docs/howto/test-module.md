@@ -91,14 +91,14 @@ Common runners are available on the test case:
 - `run_correlation_hooks(entity_type, record, master_record=None)`
 - `run_periodic_update(entity_type, eid, master_record, hook_id=None)`
 - `run_periodic_eid_update(entity_type, eid, hook_id=None)`
-- `run_scheduler_job(index_or_func)`
+- `run_scheduler_job(job_id_or_func)`
 
 Correlation tests pass the snapshot `record` explicitly. The record must contain `eid`.
 Creation and attribute hooks registered with `refresh` are also available through
 `run_correlation_hooks()` and their refresh flags are unset by `run_snapshot_finalize_hooks()`.
 Periodic record update tests pass the raw persisted `master_record`; plain attributes are stored
 under dictionaries such as `{"v": ...}`.
-Scheduler jobs can be selected by registration index, callable, or callable name.
+Scheduler jobs can be selected by the id returned from `scheduler_register()`, callable, or callable name.
 
 ## Assertions
 

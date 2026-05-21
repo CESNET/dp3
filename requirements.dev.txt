@@ -1,4 +1,4 @@
-mkdocs>=1.6
+mkdocs~=1.6.1
 mkdocs-gen-files>=0.4
 mkdocs-literate-nav>=0.6
 mkdocs-llmstxt

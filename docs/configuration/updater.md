@@ -4,7 +4,7 @@ The updater module is responsible for updating all entities in the database over
 The main use-case is to execute queries to external systems and update the entities with the results,
 avoiding the present rate limits and other restrictions.
 However, it can be used for any kind of long-running operation.
-This functionality is exposed to modules using the [registrar API](../modules.md#periodic-update-callbacks).
+This functionality is exposed to modules using the [registrar API](../modules.md#periodic-updater-hooks).
 
 For better robustness, the updates happen in batches, which are executed on a configurable schedule.
 

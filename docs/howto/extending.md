@@ -51,7 +51,7 @@ To reference an anchor within a page, such as a heading, use a Markdown link to 
 If you're not sure which identifier to use, you can look at a heading's anchor by clicking the heading in your Web browser, either in the text itself, or in the table of contents.
 If the URL is `https://example.com/some/page/#anchor-name` then you know that this item is possible to link to with `[<displayed text>](#anchor-name)`. (Tip taken from [mkdocstrings](https://mkdocstrings.github.io/usage/#finding-out-the-anchor))
 
-To make a reference to another page within the documentation, use the path to the Markdown source file, followed by the desired anchor. For example, this [link](index.md#repository-structure) was created as `[link](index.md#repository-structure)`.
+To make a reference to another page within the documentation, use the path to the Markdown source file, followed by the desired anchor. For example, this [link](../index.md#repository-structure) was created as `[link](../index.md#repository-structure)`.
 
 When making references to the generated [Code Reference](../reference/index.md), there are two options. Links can be made either using the standard Markdown syntax, where some reverse-engineering of the generated files is required, or, with the support of mkdocstrings, using the `[example][full.path.to.object]` syntax. A real link like this can be for example [this one][dp3.common.config.ModelSpec] to the Platform Model Specification.
 
@@ -60,15 +60,17 @@ When making references to the generated [Code Reference](../reference/index.md),
 Code reference is generated using [mkdocstrings](https://mkdocstrings.github.io/) and the [Automatic code reference pages](https://mkdocstrings.github.io/recipes/#automatic-code-reference-pages) recipe from their documentation.
 The generation of pages is done using the `docs/gen_ref_pages.py` script. The script is a slight modification of what is recommended within the mentioned recipe.
 
-Mkdocstrings itself enables generating code documentation from its docstrings using a ```::: path.to.object``` syntax.
+Mkdocstrings itself enables generating code documentation from its docstrings using a `::: path.to.object` syntax.
 Here is an example of documentation for `dp3.snapshots.snapshot_hooks.SnapshotTimeseriesHookContainer.register` method:
 
-### ::: dp3.snapshots.snapshot_hooks.SnapshotTimeseriesHookContainer.register
+```markdown
+::: dp3.snapshots.snapshot_hooks.SnapshotTimeseriesHookContainer.register
     options:
         show_root_heading: true
         show_root_full_path: false
         show_source: false
         show_signature_annotations: true
+```
 
 There are additional options that can be specified, which affect the way the documentation is presented. For more on these options, see [here](https://mkdocstrings.github.io/python/usage/#globallocal-options).
 

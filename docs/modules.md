@@ -12,7 +12,7 @@ to the data present in the system_, e.g.: altering the data-flow in an applicati
 deriving additional data based on incoming data-points or performing data correlation on entity snapshots.
 
 This page covers the DP³ API for secondary modules, 
-for primary module implementation, the [API documentation](../api/#insert-datapoints) may be useful, 
+for primary module implementation, the [API documentation](api.md#insert-datapoints) may be useful, 
 also feel free to check out the dummy_sender script in `/scripts/dummy_sender.py`.
 
 If you are integrating a module into a DP³ application, start with the task guides [How to add a secondary module](howto/add-module.md) and [How to add an attribute](howto/add-attribute.md), then return here for the reference details.
@@ -119,8 +119,8 @@ For this reason it is recommended to place all configuration loading code into t
 
 Some callbacks may be called only sparsely in the lifetime of an entity,
 and it may be useful to refresh all the values derived by the module when the configuration changes.
-This is implemented for the [`on_entity_creation`](hooks.md#on_entity_creation) 
-and [`on_new_attr`](hooks.md#on_new_attr) callbacks, 
+This is implemented for the [`on_entity_creation`](hooks.md#entity-on_entity_creation-hook) 
+and [`on_new_attr`](hooks.md#attribute-on_new_attr-hook) callbacks, 
 and you can enable it by passing the `refresh` keyword argument
 to the callback registration. See the [refresh behavior reference](hooks.md#refresh-on-config-change-behavior-for-ingestion-hooks) for details.
 
@@ -135,26 +135,26 @@ returned `DataPointTask` objects re-enter DP³ processing. What follows is a lig
 
 ### Ingestion-time hooks
 
-- [`register_task_hook("on_task_start", ...)`](hooks.md#on_task_start) — observe every
+- [`register_task_hook("on_task_start", ...)`](hooks.md#task-on_task_start-hook) — observe every
   incoming `DataPointTask`; the return value is ignored.
-- [`register_allow_entity_creation_hook(...)`](hooks.md#allow_entity_creation) — allow
+- [`register_allow_entity_creation_hook(...)`](hooks.md#entity-allow_entity_creation-hook) — allow
   or deny creation of a new entity.
-- [`register_on_entity_creation_hook(...)`](hooks.md#on_entity_creation) — react once
+- [`register_on_entity_creation_hook(...)`](hooks.md#entity-on_entity_creation-hook) — react once
   when an entity is first created.
-- [`register_on_new_attr_hook(...)`](hooks.md#on_new_attr) — react to each incoming
+- [`register_on_new_attr_hook(...)`](hooks.md#attribute-on_new_attr-hook) — react to each incoming
   datapoint of a selected attribute.
 
 ### Snapshot-time hooks
 
-- [`register_snapshot_init_hook(...)`](hooks.md#snapshot_init) — run whole-run setup
+- [`register_snapshot_init_hook(...)`](hooks.md#snapshot-snapshot_init-hook) — run whole-run setup
   before snapshot processing begins.
-- [`register_timeseries_hook(...)`](hooks.md#timeseries_hook) — process accumulated
+- [`register_timeseries_hook(...)`](hooks.md#snapshot-timeseries_hook) — process accumulated
   timeseries history before snapshot current values are finalized.
-- [`register_correlation_hook(...)`](hooks.md#register_correlation_hook) — reason over
+- [`register_correlation_hook(...)`](hooks.md#correlation-hooks) — reason over
   snapshot-time current values.
-- [`register_correlation_hook_with_master_record(...)`](hooks.md#register_correlation_hook_with_master_record)
+- [`register_correlation_hook_with_master_record(...)`](hooks.md#correlation-hooks)
   — correlation hook variant that also receives the raw `master_record`.
-- [`register_snapshot_finalize_hook(...)`](hooks.md#snapshot_finalize) — run whole-run
+- [`register_snapshot_finalize_hook(...)`](hooks.md#snapshot-snapshot_finalize-hook) — run whole-run
   teardown after snapshot processing ends.
 
 ### Periodic updater hooks
@@ -162,14 +162,14 @@ returned `DataPointTask` objects re-enter DP³ processing. What follows is a lig
 Updater hooks revisit stored entities over a configured period. For the updater scheduling model
 and configuration, see the [updater configuration](configuration/updater.md) page.
 
-- [`register_periodic_update_hook(...)`](hooks.md#periodic_update_hook) — periodic
+- [`register_periodic_update_hook(...)`](hooks.md#updater-periodic_update_hook) — periodic
   sweep with `master_record`.
-- [`register_periodic_eid_update_hook(...)`](hooks.md#periodic_eid_update_hook) —
+- [`register_periodic_eid_update_hook(...)`](hooks.md#updater-periodic_eid_update_hook) —
   lighter periodic sweep when only the entity identity is needed.
 
 ### Scheduled callbacks
 
-- [`scheduler_register(...)`](hooks.md#scheduler_register) — CRON-style module-level
+- [`scheduler_register(...)`](hooks.md#general-scheduled-callbacks) — CRON-style module-level
   scheduled callback for maintenance, polling, housekeeping, or shared-state reloads.
 
 ## Testing modules

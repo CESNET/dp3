@@ -4,7 +4,7 @@ Files in `db_entities` folder describe *entities* and their *attributes*. You ca
 This serves as sort of schema for the database DP³ uses.
 How DP³ deals with changes to the `db_entities` is described in the [schema tracking](#schema-tracking) section.
 
-Below is YAML file (e.g. `db_entities/bus.yml`) corresponding to bus tracking system example from the [Data model](../../data_model/#exemplary-system) page.
+Below is YAML file (e.g. `db_entities/bus.yml`) corresponding to bus tracking system example from the [Data model](../data_model.md#exemplary-system) page.
 
 ```yaml
 entity:

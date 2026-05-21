@@ -74,7 +74,7 @@ nav:
     - Snapshots: configuration/snapshots.md
     - Garbage Collector: configuration/garbage_collector.md
     - Updater: configuration/updater.md
-  - Code Reference: reference/
+  - Code Reference: reference/index.md
   - Scripts: scripts.md
   - Grafana plugin: grafana_plugin.md
 

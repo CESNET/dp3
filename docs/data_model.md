@@ -24,7 +24,7 @@ are developing data model for bus tracking system. You have to store these data:
 Also, map displaying current position of all buses is required.
 
 (In case you are interested, configuration of database entities for this system
-is available on the [DB entities](../configuration/db_entities/) page.)
+is available on the [DB entities](configuration/db_entities.md) page.)
 
 To make everything clear and more readable, all example references below are
 typesetted as quotes.
@@ -136,14 +136,14 @@ This is useful if you need to track a relationship in both directions, but manag
 > relationships would come in quite handy. 
 > The bus driver is a separate entity type, and can drive multiple buses during the day.
 > The current bus driver will be represented as an observation link between the bus and the driver,
-> as can be seen in the [resulting configuration](../configuration/db_entities/).
+> as can be seen in the [resulting configuration](configuration/db_entities.md).
 
 [//]: # (TODO more info?)
 
 ## Continue to ...
 
 Now that you have an understanding of the data model and the types of attributes,
-you might want to check out the details of [DB configuration](../configuration/db_entities/),
+you might want to check out the details of [DB configuration](configuration/db_entities.md),
 where you will find the **parameters for each attribute type**
 and the **data types** supported by the platform.
 

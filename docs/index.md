@@ -49,7 +49,7 @@ When you already know the concept or task and need exact syntax, switch to the r
 
 - [API](api.md) - HTTP endpoints, request formats, and responses
 - [Configuration](configuration/index.md) - file-by-file configuration reference
-- [Code Reference](reference/) - generated Python API reference for DP³ internals
+- [Code Reference](reference/index.md) - generated Python API reference for DP³ internals
 
 ## Repository structure
 

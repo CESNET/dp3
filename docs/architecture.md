@@ -30,7 +30,7 @@ The base unit of data that DP³ uses is called a **data-point**, which looks lik
 6. To easily determine the **data source** of this data-point, you can optionally provide an identifier using the `src` field.
 
 This example shows an example of an **observations** data-point (given it has a validity interval),
-to learn more about the different types of data-points, please see the [API documentation](../api/#insert-datapoints).
+to learn more about the different types of data-points, please see the [API documentation](api.md#insert-datapoints).
 
 ## Platform Architecture  
 
@@ -71,7 +71,7 @@ The application-specific components, shown in yellow-orange, are as following:
   send data-points _into the system_ using the HTTP API, while secondary modules _react
   to the data present in the system_, e.g.: altering the data-flow in an application-specific manner,
   deriving additional data based on incoming data-points or performing data correlation on entity snapshots.
-  For primary module implementation, the [API documentation](../api/#insert-datapoints) may be useful, 
+  For primary module implementation, the [API documentation](api.md#insert-datapoints) may be useful, 
   also feel free to check out the dummy_sender script in `/scripts/dummy_sender.py`.
   Feel free to check out the [secondary module API documentation](modules.md), or you can also 
   refer to the [CallbackRegistrar code reference][dp3.common.callback_registrar.CallbackRegistrar] or 
@@ -100,7 +100,7 @@ Snapshots take the profile history, and compute the **current value** of the pro
 reducing each attribute history to a single value. 
 The snapshot creation frequency is [configurable](configuration/snapshots.md).
 Snapshots are created on a per-entity basis, but all linked entities are processed at the same time.
-This means that when snapshots are created, the [registered snapshot callbacks](modules.md#correlation-callbacks)
+This means that when snapshots are created, the [registered snapshot callbacks](hooks.md#correlation-hooks)
 can access any linked entities for their data correlation needs. 
 After all the correlation callbacks are called, the snapshot is written to the **profile snapshot** collection,
 for which it can be accessed via the API. The collection is accessible under the name `{entity}#snapshots`.

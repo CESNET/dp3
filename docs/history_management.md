@@ -4,7 +4,7 @@ Here we explain several concepts that are used to manage data of attributes with
 meaning they are [observations](data_model.md#observations). The configuration is described in the [History Manager](configuration/history_manager.md) configuration.
 
 DP³ bases its work with these attributes around the idea of the **current value** of the attribute at a given time.
-This is how all values are accessible in the [correlation hook API](modules.md#correlation-callbacks) -
+This is how all values are accessible in the [correlation hook API](hooks.md#correlation-hooks) -
 DP³ creates a slice for a particular time from the history of each entity,
 and presents only these **current values** of all attributes. This is trivial with plain attributes, as they have only one value,
 but with observations, it's a bit more complicated.

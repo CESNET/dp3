@@ -2,6 +2,7 @@
 auxiliary/utility functions and classes
 """
 
+import logging
 import re
 from collections.abc import Iterable, Iterator
 from datetime import datetime, timedelta
@@ -185,3 +186,17 @@ def get_func_name(func_or_method):
     except AttributeError:
         return fname
     return wrapper.format(name=f"{module}.{fname}", args=args)
+
+
+DEPENDENCY_LOGGERS = (
+    "requests",
+    "urllib3",
+    "amqpstorm",
+    "pymongo",
+)
+
+
+def suppress_dependency_loggers(level: int = logging.WARNING) -> None:
+    """Keep noisy third-party loggers quiet when DP3 enables verbose logging."""
+    for logger_name in DEPENDENCY_LOGGERS:
+        logging.getLogger(logger_name).setLevel(level)

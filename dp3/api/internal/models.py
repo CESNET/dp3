@@ -68,5 +68,8 @@ for entity_type, entity_spec in MODEL_SPEC.entities.items():
         )
     )
 
+if not entity_id_models:
+    raise RuntimeError("At least one entity type must be configured to run the API.")
+
 EntityIdType = Annotated[reduce(or_, entity_id_models), Field(discriminator="type")]
 EntityIdAdapter = TypeAdapter(EntityIdType)

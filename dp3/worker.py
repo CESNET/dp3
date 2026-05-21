@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from dp3.common.callback_registrar import CallbackRegistrar, reload_module_config
 from dp3.common.config import PlatformConfig
 from dp3.common.control import Control, ControlAction, refresh_on_entity_creation
+from dp3.common.utils import suppress_dependency_loggers
 from dp3.core.collector import GarbageCollector
 from dp3.core.link_manager import LinkManager
 from dp3.core.updater import Updater
@@ -122,10 +123,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
     )
     log = logging.getLogger()
 
-    # Disable INFO and DEBUG messages from some libraries
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("amqpstorm").setLevel(logging.WARNING)
+    suppress_dependency_loggers()
 
     ##############################################
     # Load configuration

@@ -10,11 +10,14 @@ from pydantic import (
 
 from dp3.api.internal.dp_logger import DPLogger
 from dp3.common.config import ModelSpec, read_config_dir
+from dp3.common.utils import suppress_dependency_loggers
 from dp3.database.database import EntityDatabase
 from dp3.history_management.telemetry import TelemetryReader
 from dp3.task_processing.task_queue import TaskQueueWriter
 
 DATAPOINTS_INGESTION_URL_PATH = "/datapoints"
+
+suppress_dependency_loggers()
 
 
 class ConfigEnv(BaseModel):

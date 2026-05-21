@@ -7,6 +7,7 @@ Authors: Ondřej Sedláček <xsedla1o@stud.fit.vutbr.cz>
 import logging
 
 from dp3.common.config import ModelSpec, read_config_dir
+from dp3.common.utils import suppress_dependency_loggers
 from dp3.database.database import EntityDatabase
 
 
@@ -41,6 +42,7 @@ def main(args):
     LOGFORMAT = "%(asctime)-15s,%(name)s,[%(levelname)s] %(message)s"
     LOGDATEFORMAT = "%Y-%m-%dT%H:%M:%S"
     logging.basicConfig(level=logging.DEBUG, format=LOGFORMAT, datefmt=LOGDATEFORMAT)
+    suppress_dependency_loggers()
     log = logging.getLogger("SchemaUpdate")
 
     # Connect to database

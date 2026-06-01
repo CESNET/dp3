@@ -207,6 +207,24 @@ For module and configuration development, the local-shell option is often easier
     1. Replace `my_app` with your application name and `config` with your local configuration directory if you use one.
     2. If your app uses more than one worker process, start each worker separately. Use the same local configuration directory here as well.
 
+    !!! note "WSL with Docker Desktop on Windows"
+
+        If Docker is running on Windows through Docker Desktop, but you run `dp3 api` or
+        `dp3 worker` from a WSL shell, `localhost` may not point to the same network namespace as
+        the Docker containers. A typical symptom is that the backing services look healthy in
+        Docker, but the app fails to connect to RabbitMQ from WSL.
+
+        In that case, find the Windows-side WSL virtual adapter address and use it as the
+        RabbitMQ host in your local DP³ configuration:
+
+        1. In Windows `cmd`, run `ipconfig`.
+        2. Find `Ethernet adapter vEthernet (WSL (Hyper-V firewall))`.
+        3. Copy its `IPv4 Address`.
+        4. In your local `processing_core.yml`, set `msg_broker.host` to that IP address.
+
+        Keep this change in a local configuration directory, such as `config_local/`, rather than
+        in production configuration.
+
 === "Docker Compose app"
 
     Run the API and worker through the application compose file:

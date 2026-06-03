@@ -21,6 +21,7 @@ from dp3.api.internal.models import DataPoint, EntityId, EntityIdAdapter
 from dp3.api.internal.response_models import ErrorResponse, RequestValidationError, SuccessResponse
 from dp3.common.attrspec import AttrType
 from dp3.common.datapoint import to_json_friendly
+from dp3.common.datatype import primitive_data_types
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import AwareDatetime
 from dp3.database.database import DatabaseError
@@ -130,6 +131,66 @@ def _validate_snapshot_filters(fulltext_filters, generic_filter):
     return fulltext_filters, generic_filter
 
 
+def _validate_sort_params(
+    etype: str, sort_by: str | None, sort_order: int | None
+) -> tuple[str | None, int]:
+    """Validate sorting parameters.
+
+    Args:
+        etype: entity type
+        sort_by: attribute name to sort by (None for no sorting)
+        sort_order: 1 for ascending, -1 for descending (default: 1)
+
+    Returns:
+        Tuple of (validated_sort_by, validated_sort_order)
+
+    Raises:
+        RequestValidationError if parameters are invalid
+    """
+    if sort_by is None:
+        if sort_order is not None:
+            return None, sort_order
+        return None, 1  # default sorting direction is ascending
+
+    if sort_order is None:
+        sort_order = 1
+
+    if sort_order not in (1, -1):
+        raise RequestValidationError(
+            ["query", "sort_order"],
+            f"Sort order must be 1 (ascending) or -1 (descending), got {sort_order}",
+        )
+
+    entity_attribs = MODEL_SPEC.attribs(etype)
+
+    if sort_by not in entity_attribs:
+        raise RequestValidationError(["query", "sort_by"], f"Attribute '{sort_by}' doesn't exist")
+
+    # get attribute specification
+    attr_spec = entity_attribs[sort_by]
+
+    # Check if attribute type is supported for sorting
+    if attr_spec.t not in (AttrType.PLAIN, AttrType.OBSERVATIONS) and not attr_spec.multi_value:
+        raise RequestValidationError(
+            ["query", "sort_by"],
+            f"Cannot sort by attribute '{sort_by}': "
+            f"only plain and observations attributes with no multi_value are supported",
+        )
+
+    data_type_str = str(attr_spec.data_type)
+    allowed_primitives = set(primitive_data_types.keys()) - {"json"}
+
+    # only sort primitives types without json
+    if data_type_str not in allowed_primitives:
+        raise RequestValidationError(
+            ["query", "sort_by"],
+            f"Cannot sort by attribute '{sort_by}': "
+            f"data type '{data_type_str}' is not supported for sorting",
+        )
+
+    return sort_by, sort_order
+
+
 @router.get(
     "/{etype}/get",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
@@ -140,6 +201,8 @@ async def get_entity_type_eids(
     generic_filter: Json = None,
     skip: NonNegativeInt = 0,
     limit: NonNegativeInt = 20,
+    sort_by: str | None = None,
+    sort_order: int | None = None,
 ) -> EntityEidList:
     """List latest snapshots of all `id`s present in database under `etype`.
 
@@ -218,11 +281,21 @@ async def get_entity_type_eids(
     There are no attribute name checks (may be added in the future).
 
     Generic and fulltext filters are merged - fulltext overrides conflicting keys.
+
+    Sorting is supported for plain and observations attributes with primitive data types
+    (excluding json and multi_value observations). Use sort_by to specify the attribute
+    and sort_order (1 for ascending, -1 for descending) to control the direction.
     """
     fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
+    sort_by, sort_order = _validate_sort_params(etype, sort_by, sort_order)
 
     try:
         cursor = DB.snapshots.find_latest(etype, fulltext_filters, generic_filter)
+
+        # Apply sorting if specified
+        if sort_by:
+            cursor = cursor.sort([("last." + sort_by, sort_order)])
+
         cursor_page = cursor.skip(skip).limit(limit)
     except DatabaseError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

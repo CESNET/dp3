@@ -71,7 +71,7 @@ extend-exclude = "/(install|docker)/"
 ### Ruff Code Linting ##################################################################
 [tool.ruff]
 target-version = "py311"
-extend-exclude = ["install", "docker"]
+extend-exclude = ["install", "docker", "docs"]
 line-length = 100
 show-fixes = true
 

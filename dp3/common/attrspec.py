@@ -7,11 +7,11 @@ from pydantic import (
     Field,
     PositiveInt,
     PrivateAttr,
+    ValidationInfo,
     create_model,
     field_validator,
     model_validator,
 )
-from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.context import get_entity_context
 from dp3.common.datapoint import (
@@ -282,7 +282,7 @@ class AttrSpecTimeseries(AttrSpecGeneric):
 
     @field_validator("series")
     @classmethod
-    def add_default_series(cls, v, info: FieldValidationInfo):
+    def add_default_series(cls, v, info: ValidationInfo):
         ts_type = info.data["timeseries_type"]
         default_series = timeseries_types[ts_type]["default_series"]
 

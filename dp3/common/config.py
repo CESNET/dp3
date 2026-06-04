@@ -15,10 +15,10 @@ from pydantic import (
     Field,
     NonNegativeInt,
     PositiveInt,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
-from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.attrspec import (
     AttrSpec,
@@ -298,7 +298,7 @@ class ModelSpec(BaseModel):
         return data
 
     @field_validator("entities")
-    def _fill_entities(cls, v, info: FieldValidationInfo):
+    def _fill_entities(cls, v, info: ValidationInfo):
         if "config" not in info.data:
             return v
         return {
@@ -307,7 +307,7 @@ class ModelSpec(BaseModel):
         }
 
     @field_validator("attributes")
-    def _fill_attributes(cls, v, info: FieldValidationInfo):
+    def _fill_attributes(cls, v, info: ValidationInfo):
         if "config" not in info.data:
             return v
         return {
@@ -317,7 +317,7 @@ class ModelSpec(BaseModel):
         }
 
     @field_validator("entity_attributes")
-    def _fill_entity_attributes(cls, v, info: FieldValidationInfo):
+    def _fill_entity_attributes(cls, v, info: ValidationInfo):
         if "config" not in info.data:
             return v
         return {
@@ -326,7 +326,7 @@ class ModelSpec(BaseModel):
         }
 
     @field_validator("relations")
-    def _fill_relations(cls, v, info: FieldValidationInfo):
+    def _fill_relations(cls, v, info: ValidationInfo):
         if "attributes" not in info.data:
             return v
         return {
@@ -438,7 +438,7 @@ class PlatformConfig(BaseModel):
     process_index: NonNegativeInt
 
     @field_validator("process_index")
-    def valid_process_index(cls, v, info: FieldValidationInfo):
+    def valid_process_index(cls, v, info: ValidationInfo):
         if "num_processes" not in info.data:
             return v
 

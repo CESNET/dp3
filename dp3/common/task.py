@@ -21,7 +21,6 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from pydantic_core.core_schema import FieldValidationInfo
 
 from dp3.common.config import ModelSpec, entity_type_context, get_entity_type_context
 from dp3.common.datapoint import DataPointBase, to_json_friendly
@@ -87,7 +86,7 @@ class Task(BaseModel, ABC):
         """
 
 
-def instanciate_dps(v, info: FieldValidationInfo):
+def instanciate_dps(v, info: ValidationInfo):
     # If already instantiated, return
     if isinstance(v, DataPointBase):
         return v
@@ -114,7 +113,7 @@ def instanciate_dps(v, info: FieldValidationInfo):
         raise ValueError(e) from e
 
 
-def validate_data_points(v, info: FieldValidationInfo):
+def validate_data_points(v, info: ValidationInfo):
     if "etype" not in info.data or "eid" not in info.data:
         return v
     assert (
@@ -171,7 +170,7 @@ class DataPointTask(Task):
         return self.model_dump_json(exclude_defaults=True, exclude_unset=True)
 
     @field_validator("etype")
-    def validate_etype(cls, v, info: FieldValidationInfo):
+    def validate_etype(cls, v, info: ValidationInfo):
         context = info.context
         if context and "model_spec" in context:
             assert v in context["model_spec"], f"Invalid etype '{v}'"
@@ -180,7 +179,7 @@ class DataPointTask(Task):
         return v
 
     @field_validator("eid")
-    def validate_eid(cls, v, info: FieldValidationInfo):
+    def validate_eid(cls, v, info: ValidationInfo):
         if "etype" not in info.data:
             return v
 

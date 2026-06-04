@@ -4,8 +4,7 @@ from json import JSONEncoder
 from typing import Annotated, Any
 
 from event_count_logger import DummyEventGroup, EventGroup
-from pydantic import AfterValidator, BeforeValidator
-from pydantic_core.core_schema import FieldValidationInfo
+from pydantic import AfterValidator, BeforeValidator, ValidationInfo
 
 from dp3.common.utils import parse_time_duration, time_duration_pattern
 
@@ -34,13 +33,13 @@ def ensure_timezone_aware(v: datetime | None):
 AwareDatetime = Annotated[datetime, AfterValidator(ensure_timezone_aware)]
 
 
-def t2_implicity_t1(v, info: FieldValidationInfo):
+def t2_implicity_t1(v, info: ValidationInfo):
     """If t2 is not specified, it is set to t1."""
     v = v or info.data.get("t1")
     return v
 
 
-def t2_after_t1(v, info: FieldValidationInfo):
+def t2_after_t1(v, info: ValidationInfo):
     """t2 must be after t1"""
     if info.data.get("t1"):
         assert info.data["t1"] <= v, "'t2' is before 't1'"

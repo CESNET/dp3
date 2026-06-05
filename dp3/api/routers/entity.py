@@ -1,7 +1,8 @@
+import re
 from datetime import UTC, datetime
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import Json, NonNegativeInt, ValidationError
 
 from dp3.api.internal.config import DB, MODEL_SPEC, TASK_WRITER
@@ -112,6 +113,10 @@ def get_eid_snapshots_handler(
 router = APIRouter(dependencies=[Depends(check_etype)])
 
 
+# Compile regex patterns once at module level for reuse
+_SORT_PATTERN = re.compile(r"^([a-zA-Z_][a-zA-Z0-9_]*)(?::(-?1))?$")
+
+
 def _validate_snapshot_filters(fulltext_filters, generic_filter):
     if not fulltext_filters:
         fulltext_filters = {}
@@ -131,64 +136,81 @@ def _validate_snapshot_filters(fulltext_filters, generic_filter):
     return fulltext_filters, generic_filter
 
 
-def _validate_sort_params(
-    etype: str, sort_by: str | None, sort_order: int | None
-) -> tuple[str | None, int]:
-    """Validate sorting parameters.
+def _validate_sort_params(etype: str, sort: list[str] | None) -> list[tuple[str, int]] | None:
+    """Validate sorting parameters for multiple sort criteria.
 
     Args:
         etype: entity type
-        sort_by: attribute name to sort by (None for no sorting)
-        sort_order: 1 for ascending, -1 for descending (default: 1)
+        sort: list of sort specifications in format 'attribute:direction'
+              where direction is 1 (ascending) or -1 (descending)
+              e.g., ['hostname:-1', 'ip:1']
 
     Returns:
-        Tuple of (validated_sort_by, validated_sort_order)
+        List of (attribute, direction) tuples for sorting, or None if no sorting specified
 
     Raises:
         RequestValidationError if parameters are invalid
     """
-    if sort_by is None:
-        if sort_order is not None:
-            return None, sort_order
-        return None, 1  # default sorting direction is ascending
-
-    if sort_order is None:
-        sort_order = 1
-
-    if sort_order not in (1, -1):
-        raise RequestValidationError(
-            ["query", "sort_order"],
-            f"Sort order must be 1 (ascending) or -1 (descending), got {sort_order}",
-        )
+    # Handle empty or None parameters
+    if not sort:
+        return None
 
     entity_attribs = MODEL_SPEC.attribs(etype)
+    sort_criteria = []
 
-    if sort_by not in entity_attribs:
-        raise RequestValidationError(["query", "sort_by"], f"Attribute '{sort_by}' doesn't exist")
+    # Validate each sort specification
+    for idx, sort_spec in enumerate(sort):
+        # Validate format using regex
+        match = _SORT_PATTERN.match(sort_spec)
+        if not match:
+            raise RequestValidationError(
+                ["query", "sort"],
+                f"Sort specification at position {idx} has invalid format '{sort_spec}'. "
+                f"Expected format 'attribute' or 'attribute:direction' where direction is 1 or -1",
+            )
 
-    # get attribute specification
-    attr_spec = entity_attribs[sort_by]
+        attr, direction_str = match.groups()
+        direction = int(direction_str) if direction_str else 1  # Default to ascending (1)
 
-    # Check if attribute type is supported for sorting
-    if attr_spec.t not in (AttrType.PLAIN, AttrType.OBSERVATIONS) and not attr_spec.multi_value:
-        raise RequestValidationError(
-            ["query", "sort_by"],
-            f"Cannot sort by attribute '{sort_by}': "
-            f"only plain and observations attributes with no multi_value are supported",
-        )
+        # Check if attribute exists
+        if attr not in entity_attribs:
+            raise RequestValidationError(
+                ["query", "sort"],
+                f"Attribute '{attr}' at position {idx} doesn't exist",
+            )
 
-    data_type_str = str(attr_spec.data_type)
-    allowed_primitives = set(primitive_data_types.keys()) - {"json"}
+        # Get attribute specification
+        attr_spec = entity_attribs[attr]
 
-    # only sort primitives types without json
-    if data_type_str not in allowed_primitives:
-        raise RequestValidationError(
-            ["query", "sort_by"],
-            f"Cannot sort by attribute '{sort_by}': "
-            f"data type '{data_type_str}' is not supported for sorting",
-        )
+        # Check if attribute type is supported for sorting
+        if attr_spec.t not in (AttrType.PLAIN, AttrType.OBSERVATIONS):
+            raise RequestValidationError(
+                ["query", "sort"],
+                f"Cannot sort by attribute '{attr}' at position {idx}: "
+                f"only plain and observations attributes are supported",
+            )
 
-    return sort_by, sort_order
+        if attr_spec.t == AttrType.OBSERVATIONS and attr_spec.multi_value:
+            raise RequestValidationError(
+                ["query", "sort"],
+                f"Cannot sort by attribute '{attr}' at position {idx}: "
+                f"multi_value observations attributes are not supported for sorting",
+            )
+
+        data_type_str = str(attr_spec.data_type)
+        allowed_primitives = set(primitive_data_types.keys()) - {"json", "special"}
+
+        # Only sort primitive types without json and special
+        if data_type_str not in allowed_primitives:
+            raise RequestValidationError(
+                ["query", "sort"],
+                f"Cannot sort by attribute '{attr}' at position {idx}: "
+                f"data type '{data_type_str}' is not supported for sorting",
+            )
+
+        sort_criteria.append((attr, direction))
+
+    return sort_criteria if sort_criteria else None
 
 
 @router.get(
@@ -201,8 +223,10 @@ async def get_entity_type_eids(
     generic_filter: Json = None,
     skip: NonNegativeInt = 0,
     limit: NonNegativeInt = 20,
-    sort_by: str | None = None,
-    sort_order: int | None = None,
+    sort: Annotated[
+        list[str] | None,
+        Query(description="example: hostname:-1 for descending sort by hostname"),
+    ] = None,
 ) -> EntityEidList:
     """List latest snapshots of all `id`s present in database under `etype`.
 
@@ -283,18 +307,22 @@ async def get_entity_type_eids(
     Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
     Sorting is supported for plain and observations attributes with primitive data types
-    (excluding json and multi_value observations). Use sort_by to specify the attribute
-    and sort_order (1 for ascending, -1 for descending) to control the direction.
+    (excluding json and multi_value observations). To sort by multiple attributes, provide
+    multiple sort parameters in the format 'attribute:direction' where direction is 1 (ascending)
+    or -1 (descending). Direction defaults to 1 (ascending) if not provided. Example:
+    `?sort=hostname:-1&sort=ip:1`
     """
     fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
-    sort_by, sort_order = _validate_sort_params(etype, sort_by, sort_order)
+    sort_criteria = _validate_sort_params(etype, sort)
 
     try:
         cursor = DB.snapshots.find_latest(etype, fulltext_filters, generic_filter)
 
         # Apply sorting if specified
-        if sort_by:
-            cursor = cursor.sort([("last." + sort_by, sort_order)])
+        if sort_criteria:
+            # Prepare sort specification with 'last.' prefix for snapshot data
+            sort_spec = [("last." + attr, direction) for attr, direction in sort_criteria]
+            cursor = cursor.sort(sort_spec)
 
         cursor_page = cursor.skip(skip).limit(limit)
     except DatabaseError as e:
@@ -302,7 +330,6 @@ async def get_entity_type_eids(
 
     time_created = None
 
-    # Remove _id field
     result = [r["last"] for r in cursor_page]
     for r in result:
         time_created = r["_time_created"]

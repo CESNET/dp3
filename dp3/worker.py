@@ -3,6 +3,7 @@
 
 Don't run directly. Import and run the main() function.
 """
+import contextlib
 import inspect
 import logging
 import os
@@ -12,11 +13,12 @@ import threading
 from functools import partial
 from importlib import import_module
 
+import yaml
 from event_count_logger import DummyEventGroup, EventCountLogger
 from pydantic import ValidationError
 
 from dp3.common.callback_registrar import CallbackRegistrar, reload_module_config
-from dp3.common.config import PlatformConfig
+from dp3.common.config import MissingConfigError, PlatformConfig
 from dp3.common.control import Control, ControlAction, refresh_on_entity_creation
 from dp3.common.utils import suppress_dependency_loggers
 from dp3.core.collector import GarbageCollector
@@ -39,6 +41,10 @@ from .task_processing.task_distributor import TaskDistributor
 from .task_processing.task_executor import TaskExecutor
 
 
+class WorkerConfigurationError(RuntimeError):
+    """Worker configuration is invalid and startup cannot continue."""
+
+
 def load_modules(
     modules_dir: str,
     enabled_modules: str,
@@ -54,13 +60,16 @@ def load_modules(
     # Get list of all modules available in given folder
     # [:-3] is for removing '.py' suffix from module filenames
     available_modules = []
-    for item in os.scandir(modules_dir):
-        # A module can be a Python file or a Python package
-        # (i.e. a directory with "__init__.py" file)
-        if item.is_file() and item.name.endswith(".py"):
-            available_modules.append(item.name[:-3])  # name without .py
-        if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
-            available_modules.append(item.name)
+    try:
+        for item in os.scandir(modules_dir):
+            # A module can be a Python file or a Python package
+            # (i.e. a directory with "__init__.py" file)
+            if item.is_file() and item.name.endswith(".py"):
+                available_modules.append(item.name[:-3])  # name without .py
+            if item.is_dir() and "__init__.py" in os.listdir(os.path.join(modules_dir, item.name)):
+                available_modules.append(item.name)
+    except OSError as e:
+        raise WorkerConfigurationError(f"Cannot scan modules directory '{modules_dir}': {e}") from e
 
     log.debug(f"Available modules: {', '.join(available_modules)}")
     log.debug(f"Enabled modules: {', '.join(enabled_modules)}")
@@ -68,11 +77,10 @@ def load_modules(
     # Check if all desired modules are in modules folder
     missing_modules = set(enabled_modules) - set(available_modules)
     if missing_modules:
-        log.fatal(
+        raise WorkerConfigurationError(
             "Some of desired modules are not available (not in modules folder), "
             f"specifically: {missing_modules}"
         )
-        sys.exit(2)
 
     # Do imports of desired modules from 'modules' folder
     # (rewrite sys.path to modules_dir, import all modules and rewrite it back)
@@ -99,7 +107,7 @@ def load_modules(
     return modules_main_objects
 
 
-def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> None:
+def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> int:
     """
     Run worker process.
     Args:
@@ -111,6 +119,10 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
             unique index (from 0 to N-1). N is read from configuration
             ('worker_processes' in 'processing_core.yml').
         verbose: More verbose output (set log level to DEBUG).
+
+    Returns:
+        Process exit code. Intentional SIGINT/SIGTERM shutdown returns 0, worker
+        configuration validation errors return 2, and internal failures return 1.
     """
     ##############################################
     # Initialize logging mechanism
@@ -125,142 +137,156 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
 
     suppress_dependency_loggers()
 
-    ##############################################
-    # Load configuration
-    config_base_path = os.path.abspath(config_dir)
-    log.debug(f"Loading config directory {config_base_path}")
+    exit_code = 1
+    running_modules: list[BaseModule] = []  # plug-in modules whose start() completed
+    running_core_modules = []  # core modules whose start() completed
+    signal_handlers_installed = False
 
-    # Whole configuration should be loaded
-    config = read_config_dir(config_base_path, recursive=True)
     try:
-        model_spec = ModelSpec(config.get("db_entities"))
-    except ValidationError as e:
-        log.fatal("Invalid model specification: %s", e)
-        sys.exit(2)
+        ##############################################
+        # Load configuration
+        config_base_path = os.path.abspath(config_dir)
+        log.debug(f"Loading config directory {config_base_path}")
 
-    # Print whole attribute specification
-    log.debug(model_spec)
+        # Whole configuration should be loaded
+        try:
+            config = read_config_dir(config_base_path, recursive=True)
+        except (OSError, TypeError, ValueError, yaml.YAMLError) as e:
+            raise WorkerConfigurationError(f"Failed to load configuration: {e}") from e
+        try:
+            model_spec = ModelSpec(config.get("db_entities"))
+        except ValidationError as e:
+            raise WorkerConfigurationError(f"Invalid model specification: {e}") from e
 
-    num_processes = config.get("processing_core.worker_processes")
+        # Print whole attribute specification
+        log.debug(model_spec)
 
-    platform_config = PlatformConfig(
-        app_name=app_name,
-        config_base_path=config_base_path,
-        config=config,
-        model_spec=model_spec,
-        process_index=process_index,
-        num_processes=num_processes,
-    )
-    ##############################################
-    # Create instances of core components
-    log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
+        num_processes = config.get("processing_core.worker_processes")
 
-    # EventCountLogger
-    ecl = EventCountLogger(
-        platform_config.config.get("event_logging.groups"),
-        platform_config.config.get("event_logging.redis"),
-    )
-    elog = ecl.get_group("te") or DummyEventGroup()
-    elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
-
-    db = EntityDatabase(config, model_spec, num_processes, process_index, elog)
-    if process_index == 0:
-        db.update_schema()
-    else:
-        db.await_updated_schema()
-
-    global_scheduler = scheduler.Scheduler()
-    task_executor = TaskExecutor(db, platform_config, elog, elog_by_src)
-    snap_shooter = SnapShooter(
-        db,
-        TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
-        platform_config,
-        global_scheduler,
-        elog,
-    )
-    updater = Updater(
-        db,
-        TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
-        platform_config,
-        global_scheduler,
-        elog,
-    )
-    registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
-
-    LinkManager(db, platform_config, registrar)
-    HistoryManager(db, platform_config, registrar)
-    Telemetry(db, platform_config, registrar)
-    GarbageCollector(db, platform_config, registrar)
-
-    # Lock used to control when the program stops.
-    daemon_stop_lock = threading.Lock()
-    daemon_stop_lock.acquire()
-
-    # Signal handler releasing the lock on SIGINT or SIGTERM
-    def sigint_handler(signum, frame):
-        log.debug(
-            "Signal {} received, stopping worker".format(
-                {signal.SIGINT: "SIGINT", signal.SIGTERM: "SIGTERM"}.get(signum, signum)
-            )
+        platform_config = PlatformConfig(
+            app_name=app_name,
+            config_base_path=config_base_path,
+            config=config,
+            model_spec=model_spec,
+            process_index=process_index,
+            num_processes=num_processes,
         )
-        daemon_stop_lock.release()
+        ##############################################
+        # Create instances of core components
+        log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
-    signal.signal(signal.SIGINT, sigint_handler)
-    signal.signal(signal.SIGTERM, sigint_handler)
-    signal.signal(signal.SIGABRT, sigint_handler)
+        # EventCountLogger
+        ecl = EventCountLogger(
+            platform_config.config.get("event_logging.groups"),
+            platform_config.config.get("event_logging.redis"),
+        )
+        elog = ecl.get_group("te") or DummyEventGroup()
+        elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
 
-    task_distributor = TaskDistributor(task_executor, platform_config, registrar, daemon_stop_lock)
+        db = EntityDatabase(config, model_spec, num_processes, process_index, elog)
+        if process_index == 0:
+            db.update_schema()
+        else:
+            db.await_updated_schema()
 
-    control = Control(platform_config)
-    control.set_action_handler(ControlAction.make_snapshots, snap_shooter.make_snapshots)
-    control.set_action_handler(
-        ControlAction.refresh_on_entity_creation,
-        partial(refresh_on_entity_creation, task_distributor, task_executor),
-    )
-    modules = {}
-    control.set_action_handler(
-        ControlAction.refresh_module_config,
-        partial(reload_module_config, log, platform_config, modules),
-    )
-    global_scheduler.register(control.control_queue.watchdog, second="15,45")
+        global_scheduler = scheduler.Scheduler()
+        task_executor = TaskExecutor(db, platform_config, elog, elog_by_src)
+        snap_shooter = SnapShooter(
+            db,
+            TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
+            platform_config,
+            global_scheduler,
+            elog,
+        )
+        updater = Updater(
+            db,
+            TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
+            platform_config,
+            global_scheduler,
+            elog,
+        )
+        registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
 
-    ##############################################
-    # Load all plug-in modules
+        LinkManager(db, platform_config, registrar)
+        HistoryManager(db, platform_config, registrar)
+        Telemetry(db, platform_config, registrar)
+        GarbageCollector(db, platform_config, registrar)
 
-    module_dir = config.get("processing_core.modules_dir")
-    module_dir = os.path.abspath(os.path.join(config_base_path, module_dir))
+        # Lock used to control when the program stops.
+        daemon_stop_lock = threading.Lock()
+        daemon_stop_lock.acquire()
+        clean_stop_requested = threading.Event()
 
-    loaded_modules = load_modules(
-        module_dir,
-        config.get("processing_core.enabled_modules"),
-        log,
-        registrar,
-        platform_config,
-    )
-    modules.update(loaded_modules)
+        # Signal handler releasing the lock on SIGINT or SIGTERM.
+        def sigint_handler(signum, frame):
+            log.debug(
+                "Signal {} received, stopping worker".format(
+                    {signal.SIGINT: "SIGINT", signal.SIGTERM: "SIGTERM"}.get(signum, signum)
+                )
+            )
+            if signum in (signal.SIGINT, signal.SIGTERM):
+                clean_stop_requested.set()
+            with contextlib.suppress(RuntimeError):
+                daemon_stop_lock.release()
 
-    ################################################
-    # Initialization completed, run ...
+        signal.signal(signal.SIGINT, sigint_handler)
+        signal.signal(signal.SIGTERM, sigint_handler)
+        signal.signal(signal.SIGABRT, sigint_handler)
+        signal_handlers_installed = True
 
-    # Run update manager thread
-    log.info("***** Initialization completed, starting all modules *****")
+        task_distributor = TaskDistributor(
+            task_executor, platform_config, registrar, daemon_stop_lock
+        )
 
-    # Run modules that have their own threads (TODO: there are no such modules, should be kept?)
-    # (if they don't, the start() should do nothing)
-    for module in loaded_modules.values():
-        module.start()
+        control = Control(platform_config)
+        control.set_action_handler(ControlAction.make_snapshots, snap_shooter.make_snapshots)
+        control.set_action_handler(
+            ControlAction.refresh_on_entity_creation,
+            partial(refresh_on_entity_creation, task_distributor, task_executor),
+        )
+        modules = {}
+        control.set_action_handler(
+            ControlAction.refresh_module_config,
+            partial(reload_module_config, log, platform_config, modules),
+        )
+        global_scheduler.register(control.control_queue.watchdog, second="15,45")
 
-    core_modules = [
-        updater,  # Updater will throw exceptions when misconfigured (best start first)
-        task_distributor,  # TaskDistributor (which starts TaskExecutors in several worker threads)
-        db,
-        snap_shooter,
-        control,
-        global_scheduler,
-    ]
-    running_core_modules = []
+        ##############################################
+        # Load all plug-in modules
 
-    try:
+        module_dir = config.get("processing_core.modules_dir")
+        module_dir = os.path.abspath(os.path.join(config_base_path, module_dir))
+
+        loaded_modules = load_modules(
+            module_dir,
+            config.get("processing_core.enabled_modules"),
+            log,
+            registrar,
+            platform_config,
+        )
+        modules.update(loaded_modules)
+
+        ################################################
+        # Initialization completed, run ...
+
+        # Run update manager thread
+        log.info("***** Initialization completed, starting all modules *****")
+
+        # Run modules that have their own threads (TODO: there are no such modules, should be kept?)
+        # (if they don't, the start() should do nothing)
+        for module in loaded_modules.values():
+            module.start()
+            running_modules.append(module)
+
+        core_modules = [
+            updater,  # Updater will throw exceptions when misconfigured (best start first)
+            task_distributor,  # TaskDistributor starts TaskExecutors in worker threads
+            db,
+            snap_shooter,
+            control,
+            global_scheduler,
+        ]
+
         for module in core_modules:
             module.start()
             running_core_modules.append(module)
@@ -275,23 +301,43 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> N
                 pass
         else:
             daemon_stop_lock.acquire()
-    except Exception as e:
-        log.exception(e)
 
-    ################################################
-    # Finalization & cleanup
-    # Set signal handlers back to their defaults,
-    # so the second Ctrl-C closes the program immediately
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-    signal.signal(signal.SIGTERM, signal.SIG_DFL)
-    signal.signal(signal.SIGABRT, signal.SIG_DFL)
+        exit_code = 0 if clean_stop_requested.is_set() else 1
+        if exit_code:
+            log.critical("Worker stopped internally; exiting with failure for supervisor restart.")
+    except (WorkerConfigurationError, MissingConfigError, ValidationError) as e:
+        log.fatal("Worker configuration error: %s", e)
+        exit_code = 2
+    except Exception:
+        log.exception("Unhandled worker error; exiting with failure for supervisor restart.")
+        exit_code = 1
+    finally:
+        ################################################
+        # Finalization & cleanup
+        # Set signal handlers back to their defaults,
+        # so the second Ctrl-C closes the program immediately
+        if signal_handlers_installed:
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            signal.signal(signal.SIGABRT, signal.SIG_DFL)
 
-    log.info("Stopping running components ...")
-    for module in reversed(running_core_modules):
-        module.stop()
+        if running_core_modules or running_modules:
+            log.info("Stopping running components ...")
+        for module in reversed(running_core_modules):
+            try:
+                module.stop()
+            except Exception:
+                log.exception("Error while stopping %s", module.__class__.__name__)
+                exit_code = 1
 
-    for module in loaded_modules.values():
-        module.stop()
+        for module in reversed(running_modules):
+            try:
+                module.stop()
+            except Exception:
+                log.exception("Error while stopping %s", module.__class__.__name__)
+                exit_code = 1
 
-    log.info("***** Finished, main thread exiting. *****")
-    logging.shutdown()
+        log.info("***** Finished, main thread exiting with code %d. *****", exit_code)
+        logging.shutdown()
+
+    return exit_code

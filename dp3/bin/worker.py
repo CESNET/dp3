@@ -50,11 +50,11 @@ def run():
     init_parser(parser)
     args = parser.parse_args()
 
-    main(args)
+    sys.exit(main(args))
 
 
 def main(args):
-    worker.main(args.app_name, args.config_dir, args.process_index, args.verbose)
+    return worker.main(args.app_name, args.config_dir, args.process_index, args.verbose)
 
 
 if __name__ == "__main__":

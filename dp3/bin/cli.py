@@ -78,7 +78,7 @@ def run():
     args = parser.parse_args()
 
     if args.command == "worker":
-        worker_main(args)
+        sys.exit(worker_main(args))
     elif args.command == "api":
         api_main(args)
     elif args.command == "setup":

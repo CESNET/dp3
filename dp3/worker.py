@@ -4,12 +4,14 @@
 Don't run directly. Import and run the main() function.
 """
 import contextlib
+import faulthandler
 import inspect
 import logging
 import os
 import signal
 import sys
 import threading
+import time
 from functools import partial
 from importlib import import_module
 
@@ -40,9 +42,48 @@ from .snapshots.snapshooter import SnapShooter
 from .task_processing.task_distributor import TaskDistributor
 from .task_processing.task_executor import TaskExecutor
 
+WORKER_SHUTDOWN_TIME = 60.0
+
 
 class WorkerConfigurationError(RuntimeError):
     """Worker configuration is invalid and startup cannot continue."""
+
+
+def _remaining_time(deadline_ts: float) -> float:
+    return max(0.0, deadline_ts - time.monotonic())
+
+
+def _force_worker_shutdown(log: logging.Logger, message: str, *args) -> None:
+    log.critical(message, *args)
+    faulthandler.dump_traceback(file=sys.stderr, all_threads=True)
+    with contextlib.suppress(Exception):
+        logging.shutdown()
+    os._exit(1)
+
+
+def _stop_module(module, timeout: float, log: logging.Logger) -> tuple[bool, bool]:
+    """Stop a module with a deadline.
+
+    Returns:
+        A tuple of (completed, failed). ``completed`` is false when the stop call
+        is still blocked after the timeout. ``failed`` is true when stop raised.
+    """
+    failed = False
+
+    def stop_module() -> None:
+        nonlocal failed
+        try:
+            module.stop()
+        except Exception:
+            failed = True
+            log.exception("Error while stopping %s", module.__class__.__name__)
+
+    stopper = threading.Thread(
+        target=stop_module, name=f"{module.__class__.__name__}Stop", daemon=True
+    )
+    stopper.start()
+    stopper.join(timeout=timeout)
+    return not stopper.is_alive(), failed
 
 
 def load_modules(
@@ -323,19 +364,18 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
 
         if running_core_modules or running_modules:
             log.info("Stopping running components ...")
-        for module in reversed(running_core_modules):
-            try:
-                module.stop()
-            except Exception:
-                log.exception("Error while stopping %s", module.__class__.__name__)
+        shutdown_deadline_ts = time.monotonic() + WORKER_SHUTDOWN_TIME
+        modules_to_stop = [*reversed(running_core_modules), *reversed(running_modules)]
+        for module in modules_to_stop:
+            completed, failed = _stop_module(module, _remaining_time(shutdown_deadline_ts), log)
+            if failed:
                 exit_code = 1
-
-        for module in reversed(running_modules):
-            try:
-                module.stop()
-            except Exception:
-                log.exception("Error while stopping %s", module.__class__.__name__)
-                exit_code = 1
+            if not completed:
+                _force_worker_shutdown(
+                    log,
+                    "Forcing shutdown because %s.stop() did not finish before timeout",
+                    module.__class__.__name__,
+                )
 
         log.info("***** Finished, main thread exiting with code %d. *****", exit_code)
         logging.shutdown()

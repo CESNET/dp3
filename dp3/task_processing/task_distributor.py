@@ -142,23 +142,29 @@ class TaskDistributor:
             remaining = max(0.0, deadline_ts - time.monotonic())
             worker.join(timeout=remaining)
 
-        self._task_queue_reader.disconnect()
-        self._task_queue_writer.disconnect()
-
         alive = [w for w in self._worker_threads if w.is_alive()]
         if alive or not reader_stopped:
-            self._dump_thread_stacks()
-            self.log.critical(
-                "Forcing shutdown with %d workers still alive; reader_stopped=%s",
-                len(alive),
-                reader_stopped,
-            )
-            with contextlib.suppress(Exception):
-                logging.shutdown()  # flush logs
-            os._exit(1)  # nuke entire process
+            self._force_shutdown(len(alive), reader_stopped)
+
+        queues_disconnected = self._disconnect_task_queues(
+            timeout=max(0.0, deadline_ts - time.monotonic())
+        )
+        if not queues_disconnected:
+            self._force_shutdown(0, reader_stopped)
 
         # Cleanup
         self._worker_threads = []
+
+    def _force_shutdown(self, alive_workers: int, reader_stopped: bool) -> None:
+        self._dump_thread_stacks()
+        self.log.critical(
+            "Forcing shutdown with %d workers still alive; reader_stopped=%s",
+            alive_workers,
+            reader_stopped,
+        )
+        with contextlib.suppress(Exception):
+            logging.shutdown()  # flush logs
+        os._exit(1)  # nuke entire process
 
     def _stop_task_queue_reader(self, timeout: float) -> bool:
         reader_stopped = False
@@ -182,6 +188,30 @@ class TaskDistributor:
             self.log.error("TaskQueueReader.stop() did not return before timeout")
             return False
         return reader_stopped
+
+    def _disconnect_task_queues(self, timeout: float) -> bool:
+        queues_disconnected = False
+
+        def disconnect_queues() -> None:
+            nonlocal queues_disconnected
+            try:
+                self._task_queue_reader.disconnect()
+                self._task_queue_writer.disconnect()
+                queues_disconnected = True
+            except Exception:
+                self.log.exception("Error while disconnecting task queues")
+
+        stopper = threading.Thread(
+            target=disconnect_queues,
+            name=f"TaskQueueDisconnect-{self.process_index}",
+            daemon=True,
+        )
+        stopper.start()
+        stopper.join(timeout=timeout)
+        if stopper.is_alive():
+            self.log.error("Task queue disconnect did not return before timeout")
+            return False
+        return queues_disconnected
 
     def _dump_thread_stacks(self) -> None:
         self.log.critical("=== Graceful shutdown failed, thread stack dump follows ===")

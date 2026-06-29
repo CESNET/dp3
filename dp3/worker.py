@@ -179,8 +179,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
     suppress_dependency_loggers()
 
     exit_code = 1
-    running_modules: list[BaseModule] = []  # plug-in modules whose start() completed
-    running_core_modules = []  # core modules whose start() completed
+    running_modules: list[BaseModule] = []  # plug-in modules whose start() was attempted
+    running_core_modules = []  # core modules whose start() was attempted
     signal_handlers_installed = False
 
     try:
@@ -316,8 +316,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
         # Run modules that have their own threads (TODO: there are no such modules, should be kept?)
         # (if they don't, the start() should do nothing)
         for module in loaded_modules.values():
-            module.start()
             running_modules.append(module)
+            module.start()
 
         core_modules = [
             updater,  # Updater will throw exceptions when misconfigured (best start first)
@@ -329,8 +329,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
         ]
 
         for module in core_modules:
-            module.start()
             running_core_modules.append(module)
+            module.start()
 
         # Wait until someone wants to stop the program by releasing this Lock.
         # It may be a user by pressing Ctrl-C or some program module.

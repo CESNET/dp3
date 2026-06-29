@@ -166,6 +166,57 @@ class TestWorkerLifecycle(unittest.TestCase):
             release_stop.set()
             worker_thread.join(timeout=1)
 
+    def test_worker_main_stops_core_module_when_start_fails_after_partial_start(self):
+        class FailingTaskDistributor:
+            def __init__(self, task_executor, platform_config, registrar, daemon_stop_lock):
+                self.stopped = False
+                task_distributors.append(self)
+
+            def start(self):
+                raise RuntimeError("partial startup failure")
+
+            def stop(self):
+                self.stopped = True
+
+        task_distributors = []
+        db = Mock()
+        scheduler = Mock()
+        ecl = Mock()
+        ecl.get_group.return_value = None
+        control = Mock()
+        control.control_queue = Mock(watchdog=lambda: None)
+
+        original_thread_name = threading.current_thread().name
+        try:
+            with ExitStack() as stack:
+                # Replace external services and long-running components so the
+                # test reaches core module startup without Redis, MongoDB, or RabbitMQ.
+                stack.enter_context(patch("dp3.worker.signal.signal"))
+                stack.enter_context(patch("dp3.worker.EventCountLogger", return_value=ecl))
+                stack.enter_context(patch("dp3.worker.EntityDatabase", return_value=db))
+                stack.enter_context(patch("dp3.worker.scheduler.Scheduler", return_value=scheduler))
+                stack.enter_context(patch("dp3.worker.TaskExecutor", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.TaskQueueWriter", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.SnapShooter", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.Updater", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.CallbackRegistrar", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.LinkManager"))
+                stack.enter_context(patch("dp3.worker.HistoryManager"))
+                stack.enter_context(patch("dp3.worker.Telemetry"))
+                stack.enter_context(patch("dp3.worker.GarbageCollector"))
+                stack.enter_context(patch("dp3.worker.load_modules", return_value={}))
+                stack.enter_context(patch("dp3.worker.Control", return_value=control))
+                stack.enter_context(patch("dp3.worker.TaskDistributor", FailingTaskDistributor))
+                stack.enter_context(patch("dp3.worker.logging.shutdown"))
+
+                exit_code = worker.main("test", "tests/test_config", 0, False)
+        finally:
+            threading.current_thread().name = original_thread_name
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(len(task_distributors), 1)
+        self.assertTrue(task_distributors[0].stopped)
+
     def test_task_distributor_forces_exit_before_blocking_disconnect_after_reader_timeout(self):
         stop_started = threading.Event()
         disconnect_started = threading.Event()
@@ -223,6 +274,37 @@ class TestWorkerLifecycle(unittest.TestCase):
         self.assertFalse(disconnect_started.is_set())
         self.assertTrue(any(isinstance(exc, ExitCalled) for exc in stop_error))
         os_exit.assert_called_once_with(1)
+
+    def test_task_distributor_stop_tolerates_not_started_reader(self):
+        class ExitCalled(Exception):
+            pass
+
+        distributor = TaskDistributor.__new__(TaskDistributor)
+        distributor.log = logging.getLogger("TaskDistributorTest")
+        distributor.process_index = 0
+        distributor.running = True
+        distributor._worker_threads = []
+        distributor._task_queue_reader = Mock()
+        distributor._task_queue_reader.running = False
+        distributor._task_queue_reader.stop.side_effect = RuntimeError("Not running")
+        distributor._task_queue_writer = Mock()
+
+        with (
+            patch("dp3.task_processing.task_distributor.SHUTDOWN_TIME", 0.05),
+            patch.object(distributor, "_dump_thread_stacks"),
+            patch("dp3.task_processing.task_distributor.logging.shutdown"),
+            patch(
+                "dp3.task_processing.task_distributor.os._exit",
+                side_effect=ExitCalled,
+            ) as os_exit,
+        ):
+            distributor.stop()
+
+        self.assertFalse(distributor.running)
+        distributor._task_queue_reader.stop.assert_not_called()
+        distributor._task_queue_reader.disconnect.assert_called_once()
+        distributor._task_queue_writer.disconnect.assert_called_once()
+        os_exit.assert_not_called()
 
     def test_task_distributor_keeps_workers_running_while_reader_shutdown_finishes(self):
         stop_started = threading.Event()

@@ -167,6 +167,9 @@ class TaskDistributor:
         os._exit(1)  # nuke entire process
 
     def _stop_task_queue_reader(self, timeout: float) -> bool:
+        if not self._task_queue_reader.running:
+            return True
+
         reader_stopped = False
 
         # TaskQueueReader.stop() is expected to honor its timeout, but run it in

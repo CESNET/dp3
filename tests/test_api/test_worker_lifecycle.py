@@ -11,6 +11,31 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from dp3 import worker
 from dp3.common.config import MissingConfigError
 from dp3.task_processing.task_distributor import TaskDistributor
+from dp3.task_processing.task_queue import TaskQueueReader
+
+
+def make_task_queue_reader(**overrides):
+    reader = TaskQueueReader.__new__(TaskQueueReader)
+    defaults = {
+        "log": logging.getLogger("TaskQueueReaderTest"),
+        "worker_index": 0,
+        "running": False,
+        "_processing_thread": None,
+        "_consuming_thread": None,
+        "_watchdog_recovery_thread": None,
+        "_stopping": False,
+        "connection": None,
+        "channel": None,
+        "cache": [],
+        "cache_pri": [],
+        "cache_full": threading.Event(),
+        "connect": Mock(),
+        "start": Mock(),
+    }
+    defaults.update(overrides)
+    for name, value in defaults.items():
+        setattr(reader, name, value)
+    return reader
 
 
 class TestWorkerLifecycle(unittest.TestCase):
@@ -217,6 +242,121 @@ class TestWorkerLifecycle(unittest.TestCase):
         self.assertEqual(len(task_distributors), 1)
         self.assertTrue(task_distributors[0].stopped)
 
+    def test_task_queue_reader_watchdog_does_not_block_on_channel_close(self):
+        close_started = threading.Event()
+        release_close = threading.Event()
+
+        class BlockingChannel:
+            def close(self):
+                close_started.set()
+                release_close.wait()
+
+        reader = make_task_queue_reader(channel=BlockingChannel())
+
+        watchdog_thread = threading.Thread(target=reader.watchdog, daemon=True)
+        watchdog_thread.start()
+        self.assertTrue(close_started.wait(timeout=0.2))
+        try:
+            watchdog_thread.join(timeout=0.2)
+            self.assertFalse(watchdog_thread.is_alive())
+        finally:
+            release_close.set()
+            watchdog_thread.join(timeout=1)
+            reader._watchdog_recovery_thread.join(timeout=1)
+
+        reader.connect.assert_called_once()
+        reader.start.assert_called_once()
+
+    def test_main_task_reader_watchdog_recovery_does_not_request_worker_shutdown(self):
+        close_started = threading.Event()
+        release_close = threading.Event()
+
+        class BlockingChannel:
+            def close(self):
+                close_started.set()
+                release_close.wait()
+
+        class Registrar:
+            def scheduler_register(self, callback, **kwargs):
+                pass
+
+        def config_get(key, default=None):
+            values = {
+                "processing_core.msg_broker": {},
+                "db_entities": {"entity": Mock()},
+                "processing_core.worker_threads": 1,
+            }
+            return values.get(key, default)
+
+        daemon_stop_lock = threading.Lock()
+        daemon_stop_lock.acquire()
+        platform_config = Mock()
+        platform_config.process_index = 0
+        platform_config.num_processes = 1
+        platform_config.model_spec = Mock()
+        platform_config.app_name = "test"
+        platform_config.config.get.side_effect = config_get
+        distributor = TaskDistributor(Mock(), platform_config, Registrar(), daemon_stop_lock)
+        reader = distributor._task_queue_reader
+        reader._processing_thread = None
+        reader._consuming_thread = None
+        reader.connection = None
+        reader.channel = BlockingChannel()
+        reader.cache = []
+        reader.cache_pri = []
+        reader.connect = Mock()
+        reader.start = Mock()
+
+        watchdog_thread = threading.Thread(target=reader.watchdog, daemon=True)
+        watchdog_thread.start()
+        self.assertTrue(close_started.wait(timeout=0.2))
+        try:
+            watchdog_thread.join(timeout=0.2)
+            self.assertFalse(watchdog_thread.is_alive())
+            self.assertFalse(
+                daemon_stop_lock.acquire(timeout=0.1),
+                "RabbitMQ reader watchdog recovery should keep retrying instead of "
+                "requesting worker shutdown.",
+            )
+        finally:
+            release_close.set()
+            watchdog_thread.join(timeout=1)
+            reader._watchdog_recovery_thread.join(timeout=1)
+
+    def test_stopped_task_queue_reader_recovery_cannot_mutate_new_reader_state(self):
+        close_started = threading.Event()
+        release_close = threading.Event()
+
+        class BlockingChannel:
+            def close(self):
+                close_started.set()
+                release_close.wait()
+
+        new_channel = Mock(name="new_channel")
+        reader = make_task_queue_reader(
+            channel=BlockingChannel(),
+            cache=["old-normal"],
+            cache_pri=["old-priority"],
+        )
+
+        reader.watchdog()
+        self.assertTrue(close_started.wait(timeout=0.2))
+        self.assertFalse(reader.stop(timeout=0.01))
+        reader.channel = new_channel
+        reader.cache = ["new-normal"]
+        reader.cache_pri = ["new-priority"]
+
+        release_close.set()
+        reader._watchdog_recovery_thread.join(timeout=1)
+
+        self.assertIs(
+            reader.channel,
+            new_channel,
+            "A stale recovery thread must not clear a channel installed later.",
+        )
+        self.assertEqual(reader.cache, ["new-normal"])
+        self.assertEqual(reader.cache_pri, ["new-priority"])
+
     def test_task_distributor_forces_exit_before_blocking_disconnect_after_reader_timeout(self):
         stop_started = threading.Event()
         disconnect_started = threading.Event()
@@ -286,7 +426,7 @@ class TestWorkerLifecycle(unittest.TestCase):
         distributor._worker_threads = []
         distributor._task_queue_reader = Mock()
         distributor._task_queue_reader.running = False
-        distributor._task_queue_reader.stop.side_effect = RuntimeError("Not running")
+        distributor._task_queue_reader.stop.return_value = True
         distributor._task_queue_writer = Mock()
 
         with (
@@ -301,7 +441,7 @@ class TestWorkerLifecycle(unittest.TestCase):
             distributor.stop()
 
         self.assertFalse(distributor.running)
-        distributor._task_queue_reader.stop.assert_not_called()
+        distributor._task_queue_reader.stop.assert_called_once()
         distributor._task_queue_reader.disconnect.assert_called_once()
         distributor._task_queue_writer.disconnect.assert_called_once()
         os_exit.assert_not_called()

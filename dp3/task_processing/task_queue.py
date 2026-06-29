@@ -118,17 +118,18 @@ class RobustAMQPConnection:
     def __del__(self):
         self.disconnect()
 
-    def connect(self) -> None:
+    def connect(self, retry_while: Callable[[], bool] | None = None) -> bool:
         """Create a connection (or reconnect after error).
 
-        If connection can't be established, try it again indefinitely.
+        If connection can't be established, try it again indefinitely unless
+        ``retry_while`` is provided and returns false.
         """
         if self.connection:
             self.connection.close()
         self._connection_id += 1
 
         attempts = 0
-        while True:
+        while retry_while is None or retry_while():
             attempts += 1
             try:
                 self.connection = amqpstorm.Connection(**self.conn_params)
@@ -144,15 +145,20 @@ class RobustAMQPConnection:
                 channel.confirm_deliveries()
                 channel.basic.qos(PREFETCH_COUNT)
                 self.channel = channel
-                break
+                return True
             except amqpstorm.AMQPError as e:
                 sleep_time = RECONNECT_DELAYS[min(attempts, len(RECONNECT_DELAYS)) - 1]
                 self.log.error(
                     f"RabbitMQ connection error (will try to reconnect in {sleep_time}s): {e}"
                 )
-                time.sleep(sleep_time)
+                sleep_deadline = time.monotonic() + sleep_time
+                while time.monotonic() < sleep_deadline:
+                    if retry_while is not None and not retry_while():
+                        return False
+                    time.sleep(min(0.1, sleep_deadline - time.monotonic()))
             except KeyboardInterrupt:
-                break
+                return False
+        return False
 
     def disconnect(self) -> None:
         if self.connection:
@@ -407,6 +413,8 @@ class TaskQueueReader(RobustAMQPConnection):
 
         self._consuming_thread: threading.Thread | None = None
         self._processing_thread: threading.Thread | None = None
+        self._watchdog_recovery_thread: threading.Thread | None = None
+        self._stopping = False
 
         # Receive messages into 2 temporary queues
         # (max length should be equal to prefetch_count set in RabbitMQReader)
@@ -427,8 +435,9 @@ class TaskQueueReader(RobustAMQPConnection):
         if self.running:
             raise RuntimeError("Already running")
 
-        if not self.connection:
-            self.connect()
+        if not self.connection and not self.connect(retry_while=lambda: not self._stopping):
+            return
+        self._stopping = False
 
         self.log.info("Starting TaskQueueReader")
 
@@ -454,14 +463,19 @@ class TaskQueueReader(RobustAMQPConnection):
         Returns:
             Whether all internal reader threads stopped.
         """
+        self._stopping = True
+        deadline_ts = None if timeout is None else time.monotonic() + timeout
+        recovery_stopped = self._stop_watchdog_recovery_thread(_remaining_time(deadline_ts))
         if not self.running:
-            raise RuntimeError("Not running")
+            if recovery_stopped:
+                return True
+            self.log.error("TaskQueueReader watchdog recovery did not stop before timeout")
+            return False
 
         self.running = False
-        deadline_ts = None if timeout is None else time.monotonic() + timeout
         consuming_stopped = self._stop_consuming_thread(_remaining_time(deadline_ts))
         processing_stopped = self._stop_processing_thread(_remaining_time(deadline_ts))
-        stopped = consuming_stopped and processing_stopped
+        stopped = consuming_stopped and processing_stopped and recovery_stopped
         if stopped:
             self.log.info("TaskQueueReader stopped")
         else:
@@ -473,7 +487,7 @@ class TaskQueueReader(RobustAMQPConnection):
         self.cache.clear()
         self.cache_pri.clear()
 
-        self.connect()
+        self.connect(retry_while=lambda: self.running and not self._stopping)
 
     def check(self) -> bool:
         """
@@ -604,32 +618,93 @@ class TaskQueueReader(RobustAMQPConnection):
                 self.log.exception("Error in user callback function. %s: %s", type(e), str(e))
                 self.log.error("Original message: %s", body)
 
-    def watchdog(self):
+    def watchdog(self) -> bool:
         """
-        Check whether both threads are running and perform a reset if not.
+        Check whether both threads are running and start recovery if not.
 
-        Register to be called periodically by scheduler.
+        Register to be called periodically by scheduler. RabbitMQ recovery remains
+        resilient and may retry indefinitely, but it runs in a daemon thread so it
+        cannot block scheduler execution or process shutdown.
         """
         proc = self._processing_thread is not None and self._processing_thread.is_alive()
         cons = self._consuming_thread is not None and self._consuming_thread.is_alive()
 
-        if not proc or not cons:
-            self.log.error(
-                "Dead threads detected, processing=%s, consuming=%s, restarting TaskQueueReader.",
-                "alive" if proc else "dead",
-                "alive" if cons else "dead",
-            )
-            self._stop_consuming_thread()
-            self._stop_processing_thread()
+        if proc and cons:
+            return True
 
-            if self.channel is not None:
-                self.channel.close()
-            self.channel = None
-            self.cache.clear()
-            self.cache_pri.clear()
+        self.log.error(
+            "Dead threads detected, processing=%s, consuming=%s, restarting TaskQueueReader.",
+            "alive" if proc else "dead",
+            "alive" if cons else "dead",
+        )
+        if self._watchdog_recovery_thread and self._watchdog_recovery_thread.is_alive():
+            self.log.warning("TaskQueueReader watchdog recovery is already running")
+            return False
 
-            self.connect()
+        self._watchdog_recovery_thread = threading.Thread(
+            target=self._recover_after_dead_threads,
+            name=f"TaskQueueReaderRecovery-{self.worker_index}",
+            daemon=True,
+        )
+        self._watchdog_recovery_thread.start()
+        return False
+
+    def _recover_after_dead_threads(self) -> None:
+        consuming_thread = self._consuming_thread
+        processing_thread = self._processing_thread
+        channel = self.channel
+        cache = self.cache
+        cache_pri = self.cache_pri
+        self.running = False
+
+        def recovery_can_continue() -> bool:
+            return not self._stopping
+
+        try:
+            if consuming_thread:
+                if consuming_thread.is_alive():
+                    with contextlib.suppress(amqpstorm.AMQPError):
+                        if channel is not None:
+                            channel.stop_consuming()
+                consuming_thread.join()
+
+            if processing_thread:
+                if processing_thread.is_alive():
+                    self.cache_full.set()  # break potential wait() for data
+                processing_thread.join()
+
+            if channel is not None:
+                channel.close()
+
+            if not recovery_can_continue():
+                return
+            if self._consuming_thread is consuming_thread:
+                self._consuming_thread = None
+            if self._processing_thread is processing_thread:
+                self._processing_thread = None
+            if self.channel is channel:
+                self.channel = None
+            if self.cache is cache:
+                self.cache.clear()
+            if self.cache_pri is cache_pri:
+                self.cache_pri.clear()
+
+            if not self.connect(retry_while=recovery_can_continue):
+                return
+            if not recovery_can_continue():
+                self.disconnect()
+                return
             self.start()
+        except Exception:
+            self.log.exception("Error while resetting TaskQueueReader")
+
+    def _stop_watchdog_recovery_thread(self, timeout: float | None = None) -> bool:
+        if self._watchdog_recovery_thread:
+            self._watchdog_recovery_thread.join(timeout=timeout)
+            if self._watchdog_recovery_thread.is_alive():
+                return False
+        self._watchdog_recovery_thread = None
+        return True
 
     def _stop_consuming_thread(self, timeout: float | None = None) -> bool:
         if self._consuming_thread:

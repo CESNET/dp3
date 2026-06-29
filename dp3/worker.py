@@ -216,6 +216,11 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
         # Create instances of core components
         log.info(f"***** {app_name} worker {process_index} of {num_processes} start *****")
 
+        # Lock used to control when the program stops.
+        daemon_stop_lock = threading.Lock()
+        daemon_stop_lock.acquire()
+        clean_stop_requested = threading.Event()
+
         # EventCountLogger
         ecl = EventCountLogger(
             platform_config.config.get("event_logging.groups"),
@@ -252,11 +257,6 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
         HistoryManager(db, platform_config, registrar)
         Telemetry(db, platform_config, registrar)
         GarbageCollector(db, platform_config, registrar)
-
-        # Lock used to control when the program stops.
-        daemon_stop_lock = threading.Lock()
-        daemon_stop_lock.acquire()
-        clean_stop_requested = threading.Event()
 
         # Signal handler releasing the lock on SIGINT or SIGTERM.
         def sigint_handler(signum, frame):

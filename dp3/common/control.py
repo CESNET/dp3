@@ -43,10 +43,7 @@ class ControlMessage(Task):
 class Control:
     """Class enabling remote control of the platform's internal events."""
 
-    def __init__(
-        self,
-        platform_config: PlatformConfig,
-    ) -> None:
+    def __init__(self, platform_config: PlatformConfig) -> None:
         self.log = logging.getLogger("Control")
         self.action_handlers: dict[ControlAction, Callable] = {}
 

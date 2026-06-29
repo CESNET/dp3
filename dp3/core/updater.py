@@ -441,17 +441,33 @@ class Updater:
         state.runtime_secs += duration.total_seconds()
 
         if state.runtime_secs > state.period:
-            self.log.warning(
-                "%s hooks: %s, The total hook runtime %.2fs exceeds the desired period %.2fs. "
-                "(Current average is %.3fs per entity when limit is %.3fs) "
-                "Consider optimizing the hooks or extending the update period.",
-                entity_type,
-                state.hook_ids,
-                state.runtime_secs,
-                state.period,
-                state.runtime_secs / state.processed,
-                state.period / state.total,
-            )
+            if state.total > 0:
+                self.log.warning(
+                    "%s hooks: %s, The total hook runtime %.2fs exceeds the desired period %.2fs. "
+                    "(Current average is %.3fs per entity when limit is %.3fs) "
+                    "Consider optimizing the hooks or extending the update period.",
+                    entity_type,
+                    state.hook_ids,
+                    state.runtime_secs,
+                    state.period,
+                    state.runtime_secs / state.processed if state.processed > 0 else 0.0,
+                    state.period / state.total,
+                )
+            else:
+                # `state.total` is an estimate (MongoDB estimated_document_count)
+                # and may be 0 for an empty or newly created collection, even when
+                # records are present. Without it the per-entity timing budget is
+                # undefined, so report the runtime against the processed count.
+                self.log.warning(
+                    "%s hooks: %s, The total hook runtime %.2fs exceeds the desired "
+                    "period %.2fs. The estimated entity count is 0 (processed %s so far), "
+                    "so a per-entity timing limit cannot be determined.",
+                    entity_type,
+                    state.hook_ids,
+                    state.runtime_secs,
+                    state.period,
+                    state.processed,
+                )
 
         state.iteration = iteration + 1
         if state.iteration >= iteration_cnt:

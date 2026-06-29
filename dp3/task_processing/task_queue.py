@@ -61,6 +61,12 @@ PREFETCH_COUNT = 50
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 
 
+def _remaining_time(deadline_ts: float | None) -> float | None:
+    if deadline_ts is None:
+        return None
+    return max(0.0, deadline_ts - time.monotonic())
+
+
 class QueueNotDeclared(RuntimeError):
     def __init__(self, queue_name):
         self.queue_name = queue_name
@@ -439,15 +445,28 @@ class TaskQueueReader(RobustAMQPConnection):
         self._processing_thread.name = f"Processor-{self.worker_index}-{thread_n}"
         self._processing_thread.start()
 
-    def stop(self) -> None:
-        """Stop receiving tasks."""
+    def stop(self, timeout: float | None = None) -> bool:
+        """Stop receiving tasks.
+
+        Args:
+            timeout: Maximum total time to wait for the internal reader threads.
+
+        Returns:
+            Whether all internal reader threads stopped.
+        """
         if not self.running:
             raise RuntimeError("Not running")
 
         self.running = False
-        self._stop_consuming_thread()
-        self._stop_processing_thread()
-        self.log.info("TaskQueueReader stopped")
+        deadline_ts = None if timeout is None else time.monotonic() + timeout
+        consuming_stopped = self._stop_consuming_thread(_remaining_time(deadline_ts))
+        processing_stopped = self._stop_processing_thread(_remaining_time(deadline_ts))
+        stopped = consuming_stopped and processing_stopped
+        if stopped:
+            self.log.info("TaskQueueReader stopped")
+        else:
+            self.log.error("TaskQueueReader did not stop before timeout")
+        return stopped
 
     def reconnect(self) -> None:
         """Clear local message cache and reconnect to RabbitMQ server."""
@@ -612,23 +631,29 @@ class TaskQueueReader(RobustAMQPConnection):
             self.connect()
             self.start()
 
-    def _stop_consuming_thread(self) -> None:
+    def _stop_consuming_thread(self, timeout: float | None = None) -> bool:
         if self._consuming_thread:
             if self._consuming_thread.is_alive():
                 # if not connected, no problem
                 with contextlib.suppress(amqpstorm.AMQPError):
                     if self.channel is not None:
                         self.channel.stop_consuming()
-            self._consuming_thread.join()
+            self._consuming_thread.join(timeout=timeout)
+            if self._consuming_thread.is_alive():
+                return False
         self._consuming_thread = None
+        return True
 
-    def _stop_processing_thread(self) -> None:
+    def _stop_processing_thread(self, timeout: float | None = None) -> bool:
         if self._processing_thread:
             if self._processing_thread.is_alive():
                 self.running = False  # tell processing thread to stop
                 self.cache_full.set()  # break potential wait() for data
-            self._processing_thread.join()
+            self._processing_thread.join(timeout=timeout)
+            if self._processing_thread.is_alive():
+                return False
         self._processing_thread = None
+        return True
 
 
 # Set up logging if not part of another program (i.e. when testing/debugging)

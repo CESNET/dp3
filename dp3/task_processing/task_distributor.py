@@ -61,6 +61,7 @@ class TaskDistributor:
         )  # List of configured entity types
 
         self.running = False
+        self._accepting_tasks = False
 
         # List of worker threads for processing the update requests
         self._worker_threads = []
@@ -105,6 +106,7 @@ class TaskDistributor:
 
         self.log.info(f"Starting {self.num_threads} worker threads")
         self.running = True
+        self._accepting_tasks = True
         self._worker_threads = [
             threading.Thread(
                 target=self._worker_func, args=(i,), name=f"Worker-{self.process_index}-{i}"
@@ -123,12 +125,17 @@ class TaskDistributor:
         # Thread for printing debug messages about worker status
         threading.Thread(target=self._dbg_worker_status_print, daemon=True).start()
 
-        # Stop receiving new tasks from global queue
-        self._task_queue_reader.stop()
-
-        # Signalize stop to worker threads
-        self.running = False
         deadline_ts = time.monotonic() + SHUTDOWN_TIME
+
+        # Stop accepting handoffs from the reader, then stop receiving new tasks
+        # while worker threads can still drain already handed-off tasks.
+        self._accepting_tasks = False
+        reader_stopped = self._stop_task_queue_reader(
+            timeout=max(0.0, deadline_ts - time.monotonic())
+        )
+
+        # Signalize stop to worker threads.
+        self.running = False
 
         # Wait until all workers stopped (bounded)
         for worker in self._worker_threads:
@@ -139,15 +146,42 @@ class TaskDistributor:
         self._task_queue_writer.disconnect()
 
         alive = [w for w in self._worker_threads if w.is_alive()]
-        if alive:
+        if alive or not reader_stopped:
             self._dump_thread_stacks()
-            self.log.critical("Forcing shutdown with %d workers still alive", len(alive))
+            self.log.critical(
+                "Forcing shutdown with %d workers still alive; reader_stopped=%s",
+                len(alive),
+                reader_stopped,
+            )
             with contextlib.suppress(Exception):
                 logging.shutdown()  # flush logs
             os._exit(1)  # nuke entire process
 
         # Cleanup
         self._worker_threads = []
+
+    def _stop_task_queue_reader(self, timeout: float) -> bool:
+        reader_stopped = False
+
+        # TaskQueueReader.stop() is expected to honor its timeout, but run it in
+        # a daemon thread so a bug or blocking AMQP call cannot prevent the
+        # last-resort os._exit(1) path from restarting the process.
+        def stop_reader() -> None:
+            nonlocal reader_stopped
+            try:
+                reader_stopped = self._task_queue_reader.stop(timeout=timeout)
+            except Exception:
+                self.log.exception("Error while stopping TaskQueueReader")
+
+        stopper = threading.Thread(
+            target=stop_reader, name=f"TaskQueueReaderStop-{self.process_index}", daemon=True
+        )
+        stopper.start()
+        stopper.join(timeout=timeout)
+        if stopper.is_alive():
+            self.log.error("TaskQueueReader.stop() did not return before timeout")
+            return False
+        return reader_stopped
 
     def _dump_thread_stacks(self) -> None:
         self.log.critical("=== Graceful shutdown failed, thread stack dump follows ===")
@@ -165,7 +199,12 @@ class TaskDistributor:
         """
         # Distribute tasks to worker threads by hash of (etype,eid)
         index = hash(task.routing_key()) % self.num_threads
-        self._queues[index].put((msg_id, task))
+        while self._accepting_tasks:
+            try:
+                self._queues[index].put((msg_id, task), timeout=0.1)
+                return
+            except queue.Full:
+                continue
 
     def _worker_func(self, thread_index):
         """

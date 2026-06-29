@@ -211,6 +211,7 @@ sudo $(which dp3) config supervisor --config <CONFIG_DIR> --app-name <APP_NAME>
 ```
 
 The generated supervisor configuration lives under `/etc/<APP_NAME>` and the process logs are written under `/var/log/<APP_NAME>`.
+Worker processes exit with code `1` on internal failures so supervisor can restart them. Intentional `SIGINT`/`SIGTERM` shutdowns exit with code `0`, and configuration errors exit with code `2` so supervisor leaves the worker stopped until the configuration is fixed.
 For more on supervisor itself, see the [supervisorctl documentation](http://supervisord.org/running.html#running-supervisorctl).
 
 Enable and start the generated system service:

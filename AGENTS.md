@@ -9,7 +9,7 @@
 - `docs/` and `mkdocs.yml`: documentation sources.
 
 ## Build, Test, and Development Commands
-- `python -m venv venv && source venv/bin/activate`: local virtualenv.
+- Prefer local `.venv` or `venv` when present; the repo currently targets Python 3.11.
 - `pip install --editable ".[dev]"`: install for platform development.
 - `pre-commit install`: enable formatting/linting hooks.
 - `docker compose up -d --build`: start MongoDB, RabbitMQ, Redis for local runs/tests.
@@ -31,13 +31,13 @@
 - Framework: `unittest`.
 - Common tests:  
   `python -m unittest discover -s tests/test_common -v`
-- API tests (with config):  
-  `CONF_DIR=tests/test_config python -m unittest discover -s tests/test_api -v`
+- API tests (Docker/local services): `scripts/run_api_tests_local.sh`
 - Add tests next to related area (`tests/test_common`, `tests/test_api`, or `tests/modules`).
 
 ## Commit & Pull Request Guidelines
 - Commit messages use concise scope + summary, often `Scope: message`, e.g.  
   `Docs: update callback registrar docstring` or `DB: fix unpacking of fulltext filters`.
+- For review fixes, prefer `fixup!` commits and autosquash before finalizing.
 - Use `Breaking` or similar marker when removing/deprecating behavior, e.g.  
   `API - Breaking: Removed deprecated parameter.`
 - PRs should include: summary, rationale, test evidence, linked issues/PRs when relevant, and a note on documentation updates when user-visible behavior changed.

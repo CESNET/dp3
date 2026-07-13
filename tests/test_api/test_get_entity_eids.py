@@ -59,3 +59,13 @@ class GetEntityEids(common.APITest):
             {5, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59},
             {x["eid"] for x in eids.data},
         )
+
+    def test_get_entity_eids_sort_by_eid_asc(self):
+        eids = self.get_entity_data("entity/A/get", EntityEidList, sort=["eid:1"], limit=0)
+        self.assertEqual(100, len(eids.data))
+        self.assertEqual(list(range(100)), [x["eid"] for x in eids.data])
+
+    def test_get_entity_eids_sort_by_eid_desc(self):
+        eids = self.get_entity_data("entity/A/get", EntityEidList, sort=["eid:-1"], limit=0)
+        self.assertEqual(100, len(eids.data))
+        self.assertEqual(list(range(99, -1, -1)), [x["eid"] for x in eids.data])

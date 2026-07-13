@@ -144,6 +144,7 @@ def _validate_sort_params(etype: str, sort: list[str] | None) -> list[tuple[str,
         sort: list of sort specifications in format 'attribute:direction'
               where direction is 1 (ascending) or -1 (descending)
               e.g., ['hostname:-1', 'ip:1']
+              Special attribute 'eid' is also supported for sorting by entity ID.
 
     Returns:
         List of (attribute, direction) tuples for sorting, or None if no sorting specified
@@ -171,6 +172,11 @@ def _validate_sort_params(etype: str, sort: list[str] | None) -> list[tuple[str,
 
         attr, direction_str = match.groups()
         direction = int(direction_str) if direction_str else 1  # Default to ascending (1)
+
+        # Support sorting by entity ID using pseudo-attribute 'eid'
+        if attr == "eid":
+            sort_criteria.append((attr, direction))
+            continue
 
         # Check if attribute exists
         if attr not in entity_attribs:
@@ -306,11 +312,13 @@ async def get_entity_type_eids(
 
     Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
-    Sorting is supported for plain and observations attributes with primitive data types
-    (excluding json and multi_value observations). To sort by multiple attributes, provide
-    multiple sort parameters in the format 'attribute:direction' where direction is 1 (ascending)
-    or -1 (descending). Direction defaults to 1 (ascending) if not provided. Example:
-    `?sort=hostname:-1&sort=ip:1`
+    Sorting is supported by entity ID using the special attribute name `eid`,
+    as well as for plain and observations attributes with primitive data types
+    (excluding json and multi_value observations). To sort by multiple attributes,
+    provide multiple sort parameters in the format 'attribute:direction' where
+    direction is 1 (ascending) or -1 (descending). Direction defaults to 1 (ascending)
+    if not provided. Examples:
+    `?sort=eid:1`, `?sort=hostname:-1&sort=ip:1`
     """
     fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
     sort_criteria = _validate_sort_params(etype, sort)
@@ -320,8 +328,12 @@ async def get_entity_type_eids(
 
         # Apply sorting if specified
         if sort_criteria:
-            # Prepare sort specification with 'last.' prefix for snapshot data
-            sort_spec = [("last." + attr, direction) for attr, direction in sort_criteria]
+            # Prepare sort specification with 'last.' prefix for snapshot data.
+            # The special attribute 'eid' is mapped to the EID stored in the snapshot.
+            sort_spec = [
+                ("last.eid" if attr == "eid" else "last." + attr, direction)
+                for attr, direction in sort_criteria
+            ]
             cursor = cursor.sort(sort_spec)
 
         cursor_page = cursor.skip(skip).limit(limit)

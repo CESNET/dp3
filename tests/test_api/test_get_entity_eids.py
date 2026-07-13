@@ -2,8 +2,9 @@ import json
 import sys
 from time import sleep
 
+import common
+
 from dp3.api.internal.entity_response_models import EntityEidList
-from tests.test_api import common
 
 
 class GetEntityEids(common.APITest):

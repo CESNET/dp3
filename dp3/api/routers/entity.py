@@ -328,12 +328,8 @@ async def get_entity_type_eids(
 
         # Apply sorting if specified
         if sort_criteria:
-            # Prepare sort specification with 'last.' prefix for snapshot data.
-            # The special attribute 'eid' is mapped to the EID stored in the snapshot.
-            sort_spec = [
-                ("last.eid" if attr == "eid" else "last." + attr, direction)
-                for attr, direction in sort_criteria
-            ]
+            # Prepare sort specification with 'last.' prefix for snapshot data
+            sort_spec = [("last." + attr, direction) for attr, direction in sort_criteria]
             cursor = cursor.sort(sort_spec)
 
         cursor_page = cursor.skip(skip).limit(limit)

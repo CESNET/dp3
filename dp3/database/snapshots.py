@@ -21,7 +21,7 @@ from dp3.common.attrspec import AttrSpecType, AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.datatype import AnyEidT
 from dp3.common.mac_address import MACAddress
-from dp3.common.utils import int2bytes
+from dp3.common.utils import bytes2int, int2bytes
 from dp3.database.config import MongoConfig
 from dp3.database.encodings import BSON_OBJECT_TOO_LARGE, get_codec_options
 from dp3.database.exceptions import SnapshotCollectionError
@@ -134,6 +134,10 @@ class TypedSnapshotCollection(abc.ABC):
         Args:
             b_id: the _id of the snapshot bucket, type depends on etype's data type
         """
+
+    @abc.abstractmethod
+    def _eid_from_bid(self, b_id: bytes | str) -> AnyEidT:
+        """Returns the EID encoded in a snapshot bucket document ID."""
 
     @abc.abstractmethod
     def _filter_from_eid(self, eid: AnyEidT) -> dict:
@@ -480,7 +484,7 @@ class TypedSnapshotCollection(abc.ABC):
             os_col.insert_one(snapshot)
             return
 
-    def _get_state(self, eids: set[str]) -> tuple[set, set]:
+    def _get_state(self, eids: set[AnyEidT]) -> tuple[set, set]:
         """Get current state of snapshot of given `eid`."""
         unknown = eids
         normal = self._normal_snapshot_eids & unknown
@@ -496,8 +500,7 @@ class TypedSnapshotCollection(abc.ABC):
             self._filter_from_eids(unknown) | {"oversized": True},
             {"oversized": 1},
         ):
-            eid = doc["_id"].rsplit("_#", maxsplit=1)[0]
-            new_oversized.add(eid)
+            new_oversized.add(self._eid_from_bid(doc["_id"]))
 
         unknown = unknown - new_oversized
         self._normal_snapshot_eids |= unknown
@@ -706,8 +709,11 @@ class StringEidSnapshots(TypedSnapshotCollection):
         return {"_id": {"$regex": "|".join([f"^{re.escape(eid)}_#" for eid in eids])}}
 
     def _filter_from_bid(self, b_id: str) -> dict:
-        eid = b_id.rsplit("_#", maxsplit=1)[0]
+        eid = self._eid_from_bid(b_id)
         return {"_id": {"$regex": f"^{re.escape(eid)}_#"}}
+
+    def _eid_from_bid(self, b_id: str) -> str:
+        return b_id.rsplit("_#", maxsplit=1)[0]
 
 
 class BinaryEidSnapshots(TypedSnapshotCollection, ABC):
@@ -715,9 +721,16 @@ class BinaryEidSnapshots(TypedSnapshotCollection, ABC):
     def _get_packed(self, eid: AnyEidT) -> bytes:
         """Return the packed bytes representation of the given eid."""
 
+    @abc.abstractmethod
+    def _unpack_eid(self, eid: bytes) -> AnyEidT:
+        """Return the EID represented by packed bytes."""
+
     def _filter_from_bid(self, b_id: bytes) -> dict:
         eid_bytes = b_id[:-8]
         return {"_id": self._binary_bucket_range(eid_bytes)}
+
+    def _eid_from_bid(self, b_id: bytes) -> AnyEidT:
+        return self._unpack_eid(bytes(b_id[:-8]))
 
     def _bucket_id(self, eid: AnyEidT, ctime: datetime) -> Binary:
         ts = int(ctime.timestamp())
@@ -734,20 +747,32 @@ class IntEidSnapshots(BinaryEidSnapshots):
     def _get_packed(self, eid: int) -> bytes:
         return int2bytes(eid)
 
+    def _unpack_eid(self, eid: bytes) -> int:
+        return bytes2int(eid)
+
 
 class IPv4EidSnapshots(BinaryEidSnapshots):
     def _get_packed(self, eid: IPv4Address) -> bytes:
         return eid.packed
+
+    def _unpack_eid(self, eid: bytes) -> IPv4Address:
+        return IPv4Address(eid)
 
 
 class IPv6EidSnapshots(BinaryEidSnapshots):
     def _get_packed(self, eid: IPv6Address) -> bytes:
         return eid.packed
 
+    def _unpack_eid(self, eid: bytes) -> IPv6Address:
+        return IPv6Address(eid)
+
 
 class MACAddressEidSnapshots(BinaryEidSnapshots):
     def _get_packed(self, eid: MACAddress) -> bytes:
         return eid.packed
+
+    def _unpack_eid(self, eid: bytes) -> MACAddress:
+        return MACAddress(eid)
 
 
 entity_type2collection = {

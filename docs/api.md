@@ -233,7 +233,7 @@ There are no attribute name checks (may be added in the future).
 
 Generic and fulltext filters are merged - fulltext overrides conflicting keys.
 
-Sorting is supported by entity ID using the special attribute `eid`, as well as for plain and observations attributes with primitive data types (excluding json and multi_value observations). To sort by multiple attributes, provide multiple sort parameters in the format `attribute:direction` where direction is `1` (ascending) or `-1` (descending). Direction defaults to `1` if not provided. Default is no sorting. Examples: `?sort=eid:1`, `?sort=hostname:-1&sort=ip:1`
+Sorting is supported by entity ID using the special attribute `eid`, as well as for plain and observations attributes with primitive data types (excluding json and multi_value observations). To sort by multiple attributes, provide multiple sort parameters in the format `attribute:direction` where direction is `1` (ascending) or `-1` (descending). Direction defaults to `1` if not provided. Default is no sorting. Examples: `?sort=eid:1`, `?sort=hostname:-1&sort=rep_score:1`
 
 ### Request
 

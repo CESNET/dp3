@@ -81,7 +81,9 @@ def get_eid_master_record_handler(
     # plain data from master record and then call `get_timeseries_history`
     # for timeseries.
     master_record = DB.get_master_record(
-        e.type, e.id, projection={"_id": False, "#hash": False, "#min_t2s": False}
+        e.type,
+        e.id,
+        projection={"_id": False, "#hash": False, "#min_t2s": False, "#revision": False},
     )
 
     entity_attribs = MODEL_SPEC.attribs(e.type)

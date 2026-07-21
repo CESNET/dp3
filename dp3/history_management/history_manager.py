@@ -17,9 +17,15 @@ from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.types import DP3Encoder, ParsedTimedelta
 from dp3.common.utils import entity_expired
-from dp3.database.database import DatabaseError, EntityDatabase
+from dp3.database.database import (
+    MASTER_REVISION_FIELD,
+    DatabaseError,
+    EntityDatabase,
+    MasterRecordUpdate,
+)
 
 DB_SEND_CHUNK = 100
+AGGREGATION_MAX_RETRIES = 3
 
 
 class SnapshotCleaningConfig(BaseModel):
@@ -260,60 +266,164 @@ class HistoryManager:
     def aggregate_master_docs(self):
         self.log.debug("Starting master documents aggregation.")
         ts = datetime.now(UTC)
-        entities = 0
-        self.db.save_metadata(ts, {"entities": 0, "aggregation_start": ts})
+        stats = {
+            "entities": 0,
+            "updated": 0,
+            "revision_conflicts": 0,
+            "retries": 0,
+            "retry_exhausted": 0,
+        }
+        self.db.save_metadata(
+            ts,
+            {"aggregation_start": ts} | stats,
+        )
 
         for entity in self.model_spec.entities:
-            entity_attr_specs = self.model_spec.entity_attributes[entity]
-            eids = []
+            attr_specs = {
+                attr: spec
+                for attr, spec in self.model_spec.entity_attributes[entity].items()
+                if spec.t == AttrType.OBSERVATIONS and spec.history_params.aggregate
+            }
+            if not attr_specs:
+                continue
+
+            projection = {
+                **dict.fromkeys(attr_specs, True),
+                "#ttl": True,
+                "#time_created": True,
+                MASTER_REVISION_FIELD: True,
+            }
             aggregated_records = []
             records_cursor = self.db.get_worker_master_records(
-                self.worker_index, self.num_workers, entity, no_cursor_timeout=True
+                self.worker_index,
+                self.num_workers,
+                entity,
+                projection=projection,
+                no_cursor_timeout=True,
             )
             try:
                 for master_document in records_cursor:
                     if entity_expired(ts, master_document):
                         continue  # Avoid expired entities to avoid conflict with garbage collector
 
-                    entities += 1
-                    self.aggregate_master_doc(entity_attr_specs, master_document)
-                    eids.append(master_document["_id"])
-                    aggregated_records.append(master_document)
+                    stats["entities"] += 1
+                    fields = self.aggregate_master_doc(attr_specs, master_document)
+                    if not fields:
+                        continue
 
-                    if len(aggregated_records) > DB_SEND_CHUNK:
-                        self.db.update_master_records(entity, eids, aggregated_records)
-                        eids.clear()
+                    aggregated_records.append(
+                        (
+                            master_document["_id"],
+                            master_document.get(MASTER_REVISION_FIELD),
+                            master_document.get("#time_created"),
+                            fields,
+                        )
+                    )
+
+                    if len(aggregated_records) >= DB_SEND_CHUNK:
+                        self._update_master_records(
+                            entity, attr_specs, projection, ts, aggregated_records, stats
+                        )
                         aggregated_records.clear()
 
                 if aggregated_records:
-                    self.db.update_master_records(entity, eids, aggregated_records)
-                    eids.clear()
+                    self._update_master_records(
+                        entity, attr_specs, projection, ts, aggregated_records, stats
+                    )
                     aggregated_records.clear()
             finally:
                 records_cursor.close()
 
         self.db.update_metadata(
-            ts, metadata={"aggregation_end": datetime.now(UTC)}, increase={"entities": entities}
+            ts,
+            metadata={"aggregation_end": datetime.now(UTC)},
+            increase=stats,
         )
-        self.log.debug("Master documents aggregation end.")
+        self.log.debug("Master documents aggregation end: %s", stats)
+
+    def _update_master_records(
+        self,
+        entity: str,
+        attr_specs: dict[str, AttrSpecType],
+        projection: dict,
+        aggregation_time: datetime,
+        records: list[MasterRecordUpdate],
+        stats: dict[str, int],
+    ) -> None:
+        pending = records
+        for retry in range(AGGREGATION_MAX_RETRIES + 1):
+            submitted = pending
+            matched = self.db.update_master_records(entity, submitted)
+            stats["updated"] += matched
+            conflicts = len(submitted) - matched
+            if not conflicts:
+                return
+
+            stats["revision_conflicts"] += conflicts
+            if retry == AGGREGATION_MAX_RETRIES:
+                stats["retry_exhausted"] += conflicts
+                self.log.warning(
+                    "Aggregation of %s master records of %s exhausted revision retries.",
+                    conflicts,
+                    entity,
+                )
+                return
+
+            stats["retries"] += 1
+            pending = []
+            records_cursor = self.db.get_master_records_by_eids(
+                entity,
+                [record[0] for record in submitted],
+                projection=projection,
+            )
+            try:
+                for master_document in records_cursor:
+                    if entity_expired(aggregation_time, master_document):
+                        continue
+                    fields = self.aggregate_master_doc(attr_specs, master_document)
+                    if fields:
+                        pending.append(
+                            (
+                                master_document["_id"],
+                                master_document.get(MASTER_REVISION_FIELD),
+                                master_document.get("#time_created"),
+                                fields,
+                            )
+                        )
+            finally:
+                records_cursor.close()
+
+            if not pending:
+                return
 
     @staticmethod
-    def aggregate_master_doc(attr_specs: dict[str, AttrSpecType], master_document: dict):
-        for attr, history in master_document.items():
-            if attr not in attr_specs:
+    def aggregate_master_doc(
+        attr_specs: dict[str, AttrSpecType], master_document: dict
+    ) -> dict[str, list[dict]]:
+        aggregated_fields = {}
+        for attr, spec in attr_specs.items():
+            if attr not in master_document:
                 continue
-            spec = attr_specs[attr]
-
-            if spec.t != AttrType.OBSERVATIONS or not spec.history_params.aggregate:
-                continue
+            history = master_document[attr]
 
             if spec.multi_value:
-                master_document[attr] = aggregate_multivalue_dp_history_on_equal(history, spec)
+                aggregated_history, changed = aggregate_multivalue_dp_history_on_equal(
+                    history, spec
+                )
             else:
-                master_document[attr] = aggregate_dp_history_on_equal(history, spec.history_params)
+                aggregated_history, changed = aggregate_dp_history_on_equal(
+                    history, spec.history_params
+                )
+
+            if changed:
+                aggregated_fields[attr] = aggregated_history
+
+        return aggregated_fields
 
 
-def aggregate_multivalue_dp_history_on_equal(history: list[dict], spec: AttrSpecObservations):
+def aggregate_multivalue_dp_history_on_equal(
+    history: list[dict], spec: AttrSpecObservations
+) -> tuple[list[dict], bool]:
     """
     Merge multivalue datapoints in the history with equal values and overlapping time validity.
 
@@ -325,6 +435,7 @@ def aggregate_multivalue_dp_history_on_equal(history: list[dict], spec: AttrSpec
       The average calculation only works for the current iteration,
       but for the next call of the algorithm, the count of aggregated datapoints is lost.
     """
+    original_history = history
     history = sorted(history, key=lambda x: x["t1"])
     aggregated_history = []
     pre = spec.history_params.pre_validity
@@ -355,7 +466,7 @@ def aggregate_multivalue_dp_history_on_equal(history: list[dict], spec: AttrSpec
             current_dp["c"] /= current_dp["cnt"]
             del current_dp["cnt"]
             aggregated_history.append(current_dp)
-        return aggregated_history
+        return aggregated_history, history_was_aggregated(original_history, aggregated_history)
     else:
         current_dps = []
 
@@ -384,10 +495,12 @@ def aggregate_multivalue_dp_history_on_equal(history: list[dict], spec: AttrSpec
             current_dp["c"] /= current_dp["cnt"]
             del current_dp["cnt"]
             aggregated_history.append(current_dp)
-        return aggregated_history
+        return aggregated_history, history_was_aggregated(original_history, aggregated_history)
 
 
-def aggregate_dp_history_on_equal(history: list[dict], spec: ObservationsHistoryParams):
+def aggregate_dp_history_on_equal(
+    history: list[dict], spec: ObservationsHistoryParams
+) -> tuple[list[dict], bool]:
     """
     Merge datapoints in the history with equal values and overlapping time validity.
 
@@ -397,6 +510,7 @@ def aggregate_dp_history_on_equal(history: list[dict], spec: ObservationsHistory
       The average calculation only works for the current iteration,
       but for the next call of the algorithm, the count of aggregated datapoints is lost.
     """
+    original_history = history
     history = sorted(history, key=lambda x: x["t1"])
     aggregated_history = []
     current_dp = None
@@ -423,7 +537,14 @@ def aggregate_dp_history_on_equal(history: list[dict], spec: ObservationsHistory
     if current_dp:
         current_dp["c"] /= merged_cnt
         aggregated_history.append(current_dp)
-    return aggregated_history
+    return aggregated_history, history_was_aggregated(original_history, aggregated_history)
+
+
+def history_was_aggregated(original: list[dict], aggregated: list[dict]) -> bool:
+    """Return whether aggregation removed or reordered any datapoints."""
+    return len(original) != len(aggregated) or any(
+        before is not after for before, after in zip(original, aggregated, strict=True)
+    )
 
 
 def compress_file(original: Path, compressed: Path = None):

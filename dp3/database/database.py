@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 import pymongo
 from event_count_logger import DummyEventGroup
 from pydantic import BaseModel
-from pymongo import ReplaceOne, UpdateMany, UpdateOne, WriteConcern
+from pymongo import UpdateMany, UpdateOne, WriteConcern
 from pymongo.collection import Collection
 from pymongo.command_cursor import CommandCursor
 from pymongo.cursor import Cursor
@@ -41,6 +41,8 @@ def get_caller_id():
 
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
+MASTER_REVISION_FIELD = "#revision"
+MasterRecordUpdate = tuple[AnyEidT, int | None, datetime | None, dict]
 
 
 class EntityDatabase:
@@ -524,7 +526,8 @@ class EntityDatabase:
                             else {}
                         )
                         | ({"$set": changes["$set"]} if "$set" in changes else {})
-                        | ({"$max": changes["$max"]} if "$max" in changes else {}),
+                        | ({"$max": changes["$max"]} if "$max" in changes else {})
+                        | {"$inc": {MASTER_REVISION_FIELD: 1}},
                         upsert=True,
                     )
                     for eid, changes in master_changes.items()
@@ -548,23 +551,49 @@ class EntityDatabase:
                     f"Update of master records failed: {e}\n{master_changes}"
                 ) from e
 
-    def update_master_records(self, etype: str, eids: list[AnyEidT], records: list[dict]) -> None:
-        """Replace master records of `etype`:`eid` with the provided `records`.
+    def update_master_records(
+        self,
+        etype: str,
+        records: list[MasterRecordUpdate],
+    ) -> int:
+        """Apply revision-checked partial updates to master records.
 
-        Raises DatabaseError when update fails.
+        Each record contains the entity ID, expected revision, creation time, and fields to set.
+        Returns the number of records whose expected revision matched.
         """
+        if not records:
+            return 0
+
         master_col = self._master_col(etype)
         try:
-            res = master_col.bulk_write(
-                [
-                    ReplaceOne({"_id": eid}, record, upsert=True)
-                    for eid, record in zip(eids, records, strict=False)
-                ],
-                ordered=False,
+            updates = []
+            for eid, revision, time_created, fields in records:
+                query = {
+                    "_id": eid,
+                    MASTER_REVISION_FIELD: (
+                        revision if revision is not None else {"$exists": False}
+                    ),
+                    "#time_created": (
+                        time_created if time_created is not None else {"$exists": False}
+                    ),
+                }
+                updates.append(
+                    UpdateOne(
+                        query,
+                        {
+                            "$set": fields,
+                            "$inc": {MASTER_REVISION_FIELD: 1},
+                        },
+                    )
+                )
+
+            res = master_col.bulk_write(updates, ordered=False)
+            self.log.debug(
+                "Updated %s/%s master records of %s.", res.matched_count, len(records), etype
             )
-            self.log.debug("Updated master records of %s (%s).", etype, len(eids))
             for error in res.bulk_api_result.get("writeErrors", []):
                 self.log.error("Error in bulk write: %s", error)
+            return res.matched_count
         except Exception as e:
             raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
 
@@ -593,7 +622,10 @@ class EntityDatabase:
                 [
                     UpdateOne(
                         {"_id": eid},
-                        {"$unset": {f"#ttl.{token_name}": "" for token_name in expired_ttls}},
+                        {
+                            "$unset": {f"#ttl.{token_name}": "" for token_name in expired_ttls},
+                            "$inc": {MASTER_REVISION_FIELD: 1},
+                        },
                     )
                     for eid, expired_ttls in expired_eid_ttls.items()
                 ]
@@ -692,6 +724,14 @@ class EntityDatabase:
                             }
                             for attr_name in attrs
                         }
+                        | {
+                            MASTER_REVISION_FIELD: {
+                                "$add": [
+                                    {"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]},
+                                    1,
+                                ]
+                            }
+                        }
                     }
                 ],
             )
@@ -731,7 +771,13 @@ class EntityDatabase:
                                     "then": "$$REMOVE",
                                     "else": {"$min": f"${attr_name}.t2"},
                                 }
-                            }
+                            },
+                            MASTER_REVISION_FIELD: {
+                                "$add": [
+                                    {"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]},
+                                    1,
+                                ]
+                            },
                         },
                     },
                 ],
@@ -751,10 +797,16 @@ class EntityDatabase:
         filter_cond = {"_id": {"$in": affected_eids}}
         try:
             if attr_type == AttrType.OBSERVATIONS:
-                update_pull = {"$pull": {attr_name: {"v.eid": eid_to}}}
+                update_pull = {
+                    "$pull": {attr_name: {"v.eid": eid_to}},
+                    "$inc": {MASTER_REVISION_FIELD: 1},
+                }
                 master_col.update_many(filter_cond, update_pull)
             elif attr_type == AttrType.PLAIN:
-                update_unset = {"$unset": {attr_name: ""}}
+                update_unset = {
+                    "$unset": {attr_name: ""},
+                    "$inc": {MASTER_REVISION_FIELD: 1},
+                }
                 master_col.update_many(filter_cond, update_unset)
             else:
                 raise ValueError(f"Unsupported attribute type: {attr_type}")
@@ -781,10 +833,16 @@ class EntityDatabase:
                 attr_type = self._db_schema_config.attr(etype, attr_name).t
                 filter_cond = {"_id": {"$in": affected_eid_list}}
                 if attr_type == AttrType.OBSERVATIONS:
-                    update_pull = {"$pull": {attr_name: {"v.eid": {"$in": eid_to_list}}}}
+                    update_pull = {
+                        "$pull": {attr_name: {"v.eid": {"$in": eid_to_list}}},
+                        "$inc": {MASTER_REVISION_FIELD: 1},
+                    }
                     updates.append(UpdateMany(filter_cond, update_pull))
                 elif attr_type == AttrType.PLAIN:
-                    update_unset = {"$unset": {attr_name: ""}}
+                    update_unset = {
+                        "$unset": {attr_name: ""},
+                        "$inc": {MASTER_REVISION_FIELD: 1},
+                    }
                     updates.append(UpdateMany(filter_cond, update_unset))
                 else:
                     raise ValueError(f"Unsupported attribute type: {attr_type}")
@@ -816,6 +874,13 @@ class EntityDatabase:
 
         master_col = self._master_col(etype)
         return master_col.find({}, **kwargs)
+
+    def get_master_records_by_eids(self, etype: str, eids: list[AnyEidT], **kwargs) -> Cursor:
+        """Get master records of `etype` whose IDs are in `eids`."""
+        self._assert_etype_exists(etype)
+
+        master_col = self._master_col(etype)
+        return master_col.find({"_id": {"$in": eids}}, **kwargs)
 
     def get_worker_master_records(
         self, worker_index: int, worker_cnt: int, etype: str, query_filter: dict = None, **kwargs

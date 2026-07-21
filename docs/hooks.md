@@ -429,6 +429,9 @@ That record is the persisted entity document from `{entity}#master`, for example
 }
 ```
 
+Fields whose names start with `#` are reserved persistence metadata. Modules reading raw master
+records should ignore reserved fields they do not recognize.
+
 In short, `current_values` is the snapshot-time interpreted current state, while `master_record` is the raw stored history and persistence representation.
 
 #### What a correlation hook may do

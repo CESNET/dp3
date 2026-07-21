@@ -404,7 +404,12 @@ class TypedSnapshotCollection(abc.ABC):
             snapshot_col.update_one(
                 {"_id": last_id},
                 {
-                    "$set": {"oversized": True, "last": snapshot, "count": 0},
+                    "$set": {
+                        "oversized": True,
+                        "last": snapshot,
+                        "_time_created": snapshot["_time_created"],
+                        "count": 0,
+                    },
                     "$unset": {"history": ""},
                 },
             )
@@ -468,7 +473,10 @@ class TypedSnapshotCollection(abc.ABC):
             return
         elif oversized:
             # Snapshot is already marked as oversized
-            snapshot_col.update_one(self._filter_from_eid(eid), {"$set": {"last": snapshot}})
+            snapshot_col.update_one(
+                self._filter_from_eid(eid),
+                {"$set": {"last": snapshot, "_time_created": ctime}},
+            )
             os_col.insert_one(snapshot)
             return
 
@@ -563,7 +571,12 @@ class TypedSnapshotCollection(abc.ABC):
             oversized_updates.append(
                 UpdateOne(
                     self._filter_from_eid(eid),
-                    {"$set": {"last": snapshots_by_eid[eid][-1]}},
+                    {
+                        "$set": {
+                            "last": snapshots_by_eid[eid][-1],
+                            "_time_created": ctime,
+                        }
+                    },
                 )
             )
 

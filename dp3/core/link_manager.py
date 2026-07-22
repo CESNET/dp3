@@ -113,15 +113,24 @@ class LinkManager:
     def add_iterable_observation_to_link_cache(
         self, etype_to: str, post_validity: timedelta, eid: AnyEidT, dp: DataPointObservationsBase
     ):
-        linked_eids = [v.eid for v in dp.v]
-        self.cache.update_many(
-            {
-                "to": {"$in": [f"{etype_to}#{eid_}" for eid_ in linked_eids]},
-                "from": f"{dp.etype}#{eid}",
-                "using_attr": f"{dp.etype}#{dp.attr}",
-            },
-            {"$max": {"ttl": dp.t2 + post_validity}},
-            upsert=True,
+        targets = {f"{etype_to}#{value.eid}" for value in dp.v}
+        if not targets:
+            return
+
+        link_key = {
+            "from": f"{dp.etype}#{eid}",
+            "using_attr": f"{dp.etype}#{dp.attr}",
+        }
+        self.cache.bulk_write(
+            [
+                UpdateOne(
+                    link_key | {"to": target},
+                    {"$max": {"ttl": dp.t2 + post_validity}},
+                    upsert=True,
+                )
+                for target in targets
+            ],
+            ordered=False,
         )
 
     def remove_link_cache_of_deleted(self, etype: str, eid: AnyEidT):

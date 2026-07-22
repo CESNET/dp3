@@ -432,7 +432,7 @@ class EntityDatabase:
             self._raw_buffers[etype].extend(dps_dicts)
 
         # Update master document
-        master_changes = {"pushes": defaultdict(list), "$set": {}}
+        master_changes = {"pushes": defaultdict(list), "$set": {}, "$min": {}}
         dt_now = datetime.now(UTC)
         for dp in dps:
             attr_spec = self._db_schema_config.attr(etype, dp.attr)
@@ -456,6 +456,12 @@ class EntityDatabase:
             if attr_spec.t == AttrType.TIMESERIES:
                 master_changes["pushes"][dp.attr].append({"t1": dp.t1, "t2": dp.t2, "v": v})
 
+            if attr_spec.t in AttrType.OBSERVATIONS | AttrType.TIMESERIES:
+                marker = f"#min_t2s.{dp.attr}"
+                master_changes["$min"][marker] = min(
+                    master_changes["$min"].get(marker, dp.t2), dp.t2
+                )
+
         if new_entity:
             master_changes["$set"]["#hash"] = HASH(f"{etype}:{eid}")
             master_changes["$set"]["#time_created"] = dt_now
@@ -471,6 +477,11 @@ class EntityDatabase:
                 if "$set" not in self._master_buffers[etype][eid]:
                     self._master_buffers[etype][eid]["$set"] = {}
                 self._master_buffers[etype][eid]["$set"].update(master_changes["$set"])
+                if "$min" not in self._master_buffers[etype][eid]:
+                    self._master_buffers[etype][eid]["$min"] = {}
+                for marker, t2 in master_changes["$min"].items():
+                    current = self._master_buffers[etype][eid]["$min"].get(marker, t2)
+                    self._master_buffers[etype][eid]["$min"][marker] = min(current, t2)
             else:
                 self._master_buffers[etype][eid] = master_changes
 
@@ -526,6 +537,7 @@ class EntityDatabase:
                             else {}
                         )
                         | ({"$set": changes["$set"]} if "$set" in changes else {})
+                        | ({"$min": changes["$min"]} if changes.get("$min") else {})
                         | ({"$max": changes["$max"]} if "$max" in changes else {})
                         | {"$inc": {MASTER_REVISION_FIELD: 1}},
                         upsert=True,
@@ -682,61 +694,28 @@ class EntityDatabase:
             except Exception as e:
                 self.log.exception("Error in on_entity_delete_one callback %s: %s", f, e)
 
-    def mark_all_entity_dps_t2(self, etype: str, attrs: list[str]) -> UpdateResult:
-        """
-        Updates the `min_t2s` of the master records of `etype` for all records.
+    @staticmethod
+    def _normalize_history_stage(attr_name: str) -> dict:
+        """Remove an empty history, update its minimum timestamp, and increment revision."""
+        history = f"${attr_name}"
+        empty_history = {"$eq": [{"$size": history}, 0]}
+        normalized_history = {"$cond": {"if": empty_history, "then": "$$REMOVE", "else": history}}
+        normalized_min_t2 = {
+            "$cond": {
+                "if": empty_history,
+                "then": "$$REMOVE",
+                "else": {"$min": f"${attr_name}.t2"},
+            }
+        }
+        next_revision = {"$add": [{"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]}, 1]}
 
-        Periodically called for all `etype`s from HistoryManager.
-        """
-        master_col = self._master_col(etype)
-        try:
-            return master_col.update_many(
-                {},
-                [
-                    {
-                        "$set": {
-                            attr_name: {
-                                "$cond": {
-                                    "if": {
-                                        "$eq": [
-                                            {"$size": {"$ifNull": [f"${attr_name}", []]}},
-                                            0,
-                                        ]
-                                    },
-                                    "then": "$$REMOVE",
-                                    "else": f"${attr_name}",
-                                }
-                            }
-                            for attr_name in attrs
-                        }
-                        | {
-                            f"#min_t2s.{attr_name}": {
-                                "$cond": {
-                                    "if": {
-                                        "$eq": [
-                                            {"$size": {"$ifNull": [f"${attr_name}", []]}},
-                                            0,
-                                        ]
-                                    },
-                                    "then": "$$REMOVE",
-                                    "else": {"$min": f"${attr_name}.t2"},
-                                }
-                            }
-                            for attr_name in attrs
-                        }
-                        | {
-                            MASTER_REVISION_FIELD: {
-                                "$add": [
-                                    {"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]},
-                                    1,
-                                ]
-                            }
-                        }
-                    }
-                ],
-            )
-        except Exception as e:
-            raise DatabaseError(f"Update of min_t2s failed: {e}") from e
+        return {
+            "$set": {
+                attr_name: normalized_history,
+                f"#min_t2s.{attr_name}": normalized_min_t2,
+                MASTER_REVISION_FIELD: next_revision,
+            }
+        }
 
     def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> UpdateResult:
         """Delete old datapoints from master collection.
@@ -752,38 +731,43 @@ class EntityDatabase:
                         "$set": {
                             attr_name: {
                                 "$filter": {
-                                    "input": f"${attr_name}",
+                                    "input": {"$ifNull": [f"${attr_name}", []]},
                                     "cond": {"$gte": ["$$this.t2", t_old]},
                                 }
                             }
                         }
                     },
-                    {
-                        "$set": {
-                            f"#min_t2s.{attr_name}": {
-                                "$cond": {
-                                    "if": {
-                                        "$eq": [
-                                            {"$size": {"$ifNull": [f"${attr_name}", []]}},
-                                            0,
-                                        ]
-                                    },
-                                    "then": "$$REMOVE",
-                                    "else": {"$min": f"${attr_name}.t2"},
-                                }
-                            },
-                            MASTER_REVISION_FIELD: {
-                                "$add": [
-                                    {"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]},
-                                    1,
-                                ]
-                            },
-                        },
-                    },
+                    self._normalize_history_stage(attr_name),
                 ],
             )
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
+
+    @classmethod
+    def _delete_observation_link_pipeline(
+        cls, attr_name: str, eids_to: list[AnyEidT]
+    ) -> list[dict]:
+        """Remove each observation that references any of the specified entity IDs."""
+        linked_eids = {
+            "$cond": {
+                "if": {"$isArray": "$$this.v"},
+                "then": "$$this.v.eid",
+                "else": ["$$this.v.eid"],
+            }
+        }
+        deleted_eids_in_datapoint = {"$setIntersection": [linked_eids, eids_to]}
+        keep_datapoint = {"$eq": [{"$size": deleted_eids_in_datapoint}, 0]}
+        filter_history = {
+            "$filter": {
+                "input": {"$ifNull": [f"${attr_name}", []]},
+                "cond": keep_datapoint,
+            }
+        }
+
+        return [
+            {"$set": {attr_name: filter_history}},
+            cls._normalize_history_stage(attr_name),
+        ]
 
     def delete_link_dps(
         self, etype: str, affected_eids: list[AnyEidT], attr_name: str, eid_to: AnyEidT
@@ -797,11 +781,11 @@ class EntityDatabase:
         filter_cond = {"_id": {"$in": affected_eids}}
         try:
             if attr_type == AttrType.OBSERVATIONS:
-                update_pull = {
-                    "$pull": {attr_name: {"v.eid": eid_to}},
-                    "$inc": {MASTER_REVISION_FIELD: 1},
-                }
-                master_col.update_many(filter_cond, update_pull)
+                filter_cond[f"{attr_name}.v.eid"] = eid_to
+                master_col.update_many(
+                    filter_cond,
+                    self._delete_observation_link_pipeline(attr_name, [eid_to]),
+                )
             elif attr_type == AttrType.PLAIN:
                 update_unset = {
                     "$unset": {attr_name: ""},
@@ -832,11 +816,13 @@ class EntityDatabase:
                 attr_type = self._db_schema_config.attr(etype, attr_name).t
                 filter_cond = {"_id": {"$in": affected_eid_list}}
                 if attr_type == AttrType.OBSERVATIONS:
-                    update_pull = {
-                        "$pull": {attr_name: {"v.eid": {"$in": eid_to_list}}},
-                        "$inc": {MASTER_REVISION_FIELD: 1},
-                    }
-                    updates_by_etype[etype].append(UpdateMany(filter_cond, update_pull))
+                    filter_cond[f"{attr_name}.v.eid"] = {"$in": eid_to_list}
+                    updates_by_etype[etype].append(
+                        UpdateMany(
+                            filter_cond,
+                            self._delete_observation_link_pipeline(attr_name, eid_to_list),
+                        )
+                    )
                 elif attr_type == AttrType.PLAIN:
                     update_unset = {
                         "$unset": {attr_name: ""},

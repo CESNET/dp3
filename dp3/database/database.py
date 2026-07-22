@@ -1032,12 +1032,27 @@ class EntityDatabase:
         t1 = datetime.fromtimestamp(0, UTC) if t1 is None else t1.astimezone(UTC)
         t2 = datetime.now(UTC) if t2 is None else t2.astimezone(UTC)
 
-        # Get attribute history
-        mr = self.get_master_record(etype, eid)
-        attr_history = mr.get(attr_name, [])
+        self._assert_etype_exists(etype)
+        self._assert_eid_correct_dtype(etype, eid)
 
-        # Filter
-        attr_history_filtered = [row for row in attr_history if row["t1"] <= t2 and row["t2"] >= t1]
+        history_filter = {
+            "$filter": {
+                "input": {"$ifNull": [f"${attr_name}", []]},
+                "as": "row",
+                "cond": {
+                    "$and": [
+                        {"$lte": ["$$row.t1", t2]},
+                        {"$gte": ["$$row.t2", t1]},
+                    ]
+                },
+            }
+        }
+        pipeline = [
+            {"$match": {"_id": eid}},
+            {"$project": {"_id": 0, attr_name: history_filter}},
+        ]
+        master_record = next(self._master_col(etype).aggregate(pipeline), {})
+        attr_history_filtered = master_record.get(attr_name, [])
 
         # Sort
         if sort == 1:

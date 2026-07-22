@@ -6,6 +6,7 @@ import queue
 import sys
 import threading
 import time
+from collections import deque
 from functools import partial
 
 from dp3.common.config import PlatformConfig
@@ -66,6 +67,17 @@ class TaskDistributor:
         # List of worker threads for processing the update requests
         self._worker_threads = []
         self.num_threads = platform_config.config.get("processing_core.worker_threads", 8)
+        self.max_inline_generated_tasks = platform_config.config.get(
+            "processing_core.max_inline_generated_tasks", 0
+        )
+        if (
+            isinstance(self.max_inline_generated_tasks, bool)
+            or not isinstance(self.max_inline_generated_tasks, int)
+            or self.max_inline_generated_tasks < 0
+        ):
+            raise ValueError(
+                "processing_core.max_inline_generated_tasks must be a non-negative integer"
+            )
 
         # Internal queues for each worker
         self._queues = [queue.Queue(10) for _ in range(self.num_threads)]
@@ -274,7 +286,7 @@ class TaskDistributor:
             # Process the task
             start_time = time.time()
             try:
-                created, new_tasks = self.task_executor.process_task(task)
+                created = self._process_task_chain(task)
             except Exception:
                 self.log.error(f"Error has occurred during processing task: {task}")
                 raise
@@ -292,7 +304,61 @@ class TaskDistributor:
                     )
                 )
 
+    def _process_task_chain(self, source_task: DataPointTask) -> bool:
+        """Process one broker task and its bounded same-key generated-task chain."""
+        created, new_tasks = self.task_executor.process_task(source_task)
+        if self.max_inline_generated_tasks == 0:
             self.push_new_tasks(new_tasks)
+            return created
+
+        source_key = source_task.routing_key()
+        pending = deque()
+        admitted_count = 0
+        inline_count = 0
+        cross_key_count = 0
+        overflow_count = 0
+
+        def partition_tasks(tasks: list[DataPointTask]) -> None:
+            nonlocal admitted_count, cross_key_count, overflow_count
+
+            tasks_to_publish = []
+            for task in tasks:
+                if task.routing_key() != source_key:
+                    cross_key_count += 1
+                    tasks_to_publish.append(task)
+                elif admitted_count < self.max_inline_generated_tasks:
+                    admitted_count += 1
+                    pending.append(task)
+                else:
+                    overflow_count += 1
+                    tasks_to_publish.append(task)
+
+            if tasks_to_publish:
+                self.push_new_tasks(tasks_to_publish)
+
+        partition_tasks(new_tasks)
+        try:
+            while pending:
+                task = pending.popleft()
+                _, new_tasks = self.task_executor.process_task(task)
+                inline_count += 1
+                partition_tasks(new_tasks)
+        except Exception:
+            if pending:
+                self.push_new_tasks(list(pending))
+            raise
+
+        if inline_count:
+            self.log.debug(
+                "Generated-task chain for %s: processed %d inline, "
+                "published %d cross-key and %d overflow tasks",
+                source_key,
+                inline_count,
+                cross_key_count,
+                overflow_count,
+            )
+
+        return created
 
     def push_new_tasks(self, new_tasks):
         """Push new tasks (resulting from hooks) to the priority queue.

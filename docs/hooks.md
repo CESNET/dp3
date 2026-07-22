@@ -193,8 +193,8 @@ Callable[[AnyEidT, DataPointTask], list[DataPointTask]]
 This hook is called once for a newly created entity, after `allow_entity_creation` has accepted creation and before the task's datapoints are staged into raw and master persistence.
 The callback receives the new `eid` together with the original `DataPointTask` that caused the entity to be created, so it can inspect the incoming datapoints through `task.data_points`.
 It should not assume that the entity's new state is already readable as a persisted master record, because the creation-triggering task has not been written through the normal persistence path yet.
-The hook may return a list of `DataPointTask` objects, and those tasks are queued back into the ingestion pipeline, where they trigger the usual hooks again.
-Because they originate from ingestion, they are pushed to the **priority** task queue.
+The hook may return a list of `DataPointTask` objects, and those tasks re-enter the ingestion pipeline, where they trigger the usual hooks again.
+Depending on `max_inline_generated_tasks`, same-entity outputs may be processed inline by the current worker; outputs for other entities and same-entity overflow are pushed to the **priority** task queue.
 This registration also supports `refresh=` and `may_change=` for recomputation during module-config refresh; see [Refresh-on-config-change behavior for ingestion hooks](#refresh-on-config-change-behavior-for-ingestion-hooks).
 
 Real usage examples:
@@ -258,8 +258,9 @@ If `task.delete` is `True`, `on_task_start` still runs and entity deletion is pe
 
 #### Returned tasks recurse through the same pipeline
 
-Any `DataPointTask` returned by `on_entity_creation` or `on_new_attr` is sent back to the main task queue and later processed again by `TaskExecutor.process_task`.
-In other words, module-generated datapoints re-enter DP3 exactly like primary datapoints from the API, so they can trigger `on_task_start`, `allow_entity_creation`, `on_entity_creation`, `on_new_attr`, and later snapshot or updater hooks.
+Any `DataPointTask` returned by `on_entity_creation` or `on_new_attr` is processed again by `TaskExecutor.process_task`.
+Depending on worker configuration, a bounded number of same-entity tasks may run inline, while cross-entity tasks and same-entity overflow pass through the priority queue first.
+In either case, module-generated datapoints re-enter the complete ingestion pipeline, so they can trigger `on_task_start`, `allow_entity_creation`, `on_entity_creation`, `on_new_attr`, and later snapshot or updater hooks.
 
 ## Snapshot-time hooks: periodic processing over stored data
 
@@ -610,17 +611,28 @@ This creates a feedback loop:
 
 ```text
 hook returns DataPointTask(s)
-  -> task queue
+  -> inline processing or task queue
   -> TaskExecutor.process_task
   -> ingestion hooks run again
   -> data reaches master/raw storage
   -> later snapshot / updater cycles can see it
 ```
 
-The queueing path differs slightly by hook family.
-Ingestion hooks such as `on_entity_creation` and `on_new_attr` push returned tasks to the priority queue.
-Snapshot hooks and updater hooks push returned tasks to the normal task queue.
-`scheduler_register` callbacks do not have an automatic task-return path.
+The re-entry path differs slightly by hook family.
+For ingestion hooks such as `on_entity_creation` and `on_new_attr`, workers may process a bounded
+number of same-entity outputs inline when `max_inline_generated_tasks` is positive. The source task
+does not count toward the limit, and the allowance is shared by all descendants generated while
+processing it. Outputs for another entity and same-entity outputs above the limit use the priority
+queue. Inline processing still calls the complete `TaskExecutor.process_task` pipeline; it does not
+make buffered writes immediately visible through independent database reads.
+
+With the default `max_inline_generated_tasks: 0`, all ingestion-hook outputs use the priority queue,
+matching queue-only behavior. The value is read at worker startup. Enabling inline processing can
+change interleaving with tasks already assigned to the worker and removes the JSON serialization and
+RabbitMQ boundary for eligible outputs, so hooks must not depend on either boundary.
+
+Snapshot hooks and updater hooks push returned tasks to the normal task queue and are not eligible for
+this inline path. `scheduler_register` callbacks do not have an automatic task-return path.
 
 
 ## Type of `eid`

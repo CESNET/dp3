@@ -40,6 +40,50 @@ class OversizedSnapshotMarkerRetention(unittest.TestCase):
         self.snapshots._normal_snapshot_eids.discard(self.eid)
         self.snapshots._oversized_snapshot_eids.discard(self.eid)
 
+    def _seed_oversized_snapshot(self, created_at):
+        snapshot = {
+            "eid": self.eid,
+            "_time_created": created_at,
+            "data1": "oversized",
+        }
+        self.snapshot_col.insert_one(
+            {
+                "_id": self.snapshots._bucket_id(self.eid, created_at),
+                "_time_created": created_at,
+                "oversized": True,
+                "latest": True,
+                "count": 0,
+                "last": snapshot,
+            }
+        )
+        self.oversized_col.insert_one(snapshot)
+        self.assertEqual(self.snapshots._get_state({self.eid}), (set(), {self.eid}))
+
+    def _assert_recreated_snapshot_uses_normal_storage(self, created_at):
+        self.snapshots.save_one({"eid": self.eid, "data1": "recreated"}, created_at)
+
+        marker = self.snapshot_col.find_one(self.snapshots._filter_from_eid(self.eid))
+        self.assertIsNotNone(marker)
+        self.assertFalse(marker["oversized"])
+        self.assertEqual(marker["last"]["data1"], "recreated")
+        self.assertEqual(self.oversized_col.count_documents({"eid": self.eid}), 0)
+
+    def test_delete_eid_forgets_oversized_state(self):
+        now = datetime.now(UTC).replace(microsecond=0)
+        self._seed_oversized_snapshot(now - timedelta(minutes=1))
+
+        self.snapshots.delete_eid(self.eid)
+
+        self._assert_recreated_snapshot_uses_normal_storage(now)
+
+    def test_delete_eids_forgets_oversized_state(self):
+        now = datetime.now(UTC).replace(microsecond=0)
+        self._seed_oversized_snapshot(now - timedelta(minutes=1))
+
+        self.snapshots.delete_eids([self.eid])
+
+        self._assert_recreated_snapshot_uses_normal_storage(now)
+
     def test_marker_time_tracks_latest_oversized_snapshot(self):
         now = datetime.now(UTC).replace(microsecond=0)
         old_time = now - timedelta(days=30)

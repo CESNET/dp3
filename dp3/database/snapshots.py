@@ -515,6 +515,12 @@ class TypedSnapshotCollection(abc.ABC):
         self._normal_snapshot_eids -= oversized
         self._oversized_snapshot_eids |= oversized
 
+    def _invalidate_snapshot_state(self, eids: Iterable[AnyEidT]):
+        """Remove deleted EIDs from the snapshot state cache."""
+        eids = set(eids)
+        self._normal_snapshot_eids.difference_update(eids)
+        self._oversized_snapshot_eids.difference_update(eids)
+
     def save_many(self, snapshots: list[dict], ctime: datetime):
         """
         Saves a list of snapshots of current master documents.
@@ -679,6 +685,8 @@ class TypedSnapshotCollection(abc.ABC):
             return del_cnt + res.deleted_count
         except Exception as e:
             raise SnapshotCollectionError(f"Delete of failed: {e}\n{eid}") from e
+        finally:
+            self._invalidate_snapshot_state({eid})
 
     def delete_eids(self, eids: list[Any]) -> int:
         """Delete all snapshots of `eids`."""
@@ -696,6 +704,8 @@ class TypedSnapshotCollection(abc.ABC):
             return del_cnt + res.deleted_count
         except Exception as e:
             raise SnapshotCollectionError(f"Delete of snapshots failed: {e}\n{eids}") from e
+        finally:
+            self._invalidate_snapshot_state(eids)
 
 
 class StringEidSnapshots(TypedSnapshotCollection):

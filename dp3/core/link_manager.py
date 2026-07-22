@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from functools import partial
 
-from pymongo import DeleteMany
+from pymongo import DeleteMany, UpdateOne
 
 from dp3.common.attrspec import AttrType
 from dp3.common.callback_registrar import CallbackRegistrar
@@ -72,28 +72,30 @@ class LinkManager:
         self.cache.create_index("using_attr", background=True)
         self.cache.create_index("ttl", expireAfterSeconds=0, background=True)
 
-    def add_plain_to_link_cache(self, etype_to: str, eid: AnyEidT, dp: DataPointBase):
-        self.cache.update_one(
-            {
-                "to": f"{etype_to}#{dp.v.eid}",
-                "from": f"{dp.etype}#{eid}",
-                "using_attr": f"{dp.etype}#{dp.attr}",
-            },
-            {"$max": {"ttl": self.max_date}},
-            upsert=True,
+    def _replace_plain_link_cache(
+        self, etype_to: str, eid: AnyEidT, dp: DataPointBase, linked_eids: list[AnyEidT]
+    ) -> None:
+        """Replace cached targets for a plain relation with its latest value."""
+        source = f"{dp.etype}#{eid}"
+        using_attr = f"{dp.etype}#{dp.attr}"
+        targets = {f"{etype_to}#{linked_eid}" for linked_eid in linked_eids}
+        link_key = {"from": source, "using_attr": using_attr}
+        updates = [DeleteMany(link_key | {"to": {"$nin": list(targets)}})]
+        updates.extend(
+            UpdateOne(
+                link_key | {"to": target},
+                {"$max": {"ttl": self.max_date}},
+                upsert=True,
+            )
+            for target in targets
         )
+        self.cache.bulk_write(updates)
+
+    def add_plain_to_link_cache(self, etype_to: str, eid: AnyEidT, dp: DataPointBase):
+        self._replace_plain_link_cache(etype_to, eid, dp, [dp.v.eid])
 
     def add_iterable_plain_to_link_cache(self, etype_to: str, eid: AnyEidT, dp: DataPointBase):
-        linked_eids = [v.eid for v in dp.v]
-        self.cache.update_many(
-            {
-                "to": {"$in": [f"{etype_to}#{eid_}" for eid_ in linked_eids]},
-                "from": f"{dp.etype}#{eid}",
-                "using_attr": f"{dp.etype}#{dp.attr}",
-            },
-            {"$max": {"ttl": self.max_date}},
-            upsert=True,
-        )
+        self._replace_plain_link_cache(etype_to, eid, dp, [v.eid for v in dp.v])
 
     def add_observation_to_link_cache(
         self, etype_to: str, post_validity: timedelta, eid: AnyEidT, dp: DataPointObservationsBase

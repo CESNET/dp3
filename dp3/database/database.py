@@ -743,6 +743,26 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 
+    @staticmethod
+    def _delete_iterable_plain_link_pipeline(attr_name: str, eids_to: list[AnyEidT]) -> list[dict]:
+        """Remove specified targets from an iterable plain relation."""
+        remaining_links = {
+            "$filter": {
+                "input": {"$ifNull": [f"${attr_name}.v", []]},
+                "cond": {"$not": [{"$in": ["$$this.eid", eids_to]}]},
+            }
+        }
+        empty_value = {"$eq": [{"$size": f"${attr_name}.v"}, 0]}
+        normalized_attr = {
+            "$cond": {"if": empty_value, "then": "$$REMOVE", "else": f"${attr_name}"}
+        }
+        next_revision = {"$add": [{"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]}, 1]}
+
+        return [
+            {"$set": {f"{attr_name}.v": remaining_links}},
+            {"$set": {attr_name: normalized_attr, MASTER_REVISION_FIELD: next_revision}},
+        ]
+
     @classmethod
     def _delete_observation_link_pipeline(
         cls, attr_name: str, eids_to: list[AnyEidT]
@@ -787,11 +807,16 @@ class EntityDatabase:
                     self._delete_observation_link_pipeline(attr_name, [eid_to]),
                 )
             elif attr_type == AttrType.PLAIN:
-                update_unset = {
-                    "$unset": {attr_name: ""},
-                    "$inc": {MASTER_REVISION_FIELD: 1},
-                }
-                master_col.update_many(filter_cond, update_unset)
+                attr_spec = self._db_schema_config.attr(etype, attr_name)
+                filter_cond[f"{attr_name}.v.eid"] = eid_to
+                if attr_spec.is_iterable:
+                    update = self._delete_iterable_plain_link_pipeline(attr_name, [eid_to])
+                else:
+                    update = {
+                        "$unset": {attr_name: ""},
+                        "$inc": {MASTER_REVISION_FIELD: 1},
+                    }
+                master_col.update_many(filter_cond, update)
             else:
                 raise ValueError(f"Unsupported attribute type: {attr_type}")
         except Exception as e:
@@ -824,11 +849,16 @@ class EntityDatabase:
                         )
                     )
                 elif attr_type == AttrType.PLAIN:
-                    update_unset = {
-                        "$unset": {attr_name: ""},
-                        "$inc": {MASTER_REVISION_FIELD: 1},
-                    }
-                    updates_by_etype[etype].append(UpdateMany(filter_cond, update_unset))
+                    attr_spec = self._db_schema_config.attr(etype, attr_name)
+                    filter_cond[f"{attr_name}.v.eid"] = {"$in": eid_to_list}
+                    if attr_spec.is_iterable:
+                        update = self._delete_iterable_plain_link_pipeline(attr_name, eid_to_list)
+                    else:
+                        update = {
+                            "$unset": {attr_name: ""},
+                            "$inc": {MASTER_REVISION_FIELD: 1},
+                        }
+                    updates_by_etype[etype].append(UpdateMany(filter_cond, update))
                 else:
                     raise ValueError(f"Unsupported attribute type: {attr_type}")
 

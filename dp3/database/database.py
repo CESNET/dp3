@@ -825,11 +825,10 @@ class EntityDatabase:
         Called from LinkManager for deleted entities, when deleting multiple entities.
         """
         try:
-            updates = []
+            updates_by_etype = defaultdict(list)
             for etype, affected_eid_list, attr_name, eid_to_list in zip(
                 etypes, affected_eids, attr_names, eids_to, strict=False
             ):
-                master_col = self._master_col(etype)
                 attr_type = self._db_schema_config.attr(etype, attr_name).t
                 filter_cond = {"_id": {"$in": affected_eid_list}}
                 if attr_type == AttrType.OBSERVATIONS:
@@ -837,16 +836,18 @@ class EntityDatabase:
                         "$pull": {attr_name: {"v.eid": {"$in": eid_to_list}}},
                         "$inc": {MASTER_REVISION_FIELD: 1},
                     }
-                    updates.append(UpdateMany(filter_cond, update_pull))
+                    updates_by_etype[etype].append(UpdateMany(filter_cond, update_pull))
                 elif attr_type == AttrType.PLAIN:
                     update_unset = {
                         "$unset": {attr_name: ""},
                         "$inc": {MASTER_REVISION_FIELD: 1},
                     }
-                    updates.append(UpdateMany(filter_cond, update_unset))
+                    updates_by_etype[etype].append(UpdateMany(filter_cond, update_unset))
                 else:
                     raise ValueError(f"Unsupported attribute type: {attr_type}")
-                master_col.bulk_write(updates)
+
+            for etype, updates in updates_by_etype.items():
+                self._master_col(etype).bulk_write(updates)
         except Exception as e:
             raise DatabaseError(f"Delete of link datapoints failed: {e}") from e
 

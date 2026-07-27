@@ -9,7 +9,7 @@ from ipaddress import IPv4Address, IPv6Address
 from typing import Any
 
 import pymongo
-from bson import Binary
+from bson import BSON, Binary
 from pymongo import UpdateMany, UpdateOne
 from pymongo.collection import Collection
 from pymongo.command_cursor import CommandCursor
@@ -23,7 +23,7 @@ from dp3.common.datatype import AnyEidT
 from dp3.common.mac_address import MACAddress
 from dp3.common.utils import bytes2int, int2bytes
 from dp3.database.config import MongoConfig
-from dp3.database.encodings import BSON_OBJECT_TOO_LARGE, get_codec_options
+from dp3.database.encodings import BSON_MAX_SIZE, BSON_OBJECT_TOO_LARGE, get_codec_options
 from dp3.database.exceptions import SnapshotCollectionError
 from dp3.database.magic import search_and_replace
 
@@ -55,6 +55,7 @@ class TypedSnapshotCollection(abc.ABC):
         self._oversized_snapshot_eids = set()
         self._snapshot_bucket_size = db_config.storage.snapshot_bucket_size
         self._bucket_delta = self._get_snapshot_bucket_delta(snapshots_config)
+        self._server_max_bson_size: int | None = None
 
     def _get_snapshot_bucket_delta(self, config) -> timedelta:
         """Returns how long it takes to fill a snapshot bucket.
@@ -99,6 +100,12 @@ class TypedSnapshotCollection(abc.ABC):
             raise ValueError(f"Unsupported snapshot creation rate: {creation_rate}")
 
         return timedelta(seconds=bucket_delta * self._snapshot_bucket_size)
+
+    def _max_bson_size(self) -> int:
+        if self._server_max_bson_size is None:
+            hello = self._db.command("hello")
+            self._server_max_bson_size = hello.get("maxBsonObjectSize", BSON_MAX_SIZE)
+        return min(BSON_MAX_SIZE, self._server_max_bson_size)
 
     def _col(self, **kwargs) -> Collection:
         """Returns entity snapshots collection.
@@ -403,6 +410,8 @@ class TypedSnapshotCollection(abc.ABC):
                 move_to_oversized.extend(doc.get("history", []))
                 last_id = doc["_id"]
             move_to_oversized.insert(0, snapshot)
+            if last_id is None:
+                last_id = self._bucket_id(eid, snapshot["_time_created"])
 
             os_col.insert_many(move_to_oversized)
             snapshot_col.update_one(
@@ -413,15 +422,20 @@ class TypedSnapshotCollection(abc.ABC):
                         "last": snapshot,
                         "_time_created": snapshot["_time_created"],
                         "count": 0,
+                        "latest": True,
                     },
                     "$unset": {"history": ""},
                 },
+                upsert=True,
             )
             snapshot_col.delete_many(self._filter_from_eid(eid) | {"oversized": False})
         except Exception as e:
+            self._invalidate_snapshot_state({eid})
             raise SnapshotCollectionError(
                 f"Update of snapshot {eid} failed: {e}, {snapshot}"
             ) from e
+        else:
+            self._cache_snapshot_state(set(), {eid})
 
     def save_one(self, snapshot: dict, ctime: datetime):
         """Saves snapshot to specified entity of current master document.
@@ -469,7 +483,6 @@ class TypedSnapshotCollection(abc.ABC):
                 # The snapshot is too large, move it to oversized snapshots
                 self.log.info(f"Snapshot of {eid} is too large: {e}, marking as oversized.")
                 self._migrate_to_oversized(eid, snapshot)
-                self._cache_snapshot_state(set(), normal)
             except Exception as e:
                 raise SnapshotCollectionError(
                     f"Insert of snapshot {eid} failed: {e}, {snapshot}"
@@ -521,6 +534,72 @@ class TypedSnapshotCollection(abc.ABC):
         self._normal_snapshot_eids.difference_update(eids)
         self._oversized_snapshot_eids.difference_update(eids)
 
+    def _migrate_snapshot_batch(
+        self, eid_snapshots: list[dict], oversized_inserts: list[dict]
+    ) -> None:
+        """Move snapshots for one EID to oversized storage, preserving input order."""
+        eid = eid_snapshots[0]["eid"]
+        self._migrate_to_oversized(eid, eid_snapshots[-1])
+        oversized_inserts.extend(eid_snapshots[:-1])
+
+    def _write_snapshot_upserts(
+        self,
+        snapshot_col: Collection,
+        upserts: list[UpdateOne],
+        update_originals: list[list[dict]],
+        oversized_inserts: list[dict],
+    ) -> tuple[int, list[Any]]:
+        """Write normal snapshot updates and isolate command-level oversized updates."""
+        try:
+            result = snapshot_col.bulk_write(upserts, ordered=False)
+        except (BulkWriteError, OperationFailure) as error:
+            details = error.details or {}
+            write_errors = details.get("writeErrors", [])
+
+            if not write_errors:
+                if error.code != BSON_OBJECT_TOO_LARGE:
+                    raise
+                if len(upserts) == 1:
+                    self._migrate_snapshot_batch(update_originals[0], oversized_inserts)
+                    return 1, []
+
+                midpoint = len(upserts) // 2
+                left_count, left_ids = self._write_snapshot_upserts(
+                    snapshot_col,
+                    upserts[:midpoint],
+                    update_originals[:midpoint],
+                    oversized_inserts,
+                )
+                right_count, right_ids = self._write_snapshot_upserts(
+                    snapshot_col,
+                    upserts[midpoint:],
+                    update_originals[midpoint:],
+                    oversized_inserts,
+                )
+                return left_count + right_count, left_ids + right_ids
+
+            oversized_indexes = [
+                write_error["index"]
+                for write_error in write_errors
+                if write_error["code"] == BSON_OBJECT_TOO_LARGE
+            ]
+            for index in oversized_indexes:
+                self._migrate_snapshot_batch(update_originals[index], oversized_inserts)
+
+            if any(write_error["code"] != BSON_OBJECT_TOO_LARGE for write_error in write_errors):
+                raise
+
+            upserted_ids = [item["_id"] for item in details.get("upserted", [])]
+            processed_count = (
+                details.get("nModified", 0) + details.get("nUpserted", 0) + len(oversized_indexes)
+            )
+            return processed_count, upserted_ids
+
+        return (
+            result.modified_count + result.upserted_count,
+            list(result.upserted_ids.values()),
+        )
+
     def save_many(self, snapshots: list[dict], ctime: datetime):
         """
         Saves a list of snapshots of current master documents.
@@ -555,24 +634,32 @@ class TypedSnapshotCollection(abc.ABC):
 
         # A normal snapshot, shift the last snapshot to history and update last
         for eid in normal:
-            upserts.append(
-                UpdateOne(
-                    self._filter_from_eid(eid) | {"count": {"$lt": self._snapshot_bucket_size}},
-                    {
-                        "$set": {"last": snapshots_by_eid[eid][-1]},
-                        "$push": {"history": {"$each": snapshots_by_eid[eid], "$position": 0}},
-                        "$inc": {"count": len(snapshots_by_eid[eid])},
-                        "$setOnInsert": {
-                            "_id": self._bucket_id(eid, ctime),
-                            "_time_created": ctime,
-                            "oversized": False,
-                            "latest": True,
-                        },
-                    },
-                    upsert=True,
+            eid_snapshots = snapshots_by_eid[eid]
+            query = self._filter_from_eid(eid) | {"count": {"$lt": self._snapshot_bucket_size}}
+            update = {
+                "$set": {"last": eid_snapshots[-1]},
+                "$push": {"history": {"$each": eid_snapshots, "$position": 0}},
+                "$inc": {"count": len(eid_snapshots)},
+                "$setOnInsert": {
+                    "_id": self._bucket_id(eid, ctime),
+                    "_time_created": ctime,
+                    "oversized": False,
+                    "latest": True,
+                },
+            }
+            update_statement = {"q": query, "u": update, "multi": False, "upsert": True}
+            update_size = len(BSON.encode(update_statement, codec_options=self._db.codec_options))
+            if update_size > self._max_bson_size():
+                self.log.info(
+                    "Snapshot update for %s is too large (%d bytes), marking as oversized.",
+                    eid,
+                    update_size,
                 )
-            )
-            update_originals.append(snapshots_by_eid[eid])
+                self._migrate_snapshot_batch(eid_snapshots, oversized_inserts)
+                continue
+
+            upserts.append(UpdateOne(query, update, upsert=True))
+            update_originals.append(eid_snapshots)
 
         # Snapshot is already marked as oversized
         for eid in oversized:
@@ -589,56 +676,37 @@ class TypedSnapshotCollection(abc.ABC):
                 )
             )
 
-        new_oversized = set()
-
         if upserts:
             try:
-                res = snapshot_col.bulk_write(upserts, ordered=False)
+                processed_count, upserted_ids = self._write_snapshot_upserts(
+                    snapshot_col, upserts, update_originals, oversized_inserts
+                )
 
                 # Unset latest snapshots if new snapshots were inserted
-                if res.upserted_count > 0:
-                    unset_latest_updates = []
-                    for upsert_id in res.upserted_ids.values():
-                        unset_latest_updates.append(
-                            UpdateMany(
-                                self._filter_from_bid(upsert_id)
-                                | {"latest": True, "count": self._snapshot_bucket_size},
-                                {"$unset": {"latest": 1}},
-                            )
+                if upserted_ids:
+                    unset_latest_updates = [
+                        UpdateMany(
+                            self._filter_from_bid(upsert_id)
+                            | {"latest": True, "count": self._snapshot_bucket_size},
+                            {"$unset": {"latest": 1}},
                         )
+                        for upsert_id in upserted_ids
+                    ]
                     up_res = snapshot_col.bulk_write(unset_latest_updates)
-                    if up_res.modified_count != res.upserted_count:
+                    if up_res.modified_count != len(upserted_ids):
                         self.log.info(
                             "Upserted the first snapshot for %d entities.",
-                            res.upserted_count - up_res.modified_count,
+                            len(upserted_ids) - up_res.modified_count,
                         )
 
-                if res.modified_count + res.upserted_count != len(upserts):
+                if processed_count != len(upserts):
                     self.log.error(
                         "Some snapshots were not updated, %s != %s",
-                        res.modified_count + res.upserted_count,
+                        processed_count,
                         len(upserts),
                     )
-            except (BulkWriteError, OperationFailure) as e:
-                self.log.info("Update of snapshots failed, will retry with oversize.")
-                failed_indexes = [
-                    err["index"]
-                    for err in e.details["writeErrors"]
-                    if err["code"] == BSON_OBJECT_TOO_LARGE
-                ]
-                failed_snapshots = (update_originals[i] for i in failed_indexes)
-                for eid_snapshots in failed_snapshots:
-                    eid = eid_snapshots[0]["eid"]
-                    failed_snapshots = sorted(
-                        eid_snapshots, key=lambda s: s["_time_created"], reverse=True
-                    )
-                    self._migrate_to_oversized(eid, failed_snapshots[0])
-                    oversized_inserts.extend(failed_snapshots[1:])
-                    new_oversized.add(eid)
-
-                if any(err["code"] != BSON_OBJECT_TOO_LARGE for err in e.details["writeErrors"]):
-                    # Some other error occurred
-                    raise e
+            except (BulkWriteError, OperationFailure, SnapshotCollectionError):
+                raise
             except Exception as e:
                 raise SnapshotCollectionError(f"Upsert of snapshots failed: {str(e)[:2048]}") from e
 
@@ -650,9 +718,6 @@ class TypedSnapshotCollection(abc.ABC):
                 os_col.insert_many(oversized_inserts)
             except Exception as e:
                 raise SnapshotCollectionError(f"Insert of snapshots failed: {str(e)[:2048]}") from e
-
-        # Cache the new state
-        self._cache_snapshot_state(set(), new_oversized)
 
     def delete_old(self, t_old: datetime) -> int:
         """Delete old snapshots.

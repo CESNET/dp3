@@ -53,7 +53,6 @@ from dp3.snapshots.snapshot_hooks import (
 from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
 DB_SEND_CHUNK = 100
-RETRY_COUNT = 3
 
 
 class SnapShooterConfig(BaseModel):
@@ -345,7 +344,7 @@ class SnapShooter:
                     for entity in have_component:
                         component = entity_to_component[entity]
                         linked_entities.update(component)
-                entity_to_component.update({entity: linked_entities for entity in linked_entities})
+                entity_to_component.update(dict.fromkeys(linked_entities, linked_entities))
 
         # Make a list of unique components
         visited_entities.clear()
@@ -401,27 +400,27 @@ class SnapShooter:
         self.log.debug("Creating snapshots for worker portion by hash.")
         have_links = set(task.entities)
         entity_cnt = 0
+        all_succeeded = True
         for etype in self.snapshot_entities:
-            records_cursor = self.db.get_worker_master_records(
-                self.worker_index, self.worker_cnt, etype, no_cursor_timeout=True
-            )
-            for attempt in range(RETRY_COUNT):
-                try:
-                    entity_cnt += self.make_linkless_snapshots(
-                        etype, records_cursor, task.time, have_links
-                    )
-                except Exception as err:
-                    self.log.exception("Uncaught exception while creating snapshots: %s", err)
-                    if attempt < RETRY_COUNT - 1:
-                        self.log.info("Retrying snapshot creation for '%s' due to errors.", etype)
-                    continue
-                finally:
-                    records_cursor.close()
-                break
-            else:
-                self.log.error(
-                    "Failed to create snapshots for '%s' after %s attempts.", etype, attempt + 1
+            records_cursor = None
+            try:
+                records_cursor = self.db.get_worker_master_records(
+                    self.worker_index, self.worker_cnt, etype, no_cursor_timeout=True
                 )
+                entity_cnt += self.make_linkless_snapshots(
+                    etype, records_cursor, task.time, have_links
+                )
+            except Exception as err:
+                all_succeeded = False
+                self.log.exception("Uncaught exception while creating snapshots: %s", err)
+            finally:
+                if records_cursor is not None:
+                    records_cursor.close()
+
+        if not all_succeeded:
+            self.log.error("Worker snapshot creation incomplete; not reporting completion.")
+            return
+
         self.db.update_metadata(
             task.time,
             metadata={},

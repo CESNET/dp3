@@ -8,6 +8,7 @@ from bson.codec_options import CodecOptions, TypeDecoder, TypeRegistry
 from dp3.common.mac_address import MACAddress
 
 BSON_OBJECT_TOO_LARGE = 10334
+BSON_MAX_SIZE = 16 * 1024 * 1024
 
 BSON_IPV4_SUBTYPE = USER_DEFINED_SUBTYPE + 1
 BSON_IPV6_SUBTYPE = BSON_IPV4_SUBTYPE + 1

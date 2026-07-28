@@ -708,6 +708,7 @@ async def v2_get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVa
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@v2_router.get("/{etype}", include_in_schema=False)
 @v2_router.get("/{etype}/")
 async def v2_get_eid_data(
     etype: str,
@@ -861,6 +862,7 @@ async def v2_extend_eid_ttls(
     return SuccessResponse()
 
 
+@v2_router.delete("/{etype}", include_in_schema=False)
 @v2_router.delete("/{etype}/")
 async def v2_delete_eid_record(
     etype: str,

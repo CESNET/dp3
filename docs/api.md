@@ -31,17 +31,17 @@ There are several API endpoints:
 
 The v2 API addresses the limitation of EIDs containing special characters by passing the EID as a query parameter instead of in the URL path.
 
-- [`GET /entity/v2/<entity_type>/get`](#v2-get-entities): list entities (same as v1)
-- [`GET /entity/v2/<entity_type>/count`](#v2-count-entities): count entities (same as v1)
-- [`GET /entity/v2/<entity_type>/raw/get`](#v2-get-raw-datapoints): get raw datapoints (same as v1)
-- [`GET /entity/v2/<entity_type>/_/distinct/<attr_id>`](#v2-get-distinct-values): get distinct values (same as v1)
-- [`GET /entity/v2/<entity_type>/`](#v2-get-eid-data): get entity data with `?eid=X`
-- [`GET /entity/v2/<entity_type>/master`](#v2-get-master-record): get master record with `?eid=X`
-- [`GET /entity/v2/<entity_type>/snapshots`](#v2-get-snapshots): get snapshots with `?eid=X`
-- [`GET /entity/v2/<entity_type>/attr`](#v2-get-attr-value): get attribute with `?eid=X&attr=name`
-- [`POST /entity/v2/<entity_type>/attr`](#v2-set-attr-value): set attribute with `?eid=X&attr=name`
-- [`POST /entity/v2/<entity_type>/ttl`](#v2-extend-ttls): extend TTL with `?eid=X`
-- [`DELETE /entity/v2/<entity_type>/`](#v2-delete-eid-data): delete entity with `?eid=X`
+- [`GET /v2/entity/<entity_type>/get`](#v2-get-entities): list entities (same as v1)
+- [`GET /v2/entity/<entity_type>/count`](#v2-count-entities): count entities (same as v1)
+- [`GET /v2/entity/<entity_type>/raw/get`](#v2-get-raw-datapoints): get raw datapoints (same as v1)
+- [`GET /v2/entity/<entity_type>/_/distinct/<attr_id>`](#v2-get-distinct-values): get distinct values (same as v1)
+- [`GET /v2/entity/<entity_type>/`](#v2-get-eid-data): get entity data with `?eid=X`
+- [`GET /v2/entity/<entity_type>/master`](#v2-get-master-record): get master record with `?eid=X`
+- [`GET /v2/entity/<entity_type>/snapshots`](#v2-get-snapshots): get snapshots with `?eid=X`
+- [`GET /v2/entity/<entity_type>/attr`](#v2-get-attr-value): get attribute with `?eid=X&attr=name`
+- [`POST /v2/entity/<entity_type>/attr`](#v2-set-attr-value): set attribute with `?eid=X&attr=name`
+- [`POST /v2/entity/<entity_type>/ttl`](#v2-extend-ttls): extend TTL with `?eid=X`
+- [`DELETE /v2/entity/<entity_type>/`](#v2-delete-eid-data): delete entity with `?eid=X`
 
 ### Other Endpoints
 
@@ -801,10 +801,12 @@ This fails because `/64` is interpreted as a new path segment, causing a 404 err
 
 In the v2 API, the EID is a query parameter:
 ```
-GET /entity/v2/ipv6_64prefix/snapshots?eid=2001:db8:f00::/64
+GET /v2/entity/ipv6_64prefix/snapshots?eid=2001:db8:f00::/64
 ```
 
-This works correctly because the entire EID value is passed as a query string.
+This works correctly because the entire EID value is passed as a query string. Query
+parameter values still need to be URL-encoded as usual; the examples below let `curl` handle
+encoding rather than constructing query strings manually.
 
 ---
 
@@ -832,7 +834,7 @@ Get data of an entity identified by `etype` and `eid`.
 
 #### Request
 
-`GET /entity/v2/{etype}/?eid=<entity_id>`
+`GET /v2/entity/{etype}/?eid=<entity_id>`
 
 #### Query Parameters
 
@@ -846,10 +848,12 @@ Get data of an entity identified by `etype` and `eid`.
 
 ```bash
 # IPv6 CIDR notation EID
-curl "http://localhost:8000/entity/v2/ipv6_64prefix/?eid=2001:db8:f00::/64"
+curl --get "http://localhost:8000/v2/entity/ipv6_64prefix/" \
+  --data-urlencode "eid=2001:db8:f00::/64"
 
 # Path-like EID
-curl "http://localhost:8000/entity/v2/user/?eid=admin/root"
+curl --get "http://localhost:8000/v2/entity/user/" \
+  --data-urlencode "eid=admin/root"
 ```
 
 #### Response
@@ -864,7 +868,7 @@ Get the master record of an entity.
 
 #### Request
 
-`GET /entity/v2/{etype}/master?eid=<entity_id>`
+`GET /v2/entity/{etype}/master?eid=<entity_id>`
 
 #### Query Parameters
 
@@ -877,7 +881,8 @@ Get the master record of an entity.
 #### Example
 
 ```bash
-curl "http://localhost:8000/entity/v2/ipv6_64prefix/master?eid=2001:db8:f00::/64"
+curl --get "http://localhost:8000/v2/entity/ipv6_64prefix/master" \
+  --data-urlencode "eid=2001:db8:f00::/64"
 ```
 
 ---
@@ -888,7 +893,7 @@ Get snapshot history of an entity.
 
 #### Request
 
-`GET /entity/v2/{etype}/snapshots?eid=<entity_id>`
+`GET /v2/entity/{etype}/snapshots?eid=<entity_id>`
 
 #### Query Parameters
 
@@ -903,7 +908,9 @@ Get snapshot history of an entity.
 #### Example
 
 ```bash
-curl "http://localhost:8000/entity/v2/ipv6_64prefix/snapshots?eid=2001:db8:f00::/64&limit=10"
+curl --get "http://localhost:8000/v2/entity/ipv6_64prefix/snapshots" \
+  --data-urlencode "eid=2001:db8:f00::/64" \
+  --data-urlencode "limit=10"
 ```
 
 ---
@@ -914,7 +921,7 @@ Get attribute value for an entity.
 
 #### Request
 
-`GET /entity/v2/{etype}/attr?eid=<entity_id>&attr=<attr_name>`
+`GET /v2/entity/{etype}/attr?eid=<entity_id>&attr=<attr_name>`
 
 #### Query Parameters
 
@@ -928,7 +935,9 @@ Get attribute value for an entity.
 #### Example
 
 ```bash
-curl "http://localhost:8000/entity/v2/ipv6_64prefix/attr?eid=2001:db8:f00::/64&attr=network"
+curl --get "http://localhost:8000/v2/entity/ipv6_64prefix/attr" \
+  --data-urlencode "eid=2001:db8:f00::/64" \
+  --data-urlencode "attr=network"
 ```
 
 ---
@@ -939,7 +948,7 @@ Set attribute value for an entity.
 
 #### Request
 
-`POST /entity/v2/{etype}/attr?eid=<entity_id>&attr=<attr_name>`
+`POST /v2/entity/{etype}/attr?eid=<entity_id>&attr=<attr_name>`
 
 #### Query Parameters
 
@@ -959,9 +968,11 @@ Set attribute value for an entity.
 #### Example
 
 ```bash
-curl -X POST "http://localhost:8000/entity/v2/example/attr?eid=test_id&attr=hostname" \
-  -H "Content-Type: application/json" \
-  -d '{"value": "new_hostname"}'
+curl --request POST "http://localhost:8000/v2/entity/example/attr" \
+  --url-query "eid=test_id" \
+  --url-query "attr=hostname" \
+  --header "Content-Type: application/json" \
+  --data '{"value": "new_hostname"}'
 ```
 
 ---
@@ -972,7 +983,7 @@ Extend TTLs of an entity.
 
 #### Request
 
-`POST /entity/v2/{etype}/ttl?eid=<entity_id>`
+`POST /v2/entity/{etype}/ttl?eid=<entity_id>`
 
 #### Query Parameters
 
@@ -991,9 +1002,10 @@ Extend TTLs of an entity.
 #### Example
 
 ```bash
-curl -X POST "http://localhost:8000/entity/v2/example/ttl?eid=test_id" \
-  -H "Content-Type: application/json" \
-  -d '{"default": "2025-12-31T23:59:59Z"}'
+curl --request POST "http://localhost:8000/v2/entity/example/ttl" \
+  --url-query "eid=test_id" \
+  --header "Content-Type: application/json" \
+  --data '{"default": "2025-12-31T23:59:59Z"}'
 ```
 
 ---
@@ -1004,7 +1016,7 @@ Delete the master record and snapshots of an entity.
 
 #### Request
 
-`DELETE /entity/v2/{etype}/?eid=<entity_id>`
+`DELETE /v2/entity/{etype}/?eid=<entity_id>`
 
 #### Query Parameters
 
@@ -1015,7 +1027,8 @@ Delete the master record and snapshots of an entity.
 #### Example
 
 ```bash
-curl -X DELETE "http://localhost:8000/entity/v2/example/?eid=test_id"
+curl --request DELETE "http://localhost:8000/v2/entity/example/" \
+  --url-query "eid=test_id"
 ```
 
 ---

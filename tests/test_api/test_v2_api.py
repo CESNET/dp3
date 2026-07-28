@@ -35,7 +35,7 @@ class V2APIIntegration(common.APITest):
 
     @classmethod
     def v2_url(cls, suffix: str = "") -> str:
-        return f"{common.base_url}/entity/v2/{cls.etype}{suffix}"
+        return f"{common.base_url}/v2/entity/{cls.etype}{suffix}"
 
     @classmethod
     def get_v2(cls, suffix: str = "", **params) -> requests.Response:
@@ -108,7 +108,7 @@ class V2APIIntegration(common.APITest):
     def test_09_nonexistent_etype_returns_422(self):
         response = common.retry_request_on_error(
             lambda: requests.get(
-                f"{common.base_url}/entity/v2/nonexistent_type/master",
+                f"{common.base_url}/v2/entity/nonexistent_type/master",
                 params={"eid": self.eid},
                 timeout=5,
             )

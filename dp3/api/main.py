@@ -48,7 +48,7 @@ app.add_middleware(
 )
 
 # Register routers
-app.include_router(entity.v2_router, prefix="/entity/v2", tags=["Entity v2"])
+app.include_router(entity.v2_router, prefix="/v2/entity", tags=["Entity v2"])
 app.include_router(entity.router, prefix="/entity", tags=["Entity"])
 app.include_router(control.router, prefix="/control", tags=["Control"])
 app.include_router(telemetry.router, prefix="/telemetry", tags=["Telemetry"])

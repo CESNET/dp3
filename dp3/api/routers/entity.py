@@ -1,5 +1,6 @@
 import re
 from datetime import UTC, datetime
+from inspect import cleandoc
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -29,14 +30,14 @@ from dp3.database.database import DatabaseError
 
 
 async def check_etype(etype: str):
-    """Middleware to check entity type existence"""
+    """Validate the entity type as a FastAPI dependency."""
     if etype not in MODEL_SPEC.entities:
         raise RequestValidationError(["path", "etype"], f"Entity type '{etype}' doesn't exist")
     return etype
 
 
 async def parse_eid(etype: str, eid: str) -> EntityId:
-    """Middleware to parse EID"""
+    """Parse a path EID as a FastAPI dependency."""
     try:
         return cast(EntityId, EntityIdAdapter.validate_python({"etype": etype, "eid": eid}))
     except ValidationError as e:
@@ -46,12 +47,17 @@ async def parse_eid(etype: str, eid: str) -> EntityId:
 ParsedEid = Annotated[EntityId, Depends(parse_eid)]
 
 
-async def parse_eid_from_query(etype: str, eid: str) -> EntityId:
+async def parse_eid_from_query(
+    etype: str, eid: Annotated[str, Query(description="Entity ID")]
+) -> EntityId:
     """Parse EID from query parameter (for v2 API)."""
     try:
         return cast(EntityId, EntityIdAdapter.validate_python({"etype": etype, "eid": eid}))
     except ValidationError as e:
         raise RequestValidationError(["query", "eid"], e.errors()[0]["msg"]) from e
+
+
+ParsedQueryEid = Annotated[EntityId, Depends(parse_eid_from_query)]
 
 
 def _parse_optional_eid(etype: str, eid: str | None) -> Any:
@@ -120,7 +126,90 @@ def get_eid_snapshots_handler(
     )
 
 
+def get_eid_data_handler(
+    e: EntityId,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
+) -> EntityEidData:
+    """Handler for getting all data of EID."""
+    master_record = get_eid_master_record_handler(e, date_from, date_to)
+    snapshots = get_eid_snapshots_handler(e, date_from, date_to)
+    return EntityEidData(
+        empty=not master_record and len(snapshots) == 0,
+        master_record=master_record,
+        snapshots=snapshots,
+    )
+
+
+def get_eid_attr_value_handler(
+    e: EntityId,
+    attr: str,
+    attr_location: str,
+    date_from: AwareDatetime | None = None,
+    date_to: AwareDatetime | None = None,
+) -> EntityEidAttrValueOrHistory:
+    """Handler for getting an attribute value or history of EID."""
+    if attr not in MODEL_SPEC.attribs(e.type):
+        raise RequestValidationError([attr_location, "attr"], f"Attribute '{attr}' doesn't exist")
+
+    value_or_history = DB.get_value_or_history(e.type, attr, e.id, t1=date_from, t2=date_to)
+    return EntityEidAttrValueOrHistory(
+        attr_type=MODEL_SPEC.attr(e.type, attr).t, **value_or_history
+    )
+
+
+async def set_eid_attr_value_handler(
+    e: EntityId, attr: str, attr_location: str, request: Request
+) -> SuccessResponse:
+    """Handler for setting the current value of an EID attribute."""
+    if attr not in MODEL_SPEC.attribs(e.type):
+        raise RequestValidationError([attr_location, "attr"], f"Attribute '{attr}' doesn't exist")
+
+    try:
+        body = EntityEidAttrValue.model_validate(await request.json())
+    except ValueError as exc:
+        raise RequestValidationError(["body"], str(exc)) from exc
+
+    try:
+        datapoint = DataPoint(
+            type=e.type,
+            id=e.id,
+            attr=attr,
+            v=body.value,
+            t1=datetime.now(UTC),
+            src=f"{request.client.host} via API",
+        )
+        dp3_datapoint = api_to_dp3_datapoint(datapoint.model_dump())
+    except ValidationError as exc:
+        raise RequestValidationError(["body", "value"], exc.errors()[0]["msg"]) from exc
+
+    with task_context(MODEL_SPEC):
+        task = DataPointTask(etype=e.type, eid=e.id, data_points=[dp3_datapoint])
+
+    TASK_WRITER.put_task(task, False)
+    return SuccessResponse()
+
+
+def extend_eid_ttls_handler(e: EntityId, body: dict[str, AwareDatetime]) -> SuccessResponse:
+    """Handler for extending TTLs of EID."""
+    with task_context(MODEL_SPEC):
+        task = DataPointTask(etype=e.type, eid=e.id, ttl_tokens=body)
+
+    TASK_WRITER.put_task(task, False)
+    return SuccessResponse()
+
+
+def delete_eid_record_handler(e: EntityId) -> SuccessResponse:
+    """Handler for deleting the master record and snapshots of EID."""
+    with task_context(MODEL_SPEC):
+        task = DataPointTask(etype=e.type, eid=e.id, delete=True)
+
+    TASK_WRITER.put_task(task, False)
+    return SuccessResponse()
+
+
 router = APIRouter(dependencies=[Depends(check_etype)])
+v2_router = APIRouter(dependencies=[Depends(check_etype)])
 
 
 # Compile regex patterns once at module level for reuse
@@ -231,6 +320,11 @@ def _validate_sort_params(etype: str, sort: list[str] | None) -> list[tuple[str,
 
 @router.get(
     "/{etype}/get",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
+@v2_router.get(
+    "/{etype}/get",
+    name="v2_get_entity_type_eids",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
 async def get_entity_type_eids(
@@ -360,6 +454,11 @@ async def get_entity_type_eids(
     "/{etype}/count",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
+@v2_router.get(
+    "/{etype}/count",
+    name="v2_count_entity_type_eids",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
 async def count_entity_type_eids(
     etype: str,
     fulltext_filters: Json = None,
@@ -385,6 +484,11 @@ async def count_entity_type_eids(
 
 @router.get(
     "/{etype}/raw/get",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
+@v2_router.get(
+    "/{etype}/raw/get",
+    name="v2_get_entity_type_raw_datapoints",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
 async def get_entity_type_raw_datapoints(
@@ -430,15 +534,9 @@ async def get_eid_data(
     Contains all snapshots and master record.
     Snapshots are ordered by ascending creation time.
 
-    Combines function of `/{etype}/{eid}/master` and `/{etype}/{eid}/snapshots`.
+    Combines the master-record and snapshots endpoints.
     """
-    master_record = get_eid_master_record_handler(e, date_from, date_to)
-    snapshots = get_eid_snapshots_handler(e, date_from, date_to)
-
-    # Whether this eid contains any data
-    empty = not master_record and len(snapshots) == 0
-
-    return EntityEidData(empty=empty, master_record=master_record, snapshots=snapshots)
+    return get_eid_data_handler(e, date_from, date_to)
 
 
 @router.get("/{etype}/{eid}/master")
@@ -479,60 +577,18 @@ async def get_eid_attr_value(
     - current value and history: in case of observation attribute
     - history: in case of timeseries attribute
     """
-    # Check if attribute exists
-    if attr not in MODEL_SPEC.attribs(e.type):
-        raise RequestValidationError(["path", "attr"], f"Attribute '{attr}' doesn't exist")
-
-    value_or_history = DB.get_value_or_history(e.type, attr, e.id, t1=date_from, t2=date_to)
-
-    return EntityEidAttrValueOrHistory(
-        attr_type=MODEL_SPEC.attr(e.type, attr).t, **value_or_history
-    )
+    return get_eid_attr_value_handler(e, attr, "path", date_from, date_to)
 
 
 @router.post("/{etype}/{eid}/set/{attr}")
-async def set_eid_attr_value(etype: str, eid: str, attr: str, request: Request) -> SuccessResponse:
+async def set_eid_attr_value(e: ParsedEid, attr: str, request: Request) -> SuccessResponse:
     """Set current value of attribute
 
     Internally just creates datapoint for specified attribute and value.
 
     This endpoint is meant for `editable` plain attributes -- for direct user edit on DP3 web UI.
     """
-    # Check if attribute exists
-    if attr not in MODEL_SPEC.attribs(etype):
-        raise RequestValidationError(["path", "attr"], f"Attribute '{attr}' doesn't exist")
-
-    try:
-        body = EntityEidAttrValue.model_validate(await request.json())
-    except ValueError as e:
-        raise RequestValidationError(["body"], str(e)) from e
-
-    # Construct datapoint
-    try:
-        dp = DataPoint(
-            type=etype,
-            id=eid,
-            attr=attr,
-            v=body.value,
-            t1=datetime.now(UTC),
-            src=f"{request.client.host} via API",
-        )
-        dp3_dp = api_to_dp3_datapoint(dp.model_dump())
-    except ValidationError as e:
-        raise RequestValidationError(["body", "value"], e.errors()[0]["msg"]) from e
-
-    # This shouldn't fail
-    with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=etype, eid=eid, data_points=[dp3_dp])
-
-    # Push tasks to task queue
-    TASK_WRITER.put_task(task, False)
-
-    # Datapoints from this endpoint are intentionally not logged using `DPLogger`.
-    # If for some reason, in the future, they need to be, just copy code from data ingestion
-    # endpoint.
-
-    return SuccessResponse()
+    return await set_eid_attr_value_handler(e, attr, "path", request)
 
 
 @router.get(
@@ -555,14 +611,7 @@ async def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, 
 @router.post("/{etype}/{eid}/ttl")
 async def extend_eid_ttls(e: ParsedEid, body: dict[str, AwareDatetime]) -> SuccessResponse:
     """Extend TTLs of the specified entity"""
-    # Construct task
-    with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=e.type, eid=e.id, ttl_tokens=body)
-
-    # Push tasks to task queue
-    TASK_WRITER.put_task(task, False)
-
-    return SuccessResponse()
+    return extend_eid_ttls_handler(e, body)
 
 
 @router.delete("/{etype}/{eid}")
@@ -572,312 +621,87 @@ async def delete_eid_record(e: ParsedEid) -> SuccessResponse:
     Notice that this does not delete any raw datapoints,
     or block the re-creation of the entity if new datapoints are received.
     """
-    # Create a "delete" task and push it to task queue
-    with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=e.type, eid=e.id, delete=True)
-    TASK_WRITER.put_task(task, False)
-
-    return SuccessResponse()
+    return delete_eid_record_handler(e)
 
 
-# =============================================================================
-# v2 API Router - EID passed as query parameter
-# =============================================================================
-
-v2_router = APIRouter(dependencies=[Depends(check_etype)])
-
-
-@v2_router.get(
-    "/{etype}/get",
-    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+_V2_EID_QUERY_DESCRIPTION = (
+    "**v2 API**: EID is passed as query parameter (`?eid=X`) instead of path.\n"
+    "This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation)."
 )
-async def v2_get_entity_type_eids(
-    etype: str,
-    fulltext_filters: Json = None,
-    generic_filter: Json = None,
-    skip: NonNegativeInt = 0,
-    limit: NonNegativeInt = 20,
-    sort: Annotated[
-        list[str] | None,
-        Query(description="example: hostname:-1 for descending sort by hostname"),
-    ] = None,
-) -> EntityEidList:
-    """List latest snapshots of all `id`s present in database under `etype`.
-
-    Same as v1 `/entity/{etype}/get` endpoint. See v1 documentation for details.
-    """
-    fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
-    sort_criteria = _validate_sort_params(etype, sort)
-
-    try:
-        cursor = DB.snapshots.find_latest(etype, fulltext_filters, generic_filter)
-
-        if sort_criteria:
-            sort_spec = [("last." + attr, direction) for attr, direction in sort_criteria]
-            cursor = cursor.sort(sort_spec)
-
-        cursor_page = cursor.skip(skip).limit(limit)
-    except DatabaseError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    time_created = None
-    result = [r["last"] for r in cursor_page]
-    for r in result:
-        time_created = r["_time_created"]
-        del r["_time_created"]
-
-    return EntityEidList(time_created=time_created, count=len(result), data=result)
 
 
-@v2_router.get(
-    "/{etype}/count",
-    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
-)
-async def v2_count_entity_type_eids(
-    etype: str,
-    fulltext_filters: Json = None,
-    generic_filter: Json = None,
-) -> EntityEidCount:
-    """Count latest snapshots of all `id`s present in database under `etype`.
-
-    Same as v1 `/entity/{etype}/count` endpoint. See v1 documentation for details.
-    """
-    fulltext_filters, generic_filter = _validate_snapshot_filters(fulltext_filters, generic_filter)
-
-    try:
-        count = DB.snapshots.count_latest(etype, fulltext_filters, generic_filter)
-    except DatabaseError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    return EntityEidCount(total_count=count)
+def _v2desc(v1_endpoint: Any) -> str:
+    """Combine v1 endpoint documentation with the v2 EID transport note."""
+    return f"{cleandoc(v1_endpoint.__doc__ or '')}\n\n{_V2_EID_QUERY_DESCRIPTION}"
 
 
-@v2_router.get(
-    "/{etype}/raw/get",
-    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
-)
-async def v2_get_entity_type_raw_datapoints(
-    etype: str,
-    eid: str | None = None,
-    attr: str | None = None,
-    src: str | None = None,
-    skip: NonNegativeInt = 0,
-    limit: NonNegativeInt = 20,
-) -> EntityRawDataPage:
-    """List raw datapoints from the current raw collection for troubleshooting ingestion.
-
-    Same as v1 `/entity/{etype}/raw/get` endpoint. See v1 documentation for details.
-    """
-    if attr is not None and attr not in MODEL_SPEC.attribs(etype):
-        raise RequestValidationError(["query", "attr"], f"Attribute '{attr}' doesn't exist")
-
-    parsed_eid = _parse_optional_eid(etype, eid)
-
-    try:
-        datapoints = list(
-            DB.find_raw_datapoints(
-                etype,
-                eid=parsed_eid,
-                attr=attr,
-                src=src,
-                skip=skip,
-                limit=limit,
-            )
-        )
-    except DatabaseError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-    return EntityRawDataPage(
-        count=len(datapoints),
-        data=[_raw_datapoint_to_response(datapoint) for datapoint in datapoints],
-    )
-
-
-@v2_router.get(
-    "/{etype}/_/distinct/{attr}",
-    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
-)
-async def v2_get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, int]:
-    """Gets distinct attribute values and their counts based on latest snapshots.
-
-    Same as v1 `/entity/{etype}/_/distinct/{attr}` endpoint. See v1 documentation for details.
-    """
-    try:
-        return DB.snapshots.get_distinct_val_count(etype, attr)
-    except DatabaseError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@v2_router.get("/{etype}", include_in_schema=False)
-@v2_router.get("/{etype}/")
+@v2_router.get("/{etype}", include_in_schema=False, description=_v2desc(get_eid_data))
+@v2_router.get("/{etype}/", description=_v2desc(get_eid_data))
 async def v2_get_eid_data(
-    etype: str,
-    eid: Annotated[str, Query(description="Entity ID")],
+    e: ParsedQueryEid,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
 ) -> EntityEidData:
-    """Get data of the entity identified by `etype` and `eid`.
-
-    Contains all snapshots and master record. Snapshots are ordered by ascending creation time.
-
-    **v2 API**: EID is passed as query parameter (`?eid=X`) instead of path.
-    This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation).
-    """
-    e = await parse_eid_from_query(etype, eid)
-    master_record = get_eid_master_record_handler(e, date_from, date_to)
-    snapshots = get_eid_snapshots_handler(e, date_from, date_to)
-    empty = not master_record and len(snapshots) == 0
-    return EntityEidData(empty=empty, master_record=master_record, snapshots=snapshots)
+    return get_eid_data_handler(e, date_from, date_to)
 
 
-@v2_router.get("/{etype}/master")
+@v2_router.get("/{etype}/master", description=_v2desc(get_eid_master_record))
 async def v2_get_eid_master_record(
-    etype: str,
-    eid: Annotated[str, Query(description="Entity ID")],
+    e: ParsedQueryEid,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
 ) -> EntityEidMasterRecord:
-    """Get the master record of the entity identified by `etype` and `eid`.
-
-    **v2 API**: EID is passed as query parameter (`?eid=X`) instead of path.
-    This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation).
-    """
-    e = await parse_eid_from_query(etype, eid)
     return get_eid_master_record_handler(e, date_from, date_to)
 
 
-@v2_router.get("/{etype}/snapshots")
+@v2_router.get("/{etype}/snapshots", description=_v2desc(get_eid_snapshots))
 async def v2_get_eid_snapshots(
-    etype: str,
-    eid: Annotated[str, Query(description="Entity ID")],
+    e: ParsedQueryEid,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
     skip: NonNegativeInt = 0,
     limit: NonNegativeInt = 0,
 ) -> EntityEidSnapshots:
-    """Get snapshots of the entity identified by `etype` and `eid`.
-
-    Supports optional pagination via `skip` and `limit`.
-    Setting `limit` to `0` returns all matching snapshots.
-
-    **v2 API**: EID is passed as query parameter (`?eid=X`) instead of path.
-    This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation).
-    """
-    e = await parse_eid_from_query(etype, eid)
     return get_eid_snapshots_handler(e, date_from, date_to, skip, limit)
 
 
-@v2_router.get("/{etype}/attr")
+@v2_router.get("/{etype}/attr", description=_v2desc(get_eid_attr_value))
 async def v2_get_eid_attr_value(
-    etype: str,
-    eid: Annotated[str, Query(description="Entity ID")],
+    e: ParsedQueryEid,
     attr: Annotated[str, Query(description="Attribute name")],
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
 ) -> EntityEidAttrValueOrHistory:
-    """Get attribute value.
-
-    Value is either of:
-    - current value: in case of plain attribute
-    - current value and history: in case of observation attribute
-    - history: in case of timeseries attribute
-
-    **v2 API**: EID is passed as query parameter (`?eid=X&attr=name`) instead of path.
-    This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation).
-    """
-    # Check if attribute exists
-    if attr not in MODEL_SPEC.attribs(etype):
-        raise RequestValidationError(["query", "attr"], f"Attribute '{attr}' doesn't exist")
-
-    e = await parse_eid_from_query(etype, eid)
-    value_or_history = DB.get_value_or_history(e.type, attr, e.id, t1=date_from, t2=date_to)
-
-    return EntityEidAttrValueOrHistory(
-        attr_type=MODEL_SPEC.attr(e.type, attr).t, **value_or_history
-    )
+    return get_eid_attr_value_handler(e, attr, "query", date_from, date_to)
 
 
-@v2_router.post("/{etype}/attr")
+@v2_router.post("/{etype}/attr", description=_v2desc(set_eid_attr_value))
 async def v2_set_eid_attr_value(
-    etype: str,
-    eid: Annotated[str, Query(description="Entity ID")],
+    e: ParsedQueryEid,
     attr: Annotated[str, Query(description="Attribute name")],
     request: Request,
 ) -> SuccessResponse:
-    """Set current value of attribute.
-
-    Internally just creates datapoint for specified attribute and value.
-
-    This endpoint is meant for `editable` plain attributes -- for direct user edit on DP3 web UI.
-
-    **v2 API**: EID is passed as query parameter (`?eid=X&attr=name`) instead of path.
-    This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation).
-    """
-    # Check if attribute exists
-    if attr not in MODEL_SPEC.attribs(etype):
-        raise RequestValidationError(["query", "attr"], f"Attribute '{attr}' doesn't exist")
-
-    try:
-        body = EntityEidAttrValue.model_validate(await request.json())
-    except ValueError as e:
-        raise RequestValidationError(["body"], str(e)) from e
-
-    # Construct datapoint
-    try:
-        dp = DataPoint(
-            type=etype,
-            id=eid,
-            attr=attr,
-            v=body.value,
-            t1=datetime.now(UTC),
-            src=f"{request.client.host} via API",
-        )
-        dp3_dp = api_to_dp3_datapoint(dp.model_dump())
-    except ValidationError as e:
-        raise RequestValidationError(["body", "value"], e.errors()[0]["msg"]) from e
-
-    # This shouldn't fail
-    with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=etype, eid=eid, data_points=[dp3_dp])
-
-    TASK_WRITER.put_task(task, False)
-    return SuccessResponse()
+    return await set_eid_attr_value_handler(e, attr, "query", request)
 
 
-@v2_router.post("/{etype}/ttl")
+v2_router.add_api_route(
+    "/{etype}/_/distinct/{attr}",
+    get_distinct_attribute_values,
+    methods=["GET"],
+    name="v2_get_distinct_attribute_values",
+    responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
+)
+
+
+@v2_router.post("/{etype}/ttl", description=_v2desc(extend_eid_ttls))
 async def v2_extend_eid_ttls(
-    etype: str,
-    eid: Annotated[str, Query(description="Entity ID")],
+    e: ParsedQueryEid,
     body: dict[str, AwareDatetime],
 ) -> SuccessResponse:
-    """Extend TTLs of the specified entity.
-
-    **v2 API**: EID is passed as query parameter (`?eid=X`) instead of path.
-    This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation).
-    """
-    e = await parse_eid_from_query(etype, eid)
-    with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=e.type, eid=e.id, ttl_tokens=body)
-    TASK_WRITER.put_task(task, False)
-    return SuccessResponse()
+    return extend_eid_ttls_handler(e, body)
 
 
-@v2_router.delete("/{etype}", include_in_schema=False)
-@v2_router.delete("/{etype}/")
-async def v2_delete_eid_record(
-    etype: str,
-    eid: Annotated[str, Query(description="Entity ID")],
-) -> SuccessResponse:
-    """Delete the master record and snapshots of the specified entity.
-
-    Notice that this does not delete any raw datapoints,
-    or block the re-creation of the entity if new datapoints are received.
-
-    **v2 API**: EID is passed as query parameter (`?eid=X`) instead of path.
-    This allows EIDs containing special characters like `/` (e.g., IPv6 CIDR notation).
-    """
-    e = await parse_eid_from_query(etype, eid)
-    with task_context(MODEL_SPEC):
-        task = DataPointTask(etype=e.type, eid=e.id, delete=True)
-    TASK_WRITER.put_task(task, False)
-    return SuccessResponse()
+@v2_router.delete("/{etype}", include_in_schema=False, description=_v2desc(delete_eid_record))
+@v2_router.delete("/{etype}/", description=_v2desc(delete_eid_record))
+async def v2_delete_eid_record(e: ParsedQueryEid) -> SuccessResponse:
+    return delete_eid_record_handler(e)

@@ -76,6 +76,10 @@ There are additional options that can be specified, which affect the way the doc
 
 Even if you create a duplicate code reference description, the mkdocstring-style link still leads to the code reference, as you can see [here][dp3.snapshots.snapshot_hooks.SnapshotTimeseriesHookContainer.register].
 
+## CLI reference generation
+
+The [`dp3 sh` command reference](../cli.md) is generated from the CLI's argparse parsers during each MkDocs build. The `dp3_sh_help` macro in `macros.py` traverses the parser returned by `dp3.bin.sh.build_parser` and renders each command's `format_help()` output. Update command descriptions and argument help in the parser definitions under `dp3/bin/shcmd/`; do not copy command sections into `docs/cli.md` manually.
+
 ## Deployment
 
 The documentation is updated and deployed automatically with each push to selected branches thanks to the configured GitHub Action, which can be found in: `.github/workflows/deploy.yml`.

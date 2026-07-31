@@ -34,6 +34,7 @@ from dp3.common.attrspec import (
     ObservationsHistoryParams,
 )
 from dp3.common.config import CronExpression, PlatformConfig, entity_type_context
+from dp3.common.hook_telemetry import HookTelemetry, TrackedHook
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import (
     DataPointTask,
@@ -54,6 +55,8 @@ from dp3.task_processing.task_queue import TaskQueueReader, TaskQueueWriter
 
 DB_SEND_CHUNK = 100
 
+SnapshotRunHook = TrackedHook[[], list[DataPointTask]]
+
 
 class SnapShooterConfig(BaseModel):
     creation_rate: CronExpression = CronExpression(minute="*/30")
@@ -70,6 +73,7 @@ class SnapShooter:
         platform_config: PlatformConfig,
         scheduler: Scheduler,
         elog: EventGroupType | None = None,
+        hook_elog: EventGroupType | None = None,
     ) -> None:
         self.log = logging.getLogger("SnapShooter")
 
@@ -87,11 +91,16 @@ class SnapShooter:
         self.config = SnapShooterConfig.model_validate(platform_config.config.get("snapshots"))
 
         self.elog = elog or DummyEventGroup()
+        self.hook_telemetry = HookTelemetry(hook_elog or DummyEventGroup())
 
-        self._timeseries_hooks = SnapshotTimeseriesHookContainer(self.log, self.model_spec, elog)
-        self._correlation_hooks = SnapshotCorrelationHookContainer(self.log, self.model_spec, elog)
-        self._init_hooks: list[Callable[[], list[DataPointTask]]] = []
-        self._finalize_hooks: list[Callable[[], list[DataPointTask]]] = []
+        self._timeseries_hooks = SnapshotTimeseriesHookContainer(
+            self.log, self.model_spec, self.elog, hook_elog
+        )
+        self._correlation_hooks = SnapshotCorrelationHookContainer(
+            self.log, self.model_spec, self.elog, hook_elog
+        )
+        self._init_hooks: list[SnapshotRunHook] = []
+        self._finalize_hooks: list[SnapshotRunHook] = []
 
         queue = f"{platform_config.app_name}-worker-{platform_config.process_index}-snapshots"
         self.snapshot_queue_reader = TaskQueueReader(
@@ -224,17 +233,20 @@ class SnapShooter:
             hook: `hook` callable should expect no arguments and
                 return a list of DataPointTask objects to perform.
         """
-        self._init_hooks.append(hook)
+        self._init_hooks.append(self.hook_telemetry.wrap("snapshot_run_init", hook))
 
-    def register_run_finalize_hook(self, hook: Callable[[], list[DataPointTask]]):
+    def register_run_finalize_hook(self, hook: Callable[[], list[DataPointTask]], *context: str):
         """
-        Registers passed hook to be called after a run of  snapshot creation ends.
+        Registers passed hook to be called after a run of snapshot creation ends.
 
         Args:
             hook: `hook` callable should expect no arguments and
                 return a list of DataPointTask objects to perform.
+            context: Values identifying generated finalizers with the same callback signature.
         """
-        self._finalize_hooks.append(hook)
+        self._finalize_hooks.append(
+            self.hook_telemetry.wrap("snapshot_run_finalize", hook, *context)
+        )
 
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
@@ -378,17 +390,19 @@ class SnapShooter:
         else:
             raise ValueError("Unknown SnapshotMessageType.")
 
-    def _run_hooks(self, hooks: list[Callable[[], list[DataPointTask]]]):
+    def _run_hooks(self, hooks: list[SnapshotRunHook]):
         tasks = []
         with task_context(self.model_spec):
             for hook in hooks:
-                self.log.debug("Running hook: '%s'", get_func_name(hook))
+                self.log.debug("Running hook: '%s'", get_func_name(hook.callback))
                 try:
                     new_tasks = hook()
                     tasks.extend(new_tasks)
+                    if isinstance(new_tasks, list):
+                        hook.log("created_tasks", len(new_tasks))
                 except Exception as e:
                     self.elog.log("module_error")
-                    self.log.error(f"Error during running hook {hook}: {e}")
+                    self.log.error(f"Error during running hook {hook.callback}: {e}")
 
         for task in tasks:
             self.task_queue_writer.put_task(task)

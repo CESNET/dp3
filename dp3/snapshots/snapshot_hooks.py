@@ -7,22 +7,38 @@ from collections import defaultdict
 from collections.abc import Callable, Hashable
 from dataclasses import dataclass, field
 
+from event_count_logger import DummyEventGroup
+
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
+from dp3.common.hook_telemetry import HookTelemetry, TrackedHook
 from dp3.common.task import DataPointTask, task_context
+from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name
-from dp3.task_processing.task_hooks import EventGroupType
+
+SnapshotTimeseriesHook = TrackedHook[[str, str, list[dict]], list[DataPointTask]]
+SnapshotCorrelationHook = TrackedHook[
+    [str, dict, dict],
+    list[DataPointTask] | None,
+]
 
 
 class SnapshotTimeseriesHookContainer:
     """Container for timeseries analysis hooks"""
 
-    def __init__(self, log: logging.Logger, model_spec: ModelSpec, elog: EventGroupType):
+    def __init__(
+        self,
+        log: logging.Logger,
+        model_spec: ModelSpec,
+        elog: EventGroupType | None = None,
+        hook_elog: EventGroupType | None = None,
+    ):
         self.log = log.getChild("TimeseriesHooks")
-        self.elog = elog
+        self.elog = elog or DummyEventGroup()
+        self.telemetry = HookTelemetry(hook_elog or DummyEventGroup())
         self.model_spec = model_spec
 
-        self._hooks = defaultdict(list)
+        self._hooks: defaultdict[tuple[str, str], list[SnapshotTimeseriesHook]] = defaultdict(list)
 
     def register(
         self,
@@ -48,7 +64,9 @@ class SnapshotTimeseriesHookContainer:
         spec = self.model_spec.attributes[entity_type, attr_type]
         if spec.t != AttrType.TIMESERIES:
             raise ValueError(f"'{entity_type}.{attr_type}' is not a timeseries, but '{spec.t}'")
-        self._hooks[entity_type, attr_type].append(hook)
+        self._hooks[entity_type, attr_type].append(
+            self.telemetry.wrap("snapshot_timeseries", hook, entity_type, attr_type)
+        )
         self.log.debug(f"Added hook: '{get_func_name(hook)}'")
 
     def run(
@@ -61,21 +79,30 @@ class SnapshotTimeseriesHookContainer:
                 try:
                     new_tasks = hook(entity_type, attr_type, attr_history)
                     tasks.extend(new_tasks)
+                    if isinstance(new_tasks, list):
+                        hook.log("created_tasks", len(new_tasks))
                 except Exception as e:
                     self.elog.log("module_error")
-                    self.log.error(f"Error during running hook {hook}: {e}")
+                    self.log.error(f"Error during running hook {hook.callback}: {e}")
         return tasks
 
 
 class SnapshotCorrelationHookContainer:
     """Container for data fusion and correlation hooks."""
 
-    def __init__(self, log: logging.Logger, model_spec: ModelSpec, elog: EventGroupType):
+    def __init__(
+        self,
+        log: logging.Logger,
+        model_spec: ModelSpec,
+        elog: EventGroupType | None = None,
+        hook_elog: EventGroupType | None = None,
+    ):
         self.log = log.getChild("CorrelationHooks")
-        self.elog = elog
+        self.elog = elog or DummyEventGroup()
+        self.telemetry = HookTelemetry(hook_elog or DummyEventGroup())
         self.model_spec = model_spec
 
-        self._hooks: defaultdict[str, list[tuple[str, Callable]]] = defaultdict(list)
+        self._hooks: defaultdict[str, list[tuple[str, SnapshotCorrelationHook]]] = defaultdict(list)
         self._short_hook_ids: dict = {}
 
         self._dependency_graph = DependencyGraph(self.log)
@@ -124,7 +151,14 @@ class SnapshotCorrelationHookContainer:
         self._short_hook_ids[hook_id] = hook_args
         self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 
-        self._hooks[entity_type].append((hook_id, hook))
+        tracked_hook = self.telemetry.wrap(
+            "snapshot_correlation",
+            hook,
+            entity_type,
+            f"depends_on={','.join(sorted(depends_on))}",
+            f"may_change={','.join(sorted(may_change))}",
+        )
+        self._hooks[entity_type].append((hook_id, tracked_hook))
         self._restore_hook_order(self._hooks[entity_type])
 
         self.log.info(f"Added hook: '{hook_id}'")
@@ -218,6 +252,8 @@ class SnapshotCorrelationHookContainer:
                         tasks = hook(etype, entity_values, entity_master_record)
                         if tasks is not None and tasks:
                             created_tasks.extend(tasks)
+                            if isinstance(tasks, list):
+                                hook.log("created_tasks", len(tasks))
                     except Exception as e:
                         self.elog.log("module_error")
                         self.log.error(f"Error during running hook {hook_id}: {e}")
@@ -225,7 +261,7 @@ class SnapshotCorrelationHookContainer:
 
         return created_tasks
 
-    def _restore_hook_order(self, hooks: list[tuple[str, Callable]]):
+    def _restore_hook_order(self, hooks: list[tuple[str, SnapshotCorrelationHook]]):
         topological_order = self._dependency_graph.topological_sort()
         hooks.sort(key=lambda x: topological_order.index(x[0]))
 

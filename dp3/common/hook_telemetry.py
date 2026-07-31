@@ -3,6 +3,7 @@
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from inspect import unwrap
 from time import perf_counter_ns
 from typing import Generic, ParamSpec, TypeVar
 from urllib.parse import quote
@@ -49,7 +50,7 @@ class HookTelemetry:
 
     def wrap(self, hook_type: str, hook: Callable[P, R], *context: str) -> TrackedHook[P, R]:
         """Return a callable hook that records telemetry under a stable identity."""
-        callback_name = get_stable_func_name(hook)
+        callback_name = get_stable_func_name(unwrap(hook))
         context_name = f"({','.join(context)})"
         parts = (hook_type, callback_name, context_name)
         base_prefix = "/".join(quote(part, safe="._-(),=[]") for part in parts)

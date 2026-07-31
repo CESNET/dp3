@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """Telemetry commands for the shell-oriented DP3 CLI."""
 
+import json
+import sys
+
+from event_count_logger import EventCountLogger
+
 from dp3.bin.shcmd.common import command_description, print_response_json, stream_json_pages
+from dp3.common.config import read_config_dir
 
 
 def handle_sources_validity(client, _args) -> int:
@@ -49,6 +55,39 @@ def handle_metadata(client, args) -> int:
 def handle_rabbitmq_queues(client, _args) -> int:
     """Show RabbitMQ queue telemetry."""
     return print_response_json(client.request("GET", "/telemetry/rabbitmq/queues"))
+
+
+def handle_event_counts(_client, args) -> int:
+    """Read EventCountLogger counters from Redis."""
+    try:
+        config = read_config_dir(args.config_dir, recursive=True)
+        groups = config.get("event_logging.groups")
+        redis_config = config.get("event_logging.redis")
+        group_config = groups.get(args.group) if isinstance(groups, dict) else None
+        if group_config is None:
+            raise ValueError(f"Event counter group '{args.group}' is not configured")
+
+        intervals = group_config.get("intervals", [])
+        if args.interval not in intervals:
+            configured = ", ".join(intervals) or "none"
+            raise ValueError(
+                f"Interval '{args.interval}' is not configured for group "
+                f"'{args.group}' (configured: {configured})"
+            )
+
+        group = EventCountLogger(groups, redis_config).get_group(args.group)
+        result = {"group": args.group, "interval": args.interval}
+        if not args.current:
+            result["last"] = group.get_counts(args.interval)
+        if args.current or args.both:
+            result["current"] = group.get_counts(args.interval, current=True)
+    except Exception as e:
+        print(f"Cannot read event counters: {e}", file=sys.stderr)
+        return 1
+
+    json.dump(result, sys.stdout, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
 
 
 def register_parser(commands) -> None:
@@ -139,3 +178,39 @@ def register_parser(commands) -> None:
         description="Show queue sizes, consumers, and message rates for the application.",
     )
     rabbitmq_queues_parser.set_defaults(handler=handle_rabbitmq_queues)
+
+    event_counts_parser = telemetry_commands.add_parser(
+        "event-counts",
+        help="Read EventCountLogger counters from Redis.",
+        description=command_description(
+            "Read EventCountLogger counters directly from the configured Redis instance.",
+            "dp3 sh telemetry event-counts --group te --interval 5m --both",
+        ),
+    )
+    event_counts_parser.add_argument(
+        "-g", "--group", required=True, help="Configured event counter group."
+    )
+    event_counts_parser.add_argument(
+        "-i", "--interval", required=True, help="Configured counter interval."
+    )
+    counter_period = event_counts_parser.add_mutually_exclusive_group()
+    counter_period.add_argument(
+        "--last",
+        action="store_true",
+        help="Show the last completed interval (default).",
+    )
+    counter_period.add_argument(
+        "--current",
+        action="store_true",
+        help="Show the current incomplete interval.",
+    )
+    counter_period.add_argument(
+        "--both",
+        action="store_true",
+        help="Show both the last and current intervals.",
+    )
+    event_counts_parser.set_defaults(
+        handler=handle_event_counts,
+        requires_api=False,
+        load_model_spec=False,
+    )

@@ -9,7 +9,13 @@ from argcomplete.completers import DirectoriesCompleter
 from argcomplete.shell_integration import shellcode
 
 from dp3.bin.shcmd import control, datapoints, entities, entity, health, telemetry
-from dp3.bin.shcmd.common import APIError, DP3APIClient, resolve_config_dir
+from dp3.bin.shcmd.common import (
+    APIError,
+    DP3APIClient,
+    MarkdownHelpArgumentParser,
+    command_description,
+    resolve_config_dir,
+)
 from dp3.common.config import ModelSpec, read_config_dir
 
 
@@ -32,9 +38,10 @@ def register_completion_parser(commands) -> None:
     completion_parser = commands.add_parser(
         "completion",
         help="Print shell completion scripts.",
-        description=(
-            "Print shell completion scripts backed by argcomplete. Evaluate the generated "
-            "output in your shell or source it from your shell startup file."
+        description=command_description(
+            "Print an argcomplete registration script for the selected shell. Evaluate the "
+            "output or source it from your shell startup file.",
+            "dp3 sh completion bash --command dp3",
         ),
     )
     completion_parser.add_argument(
@@ -50,12 +57,22 @@ def register_completion_parser(commands) -> None:
         default=None,
         help=(
             "Command name to register completion for. Repeat to register multiple "
-            "commands. Use 'dp3' for 'dp3 sh' and '<APPNAME>sh' for wrapper commands."
+            "commands. Use `dp3` for `dp3 sh` and `<APPNAME>sh` for wrapper commands."
         ),
     )
     completion_parser.set_defaults(
         handler=handle_completion, requires_api=False, load_model_spec=False
     )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the standalone shell-oriented CLI parser."""
+    parser = MarkdownHelpArgumentParser(
+        prog="dp3 sh",
+        description="Shell-oriented interface to a running DP3 API.",
+    )
+    init_parser(parser)
+    return parser
 
 
 def init_parser(parser: argparse.ArgumentParser) -> None:
@@ -84,7 +101,11 @@ def init_parser(parser: argparse.ArgumentParser) -> None:
         help="HTTP timeout in seconds.",
     )
 
-    commands = parser.add_subparsers(dest="sh_command", required=True)
+    commands = parser.add_subparsers(
+        dest="sh_command",
+        required=True,
+        parser_class=MarkdownHelpArgumentParser,
+    )
     health.register_parser(commands)
     datapoints.register_parser(commands)
     entities.register_parser(commands)
@@ -96,8 +117,7 @@ def init_parser(parser: argparse.ArgumentParser) -> None:
 
 def run() -> None:
     """Run the shell-oriented CLI as a standalone script."""
-    parser = argparse.ArgumentParser(prog="dp3 sh")
-    init_parser(parser)
+    parser = build_parser()
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
     sys.exit(main(args))

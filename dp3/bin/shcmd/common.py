@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Shared helpers for the shell-oriented DP3 CLI."""
 
+import argparse
 import json
 import os
 import sys
@@ -18,8 +19,21 @@ class APIError(RuntimeError):
 
 
 JSON_LITERAL_HELP = (
-    "'set' requires a JSON literal value, for example '\"hello\"', '42', 'true', or '{\"k\":1}'."
+    '`set` requires a JSON literal value, for example `"hello"`, `42`, `true`, or `{"k":1}`.'
 )
+
+
+def command_description(summary: str, example: str) -> str:
+    """Build a Markdown command description with a shell example."""
+    return f"{summary}\n\n```shell\n{example}\n```"
+
+
+class MarkdownHelpArgumentParser(argparse.ArgumentParser):
+    """Argument parser that preserves Markdown description formatting in terminal help."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("formatter_class", argparse.RawDescriptionHelpFormatter)
+        super().__init__(*args, **kwargs)
 
 
 class DP3APIClient:

@@ -15,7 +15,11 @@ def register_parser(commands) -> None:
     datapoints_parser = commands.add_parser(
         "datapoints",
         help="Post datapoints from JSON input.",
-        description="Post datapoints from JSON input.",
+        description=(
+            "Post a JSON array of datapoints from a file or standard input. Each datapoint "
+            "must contain `type`, `id`, `attr`, `v`, and `src`; observations and time series "
+            "also require ISO 8601 `t1` and `t2` timestamps."
+        ),
     )
     datapoints_parser.add_argument(
         "path",

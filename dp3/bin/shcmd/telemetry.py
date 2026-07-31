@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Telemetry commands for the shell-oriented DP3 CLI."""
 
-from dp3.bin.shcmd.common import print_response_json, stream_json_pages
+from dp3.bin.shcmd.common import command_description, print_response_json, stream_json_pages
 
 
 def handle_sources_validity(client, _args) -> int:
@@ -53,15 +53,25 @@ def handle_rabbitmq_queues(client, _args) -> int:
 
 def register_parser(commands) -> None:
     """Register telemetry commands on the root parser."""
-    telemetry_parser = commands.add_parser("telemetry", help="Read operational telemetry.")
+    telemetry_parser = commands.add_parser(
+        "telemetry",
+        help="Read operational telemetry.",
+        description="Read operational telemetry from DP³ services.",
+    )
     telemetry_commands = telemetry_parser.add_subparsers(dest="telemetry_command", required=True)
 
     sources_validity_parser = telemetry_commands.add_parser(
-        "sources-validity", help="Show source validity timestamps."
+        "sources-validity",
+        help="Show source validity timestamps.",
+        description="Show the latest datapoint validity timestamp observed for each source.",
     )
     sources_validity_parser.set_defaults(handler=handle_sources_validity)
 
-    source_age_parser = telemetry_commands.add_parser("source-age", help="Show source ages.")
+    source_age_parser = telemetry_commands.add_parser(
+        "source-age",
+        help="Show source ages.",
+        description="Show the age of each source in the selected unit.",
+    )
     source_age_parser.add_argument(
         "-u",
         "--unit",
@@ -71,28 +81,61 @@ def register_parser(commands) -> None:
     source_age_parser.set_defaults(handler=handle_source_age)
 
     entities_per_attr_parser = telemetry_commands.add_parser(
-        "entities-per-attr", help="Count entities with data present for each attribute."
+        "entities-per-attr",
+        help="Count entities with data present for each attribute.",
+        description="Count entities with data present for each configured attribute.",
     )
     entities_per_attr_parser.set_defaults(handler=handle_entities_per_attr)
 
     snapshot_summary_parser = telemetry_commands.add_parser(
-        "snapshot-summary", help="Show recent snapshot activity summary."
+        "snapshot-summary",
+        help="Show recent snapshot activity summary.",
+        description="Show a summary of recent snapshot activity.",
     )
     snapshot_summary_parser.set_defaults(handler=handle_snapshot_summary)
 
     metadata_parser = telemetry_commands.add_parser(
-        "metadata", help="Browse internal metadata records."
+        "metadata",
+        help="Browse internal metadata records.",
+        description=command_description(
+            "Browse diagnostic records produced by internal periodic processes. Time bounds "
+            "are ISO 8601 timestamps.",
+            "dp3 sh telemetry metadata --module SnapShooter "
+            "--from 2024-01-01T00:00:00Z --sort oldest --limit 100 --format ndjson",
+        ),
     )
-    metadata_parser.add_argument("-m", "--module")
-    metadata_parser.add_argument("-f", "--from", dest="date_from")
-    metadata_parser.add_argument("-t", "--to", dest="date_to")
-    metadata_parser.add_argument("-s", "--skip", type=int, default=0)
-    metadata_parser.add_argument("-l", "--limit", type=int, default=0)
-    metadata_parser.add_argument("-S", "--sort", choices=["newest", "oldest"], default="newest")
-    metadata_parser.add_argument("-F", "--format", choices=["json", "ndjson"], default="ndjson")
+    metadata_parser.add_argument("-m", "--module", help="Limit records to one module.")
+    metadata_parser.add_argument(
+        "-f", "--from", dest="date_from", help="ISO 8601 lower timestamp bound."
+    )
+    metadata_parser.add_argument(
+        "-t", "--to", dest="date_to", help="ISO 8601 upper timestamp bound."
+    )
+    metadata_parser.add_argument(
+        "-s", "--skip", type=int, default=0, help="Skip this many records."
+    )
+    metadata_parser.add_argument(
+        "-l", "--limit", type=int, default=0, help="Return at most this many records."
+    )
+    metadata_parser.add_argument(
+        "-S",
+        "--sort",
+        choices=["newest", "oldest"],
+        default="newest",
+        help="Select record ordering.",
+    )
+    metadata_parser.add_argument(
+        "-F",
+        "--format",
+        choices=["json", "ndjson"],
+        default="ndjson",
+        help="Choose JSON or NDJSON output.",
+    )
     metadata_parser.set_defaults(handler=handle_metadata)
 
     rabbitmq_queues_parser = telemetry_commands.add_parser(
-        "rabbitmq-queues", help="Show RabbitMQ queue telemetry."
+        "rabbitmq-queues",
+        help="Show RabbitMQ queue telemetry.",
+        description="Show queue sizes, consumers, and message rates for the application.",
     )
     rabbitmq_queues_parser.set_defaults(handler=handle_rabbitmq_queues)

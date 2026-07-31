@@ -28,6 +28,12 @@ groups:
     auto_declare_events: true
     intervals: [ "5s", "5m" ]
     sync_interval: 1
+  # Task-executor hook execution statistics
+  secondary_hooks:
+    events: [ ]
+    auto_declare_events: true
+    intervals: [ "5m", "2h" ]
+    sync_interval: 1
 ```
 
 1. Two intervals - 5 min and 2 hours for longer-term history in Munin/Icinga
@@ -45,8 +51,12 @@ This section describes Redis connection details:
 
 # Groups
 
-The default configuration groups enables logging of events in task execution, namely
-`task_processed` and `task_processing_error`.
+The default groups record task execution, processed tasks by source, and task-executor hook
+statistics. Hook event names are declared dynamically because they include each hook's family,
+context, and callback name. EventCountLogger buffers each group's increments in memory and flushes
+them according to its `sync_interval` or `sync_limit` setting. See the
+[telemetry guide](../howto/telemetry.md#5-check-secondary-module-hooks) for the hook metrics and
+their interpretation.
 
-To learn more about the group configuration for EventCountLogger, 
+To learn more about the group configuration for EventCountLogger,
 please refer to the official [documentation](https://github.com/CESNET/EventCountLogger#configuration).

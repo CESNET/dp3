@@ -1,14 +1,26 @@
 import logging
 from collections.abc import Callable
+from typing import Any
+
+from event_count_logger import DummyEventGroup
 
 from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.datapoint import DataPointBase
 from dp3.common.datatype import AnyEidT
+from dp3.common.hook_telemetry import HookTelemetry, TrackedHook
 from dp3.common.hook_types import ATTR_TYPE_TO_ON_NEW_HOOK
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import EventGroupType
 from dp3.common.utils import get_func_name
+
+TaskStartHook = TrackedHook[[DataPointTask], Any]
+AllowEntityCreationHook = TrackedHook[[AnyEidT, DataPointTask], bool]
+OnEntityCreationHook = TrackedHook[[AnyEidT, DataPointTask], list[DataPointTask]]
+OnNewAttributeHook = TrackedHook[
+    [AnyEidT, DataPointBase],
+    list[DataPointTask] | None,
+]
 
 
 class TaskGenericHooksContainer:
@@ -19,15 +31,21 @@ class TaskGenericHooksContainer:
     - `on_task_start`: receives Task, no return value requirements
     """
 
-    def __init__(self, log: logging.Logger, elog: EventGroupType):
+    def __init__(
+        self,
+        log: logging.Logger,
+        elog: EventGroupType,
+        hook_elog: EventGroupType | None = None,
+    ):
         self.log = log.getChild("genericHooks")
         self.elog = elog
+        self.telemetry = HookTelemetry(hook_elog if hook_elog is not None else DummyEventGroup())
 
-        self._on_start = []
+        self._on_start: list[TaskStartHook] = []
 
     def register(self, hook_type: str, hook: Callable):
         if hook_type == "on_task_start":
-            self._on_start.append(hook)
+            self._on_start.append(self.telemetry.wrap(hook_type, hook))
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
 
@@ -35,12 +53,11 @@ class TaskGenericHooksContainer:
 
     def run_on_start(self, task: DataPointTask):
         for hook in self._on_start:
-            # Run hook
             try:
                 hook(task)
             except Exception as e:
                 self.elog.log("module_error")
-                self.log.error(f"Error during running hook {hook}: {e}")
+                self.log.error(f"Error during running hook {hook.callback}: {e}")
 
 
 class TaskEntityHooksContainer:
@@ -54,21 +71,27 @@ class TaskEntityHooksContainer:
     """
 
     def __init__(
-        self, entity: str, model_spec: ModelSpec, log: logging.Logger, elog: EventGroupType
+        self,
+        entity: str,
+        model_spec: ModelSpec,
+        log: logging.Logger,
+        elog: EventGroupType,
+        hook_elog: EventGroupType | None = None,
     ):
         self.entity = entity
         self.log = log.getChild(f"entityHooks.{entity}")
         self.elog = elog
+        self.telemetry = HookTelemetry(hook_elog if hook_elog is not None else DummyEventGroup())
         self.model_spec = model_spec
 
-        self._allow_creation = []
-        self._on_creation = []
+        self._allow_creation: list[AllowEntityCreationHook] = []
+        self._on_creation: list[OnEntityCreationHook] = []
 
     def register(self, hook_type: str, hook: Callable):
         if hook_type == "allow_entity_creation":
-            self._allow_creation.append(hook)
+            self._allow_creation.append(self.telemetry.wrap(hook_type, hook, self.entity))
         elif hook_type == "on_entity_creation":
-            self._on_creation.append(hook)
+            self._on_creation.append(self.telemetry.wrap(hook_type, hook, self.entity))
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
 
@@ -77,14 +100,19 @@ class TaskEntityHooksContainer:
     def run_allow_creation(self, eid: AnyEidT, task: DataPointTask):
         for hook in self._allow_creation:
             try:
-                if not hook(eid, task):
+                if hook(eid, task):
+                    hook.log("decisions_allowed")
+                else:
+                    hook.log("decisions_denied")
                     self.log.debug(
-                        f"Creation of eid '{eid}' prevented because hook '{hook}' returned False."
+                        "Creation of eid '%s' prevented because hook '%s' returned False.",
+                        eid,
+                        get_func_name(hook.callback),
                     )
                     return False
             except Exception as e:
                 self.elog.log("module_error")
-                self.log.error(f"Error during running hook {get_func_name(hook)}: {e}")
+                self.log.error(f"Error during running hook {get_func_name(hook.callback)}: {e}")
 
         return True
 
@@ -94,15 +122,13 @@ class TaskEntityHooksContainer:
         with task_context(self.model_spec):
             for hook in self._on_creation:
                 try:
-                    # Run hook
                     hook_new_tasks = hook(eid, task)
-
-                    # Append new tasks to process
                     if isinstance(hook_new_tasks, list):
+                        hook.log("created_tasks", len(hook_new_tasks))
                         new_tasks += hook_new_tasks
                 except Exception as e:
                     self.elog.log("module_error")
-                    self.log.error(f"Error during running hook {hook}: {e}")
+                    self.log.error(f"Error during running hook {hook.callback}: {e}")
 
         return new_tasks
 
@@ -124,11 +150,13 @@ class TaskAttrHooksContainer:
         model_spec: ModelSpec,
         log: logging.Logger,
         elog: EventGroupType,
+        hook_elog: EventGroupType | None = None,
     ):
         self.entity = entity
         self.attr = attr
         self.log = log.getChild(f"attributeHooks.{entity}.{attr}")
         self.elog = elog
+        self.telemetry = HookTelemetry(hook_elog if hook_elog is not None else DummyEventGroup())
         self.model_spec = model_spec
 
         try:
@@ -136,11 +164,11 @@ class TaskAttrHooksContainer:
         except KeyError as e:
             raise ValueError(f"Invalid attribute type '{attr_type}'") from e
 
-        self._on_new = []
+        self._on_new: list[OnNewAttributeHook] = []
 
     def register(self, hook_type: str, hook: Callable):
         if hook_type == self.on_new_hook_type:
-            self._on_new.append(hook)
+            self._on_new.append(self.telemetry.wrap(hook_type, hook, self.entity, self.attr))
         else:
             raise ValueError(
                 f"Hook type '{hook_type}' doesn't exist for {self.entity}/{self.attr}."
@@ -154,14 +182,12 @@ class TaskAttrHooksContainer:
         with task_context(self.model_spec):
             for hook in self._on_new:
                 try:
-                    # Run hook
                     hook_new_tasks = hook(eid, dp)
-
-                    # Append new tasks to process
                     if isinstance(hook_new_tasks, list):
+                        hook.log("created_tasks", len(hook_new_tasks))
                         new_tasks += hook_new_tasks
                 except Exception as e:
                     self.elog.log("module_error")
-                    self.log.error(f"Error during running hook {hook}: {e}")
+                    self.log.error(f"Error during running hook {hook.callback}: {e}")
 
         return new_tasks

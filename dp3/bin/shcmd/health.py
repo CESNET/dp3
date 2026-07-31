@@ -11,5 +11,9 @@ def handle_health(client, _args) -> int:
 
 def register_parser(commands) -> None:
     """Register health commands on the root parser."""
-    health_parser = commands.add_parser("health", help="Check whether the API is reachable.")
+    health_parser = commands.add_parser(
+        "health",
+        help="Check whether the API is reachable.",
+        description="Check whether the configured DP³ API is reachable.",
+    )
     health_parser.set_defaults(handler=handle_health)

@@ -3,16 +3,18 @@
 
 import argparse
 
+from dp3.bin.shcmd.common import MarkdownHelpArgumentParser
+
 from . import etype
 from .common import complete_entity_rest, complete_entity_selector
 
 
 def _build_overview_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = MarkdownHelpArgumentParser(
         prog="dp3 sh entity",
         description=(
-            "Inspect and modify entity data. Use 'dp3 sh entities' to list entity types, "
-            "then continue with a type-scope command or 'id' for a single entity."
+            "Inspect and modify data for a selected entity type. Use `dp3 sh entities` "
+            "to list the available entity types."
         ),
     )
     selector_action = parser.add_argument(

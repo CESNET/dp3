@@ -171,7 +171,7 @@ class TestShCompletion(unittest.TestCase):
         )
         self.assertIn("--from", values)
         self.assertEqual(
-            "Lower bound of the snapshot time range.",
+            "ISO 8601 lower timestamp bound of the snapshot time range.",
             finder._display_completions.get("--from"),
         )
 

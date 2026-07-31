@@ -23,7 +23,7 @@ RAW_HELP = (
     "Browse current raw datapoints for troubleshooting ingestion. "
     "Can be slow on large raw collections."
 )
-ATTR_VALUE_HELP = "JSON literal value, for example '\"hello\"', '42', 'true', or '{\"k\":1}'."
+ATTR_VALUE_HELP = 'JSON literal value, for example `"hello"`, `42`, `true`, or `{"k":1}`.'
 ENTITY_ID_PLACEHOLDER = "<EID>"
 
 
@@ -42,14 +42,14 @@ def add_time_range_args(
         "-f",
         "--from",
         dest="date_from",
-        help=f"Lower bound of the {scope}.",
+        help=f"ISO 8601 lower timestamp bound of the {scope}.",
     )
     from_action.completer = suppress_completion
     to_action = parser.add_argument(
         "-t",
         "--to",
         dest="date_to",
-        help=f"Upper bound of the {scope}.",
+        help=f"ISO 8601 upper timestamp bound of the {scope}.",
     )
     to_action.completer = suppress_completion
 
@@ -117,14 +117,14 @@ def add_type_filter_args(
         "-q",
         "--fulltext-json",
         default=None,
-        help="JSON object with fulltext search filters.",
+        help='JSON object with fulltext search filters, for example `{"name":"router"}`.',
     )
     fulltext_action.completer = suppress_completion
     filter_action = parser.add_argument(
         "-j",
         "--filter-json",
         default=None,
-        help="JSON object with additional generic filters.",
+        help="JSON object using MongoDB query syntax.",
     )
     filter_action.completer = suppress_completion
     has_attr_action = parser.add_argument(
@@ -262,7 +262,7 @@ def _entity_attr_descriptions(
     model_spec, etype: str, entity_catalog: dict[str, Any] | None = None
 ) -> dict[str, str]:
     attrs = _entity_attrs(model_spec, etype, entity_catalog)
-    descriptions = {attr: f"Attribute on entity type '{etype}'." for attr in attrs}
+    descriptions = dict.fromkeys(attrs, f"Attribute on entity type '{etype}'.")
     if model_spec is not None and etype in model_spec.entities:
         for attr in attrs:
             attr_spec = model_spec.attr(etype, attr)

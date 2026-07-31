@@ -25,3 +25,9 @@ groups:
     auto_declare_events: true
     intervals: ["5m", "2h"]
     sync_interval: 1
+  # Execution statistics for callbacks registered with the task executor
+  secondary_hooks:
+    events: []
+    auto_declare_events: true
+    intervals: ["5m", "2h"]
+    sync_interval: 1

@@ -31,6 +31,7 @@ class TaskExecutor:
         platform_config: PlatformConfig,
         elog: EventGroupType,
         elog_by_src: EventGroupType,
+        hook_elog: EventGroupType | None = None,
     ) -> None:
         # initialize task distribution
 
@@ -46,6 +47,7 @@ class TaskExecutor:
         # Event logging
         self.elog = elog
         self.elog_by_src = elog_by_src
+        self.hook_elog = hook_elog if hook_elog is not None else DummyEventGroup()
         # Print warning if some event group is not configured
         not_configured_groups = []
         if isinstance(self.elog, DummyEventGroup):
@@ -60,19 +62,25 @@ class TaskExecutor:
             )
 
         # Hooks
-        self._task_generic_hooks = TaskGenericHooksContainer(self.log, self.elog)
+        self._task_generic_hooks = TaskGenericHooksContainer(self.log, self.elog, self.hook_elog)
         self._task_entity_hooks = {}
         self._task_attr_hooks = {}
 
         for entity in self.model_spec.entities:
             self._task_entity_hooks[entity] = TaskEntityHooksContainer(
-                entity, self.model_spec, self.log, self.elog
+                entity, self.model_spec, self.log, self.elog, self.hook_elog
             )
 
         for entity, attr in self.model_spec.attributes:
             attr_type = self.model_spec.attributes[entity, attr].t
             self._task_attr_hooks[entity, attr] = TaskAttrHooksContainer(
-                entity, attr, attr_type, self.model_spec, self.log, self.elog
+                entity,
+                attr,
+                attr_type,
+                self.model_spec,
+                self.log,
+                self.elog,
+                self.hook_elog,
             )
 
     def register_task_hook(self, hook_type: str, hook: Callable):

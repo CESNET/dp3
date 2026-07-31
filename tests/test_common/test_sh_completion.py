@@ -1,12 +1,16 @@
 import argparse
+import io
+import json
 import os
 import unittest
-from unittest.mock import patch
+from contextlib import redirect_stdout
+from unittest.mock import MagicMock, patch
 
 from argcomplete.finders import CompletionFinder
 
 from dp3.bin.cli import init_parser as init_root_parser
 from dp3.bin.sh import init_parser, render_completion_shellcode
+from dp3.bin.shcmd import telemetry
 from dp3.bin.shcmd.common import complete_entity_type_names
 
 
@@ -144,6 +148,58 @@ class TestShCompletion(unittest.TestCase):
     def test_telemetry_metadata_default_format_is_ndjson(self):
         args = self._parse_args(["telemetry", "metadata"])
         self.assertEqual("ndjson", args.format)
+
+    def test_telemetry_event_counts_options_parse(self):
+        args = self._parse_args(["telemetry", "event-counts", "-g", "te", "-i", "5m", "--both"])
+        self.assertEqual("te", args.group)
+        self.assertEqual("5m", args.interval)
+        self.assertTrue(args.both)
+        self.assertFalse(args.current)
+        self.assertFalse(args.requires_api)
+
+    def test_telemetry_event_counts_reads_last_and_current(self):
+        event_group = MagicMock()
+        event_group.get_counts.side_effect = [
+            {"task_processed": 10},
+            {"task_processed": 2},
+        ]
+        event_logger = MagicMock()
+        event_logger.get_group.return_value = event_group
+        args = argparse.Namespace(
+            config_dir="config",
+            group="te",
+            interval="5m",
+            current=False,
+            both=True,
+        )
+
+        output = io.StringIO()
+        with (
+            patch.object(
+                telemetry,
+                "read_config_dir",
+                return_value={
+                    "event_logging.groups": {"te": {"intervals": ["5m"]}},
+                    "event_logging.redis": {"host": "redis"},
+                },
+            ),
+            patch.object(telemetry, "EventCountLogger", return_value=event_logger),
+            redirect_stdout(output),
+        ):
+            exit_code = telemetry.handle_event_counts(None, args)
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual(
+            {
+                "group": "te",
+                "interval": "5m",
+                "last": {"task_processed": 10},
+                "current": {"task_processed": 2},
+            },
+            json.loads(output.getvalue()),
+        )
+        event_group.get_counts.assert_any_call("5m")
+        event_group.get_counts.assert_any_call("5m", current=True)
 
     def test_snapshot_option_completion(self):
         values = self._get_completions(

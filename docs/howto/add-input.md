@@ -108,7 +108,7 @@ Before running the real input module, send one datapoint manually. This narrows 
 === "HTTP (`curl`)"
 
     ```shell
-    curl -X POST 'http://localhost:5000/datapoints' \
+    curl --fail-with-body -X POST 'http://localhost:5000/datapoints' \
       -H 'Content-Type: application/json' \
       --data '[
         {
@@ -178,11 +178,31 @@ If the attribute shows up for the manually sent datapoint but not for the real i
 
 ### Check the API response first
 
+The input module must check the HTTP status code and response body for every
+`POST /datapoints` request. A completed HTTP call only proves that the server responded; it
+does not prove that DP³ accepted the datapoints. Treat every non-2xx response as a failed
+delivery and log enough of its response body to diagnose it.
+
 If `POST /datapoints` returns an error, fix that before inspecting workers or the database. Validation errors are often enough to tell you whether:
 
-- the attribute id is wrong
-- the value type does not match
-- timestamps are missing
+- the entity type or attribute id is wrong
+- the entity id or value has the wrong type
+- required timestamps are missing
+
+### Check the bad datapoint API log
+
+A producer that ignores response codes can appear healthy while every payload is rejected.
+Check `api.datapoint_logger.bad_log` in [`api.yml`](../configuration/api.md). If it contains a
+path, inspect that file for the rejected input and its validation error:
+
+```shell
+grep -n 'bad_log' /path/to/config/api.yml
+tail -n 100 /path/to/configured/bad_dp.json.log
+```
+
+Datapoints in this log failed API validation and never reached RabbitMQ or a worker. If
+`bad_log` is `false`, logging is disabled. To enable it, configure an absolute path whose
+parent directory exists and is writable by the API process, then restart the API.
 
 ### Check API and worker logs
 
@@ -248,6 +268,7 @@ worker logs, and attribute definition again.
 ## Common failure modes
 
 - The producer sends to the wrong API URL.
+- The producer ignores a non-2xx API response, and rejected datapoints are only visible in the configured bad datapoint log.
 - The payload shape does not match the configured attribute type.
 - The attribute was not added to `db_entities` before the producer started sending it.
 - The API accepted the request, but workers are not running or are using old configuration.

@@ -15,6 +15,7 @@ from dp3.common.scheduler import Scheduler
 from dp3.common.state import SharedFlag
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import ParsedTimedelta
+from dp3.common.utils import get_func_name
 from dp3.core.updater import Updater
 from dp3.snapshots.snapshooter import SnapShooter
 from dp3.task_processing.task_executor import TaskExecutor
@@ -255,7 +256,9 @@ class CallbackRegistrar:
                 [],
                 may_change,
             )
-            self._snap_shooter.register_run_finalize_hook(partial(unset_flag, refresh))
+            self._snap_shooter.register_run_finalize_hook(
+                partial(unset_flag, refresh), get_func_name(hook), entity
+            )
 
     def register_entity_hook(self, hook_type: str, hook: Callable, entity: str):
         """Registers one of available task entity hooks
@@ -313,7 +316,9 @@ class CallbackRegistrar:
             [[attr]],
             may_change,
         )
-        self._snap_shooter.register_run_finalize_hook(partial(unset_flag, refresh))
+        self._snap_shooter.register_run_finalize_hook(
+            partial(unset_flag, refresh), get_func_name(hook), entity, attr
+        )
 
     def register_attr_hook(self, hook_type: str, hook: Callable, entity: str, attr: str):
         """

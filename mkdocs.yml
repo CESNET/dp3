@@ -60,6 +60,7 @@ nav:
     - Modules: modules.md
     - Hooks: hooks.md
   - API: api.md
+  - CLI: cli.md
   - Configuration:
     - configuration/index.md
     - API: configuration/api.md

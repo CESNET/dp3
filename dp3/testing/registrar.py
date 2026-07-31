@@ -361,7 +361,7 @@ class TestCallbackRegistrar:
         tasks: list[DataPointTask] = []
         with task_context(self.model_spec):
             for hook in self._timeseries_hooks._hooks[entity_type, attr_type]:
-                hook_tasks = hook(entity_type, attr_type, attr_history)
+                hook_tasks = hook.callback(entity_type, attr_type, attr_history)
                 tasks.extend(hook_tasks)
         return tasks
 
@@ -400,7 +400,7 @@ class TestCallbackRegistrar:
                 for entity_key, record in entities.items():
                     if entity_key[0] != etype:
                         continue
-                    hook_tasks = hook(etype, record, master_records.get(entity_key, {}))
+                    hook_tasks = hook.callback(etype, record, master_records.get(entity_key, {}))
                     if hook_tasks is not None and hook_tasks:
                         tasks.extend(hook_tasks)
         return tasks

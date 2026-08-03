@@ -1,7 +1,7 @@
 AMQPStorm~=2.7
 apscheduler~=3.10
 argcomplete~=3.6
-event-count-logger>=1.1
+event-count-logger @ git+https://github.com/xsedla1o/EventCountLogger.git@fix-sync_interval
 fastapi>=0.109.1
 pydantic>=2.4.0
 pymongo~=4.6

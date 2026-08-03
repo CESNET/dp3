@@ -26,6 +26,10 @@ The most important split is:
 - **Ingestion-time** hooks see the incoming task or datapoint.
 - **Periodic / already-in-system** hooks see persisted data (`master_record`) or snapshot-time derived values.
 
+A hook can be registered only once in the same hook context. Registering the same callback again
+for the same hook type and entity or attribute raises `ValueError`. The same callback can still be
+bound to different entities, attributes, hook types, or dependency contexts.
+
 ## Quick hook placement guide
 
 Use this as a fast way to choose the right hook family.

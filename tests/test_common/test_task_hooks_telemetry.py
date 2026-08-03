@@ -126,18 +126,51 @@ class TestTaskHookTelemetry(unittest.TestCase):
         self.assertEqual(2, self.hook_events.counts[f"{entity_prefix}/created_tasks"])
         self.assertEqual(1, self.hook_events.counts[f"{attr_prefix}/created_tasks"])
 
-    def test_duplicate_registration_has_distinct_metric_prefix(self):
-        hooks = TaskGenericHooksContainer(self.log, self.task_events, self.hook_events)
-
-        hooks.register("on_task_start", self.successful_task_hook)
-        hooks.register("on_task_start", self.successful_task_hook)
-
-        self.assertNotEqual(
-            hooks._on_start[0].metric_prefix,
-            hooks._on_start[1].metric_prefix,
+    def test_task_hook_containers_reject_duplicate_registration(self):
+        containers = (
+            (
+                TaskGenericHooksContainer(self.log, self.task_events, self.hook_events),
+                "on_task_start",
+            ),
+            (
+                TaskEntityHooksContainer(
+                    "device", self.model_spec, self.log, self.task_events, self.hook_events
+                ),
+                "allow_entity_creation",
+            ),
+            (
+                TaskEntityHooksContainer(
+                    "device", self.model_spec, self.log, self.task_events, self.hook_events
+                ),
+                "on_entity_creation",
+            ),
+            (
+                TaskAttrHooksContainer(
+                    "device",
+                    "hostname",
+                    AttrType.PLAIN,
+                    self.model_spec,
+                    self.log,
+                    self.task_events,
+                    self.hook_events,
+                ),
+                "on_new_plain",
+            ),
         )
-        self.assertIn("registration_2", hooks._on_start[1].metric_prefix.split("/")[2])
-        self.assertEqual(3, len(hooks._on_start[1].metric_prefix.split("/")))
+
+        for hooks, hook_type in containers:
+            with self.subTest(hook_type=hook_type):
+                hooks.register(hook_type, self.successful_task_hook)
+                with self.assertRaisesRegex(ValueError, "already registered"):
+                    hooks.register(hook_type, self.successful_task_hook)
+
+    def test_colliding_telemetry_identities_share_metric_prefix(self):
+        telemetry = HookTelemetry(self.hook_events)
+
+        first = telemetry.wrap("on_task_start", self.successful_task_hook)
+        second = telemetry.wrap("on_task_start", self.successful_task_hook)
+
+        self.assertEqual(first.metric_prefix, second.metric_prefix)
 
     def test_wrapped_hook_is_callable_and_forwards_keyword_arguments(self):
         def callback(*, value):

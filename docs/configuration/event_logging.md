@@ -21,13 +21,13 @@ groups:
       - task_processed
       - task_processing_error
     intervals: [ "5m", "2h" ] # (1)!
-    sync-interval: 1 # (2)!
+    sync_interval: 1 # (2)!
   # Number of processed tasks by their "src" attribute
   tasks_by_src:
     events: [ ]
     auto_declare_events: true
     intervals: [ "5s", "5m" ]
-    sync-interval: 1
+    sync_interval: 1
 ```
 
 1. Two intervals - 5 min and 2 hours for longer-term history in Munin/Icinga

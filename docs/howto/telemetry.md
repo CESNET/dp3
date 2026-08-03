@@ -109,7 +109,7 @@ The equivalent HTTP endpoint is [`GET /entity/<entity_type>/_/distinct/<attr_id>
 
 ## 5. Check secondary-module hooks
 
-Task-executor and snapshot hooks publish execution statistics to the `secondary_hooks` EventCountLogger group. Read the counters for the current and last intervals with:
+Task-executor, snapshot, and periodic updater hooks publish execution statistics to the `secondary_hooks` EventCountLogger group. Read the counters for the current and last intervals with:
 
 ```shell
 dp3 sh telemetry event-counts --group secondary_hooks --interval 5m --both
@@ -118,6 +118,8 @@ dp3 sh telemetry event-counts --group secondary_hooks --interval 5m --both
 Counter names use `<hook-family>/<callback>/<context>/<metric>`. The callback is module-qualified and includes bound `partial` arguments. The context is one parenthesized namespace component identifying the entity, attribute, or snapshot scope; `/` characters inside a component are URL-escaped. All tracked hooks report `executions`, `failures`, and `duration_ns`. Hooks that can return datapoint tasks also report `created_tasks` when they create at least one. `allow_entity_creation` hooks instead report `decisions_allowed` or `decisions_denied` for successful calls.
 
 Snapshot telemetry covers timeseries, correlation, snapshot-run initialization, and snapshot-run finalization hooks. Timeseries counter contexts include the entity and attribute. Correlation counter contexts include the entity type and normalized `depends_on` and `may_change` values. Correlation hooks run once for each applicable entity, so their execution and task counts can be higher than the number of snapshot runs. Initialization and finalization hooks run once per worker because snapshot-run messages are broadcast to all workers.
+
+Periodic updater telemetry uses separate `periodic_update` and `periodic_eid_update` families. Its counter context contains the entity type, configured hook ID, and update period. Each execution represents one callback invocation for one entity in an updater batch.
 
 An allowed decision only means that one hook returned a truthy value. A later hook can still deny creation, and a later processing error can prevent the entity from being stored. A hook that denies creation also stops subsequent allow hooks from running.
 
@@ -148,7 +150,7 @@ The command defaults to `--last`. Use `--current` for the incomplete interval or
 dp3 sh telemetry event-counts -g te -i 5m --both
 ```
 
-The `te` group contains task-processing and error counters. The `tasks_by_src` group contains one counter per observed datapoint source. The `secondary_hooks` group contains task-executor and snapshot hook statistics described above. Groups and intervals are application-configurable; check `event_logging.yml` for the available values.
+The `te` group contains task-processing and error counters. The `tasks_by_src` group contains one counter per observed datapoint source. The `secondary_hooks` group contains task-executor, snapshot, and periodic updater hook statistics described above. Groups and intervals are application-configurable; check `event_logging.yml` for the available values.
 
 This command uses the Redis connection from the selected DP³ configuration directory and must run from a host that can reach that Redis instance. Current counts may lag behind workers by each group's configured EventCountLogger synchronization interval. Last counts cover the most recently completed interval.
 

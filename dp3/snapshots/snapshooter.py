@@ -177,8 +177,8 @@ class SnapShooter:
         """
         Registers passed timeseries hook to be called during snapshot creation.
 
-        Binds hook to specified `entity_type` and `attr_type` (though same hook can be bound
-        multiple times).
+        Binds hook to the specified `entity_type` and `attr_type`. A hook can only be bound
+        once to each entity attribute.
 
         Args:
             hook: `hook` callable should expect entity_type, attr_type and attribute
@@ -204,7 +204,8 @@ class SnapShooter:
 
         Common implementation for hooks with and without master record.
 
-        Binds hook to specified entity_type (though same hook can be bound multiple times).
+        Binds hook to the specified entity_type and dependency context. Duplicate hook IDs
+        are rejected.
 
         `entity_type` and attribute specifications are validated, `ValueError` is raised on failure.
 
@@ -227,12 +228,14 @@ class SnapShooter:
 
     def register_run_init_hook(self, hook: Callable[[], list[DataPointTask]]):
         """
-        Registers passed hook to be called before a run of  snapshot creation begins.
+        Registers passed hook to be called before a run of snapshot creation begins.
 
         Args:
             hook: `hook` callable should expect no arguments and
                 return a list of DataPointTask objects to perform.
         """
+        if any(registered.callback == hook for registered in self._init_hooks):
+            raise ValueError(f"Snapshot init hook '{get_func_name(hook)}' is already registered.")
         self._init_hooks.append(self.hook_telemetry.wrap("snapshot_run_init", hook))
 
     def register_run_finalize_hook(self, hook: Callable[[], list[DataPointTask]], *context: str):
@@ -244,6 +247,10 @@ class SnapShooter:
                 return a list of DataPointTask objects to perform.
             context: Values identifying generated finalizers with the same callback signature.
         """
+        if any(registered.callback == hook for registered in self._finalize_hooks):
+            raise ValueError(
+                f"Snapshot finalize hook '{get_func_name(hook)}' is already registered."
+            )
         self._finalize_hooks.append(
             self.hook_telemetry.wrap("snapshot_run_finalize", hook, *context)
         )

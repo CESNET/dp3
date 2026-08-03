@@ -1,6 +1,5 @@
 """Telemetry helpers for registered callback hooks."""
 
-from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from inspect import unwrap
@@ -46,18 +45,11 @@ class HookTelemetry:
 
     def __init__(self, event_group: EventGroupType):
         self.event_group = event_group
-        self._registrations: Counter[str] = Counter()
 
     def wrap(self, hook_type: str, hook: Callable[P, R], *context: str) -> TrackedHook[P, R]:
         """Return a callable hook that records telemetry under a stable identity."""
         callback_name = get_stable_func_name(unwrap(hook))
         context_name = f"({','.join(context)})"
-        parts = (hook_type, callback_name, context_name)
-        base_prefix = "/".join(quote(part, safe="._-(),=[]") for part in parts)
-        self._registrations[base_prefix] += 1
-        occurrence = self._registrations[base_prefix]
-        if occurrence > 1:
-            context_name = f"({','.join((*context, f'registration_{occurrence}'))})"
         prefix = "/".join(
             quote(part, safe="._-(),=[]") for part in (hook_type, callback_name, context_name)
         )

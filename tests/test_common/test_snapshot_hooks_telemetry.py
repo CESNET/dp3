@@ -73,6 +73,19 @@ class TestSnapshotHookTelemetry(unittest.TestCase):
         self.assertEqual(40, self.hook_events.counts[f"{failing_prefix}/duration_ns"])
         self.assertEqual(1, self.task_events.counts["module_error"])
 
+    def test_timeseries_hooks_reject_duplicate_registration(self):
+        hooks = SnapshotTimeseriesHookContainer(
+            self.log, self.model_spec, self.task_events, self.hook_events
+        )
+
+        def hook(_entity_type, _attr_type, _history):
+            return []
+
+        context = ("test_entity_type", "test_attr_timeseries")
+        hooks.register(hook, *context)
+        with self.assertRaisesRegex(ValueError, "already registered"):
+            hooks.register(hook, *context)
+
     def test_correlation_hook_records_each_entity_execution_and_created_task(self):
         hooks = SnapshotCorrelationHookContainer(
             self.log, self.model_spec, self.task_events, self.hook_events
@@ -97,6 +110,18 @@ class TestSnapshotHookTelemetry(unittest.TestCase):
         self.assertEqual(12, self.hook_events.counts[f"{prefix}/duration_ns"])
         self.assertIn("depends_on=A.data1", prefix)
         self.assertIn("may_change=A.data2", prefix)
+
+    def test_correlation_hooks_reject_duplicate_registration(self):
+        hooks = SnapshotCorrelationHookContainer(
+            self.log, self.model_spec, self.task_events, self.hook_events
+        )
+
+        def hook(_entity_type, _values, _master_record):
+            return []
+
+        hooks.register(hook, "A", [["data1"]], [["data2"]])
+        with self.assertRaisesRegex(ValueError, "already present"):
+            hooks.register(hook, "A", [["data1"]], [["data2"]])
 
     def test_correlation_context_order_does_not_change_metric_identity(self):
         def hook(_entity_type, _values, _master_record):
@@ -128,7 +153,6 @@ class TestSnapshotHookTelemetry(unittest.TestCase):
         self.assertIn("first", first.metric_prefix)
         self.assertIn("second", second.metric_prefix)
         self.assertNotEqual(first.metric_prefix, second.metric_prefix)
-        self.assertNotIn("registration_2", second.metric_prefix)
 
     def test_snapshot_run_hooks_have_separate_families(self):
         snapshooter = object.__new__(SnapShooter)
@@ -145,6 +169,10 @@ class TestSnapshotHookTelemetry(unittest.TestCase):
 
         snapshooter.register_run_init_hook(create_task)
         snapshooter.register_run_finalize_hook(create_task)
+        with self.assertRaisesRegex(ValueError, "already registered"):
+            snapshooter.register_run_init_hook(create_task)
+        with self.assertRaisesRegex(ValueError, "already registered"):
+            snapshooter.register_run_finalize_hook(create_task)
         init_hook = snapshooter._init_hooks[0]
         finalize_hook = snapshooter._finalize_hooks[0]
 

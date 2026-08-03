@@ -49,8 +49,8 @@ class SnapshotTimeseriesHookContainer:
         """
         Registers passed timeseries hook to be called during snapshot creation.
 
-        Binds hook to specified entity_type and attr_type (though same hook can be bound
-        multiple times).
+        Binds hook to the specified entity_type and attr_type. A hook can only be bound
+        once to each entity attribute.
         If entity_type and attr_type do not specify a valid timeseries attribute,
         a ValueError is raised.
         Args:
@@ -64,9 +64,13 @@ class SnapshotTimeseriesHookContainer:
         spec = self.model_spec.attributes[entity_type, attr_type]
         if spec.t != AttrType.TIMESERIES:
             raise ValueError(f"'{entity_type}.{attr_type}' is not a timeseries, but '{spec.t}'")
-        self._hooks[entity_type, attr_type].append(
-            self.telemetry.wrap("snapshot_timeseries", hook, entity_type, attr_type)
-        )
+        hooks = self._hooks[entity_type, attr_type]
+        if any(registered.callback == hook for registered in hooks):
+            raise ValueError(
+                f"Hook '{get_func_name(hook)}' is already registered for "
+                f"attribute '{entity_type}/{attr_type}'."
+            )
+        hooks.append(self.telemetry.wrap("snapshot_timeseries", hook, entity_type, attr_type))
         self.log.debug(f"Added hook: '{get_func_name(hook)}'")
 
     def run(
@@ -118,7 +122,8 @@ class SnapshotCorrelationHookContainer:
         """
         Registers passed hook to be called during snapshot creation.
 
-        Binds hook to specified entity_type (though same hook can be bound multiple times).
+        Binds hook to the specified entity_type and dependency context. Duplicate hook IDs
+        are rejected.
 
         If entity_type and attribute specifications are validated
         and ValueError is raised on failure.

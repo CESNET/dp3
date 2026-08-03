@@ -211,7 +211,7 @@ class CallbackRegistrar:
         """
         Registers passed hook to allow entity creation.
 
-        Binds hook to specified entity (though same hook can be bound multiple times).
+        Binds hook to the specified entity. A hook can only be bound once to each entity.
 
         Args:
             hook: `hook` callable should expect eid and Task as arguments and return a bool.
@@ -229,7 +229,7 @@ class CallbackRegistrar:
         """
         Registers passed hook to be called on entity creation.
 
-        Binds hook to specified entity (though same hook can be bound multiple times).
+        Binds hook to the specified entity. A hook can only be bound once to each entity.
 
         Allows registration of refreshing on configuration changes, if `refresh` is specified.
         In that case, `may_change` must be specified.
@@ -342,8 +342,8 @@ class CallbackRegistrar:
         """
         Registers passed timeseries hook to be called during snapshot creation.
 
-        Binds hook to specified `entity_type` and `attr_type` (though same hook can be bound
-        multiple times).
+        Binds hook to the specified `entity_type` and `attr_type`. A hook can only be bound
+        once to each entity attribute.
 
         Args:
             hook: `hook` callable should expect entity_type, attr_type and attribute
@@ -367,7 +367,8 @@ class CallbackRegistrar:
         """
         Registers passed hook to be called during snapshot creation.
 
-        Binds hook to specified entity_type (though same hook can be bound multiple times).
+        Binds hook to the specified entity type and dependency context. Duplicate hook IDs
+        are rejected.
 
         `entity_type` and attribute specifications are validated, `ValueError` is raised on failure.
 
@@ -401,7 +402,8 @@ class CallbackRegistrar:
 
         Identical to `register_correlation_hook`, but the hook also receives the master record.
 
-        Binds hook to specified entity_type (though same hook can be bound multiple times).
+        Binds hook to the specified entity type and dependency context. Duplicate hook IDs
+        are rejected.
 
         `entity_type` and attribute specifications are validated, `ValueError` is raised on failure.
 

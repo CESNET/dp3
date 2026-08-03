@@ -45,6 +45,8 @@ class TaskGenericHooksContainer:
 
     def register(self, hook_type: str, hook: Callable):
         if hook_type == "on_task_start":
+            if any(registered.callback == hook for registered in self._on_start):
+                raise ValueError(f"Hook '{get_func_name(hook)}' is already registered.")
             self._on_start.append(self.telemetry.wrap(hook_type, hook))
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
@@ -89,11 +91,17 @@ class TaskEntityHooksContainer:
 
     def register(self, hook_type: str, hook: Callable):
         if hook_type == "allow_entity_creation":
-            self._allow_creation.append(self.telemetry.wrap(hook_type, hook, self.entity))
+            hooks = self._allow_creation
         elif hook_type == "on_entity_creation":
-            self._on_creation.append(self.telemetry.wrap(hook_type, hook, self.entity))
+            hooks = self._on_creation
         else:
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")
+
+        if any(registered.callback == hook for registered in hooks):
+            raise ValueError(
+                f"Hook '{get_func_name(hook)}' is already registered for entity '{self.entity}'."
+            )
+        hooks.append(self.telemetry.wrap(hook_type, hook, self.entity))
 
         self.log.debug(f"Added '{hook_type}' hook: {get_func_name(hook)}")
 
@@ -167,12 +175,16 @@ class TaskAttrHooksContainer:
         self._on_new: list[OnNewAttributeHook] = []
 
     def register(self, hook_type: str, hook: Callable):
-        if hook_type == self.on_new_hook_type:
-            self._on_new.append(self.telemetry.wrap(hook_type, hook, self.entity, self.attr))
-        else:
+        if hook_type != self.on_new_hook_type:
             raise ValueError(
                 f"Hook type '{hook_type}' doesn't exist for {self.entity}/{self.attr}."
             )
+        if any(registered.callback == hook for registered in self._on_new):
+            raise ValueError(
+                f"Hook '{get_func_name(hook)}' is already registered for "
+                f"attribute '{self.entity}/{self.attr}'."
+            )
+        self._on_new.append(self.telemetry.wrap(hook_type, hook, self.entity, self.attr))
 
         self.log.debug(f"Added '{hook_type}' hook: {get_func_name(hook)}")
 

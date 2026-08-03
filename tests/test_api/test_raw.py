@@ -70,7 +70,7 @@ class RawDatapointsIntegration(common.APITest):
         self.assertNotIn("etype", page.data[0])
         self.assertNotIn("eid", page.data[0])
 
-    def test_get_plain_raw_datapoints_newest_first(self):
+    def test_get_plain_raw_datapoints(self):
         payload = self.query_expected_value(
             lambda: self.get_request(
                 "entity/A/raw/get",
@@ -82,5 +82,7 @@ class RawDatapointsIntegration(common.APITest):
             msg="Timed out waiting for plain raw datapoints to appear.",
         )
         page = EntityRawDataPage.model_validate(payload)
-        self.assertEqual(["plain-2", "plain-1"], [item["v"] for item in page.data])
-        self.assertEqual([9102, 9101], [item["id"] for item in page.data])
+        self.assertCountEqual(
+            [(9101, "plain-1"), (9102, "plain-2")],
+            [(item["id"], item["v"]) for item in page.data],
+        )

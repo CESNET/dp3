@@ -290,6 +290,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
             platform_config,
             global_scheduler,
             elog,
+            hook_elog,
         )
         registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
 

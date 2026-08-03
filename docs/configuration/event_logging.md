@@ -53,8 +53,9 @@ This section describes Redis connection details:
 
 The default groups record task execution, processed tasks by source, and secondary-module hook
 statistics. Hook event names are declared dynamically and use the namespace
-`<hook-family>/<callback>/<context>/<metric>`. The callback includes bound `partial` arguments,
-while the single context component identifies the hook's entity, attribute, or snapshot scope.
+`<hook-family>/<callback>/<context>/<metric>`. The callback is module-qualified but omits bound
+`partial` arguments, while the single context component identifies the hook's entity, attribute,
+or snapshot scope.
 EventCountLogger buffers each group's increments in memory and flushes them according to its
 `sync_interval` or `sync_limit` setting. See the
 [telemetry guide](../howto/telemetry.md#5-check-secondary-module-hooks) for the hook metrics and

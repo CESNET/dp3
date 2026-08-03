@@ -62,7 +62,7 @@ class TestUpdaterHookTelemetry(unittest.TestCase):
         successful_prefix = successful_hook.metric_prefix
         failing_prefix = failing_hook.metric_prefix
         self.assertTrue(successful_prefix.startswith("periodic_update/"))
-        self.assertIn("(device,create,period=60s)", successful_prefix)
+        self.assertIn("(device,create,period%3D60s)", successful_prefix)
         self.assertEqual(1, self.hook_events.counts[f"{successful_prefix}/executions"])
         self.assertEqual(2, self.hook_events.counts[f"{successful_prefix}/created_tasks"])
         self.assertEqual(25, self.hook_events.counts[f"{successful_prefix}/duration_ns"])
@@ -88,7 +88,7 @@ class TestUpdaterHookTelemetry(unittest.TestCase):
 
         prefix = hook.metric_prefix
         self.assertTrue(prefix.startswith("periodic_eid_update/"))
-        self.assertIn("(device,refresh,period=120s)", prefix)
+        self.assertIn("(device,refresh,period%3D120s)", prefix)
         self.assertEqual(1, self.hook_events.counts[f"{prefix}/executions"])
         self.assertEqual(1, self.hook_events.counts[f"{prefix}/created_tasks"])
         self.assertEqual(15, self.hook_events.counts[f"{prefix}/duration_ns"])

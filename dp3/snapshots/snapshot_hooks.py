@@ -156,13 +156,7 @@ class SnapshotCorrelationHookContainer:
         self._short_hook_ids[hook_id] = hook_args
         self._dependency_graph.add_hook_dependency(hook_id, depends_on, may_change)
 
-        tracked_hook = self.telemetry.wrap(
-            "snapshot_correlation",
-            hook,
-            entity_type,
-            f"depends_on={','.join(sorted(depends_on))}",
-            f"may_change={','.join(sorted(may_change))}",
-        )
+        tracked_hook = self.telemetry.wrap("snapshot_correlation", hook, entity_type)
         self._hooks[entity_type].append((hook_id, tracked_hook))
         self._restore_hook_order(self._hooks[entity_type])
 

@@ -181,22 +181,31 @@ class TestTaskHookTelemetry(unittest.TestCase):
         self.assertEqual("result", hook(value="result"))
         self.assertEqual(1, self.hook_events.counts[f"{hook.metric_prefix}/executions"])
 
-    def test_partial_identity_is_independent_of_registration_order(self):
+    def test_partial_arguments_are_omitted_from_identity(self):
         def callback(_context, _task):
             return None
 
-        first = HookTelemetry(self.hook_events)
-        first_a = first.wrap("on_task_start", partial(callback, "a"))
-        first_b = first.wrap("on_task_start", partial(callback, "b"))
-        second = HookTelemetry(self.hook_events)
-        second_b = second.wrap("on_task_start", partial(callback, "b"))
-        second_a = second.wrap("on_task_start", partial(callback, "a"))
+        telemetry = HookTelemetry(self.hook_events)
+        unbound = telemetry.wrap("on_task_start", callback)
+        first = telemetry.wrap("on_task_start", partial(callback, "a"))
+        second = telemetry.wrap("on_task_start", partial(callback, "b"))
 
-        self.assertEqual(first_a.metric_prefix, second_a.metric_prefix)
-        self.assertEqual(first_b.metric_prefix, second_b.metric_prefix)
-        self.assertNotEqual(first_a.metric_prefix, first_b.metric_prefix)
-        self.assertNotIn("/registration_", first_a.metric_prefix)
-        self.assertNotIn("/registration_", first_b.metric_prefix)
+        self.assertEqual(unbound.metric_prefix, first.metric_prefix)
+        self.assertEqual(unbound.metric_prefix, second.metric_prefix)
+        self.assertNotIn("partial(", first.metric_prefix)
+
+    def test_partial_keyword_arguments_are_omitted_from_identity(self):
+        def callback(*, option):
+            return option
+
+        telemetry = HookTelemetry(self.hook_events)
+        tracked = telemetry.wrap("on_task_start", partial(callback, option="value"))
+
+        self.assertEqual(
+            telemetry.wrap("on_task_start", callback).metric_prefix, tracked.metric_prefix
+        )
+        self.assertNotIn("option", tracked.metric_prefix)
+        self.assertNotIn("value", tracked.metric_prefix)
 
     def test_callable_partial_arguments_have_stable_names(self):
         def callback(_bound, *, fallback):

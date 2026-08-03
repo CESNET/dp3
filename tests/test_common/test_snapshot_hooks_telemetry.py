@@ -108,8 +108,9 @@ class TestSnapshotHookTelemetry(unittest.TestCase):
         self.assertEqual(2, self.hook_events.counts[f"{prefix}/executions"])
         self.assertEqual(2, self.hook_events.counts[f"{prefix}/created_tasks"])
         self.assertEqual(12, self.hook_events.counts[f"{prefix}/duration_ns"])
-        self.assertIn("depends_on=A.data1", prefix)
-        self.assertIn("may_change=A.data2", prefix)
+        self.assertNotIn("depends_on", prefix)
+        self.assertNotIn("may_change", prefix)
+        self.assertTrue(prefix.endswith("/(A)"))
 
     def test_correlation_hooks_reject_duplicate_registration(self):
         hooks = SnapshotCorrelationHookContainer(
@@ -123,7 +124,7 @@ class TestSnapshotHookTelemetry(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "already present"):
             hooks.register(hook, "A", [["data1"]], [["data2"]])
 
-    def test_correlation_context_order_does_not_change_metric_identity(self):
+    def test_correlation_dependencies_are_omitted_from_metric_identity(self):
         def hook(_entity_type, _values, _master_record):
             return []
 
@@ -133,26 +134,26 @@ class TestSnapshotHookTelemetry(unittest.TestCase):
         second = SnapshotCorrelationHookContainer(
             self.log, self.model_spec, self.task_events, self.hook_events
         )
-        first.register(hook, "A", [["data1"], ["data2"]], [])
-        second.register(hook, "A", [["data2"], ["data1"]], [])
+        first.register(hook, "A", [["data1"]], [])
+        second.register(hook, "A", [["data2"]], [])
 
         self.assertEqual(
             first._hooks["A"][0][1].metric_prefix,
             second._hooks["A"][0][1].metric_prefix,
         )
 
-    def test_wrapped_partial_correlation_hooks_keep_their_identity(self):
+    def test_wrapped_partial_correlation_hooks_omit_bound_arguments(self):
         def hook(_context, _entity_type, _values):
             return []
 
         telemetry = HookTelemetry(self.hook_events)
+        unbound = telemetry.wrap("snapshot_correlation", hook, "A")
         first = telemetry.wrap("snapshot_correlation", _drop_master(partial(hook, "first")), "A")
         second = telemetry.wrap("snapshot_correlation", _drop_master(partial(hook, "second")), "A")
 
-        self.assertIn("partial(", first.metric_prefix)
-        self.assertIn("first", first.metric_prefix)
-        self.assertIn("second", second.metric_prefix)
-        self.assertNotEqual(first.metric_prefix, second.metric_prefix)
+        self.assertEqual(unbound.metric_prefix, first.metric_prefix)
+        self.assertEqual(unbound.metric_prefix, second.metric_prefix)
+        self.assertNotIn("partial(", first.metric_prefix)
 
     def test_snapshot_run_hooks_have_separate_families(self):
         snapshooter = object.__new__(SnapShooter)

@@ -1,6 +1,7 @@
 import logging
 import unittest
 from collections import Counter
+from datetime import timedelta
 from functools import partial
 from unittest.mock import Mock, patch
 
@@ -10,6 +11,7 @@ from dp3.common.attrspec import AttrType
 from dp3.common.config import ModelSpec
 from dp3.common.hook_telemetry import HookTelemetry
 from dp3.common.utils import get_func_name, get_stable_func_name
+from dp3.core.collector import _bind_ttl_extension
 from dp3.task_processing.task_executor import TaskExecutor
 from dp3.task_processing.task_hooks import (
     TaskAttrHooksContainer,
@@ -206,6 +208,24 @@ class TestTaskHookTelemetry(unittest.TestCase):
         )
         self.assertNotIn("option", tracked.metric_prefix)
         self.assertNotIn("value", tracked.metric_prefix)
+
+    def test_garbage_collector_ttl_binding_preserves_callback_identity(self):
+        calls = []
+
+        def callback(eid, datapoint, *, extend_by):
+            calls.append((eid, datapoint, extend_by))
+
+        telemetry = HookTelemetry(self.hook_events)
+        bound = _bind_ttl_extension(callback, timedelta(days=7))
+        tracked = telemetry.wrap("on_new_observation", bound, "device", "activity")
+        unbound = telemetry.wrap("on_new_observation", callback, "device", "activity")
+
+        self.assertEqual(unbound.metric_prefix, tracked.metric_prefix)
+        tracked("device-1", "datapoint")
+        self.assertEqual(
+            [("device-1", "datapoint", timedelta(days=7))],
+            calls,
+        )
 
     def test_callable_partial_arguments_have_stable_names(self):
         def callback(_bound, *, fallback):

@@ -39,6 +39,50 @@ def make_task_queue_reader(**overrides):
 
 
 class TestWorkerLifecycle(unittest.TestCase):
+    def test_shutdown_callback_is_bounded(self):
+        release = threading.Event()
+        started = time.monotonic()
+
+        completed, error = worker._run_shutdown_callback(release.wait, 0.02, "BlockingShutdownTest")
+
+        self.assertFalse(completed)
+        self.assertIsNone(error)
+        self.assertLess(time.monotonic() - started, 0.2)
+        release.set()
+
+    def test_hook_telemetry_flush_uses_remaining_shutdown_deadline(self):
+        release = threading.Event()
+        hook_elog = Mock(sync=release.wait)
+        started = time.monotonic()
+
+        flushed = worker._flush_hook_telemetry(
+            hook_elog, time.monotonic() + 0.02, logging.getLogger(self.id())
+        )
+
+        self.assertFalse(flushed)
+        self.assertLess(time.monotonic() - started, 0.2)
+        release.set()
+
+    def test_hook_telemetry_flush_skips_exhausted_deadline(self):
+        hook_elog = Mock()
+
+        flushed = worker._flush_hook_telemetry(
+            hook_elog, time.monotonic() - 1, logging.getLogger(self.id())
+        )
+
+        self.assertTrue(flushed)
+        hook_elog.sync.assert_not_called()
+
+    def test_hook_telemetry_flush_reports_failure(self):
+        hook_elog = Mock()
+        hook_elog.sync.side_effect = RuntimeError("flush failed")
+
+        flushed = worker._flush_hook_telemetry(
+            hook_elog, time.monotonic() + 1, logging.getLogger(self.id())
+        )
+
+        self.assertFalse(flushed)
+
     def test_worker_main_returns_failure_on_redis_startup_error(self):
         original_thread_name = threading.current_thread().name
         try:

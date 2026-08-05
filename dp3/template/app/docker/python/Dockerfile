@@ -1,15 +1,21 @@
 # syntax=docker/dockerfile:1
 
-# Base interpreter with installed requirements
-FROM python:3.11-slim as base
-RUN apt-get update; apt-get install -y  git
+FROM python:3.11-slim AS base
 
-# Install requirements
-WORKDIR /{{DP3_APP}}/
-COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip; \
-    pip install -r requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    UV_SYSTEM_PYTHON=1
 
-# When the application changes, only the COPY . /{{DP3_APP}}/ line will be re-run
-# (this means changes in modules, config files, etc. will not trigger a re-install of requirements)
-COPY . /{{DP3_APP}}/
+RUN pip install --no-cache-dir "uv==0.9.7"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /{{DP3_APP}}
+
+COPY requirements.txt ./
+RUN uv pip install --no-cache -r requirements.txt
+
+COPY . .

@@ -1,0 +1,27 @@
+# Version-control and local tooling
+.git
+.venv
+venv
+.ruff_cache
+.mypy_cache
+.pytest_cache
+.tox
+.nox
+.idea
+.vscode
+
+# Python build and test artifacts
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+build
+dist
+site
+htmlcov
+.coverage
+.coverage.*
+
+# Local configuration, credentials, and logs
+.env
+.env.*
+*.log

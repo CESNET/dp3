@@ -5,7 +5,6 @@ FROM rabbitmq:3-management
 ENV RABBITMQ_PID_FILE=/var/lib/rabbitmq/mnesia/rabbitmq
 
 # Add custom configuration script
-ADD init-rmq.sh /init-rmq.sh
-RUN chmod +x /init-rmq.sh
+COPY --chmod=755 init-rmq.sh /init-rmq.sh
 
 CMD ["/init-rmq.sh"]

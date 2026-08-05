@@ -7,11 +7,13 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 from typing import Literal
 
+from event_count_logger import DummyEventGroup
 from pydantic import BaseModel, validate_call
 from pymongo.cursor import Cursor
 from pymongo.results import UpdateResult
 
 from dp3.common.config import CronExpression, PlatformConfig
+from dp3.common.hook_telemetry import HookTelemetry
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import DataPointTask, task_context
 from dp3.common.types import EventGroupType, ParsedTimedelta
@@ -195,9 +197,13 @@ class Updater:
         platform_config: PlatformConfig,
         scheduler: Scheduler,
         elog: EventGroupType,
+        hook_elog: EventGroupType | None = None,
     ):
         self.log = logging.getLogger("Updater")
         self.elog = elog
+        self.hook_telemetry = HookTelemetry(
+            hook_elog if hook_elog is not None else DummyEventGroup()
+        )
 
         self.model_spec = platform_config.model_spec
         self.config = UpdaterConfig.model_validate(platform_config.config.get("updater", {}))
@@ -262,7 +268,14 @@ class Updater:
             period,
             eid_only,
         )
-        hooks[hook_id] = hook
+        hook_type = "periodic_eid_update" if eid_only else "periodic_update"
+        hooks[hook_id] = self.hook_telemetry.wrap(
+            hook_type,
+            hook,
+            entity_type,
+            hook_id,
+            f"period={period:g}s",
+        )
 
     def start(self):
         """
@@ -496,9 +509,11 @@ class Updater:
                 try:
                     new_tasks = hook(entity_type, record["_id"], record)
                     tasks.extend(new_tasks)
+                    if isinstance(new_tasks, list):
+                        hook.log("created_tasks", len(new_tasks))
                 except Exception as e:
                     self.elog.log("module_error")
-                    self.log.error(f"Error during running hook {hook}: {e}")
+                    self.log.error(f"Error during running hook {hook.callback}: {e}")
 
         for task in tasks:
             self.task_queue_writer.put_task(task)
@@ -511,9 +526,11 @@ class Updater:
                 try:
                     new_tasks = hook(entity_type, record["_id"])
                     tasks.extend(new_tasks)
+                    if isinstance(new_tasks, list):
+                        hook.log("created_tasks", len(new_tasks))
                 except Exception as e:
                     self.elog.log("module_error")
-                    self.log.error(f"Error during running hook {hook}: {e}")
+                    self.log.error(f"Error during running hook {hook.callback}: {e}")
 
         for task in tasks:
             self.task_queue_writer.put_task(task)

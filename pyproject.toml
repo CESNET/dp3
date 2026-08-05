@@ -49,7 +49,11 @@ Documentation = "https://cesnet.github.io/dp3"
 include = ["dp3*"]
 
 [tool.setuptools.package-data]
-dp3 = ["template/**/*"]
+dp3 = [
+    "template/**/*",
+    "template/app/.dockerignore",
+    "template/app/docker/rabbitmq/.dockerignore",
+]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }

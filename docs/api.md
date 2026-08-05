@@ -5,7 +5,7 @@ As the API is made using FastAPI, there is also an interactive documentation ava
 
 If you are wiring a new producer into a DP³ application, start with [How to add an input module](howto/add-input.md), then use this page as the endpoint reference.
 
-For routine same-host reads and writes, prefer `dp3 sh` or the generated `<APPNAME>sh` wrapper. They provide a shell-oriented interface for the common API workflows documented here. Use raw HTTP requests when you need to exercise the underlying endpoint behavior directly.
+For routine same-host reads and writes, prefer [`dp3 sh`](cli.md) or the generated `<APPNAME>sh` wrapper. They provide a shell-oriented interface for the common API workflows documented here. Use raw HTTP requests when you need to exercise the underlying endpoint behavior directly. For an operational walkthrough, see [How to inspect DP³ telemetry](howto/telemetry.md).
 
 There are several API endpoints:
 

@@ -33,17 +33,24 @@ def handle_refresh_module_config(client, args) -> int:
 
 def register_parser(commands) -> None:
     """Register control commands on the root parser."""
-    control_parser = commands.add_parser("control", help="Execute control actions.")
+    control_parser = commands.add_parser(
+        "control",
+        help="Execute control actions.",
+        description="Execute operational control actions against the DP³ API.",
+    )
     control_commands = control_parser.add_subparsers(dest="control_command", required=True)
 
     make_snapshots_parser = control_commands.add_parser(
-        "make-snapshots", help="Trigger an out-of-order snapshot run."
+        "make-snapshots",
+        help="Trigger an out-of-order snapshot run.",
+        description="Trigger an out-of-order snapshot run.",
     )
     make_snapshots_parser.set_defaults(handler=handle_make_snapshots)
 
     refresh_entity_creation_parser = control_commands.add_parser(
         "refresh-on-entity-creation",
         help="Re-run entity creation callbacks for an entity type.",
+        description="Re-run entity-creation callbacks for one entity type.",
     )
     etype_action = refresh_entity_creation_parser.add_argument("etype")
     etype_action.completer = complete_entity_type_names
@@ -52,6 +59,7 @@ def register_parser(commands) -> None:
     refresh_module_config_parser = control_commands.add_parser(
         "refresh-module-config",
         help="Reload module configuration.",
+        description="Reload configuration for one module.",
     )
     refresh_module_config_parser.add_argument("module")
     refresh_module_config_parser.set_defaults(handler=handle_refresh_module_config)

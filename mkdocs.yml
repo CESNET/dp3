@@ -50,6 +50,7 @@ nav:
     - Add an input module: howto/add-input.md
     - Add a secondary module: howto/add-module.md
     - Test a secondary module: howto/test-module.md
+    - Inspect telemetry: howto/telemetry.md
     - Deploy an app: howto/deploy-app.md
     - Develop DP3 itself: howto/develop-dp3.md
     - Extend Docs: howto/extending.md
@@ -60,6 +61,7 @@ nav:
     - Modules: modules.md
     - Hooks: hooks.md
   - API: api.md
+  - CLI: cli.md
   - Configuration:
     - configuration/index.md
     - API: configuration/api.md

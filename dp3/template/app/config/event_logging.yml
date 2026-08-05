@@ -18,10 +18,16 @@ groups:
     # Two intervals - 5 min and 2 hours for longer-term history in Munin/Icinga
     intervals: ["5m", "2h"]
     # Cache counts locally, push to Redis every second
-    sync-interval: 1
+    sync_interval: 1
   # Number of processed tasks by their "src" attribute
   tasks_by_src:
     events: []
     auto_declare_events: true
     intervals: ["5m", "2h"]
-    sync-interval: 1
+    sync_interval: 1
+  # Execution statistics for callbacks registered with the task executor
+  secondary_hooks:
+    events: []
+    auto_declare_events: true
+    intervals: ["5m", "2h"]
+    sync_interval: 1

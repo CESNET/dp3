@@ -4,6 +4,7 @@
 import argparse
 
 from dp3.bin.shcmd.common import (
+    command_description,
     common_time_params,
     print_response_json,
     read_json_value,
@@ -65,21 +66,46 @@ def _add_instance_commands(parser: argparse.ArgumentParser, etype: str) -> None:
     """Register single-entity commands under a parser with an `eid` argument."""
     commands = parser.add_subparsers(dest="entity_instance_command", required=True)
 
-    get_parser = commands.add_parser("get", help="Get full entity data.")
+    get_parser = commands.add_parser(
+        "get",
+        help="Get full entity data.",
+        description="Get full data for one entity.",
+    )
     add_time_range_args(get_parser)
     get_parser.set_defaults(handler=handle_get, etype=etype)
 
-    master_parser = commands.add_parser("master", help="Get an entity master record.")
+    master_parser = commands.add_parser(
+        "master",
+        help="Get an entity master record.",
+        description="Get the master record for one entity.",
+    )
     add_time_range_args(master_parser)
     master_parser.set_defaults(handler=handle_master, etype=etype)
 
-    snapshots_parser = commands.add_parser("snapshots", help="Get snapshots of a single entity.")
+    snapshots_parser = commands.add_parser(
+        "snapshots",
+        help="Get snapshots of a single entity.",
+        description=command_description(
+            "Get snapshots for one entity. Time bounds are ISO 8601 timestamps.",
+            f"dp3 sh entity {etype} id EID snapshots "
+            "--from 2024-01-01T00:00:00Z --to 2024-02-01T00:00:00Z "
+            "--limit 100 --format ndjson",
+        ),
+    )
     add_time_range_args(snapshots_parser, scope="snapshot time range")
     add_page_args(snapshots_parser, default_limit=0, subject="snapshots")
     add_ndjson_format_arg(snapshots_parser)
     snapshots_parser.set_defaults(handler=handle_snapshots, etype=etype)
 
-    raw_parser = commands.add_parser("raw", help=RAW_HELP)
+    raw_parser = commands.add_parser(
+        "raw",
+        help=RAW_HELP,
+        description=command_description(
+            "Browse current raw datapoints for one entity.",
+            f"dp3 sh entity {etype} id EID raw --attr ATTR --src SOURCE "
+            "--limit 100 --format ndjson",
+        ),
+    )
     add_raw_filter_args(raw_parser)
     add_page_args(raw_parser, default_limit=20, subject="raw datapoints")
     add_ndjson_format_arg(raw_parser)
@@ -87,7 +113,15 @@ def _add_instance_commands(parser: argparse.ArgumentParser, etype: str) -> None:
 
     attr.add_instance_attr_parser(commands, etype)
 
-    ttl_parser = commands.add_parser("ttl", help="Extend entity TTLs.")
+    ttl_parser = commands.add_parser(
+        "ttl",
+        help="Extend entity TTLs.",
+        description=command_description(
+            "Extend TTLs for one entity using a JSON request body.",
+            f"dp3 sh entity {etype} id EID ttl "
+            '--body-json \'{"manual":"2030-01-01T00:00:00Z"}\'',
+        ),
+    )
     body_action = ttl_parser.add_argument(
         "-b",
         "--body-json",
@@ -97,7 +131,11 @@ def _add_instance_commands(parser: argparse.ArgumentParser, etype: str) -> None:
     body_action.completer = suppress_completion
     ttl_parser.set_defaults(handler=handle_ttl, etype=etype)
 
-    delete_parser = commands.add_parser("delete", help="Delete entity data.")
+    delete_parser = commands.add_parser(
+        "delete",
+        help="Delete entity data.",
+        description="Delete data for one entity.",
+    )
     delete_parser.set_defaults(handler=handle_delete, etype=etype)
 
 
@@ -106,7 +144,7 @@ def add_id_parser(commands, etype: str) -> None:
     id_parser = commands.add_parser(
         "id",
         help="Inspect or modify one entity by id.",
-        description=f"Inspect or modify one entity of type '{etype}' by id.",
+        description=f"Inspect or modify one entity of type `{etype}` by id.",
     )
     id_parser.set_defaults(etype=etype)
     eid_action = id_parser.add_argument("eid", metavar="EID", help="Entity id.")

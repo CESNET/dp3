@@ -4,8 +4,9 @@ Core module performing deletion of entities based on specified policy.
 
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from functools import partial
+from functools import partial, wraps
 
 from pydantic import BaseModel
 
@@ -18,6 +19,16 @@ from dp3.common.task import DataPointTask, parse_eids_from_cache
 from dp3.database.database import EntityDatabase
 
 DB_SEND_CHUNK = 1000
+
+
+def _bind_ttl_extension(callback: Callable, extend_by: timedelta) -> Callable:
+    """Bind a TTL duration while preserving the extension callback's identity."""
+
+    @wraps(callback)
+    def wrapped(eid: AnyEidT, datapoint: DataPointBase):
+        return callback(eid, datapoint, extend_by=extend_by)
+
+    return wrapped
 
 
 class GarbageCollectorConfig(BaseModel):
@@ -121,7 +132,7 @@ class GarbageCollector:
 
                 registrar.register_attr_hook(
                     "on_new_ts_chunk",
-                    partial(self.extend_timeseries_ttl, extend_by=ttl),
+                    _bind_ttl_extension(self.extend_timeseries_ttl, ttl),
                     entity,
                     attr,
                 )
@@ -138,7 +149,7 @@ class GarbageCollector:
 
                 registrar.register_attr_hook(
                     "on_new_observation",
-                    partial(self.extend_observations_ttl, extend_by=ttl),
+                    _bind_ttl_extension(self.extend_observations_ttl, ttl),
                     entity,
                     attr,
                 )
@@ -148,7 +159,7 @@ class GarbageCollector:
 
                 registrar.register_attr_hook(
                     "on_new_plain",
-                    partial(self.extend_plain_ttl, extend_by=attr_spec.ttl),
+                    _bind_ttl_extension(self.extend_plain_ttl, attr_spec.ttl),
                     entity,
                     attr,
                 )

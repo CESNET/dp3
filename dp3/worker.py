@@ -3,6 +3,7 @@
 
 Don't run directly. Import and run the main() function.
 """
+
 import contextlib
 import faulthandler
 import inspect
@@ -12,11 +13,12 @@ import signal
 import sys
 import threading
 import time
+from collections.abc import Callable
 from functools import partial
 from importlib import import_module
 
 import yaml
-from event_count_logger import DummyEventGroup, EventCountLogger
+from event_count_logger import DummyEventGroup, EventCountLogger, EventGroup
 from pydantic import ValidationError
 
 from dp3.common.callback_registrar import CallbackRegistrar, reload_module_config
@@ -61,6 +63,25 @@ def _force_worker_shutdown(log: logging.Logger, message: str, *args) -> None:
     os._exit(1)
 
 
+def _run_shutdown_callback(
+    callback: Callable[[], None], timeout: float, thread_name: str
+) -> tuple[bool, Exception | None]:
+    """Run shutdown work in a daemon thread for at most ``timeout`` seconds."""
+    error = None
+
+    def run() -> None:
+        nonlocal error
+        try:
+            callback()
+        except Exception as exc:
+            error = exc
+
+    thread = threading.Thread(target=run, name=thread_name, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout)
+    return not thread.is_alive(), error
+
+
 def _stop_module(module, timeout: float, log: logging.Logger) -> tuple[bool, bool]:
     """Stop a module with a deadline.
 
@@ -68,22 +89,38 @@ def _stop_module(module, timeout: float, log: logging.Logger) -> tuple[bool, boo
         A tuple of (completed, failed). ``completed`` is false when the stop call
         is still blocked after the timeout. ``failed`` is true when stop raised.
     """
-    failed = False
-
-    def stop_module() -> None:
-        nonlocal failed
-        try:
-            module.stop()
-        except Exception:
-            failed = True
-            log.exception("Error while stopping %s", module.__class__.__name__)
-
-    stopper = threading.Thread(
-        target=stop_module, name=f"{module.__class__.__name__}Stop", daemon=True
+    completed, error = _run_shutdown_callback(
+        module.stop, timeout, f"{module.__class__.__name__}Stop"
     )
-    stopper.start()
-    stopper.join(timeout=timeout)
-    return not stopper.is_alive(), failed
+    if error is not None:
+        log.error(
+            "Error while stopping %s",
+            module.__class__.__name__,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+    return completed, error is not None
+
+
+def _flush_hook_telemetry(hook_elog: EventGroup, deadline_ts: float, log: logging.Logger) -> bool:
+    """Flush buffered hook telemetry within the worker shutdown deadline."""
+    remaining = _remaining_time(deadline_ts)
+    if remaining == 0:
+        log.warning("Skipping secondary-hook telemetry flush: shutdown deadline exhausted")
+        return True
+
+    completed, error = _run_shutdown_callback(
+        hook_elog.sync, remaining, "SecondaryHookTelemetryFlush"
+    )
+    if not completed:
+        log.error("Secondary-hook telemetry flush did not finish before shutdown deadline")
+        return False
+    if error is not None:
+        log.error(
+            "Failed to flush secondary-hook telemetry during shutdown",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        return False
+    return True
 
 
 def load_modules(
@@ -182,6 +219,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
     running_modules: list[BaseModule] = []  # plug-in modules whose start() was attempted
     running_core_modules = []  # core modules whose start() was attempted
     signal_handlers_installed = False
+    hook_elog = None
 
     try:
         ##############################################
@@ -228,6 +266,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
         )
         elog = ecl.get_group("te") or DummyEventGroup()
         elog_by_src = ecl.get_group("tasks_by_src") or DummyEventGroup()
+        hook_elog = ecl.get_group("secondary_hooks")
 
         db = EntityDatabase(config, model_spec, num_processes, process_index, elog)
         if process_index == 0:
@@ -236,13 +275,14 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
             db.await_updated_schema()
 
         global_scheduler = scheduler.Scheduler()
-        task_executor = TaskExecutor(db, platform_config, elog, elog_by_src)
+        task_executor = TaskExecutor(db, platform_config, elog, elog_by_src, hook_elog)
         snap_shooter = SnapShooter(
             db,
             TaskQueueWriter(app_name, num_processes, config.get("processing_core.msg_broker")),
             platform_config,
             global_scheduler,
             elog,
+            hook_elog,
         )
         updater = Updater(
             db,
@@ -250,6 +290,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
             platform_config,
             global_scheduler,
             elog,
+            hook_elog,
         )
         registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
 
@@ -376,6 +417,11 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
                     "Forcing shutdown because %s.stop() did not finish before timeout",
                     module.__class__.__name__,
                 )
+
+        if hook_elog is not None and not _flush_hook_telemetry(
+            hook_elog, shutdown_deadline_ts, log
+        ):
+            exit_code = 1
 
         log.info("***** Finished, main thread exiting with code %d. *****", exit_code)
         logging.shutdown()

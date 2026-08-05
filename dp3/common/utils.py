@@ -161,31 +161,44 @@ def batched(iterable: Iterable, n: int) -> Iterator[list]:
 
 
 # *** pretty print ***
-def get_func_name(func_or_method):
+def _format_stable_func_arg(arg) -> str:
+    if callable(arg):
+        return get_stable_func_name(arg)
+    if type(arg).__str__ is object.__str__:
+        return f"{arg.__class__.__module__}.{arg.__class__.__qualname__}"
+    return str(arg)
+
+
+def _get_func_name(func_or_method, *, arg_formatter):
     """Get name of function or method as pretty string."""
     if isinstance(func_or_method, partial):
         wrapper = "partial({name}, {args})"
-        args = [str(a) for a in func_or_method.args]
-        args.extend(f"{k}={v}" for k, v in func_or_method.keywords.items())
+        args = [arg_formatter(arg) for arg in func_or_method.args]
+        args.extend(
+            f"{key}={arg_formatter(value)}"
+            for key, value in sorted(func_or_method.keywords.items())
+        )
         args = ", ".join(args)
         func_or_method = func_or_method.func
     else:
         wrapper = "{name}{args}"
         args = ""
 
-    try:
-        fname = func_or_method.__func__.__qualname__
-    except AttributeError:
-        try:
-            fname = func_or_method.__name__
-        except AttributeError:
-            fname = str(func_or_method)
+    func = getattr(func_or_method, "__func__", func_or_method)
+    module = getattr(func, "__module__", None)
+    fname = getattr(func, "__qualname__", getattr(func, "__name__", None))
+    if fname is None and callable(func):
+        module = func.__class__.__module__
+        fname = func.__class__.__qualname__
+    elif fname is None:
+        fname = str(func)
 
-    try:
-        module = func_or_method.__module__
-    except AttributeError:
-        return fname
-    return wrapper.format(name=f"{module}.{fname}", args=args)
+    name = f"{module}.{fname}" if module else fname
+    return wrapper.format(name=name, args=args)
+
+
+get_func_name = partial(_get_func_name, arg_formatter=str)
+get_stable_func_name = partial(_get_func_name, arg_formatter=_format_stable_func_arg)
 
 
 DEPENDENCY_LOGGERS = (

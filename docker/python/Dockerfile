@@ -1,15 +1,24 @@
 # syntax=docker/dockerfile:1
 
-# Base interpreter with installed requirements
 FROM python:3.11-slim AS base
-RUN apt-get update; apt-get install -y  \
-    gcc \
-    git
 
-WORKDIR /dp3/
-COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip; \
-    pip install -r requirements.txt
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    UV_SYSTEM_PYTHON=1
 
-COPY . /dp3/
-RUN SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 pip install -e /dp3
+RUN pip install --no-cache-dir "uv==0.9.7"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /dp3
+
+COPY requirements.txt ./
+RUN uv pip install --no-cache "setuptools>=61" "setuptools_scm>=6.2" wheel && \
+    uv pip install --no-cache -r requirements.txt
+
+COPY . .
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 \
+    uv pip install --no-cache --no-deps --no-build-isolation -e .

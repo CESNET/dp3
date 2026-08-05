@@ -3,6 +3,7 @@ site/
 docs/img/
 
 /.*
+!/.dockerignore
 !/.github
 !/.pre-commit-config.yaml
 

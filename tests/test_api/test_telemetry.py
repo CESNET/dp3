@@ -57,3 +57,8 @@ class TelemetryEndpoints(common.APITest):
         self.assertIn("A", data)
         self.assertIn("data1", data["A"])
         self.assertGreaterEqual(data["A"]["data1"], 1)
+
+    def test_attribute_bson_sizes_endpoint(self):
+        response = self.get_request("telemetry/attribute_bson_sizes")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.json(), dict)

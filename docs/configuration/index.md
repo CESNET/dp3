@@ -9,6 +9,7 @@ Use these pages when wiring DP³ to MongoDB, RabbitMQ, Redis, and the basic API/
 - [`📄 database.yml`](database.md) - MongoDB connection and storage settings.
 - [`📄 processing_core.yml`](processing_core.md) - Worker processes, threads, RabbitMQ connection, and enabled modules.
 - [`📄 event_logging.yml`](event_logging.md) - Redis-based event logging.
+- [`📄 telemetry.yml`](telemetry.md) - Scheduling cached attribute-size statistics.
 - [`📄 api.yml`](api.md) - API-facing settings, including datapoint logging.
 - [`📄 control.yml`](control.md) - Operational actions exposed by the `/control` endpoint.
 
@@ -68,6 +69,7 @@ DP³ configuration folder consists of these files and folders:
 - [`📄 history_manager.yml`](history_manager.md) - How often is [history management](../history_management.md) performed.
 - [`📄 processing_core.yml`](processing_core.md) - Settings of main application workers.
 - [`📄 snapshots.yml`](snapshots.md) - How often are entity snapshots taken.
+- [`📄 telemetry.yml`](telemetry.md) - Scheduling collection of cached telemetry statistics.
 - [`📄 updater.yml`](updater.md) - Periodic updates of all entities over a longer time frame.
 
 The details of their meaning and usage are explained on their respective pages.

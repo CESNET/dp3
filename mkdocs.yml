@@ -74,6 +74,7 @@ nav:
     - Modules: configuration/modules.md
     - Processing core: configuration/processing_core.md
     - Snapshots: configuration/snapshots.md
+    - Telemetry: configuration/telemetry.md
     - Garbage Collector: configuration/garbage_collector.md
     - Updater: configuration/updater.md
   - Code Reference: reference/index.md

@@ -149,6 +149,19 @@ class TestShCompletion(unittest.TestCase):
         args = self._parse_args(["telemetry", "metadata"])
         self.assertEqual("ndjson", args.format)
 
+    def test_telemetry_attribute_bson_sizes_reads_api_endpoint(self):
+        args = self._parse_args(["telemetry", "attribute-bson-sizes"])
+        client = MagicMock()
+        client.request.return_value.text = '{"A": {"attributes": {}}}'
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            exit_code = args.handler(client, args)
+
+        self.assertEqual(0, exit_code)
+        client.request.assert_called_once_with("GET", "/telemetry/attribute_bson_sizes")
+        self.assertEqual({"A": {"attributes": {}}}, json.loads(output.getvalue()))
+
     def test_telemetry_event_counts_options_parse(self):
         args = self._parse_args(["telemetry", "event-counts", "-g", "te", "-i", "5m", "--both"])
         self.assertEqual("te", args.group)

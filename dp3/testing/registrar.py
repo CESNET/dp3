@@ -134,6 +134,32 @@ class TestCallbackRegistrar:
         self._scheduler_jobs.append(reg)
         return job_id
 
+    def scheduler_register_once(
+        self,
+        func: Callable,
+        *,
+        func_args: list | tuple = None,
+        func_kwargs: dict = None,
+        misfire_grace_time: int = 60,
+    ) -> int:
+        """Capture a one-time scheduler registration."""
+        job_id = len(self._scheduler_jobs) + 1
+        reg = HookRegistration(
+            kind="scheduler",
+            hook=func,
+            extra={
+                "func_args": list(func_args or []),
+                "func_kwargs": dict(func_kwargs or {}),
+                "schedule": None,
+                "misfire_grace_time": misfire_grace_time,
+                "one_time": True,
+                "job_id": job_id,
+            },
+        )
+        self._record(reg)
+        self._scheduler_jobs.append(reg)
+        return job_id
+
     def register_task_hook(self, hook_type: str, hook: Callable):
         if hook_type != "on_task_start":
             raise ValueError(f"Hook type '{hook_type}' doesn't exist.")

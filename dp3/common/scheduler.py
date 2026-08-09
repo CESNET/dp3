@@ -10,6 +10,7 @@ from collections.abc import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 
 from dp3.common.utils import get_func_name
 
@@ -36,7 +37,7 @@ class Scheduler:
         self.log.debug("Scheduler stop")
         self.sched.shutdown()
 
-    def register(
+    def register(  # noqa: PLR0917
         self,
         func: Callable,
         func_args: list | tuple = None,
@@ -92,6 +93,29 @@ class Scheduler:
             id=str(self.last_job_id),
         )
         self.log.debug(f"Registered function {get_func_name(func)} to be called at {trigger}")
+        return self.last_job_id
+
+    def register_once(
+        self,
+        func: Callable,
+        func_args: list | tuple = None,
+        func_kwargs: dict = None,
+        misfire_grace_time: int = 60,
+    ) -> int:
+        """Register a function to run once when the scheduler starts."""
+        self.last_job_id += 1
+        trigger = DateTrigger()
+        self.sched.add_job(
+            func,
+            trigger,
+            func_args,
+            func_kwargs,
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=misfire_grace_time,
+            id=str(self.last_job_id),
+        )
+        self.log.debug(f"Registered function {get_func_name(func)} to be called once")
         return self.last_job_id
 
     def pause_job(self, id):

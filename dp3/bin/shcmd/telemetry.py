@@ -27,6 +27,11 @@ def handle_entities_per_attr(client, _args) -> int:
     return print_response_json(client.request("GET", "/telemetry/entities_per_attr"))
 
 
+def handle_attribute_bson_sizes(client, _args) -> int:
+    """Show cached logical BSON-size statistics for configured attributes."""
+    return print_response_json(client.request("GET", "/telemetry/attribute_bson_sizes"))
+
+
 def handle_snapshot_summary(client, _args) -> int:
     """Show recent snapshot activity summary."""
     return print_response_json(client.request("GET", "/telemetry/snapshot_summary"))
@@ -125,6 +130,13 @@ def register_parser(commands) -> None:
         description="Count entities with data present for each configured attribute.",
     )
     entities_per_attr_parser.set_defaults(handler=handle_entities_per_attr)
+
+    attribute_bson_sizes_parser = telemetry_commands.add_parser(
+        "attribute-bson-sizes",
+        help="Show cached logical BSON-size statistics for attributes.",
+        description="Show cached logical BSON-size statistics for configured attributes.",
+    )
+    attribute_bson_sizes_parser.set_defaults(handler=handle_attribute_bson_sizes)
 
     snapshot_summary_parser = telemetry_commands.add_parser(
         "snapshot-summary",

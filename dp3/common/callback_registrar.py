@@ -195,6 +195,22 @@ class CallbackRegistrar:
             misfire_grace_time=misfire_grace_time,
         )
 
+    def scheduler_register_once(
+        self,
+        func: Callable,
+        *,
+        func_args: list | tuple = None,
+        func_kwargs: dict = None,
+        misfire_grace_time: int = 60,
+    ) -> int:
+        """Register a function to run once when the scheduler starts."""
+        return self._scheduler.register_once(
+            func,
+            func_args=func_args,
+            func_kwargs=func_kwargs,
+            misfire_grace_time=misfire_grace_time,
+        )
+
     def register_task_hook(self, hook_type: str, hook: Callable):
         """Registers one of available task hooks
 

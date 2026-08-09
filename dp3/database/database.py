@@ -1034,6 +1034,58 @@ class EntityDatabase:
             )
         return counts
 
+    def get_attribute_bson_size_stats(self, entity_type: str) -> dict[str, dict]:
+        """Calculate logical BSON-size statistics for all attributes of an entity type.
+
+        A present attribute's size is the BSON size of a single-field document containing the
+        stored master-document value, less the five bytes of shared document overhead.
+        """
+        self._assert_etype_exists(entity_type)
+        attribute_names = list(self._db_schema_config.attribs(entity_type))
+        empty_stats = {"count": 0, "min": None, "mean": None, "max": None, "total": 0}
+        if not attribute_names:
+            return {}
+
+        projected_sizes = {}
+        grouped_stats = {"_id": None}
+        for index, attribute_name in enumerate(attribute_names):
+            size_field = f"a{index}"
+            projected_sizes[size_field] = {
+                "$cond": [
+                    {"$eq": [{"$type": f"${attribute_name}"}, "missing"]},
+                    None,
+                    {
+                        "$subtract": [
+                            {"$bsonSize": {attribute_name: f"${attribute_name}"}},
+                            5,
+                        ]
+                    },
+                ]
+            }
+            size_reference = f"$sizes.{size_field}"
+            grouped_stats[f"{size_field}_count"] = {
+                "$sum": {"$cond": [{"$ne": [size_reference, None]}, 1, 0]}
+            }
+            grouped_stats[f"{size_field}_min"] = {"$min": size_reference}
+            grouped_stats[f"{size_field}_mean"] = {"$avg": size_reference}
+            grouped_stats[f"{size_field}_max"] = {"$max": size_reference}
+            grouped_stats[f"{size_field}_total"] = {"$sum": size_reference}
+
+        pipeline = [
+            {"$project": {"_id": 0, "sizes": projected_sizes}},
+            {"$group": grouped_stats},
+        ]
+        result = next(self._master_col(entity_type).aggregate(pipeline, allowDiskUse=True), {})
+
+        statistics = {}
+        for index, attribute_name in enumerate(attribute_names):
+            size_field = f"a{index}"
+            statistics[attribute_name] = {
+                key: result.get(f"{size_field}_{key}", default)
+                for key, default in empty_stats.items()
+            }
+        return statistics
+
     def get_observation_history(
         self,
         etype: str,

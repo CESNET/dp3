@@ -50,6 +50,7 @@ The v2 API addresses the limitation of EIDs containing special characters by pas
 - [`GET /telemetry/sources_validity`](#source-validity): get timestamps of latest data from each source
 - [`GET /telemetry/sources_age`](#source-age): get source ages in seconds or minutes
 - [`GET /telemetry/entities_per_attr`](#entities-per-attribute): get entity counts for each configured attribute
+- [`GET /telemetry/attribute_bson_sizes`](#attribute-bson-sizes): get cached logical BSON-size statistics
 - [`GET /telemetry/snapshot_summary`](#snapshot-summary): get summary of recent snapshot activity
 - [`GET /telemetry/metadata`](#metadata): browse metadata records stored in `#metadata`
 - [`GET /telemetry/rabbitmq/queues`](#rabbitmq-queues): get RabbitMQ queue telemetry for the running application
@@ -692,6 +693,49 @@ Returns counts of entities for which each configured attribute currently has dat
   }
 }
 ```
+
+---
+
+## Attribute BSON sizes
+
+Returns the latest cached logical BSON-size statistics for every configured attribute. API
+requests only read the cache. Worker process 0 populates an incomplete cache after startup and
+refreshes it on the schedule configured in [`telemetry.yml`](configuration/telemetry.md).
+
+### Request
+
+`GET /telemetry/attribute_bson_sizes`
+
+### Response
+
+```json
+{
+  "device": {
+    "calculated_at": "2026-08-09T03:15:04.123000Z",
+    "duration_s": 4.123,
+    "attributes": {
+      "tags": {
+        "count": 1198,
+        "min": 31,
+        "mean": 54.2,
+        "max": 240,
+        "total": 64932
+      },
+      "risk_score": {
+        "count": 0,
+        "min": null,
+        "mean": null,
+        "max": null,
+        "total": 0
+      }
+    }
+  }
+}
+```
+
+Sizes are logical BSON bytes occupied by the complete attribute field in a master document. See
+[the telemetry guide](howto/telemetry.md#4-check-how-much-data-reached-the-database) for exact
+semantics and exclusions.
 
 ---
 

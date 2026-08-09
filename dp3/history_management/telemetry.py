@@ -4,13 +4,24 @@ import time
 from datetime import UTC, datetime
 
 import requests
+from pydantic import BaseModel, ConfigDict
 from pymongo import ASCENDING, UpdateOne
 
 from dp3.common.callback_registrar import CallbackRegistrar
-from dp3.common.config import PlatformConfig
+from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.task import DataPointTask
 from dp3.database.database import EntityDatabase
+
+ATTRIBUTE_BSON_SIZES_TYPE = "attribute_bson_sizes"
+
+
+class TelemetryConfig(BaseModel):
+    """Configuration of periodic telemetry collection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    attribute_bson_size_schedule: CronExpression = CronExpression(hour=3, minute=15)
 
 
 class Telemetry:
@@ -21,11 +32,12 @@ class Telemetry:
 
         self.db = db
         self.model_spec = platform_config.model_spec
-        # self.config = platform_config.config.get("telemetry")  # No config for now
+        self.config = TelemetryConfig.model_validate(platform_config.config.get("telemetry", {}))
         self.cache_col = self.db.get_module_cache("Telemetry")
 
         self.local_cache = {}
         self.local_cache_lock = threading.Lock()
+        self.attribute_bson_size_lock = threading.Lock()
 
         # Schedule master document aggregation
         registrar.register_task_hook("on_task_start", self.note_latest_src_timestamp)
@@ -37,6 +49,33 @@ class Telemetry:
         registrar.scheduler_register(
             self.sync_to_db, second=seconds, minute="*", hour="*", misfire_grace_time=10
         )
+
+        if platform_config.process_index == 0:
+            registrar.scheduler_register(
+                self.collect_attribute_bson_sizes,
+                **self.config.attribute_bson_size_schedule.model_dump(),
+            )
+            configured_entities = set(self.model_spec.entities)
+            try:
+                cached_entities = set(
+                    self.cache_col.distinct(
+                        "entity_type", {"telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE}
+                    )
+                )
+            except Exception:
+                cached_entities = set()
+                self.log.exception(
+                    "Failed to check the attribute BSON-size cache; scheduling an initial sweep."
+                )
+            if not configured_entities.issubset(cached_entities):
+                registrar.scheduler_register_once(
+                    self.collect_attribute_bson_sizes, misfire_grace_time=300
+                )
+        else:
+            self.log.debug(
+                "Attribute BSON-size collection is disabled in this worker to avoid duplicate "
+                "full collection scans."
+            )
 
     def note_latest_src_timestamp(self, task: DataPointTask):
         """Note the latest timestamp of each source in the task"""
@@ -104,6 +143,44 @@ class Telemetry:
         except Exception as e:
             self.log.error("Error updating src_timestamp records: %s", e)
 
+    def collect_attribute_bson_sizes(self):
+        """Calculate and atomically publish attribute size statistics per entity type."""
+        with self.attribute_bson_size_lock:
+            for entity_type in self.model_spec.entities:
+                start = time.monotonic()
+                try:
+                    attributes = self.db.get_attribute_bson_size_stats(entity_type)
+                    duration = time.monotonic() - start
+                    calculated_at = datetime.now(UTC)
+                    record = {
+                        "_id": {
+                            "telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE,
+                            "entity_type": entity_type,
+                        },
+                        "telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE,
+                        "entity_type": entity_type,
+                        "calculated_at": calculated_at,
+                        "duration_s": duration,
+                        "attributes": attributes,
+                    }
+                    self.cache_col.replace_one({"_id": record["_id"]}, record, upsert=True)
+                    self.log.info(
+                        "Calculated attribute BSON sizes for %s in %.3fs", entity_type, duration
+                    )
+                except Exception:
+                    self.log.exception(
+                        "Failed to calculate attribute BSON sizes for %s; retaining the previous "
+                        "cached result.",
+                        entity_type,
+                    )
+
+            self.cache_col.delete_many(
+                {
+                    "telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE,
+                    "entity_type": {"$nin": list(self.model_spec.entities)},
+                }
+            )
+
 
 class TelemetryReader:
     """Reader of telemetry data.
@@ -141,7 +218,7 @@ class TelemetryReader:
 
     def get_sources_validity(self) -> dict[str, datetime]:
         """Return timestamps (datetimes) of current validity of all sources."""
-        src_data = self.cache_col.find({}).sort([("_id", ASCENDING)])
+        src_data = self.cache_col.find({"src_t": {"$exists": True}}).sort([("_id", ASCENDING)])
         return {src["_id"]: src["src_t"] for src in src_data}
 
     def get_sources_age(self, unit: str = "minutes") -> dict[str, int]:
@@ -156,6 +233,20 @@ class TelemetryReader:
     def get_entities_per_attr(self) -> dict[str, dict[str, int]]:
         """Return counts of entities with data present for each configured attribute."""
         return self.db.count_entities_per_attr()
+
+    def get_attribute_bson_sizes(self) -> dict[str, dict]:
+        """Return the latest cached attribute BSON-size statistics."""
+        records = self.cache_col.find({"telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE}).sort(
+            [("entity_type", ASCENDING)]
+        )
+        return {
+            record["entity_type"]: {
+                "calculated_at": record["calculated_at"],
+                "duration_s": record["duration_s"],
+                "attributes": record["attributes"],
+            }
+            for record in records
+        }
 
     def get_snapshot_summary(self) -> dict:
         """Return summary of latest snapshot activity."""

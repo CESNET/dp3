@@ -99,6 +99,28 @@ dp3 sh telemetry entities-per-attr
 
 This answers “how many entities currently have each attribute?”. It counts value presence in the database, rather than the number of datapoints received over time.
 
+To inspect the logical size of attributes stored in master documents, call:
+
+```shell
+dp3 sh telemetry attribute-bson-sizes
+```
+
+The equivalent HTTP endpoint is `GET /telemetry/attribute_bson_sizes`.
+
+For each configured attribute, the cached result contains `count`, `min`, `mean`, `max`, and
+`total`, plus the calculation timestamp and sweep duration for its entity type. Only master
+documents where the attribute field is physically present contribute. An attribute with no
+values has a zero count and total, with `null` minimum, mean, and maximum.
+
+An attribute's logical contribution is the BSON size of `{attribute_name: attribute_value}` minus
+the shared five-byte BSON document overhead. This measures the complete value as represented in
+the master document: plain attributes therefore include their `{v, ts_last_update}` wrapper, and
+observation and timeseries attributes include their stored history arrays. These values are
+logical BSON bytes, **not** compressed on-disk usage, index size, raw-datapoint storage, or
+snapshot storage. Results come only from the cache; API requests never start a master collection
+scan. Worker process 0 schedules an initial sweep when the cache is incomplete and refreshes it on
+the schedule configured in [`telemetry.yml`](../configuration/telemetry.md).
+
 To drill into a particular attribute, list each distinct latest value and its entity count:
 
 ```shell

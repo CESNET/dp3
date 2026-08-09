@@ -33,6 +33,12 @@ async def get_entities_per_attr() -> dict[str, dict[str, int]]:
     return TELEMETRY_READER.get_entities_per_attr()
 
 
+@router.get("/attribute_bson_sizes")
+async def get_attribute_bson_sizes() -> dict[str, dict]:
+    """Get the latest cached logical BSON-size statistics for configured attributes."""
+    return TELEMETRY_READER.get_attribute_bson_sizes()
+
+
 @router.get("/snapshot_summary")
 async def get_snapshot_summary() -> dict:
     """Get summary of recent snapshot activity."""

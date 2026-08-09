@@ -1,0 +1,5 @@
+# Schedule for calculating logical BSON-size statistics for every configured attribute.
+# Collection is performed only by worker process 0 and scans each master collection once.
+attribute_bson_size_schedule:
+  hour: 3
+  minute: 15

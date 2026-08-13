@@ -1,0 +1,1241 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dynamic Profile Processing Platform">
+      
+      
+      
+        <link rel="canonical" href="https://cesnet.github.io/dp3/howto/telemetry/">
+      
+      
+        <link rel="prev" href="../test-module/">
+      
+      
+        <link rel="next" href="../deploy-app/">
+      
+      <link rel="icon" href="../../img/dp3-favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.0.12">
+    
+    
+      
+        <title>Inspect telemetry - DP3</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.0d440cfe.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.2505c338.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/slate.css">
+    
+      <link rel="stylesheet" href="../../stylesheets/mermaid.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#how-to-inspect-dp3-telemetry" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="DP3" class="md-header__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DP3
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Inspect telemetry
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      <form class="md-header__option" data-md-component="palette">
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+          
+            <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+          
+            <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+      </form>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="DP3" class="md-nav__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    DP3
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../">How-to</a>
+          
+            <label for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          How-to
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../get-started/" class="md-nav__link">
+        Get started
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-attribute/" class="md-nav__link">
+        Add an attribute
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-input/" class="md-nav__link">
+        Add an input module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-module/" class="md-nav__link">
+        Add a secondary module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../test-module/" class="md-nav__link">
+        Test a secondary module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Inspect telemetry
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        Inspect telemetry
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    Before you start
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-check-for-datapoints-rejected-by-the-api" class="md-nav__link">
+    1. Check for datapoints rejected by the API
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-check-rabbitmq-queues" class="md-nav__link">
+    2. Check RabbitMQ queues
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-check-whether-workers-receive-inputs" class="md-nav__link">
+    3. Check whether workers receive inputs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-check-how-much-data-reached-the-database" class="md-nav__link">
+    4. Check how much data reached the database
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-check-secondary-module-hooks" class="md-nav__link">
+    5. Check secondary-module hooks
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-read-redis-event-counters" class="md-nav__link">
+    6. Read Redis event counters
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-check-snapshot-processing" class="md-nav__link">
+    7. Check snapshot processing
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-investigate-periodic-processes-through-metadata" class="md-nav__link">
+    8. Investigate periodic processes through metadata
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-pages" class="md-nav__link">
+    Related pages
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deploy-app/" class="md-nav__link">
+        Deploy an app
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../develop-dp3/" class="md-nav__link">
+        Develop DP3 itself
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extending/" class="md-nav__link">
+        Extend Docs
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          Concepts
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          Concepts
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        Architecture
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data_model/" class="md-nav__link">
+        Data model
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../history_management/" class="md-nav__link">
+        History management
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hooks/" class="md-nav__link">
+        Hooks
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/" class="md-nav__link">
+        CLI
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../../configuration/">Configuration</a>
+          
+            <label for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Configuration
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/control/" class="md-nav__link">
+        Control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/database/" class="md-nav__link">
+        Database
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/db_entities/" class="md-nav__link">
+        Database entities
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/lifetimes/" class="md-nav__link">
+        Entity Lifetimes
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/event_logging/" class="md-nav__link">
+        Event logging
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/history_manager/" class="md-nav__link">
+        History manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/processing_core/" class="md-nav__link">
+        Processing core
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/snapshots/" class="md-nav__link">
+        Snapshots
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/telemetry/" class="md-nav__link">
+        Telemetry
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/garbage_collector/" class="md-nav__link">
+        Garbage Collector
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/updater/" class="md-nav__link">
+        Updater
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/" class="md-nav__link">
+        Code Reference
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../scripts/" class="md-nav__link">
+        Scripts
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../grafana_plugin/" class="md-nav__link">
+        Grafana plugin
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    Before you start
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-check-for-datapoints-rejected-by-the-api" class="md-nav__link">
+    1. Check for datapoints rejected by the API
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-check-rabbitmq-queues" class="md-nav__link">
+    2. Check RabbitMQ queues
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-check-whether-workers-receive-inputs" class="md-nav__link">
+    3. Check whether workers receive inputs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-check-how-much-data-reached-the-database" class="md-nav__link">
+    4. Check how much data reached the database
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-check-secondary-module-hooks" class="md-nav__link">
+    5. Check secondary-module hooks
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-read-redis-event-counters" class="md-nav__link">
+    6. Read Redis event counters
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-check-snapshot-processing" class="md-nav__link">
+    7. Check snapshot processing
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-investigate-periodic-processes-through-metadata" class="md-nav__link">
+    8. Investigate periodic processes through metadata
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#related-pages" class="md-nav__link">
+    Related pages
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+
+<h1 id="how-to-inspect-dp3-telemetry">How to inspect DP³ telemetry<a class="headerlink" href="#how-to-inspect-dp3-telemetry" title="Permanent link">&para;</a></h1>
+<p>This guide is a beginner-friendly checklist for answering three questions about a running DP³ application:</p>
+<ul>
+<li>Are input sources still sending data?</li>
+<li>Is DP³ keeping up with the data it receives?</li>
+<li>Are secondary modules running as expected?</li>
+</ul>
+<p><code>dp3 sh telemetry</code> is the packaged client for the telemetry exposed by the DP³ API. The examples below use it for convenience. You can also call the corresponding <a href="../../api/#other-endpoints">telemetry API endpoints</a> directly.</p>
+<p>You will end up with:</p>
+<ul>
+<li>a current view of active and stale input sources</li>
+<li>counts of the data present in the database</li>
+<li>a quick assessment of RabbitMQ queues and snapshot processing</li>
+<li>commands for investigating periodic processes and secondary modules</li>
+</ul>
+<h2 id="before-you-start">Before you start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>You need:</p>
+<ul>
+<li>access to a running DP³ API</li>
+<li>the <code>dp3</code> command and the application's configuration directory, or its generated <code>&lt;APPNAME&gt;sh</code> wrapper</li>
+<li>access to worker logs for secondary-module diagnostics</li>
+<li><code>jq</code> for the optional metadata examples</li>
+</ul>
+<p>On a deployment host, use <code>&lt;APPNAME&gt;sh</code> in place of <code>dp3 sh</code> below. The wrapper already knows the application's production configuration. For another API URL, pass <code>-u</code>, for example <code>dp3 sh -u http://localhost:5000 telemetry sources-validity</code>.</p>
+<h2 id="1-check-for-datapoints-rejected-by-the-api">1. Check for datapoints rejected by the API<a class="headerlink" href="#1-check-for-datapoints-rejected-by-the-api" title="Permanent link">&para;</a></h2>
+<p>When an input module reports successful sends but no data appears in DP³, first verify that
+the module checks the HTTP response status and body. <strong>Completing an HTTP request does not
+mean that DP³ accepted its datapoints.</strong></p>
+<p>If <code>api.datapoint_logger.bad_log</code> is configured in
+<a href="../../configuration/api/"><code>api.yml</code></a>, inspect that file for payload validation errors:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>grep<span class="w"> </span>-n<span class="w"> </span><span class="s1">&#39;bad_log&#39;</span><span class="w"> </span>/path/to/config/api.yml
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>tail<span class="w"> </span>-n<span class="w"> </span><span class="m">100</span><span class="w"> </span>/path/to/configured/bad_dp.json.log
+</code></pre></div>
+<p>The bad datapoint log includes the rejected input and its validation error. Typical causes
+include an unknown entity or attribute, an invalid entity id, a value of the wrong type, or
+missing timestamps. A request rejected by the API never reaches a worker, so it will not
+appear in source-validity telemetry, Redis task counters, raw datapoints, or entity data.</p>
+<p>If <code>bad_log</code> is <code>false</code>, this diagnostic log is disabled. To use it, configure an absolute
+path whose parent directory exists and is writable by the API process, then restart the API.</p>
+<h2 id="2-check-rabbitmq-queues">2. Check RabbitMQ queues<a class="headerlink" href="#2-check-rabbitmq-queues" title="Permanent link">&para;</a></h2>
+<p>Inspect queue totals, consumers, and rates:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>rabbitmq-queues
+</code></pre></div>
+<p>For a compact table of queue names, totals, and rates, format the result with <code>jq</code> and <code>column</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>rabbitmq-queues<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.queues[] | [.name,.total, .incoming, .outgoing] | @csv&#39;</span><span class="w"> </span>-cr<span class="w"> </span><span class="p">|</span><span class="w"> </span>column<span class="w"> </span>-ts<span class="w"> </span><span class="s1">&#39;,&#39;</span>
+</code></pre></div>
+<p>Read the output as follows:</p>
+<ul>
+<li><code>total</code>, <code>ready</code>, and <code>unacked</code> show queued work. A large or continuously growing total indicates a backlog.</li>
+<li><code>incoming</code> and <code>outgoing</code> are message rates. Sustained <code>incoming</code> much greater than <code>outgoing</code> means the backlog is growing.</li>
+<li><code>outgoing</code> equal to or greater than <code>incoming</code> normally means the workers are keeping up or draining a backlog.</li>
+<li><code>consumers</code> should match the processes expected to consume that queue. A zero rate is only healthy when no work is arriving.</li>
+</ul>
+<p>Rates are a momentary view. Repeat the command before drawing conclusions from a single sample.</p>
+<h2 id="3-check-whether-workers-receive-inputs">3. Check whether workers receive inputs<a class="headerlink" href="#3-check-whether-workers-receive-inputs" title="Permanent link">&para;</a></h2>
+<p>Start with either view of source activity:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>sources-validity
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>source-age
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>source-age<span class="w"> </span>-u<span class="w"> </span>seconds
+</code></pre></div>
+<p><code>sources-validity</code> and <code>source-age</code> are two views of the same telemetry records. For each datapoint source tag, they show either the latest datapoint validity timestamp (<code>t2</code>, or <code>t1</code> when <code>t2</code> is absent) or its age. The timestamp is recorded by an <code>on_task_start</code> hook, before task validation, database insertion, and attribute hooks.</p>
+<p>Use this to find sources that have stopped sending data. Keep these limitations in mind:</p>
+<ul>
+<li>It shows that a worker received a task carrying the source, not that the task completed successfully. Validation, database insertion, or a later callback can still fail.</li>
+<li>A source remains listed after it becomes inactive. It can therefore appear here even after HistoryManager has deleted all of its old entity data.</li>
+<li>It does not report whether a secondary module processed the datapoint successfully.</li>
+</ul>
+<h2 id="4-check-how-much-data-reached-the-database">4. Check how much data reached the database<a class="headerlink" href="#4-check-how-much-data-reached-the-database" title="Permanent link">&para;</a></h2>
+<p>Get current entity counts at attribute granularity:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>entities-per-attr
+</code></pre></div>
+<p>This answers “how many entities currently have each attribute?”. It counts value presence in the database, rather than the number of datapoints received over time.</p>
+<p>To inspect the logical size of attributes stored in master documents, call:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>attribute-bson-sizes
+</code></pre></div>
+<p>The equivalent HTTP endpoint is <code>GET /telemetry/attribute_bson_sizes</code>.</p>
+<p>For each configured attribute, the cached result contains <code>count</code>, <code>min</code>, <code>mean</code>, <code>max</code>, and
+<code>total</code>, plus the calculation timestamp and sweep duration for its entity type. Only master
+documents where the attribute field is physically present contribute. An attribute with no
+values has a zero count and total, with <code>null</code> minimum, mean, and maximum.</p>
+<p>An attribute's logical contribution is the BSON size of <code>{attribute_name: attribute_value}</code> minus
+the shared five-byte BSON document overhead. This measures the complete value as represented in
+the master document: plain attributes therefore include their <code>{v, ts_last_update}</code> wrapper, and
+observation and timeseries attributes include their stored history arrays. These values are
+logical BSON bytes, <strong>not</strong> compressed on-disk usage, index size, raw-datapoint storage, or
+snapshot storage. Results come only from the cache; API requests never start a master collection
+scan. Worker process 0 schedules an initial sweep when the cache is incomplete and refreshes it on
+the schedule configured in <a href="../../configuration/telemetry/"><code>telemetry.yml</code></a>.</p>
+<p>To drill into a particular attribute, list each distinct latest value and its entity count:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entity<span class="w"> </span>&lt;ETYPE&gt;<span class="w"> </span>attr-values<span class="w"> </span>&lt;ATTR&gt;
+</code></pre></div>
+<p>The equivalent HTTP endpoint is <a href="../../api/#get-distinct-values"><code>GET /entity/&lt;entity_type&gt;/_/distinct/&lt;attr_id&gt;</code></a>.</p>
+<h2 id="5-check-secondary-module-hooks">5. Check secondary-module hooks<a class="headerlink" href="#5-check-secondary-module-hooks" title="Permanent link">&para;</a></h2>
+<p>Task-executor, snapshot, and periodic updater hooks publish execution statistics to the <code>secondary_hooks</code> EventCountLogger group. Read the counters for the current and last intervals with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>event-counts<span class="w"> </span>--group<span class="w"> </span>secondary_hooks<span class="w"> </span>--interval<span class="w"> </span>5m<span class="w"> </span>--both
+</code></pre></div>
+<p>Counter names use <code>&lt;hook-family&gt;/&lt;callback&gt;/&lt;context&gt;/&lt;metric&gt;</code>. The callback is module-qualified, while bound <code>partial</code> arguments are omitted so configuration values do not become part of the metric identity. Hooks with the same callback and context therefore share counters even when their bound arguments differ. The context is one parenthesized namespace component identifying the entity, attribute, or snapshot scope. Reserved separators inside components are URL-escaped, including <code>/</code> in context values. All tracked hooks report <code>executions</code>, <code>failures</code>, and <code>duration_ns</code>. Hooks that can return datapoint tasks also report <code>created_tasks</code> when they create at least one. <code>allow_entity_creation</code> hooks instead report <code>decisions_allowed</code> or <code>decisions_denied</code> for successful calls.</p>
+<p>Snapshot telemetry covers timeseries, correlation, snapshot-run initialization, and snapshot-run finalization hooks. Timeseries counter contexts include the entity and attribute. Correlation counter contexts include only the entity type; dependency and changed-attribute declarations are omitted. Correlation hooks run once for each applicable entity, so their execution and task counts can be higher than the number of snapshot runs. Initialization and finalization hooks run once per worker because snapshot-run messages are broadcast to all workers.</p>
+<p>Periodic updater telemetry uses separate <code>periodic_update</code> and <code>periodic_eid_update</code> families. Its counter context contains the entity type, configured hook ID, and update period. Each execution represents one callback invocation for one entity in an updater batch.</p>
+<p>An allowed decision only means that one hook returned a truthy value. A later hook can still deny creation, and a later processing error can prevent the entity from being stored. A hook that denies creation also stops subsequent allow hooks from running.</p>
+<p>Use <code>duration_ns / executions</code> to calculate the mean callback duration in an interval. The duration includes failed executions, while <code>created_tasks</code> counts tasks returned by the hook rather than tasks subsequently processed successfully.</p>
+<p>The counters identify a failing callback, but the worker log contains its exception details:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>grep<span class="w"> </span>-F<span class="w"> </span><span class="s1">&#39;&lt;ModuleClass&gt;&#39;</span><span class="w"> </span>/var/log/&lt;APPNAME&gt;/worker*.log
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>grep<span class="w"> </span><span class="s1">&#39;Exception\|Error\|Traceback\|File &quot;&#39;</span><span class="w"> </span>-B1<span class="w"> </span>-A1<span class="w"> </span>/var/log/&lt;APPNAME&gt;/worker*.log
+</code></pre></div>
+<p>Callback registration is also logged during application startup. If no counters exist for a callback, restart the affected workers and search the startup logs for the module class name. This confirms whether its hooks were registered and exposes import or configuration errors.</p>
+<h2 id="6-read-redis-event-counters">6. Read Redis event counters<a class="headerlink" href="#6-read-redis-event-counters" title="Permanent link">&para;</a></h2>
+<p>Every standard DP³ deployment has Redis-backed event counters configured through <a href="../../configuration/event_logging/"><code>event_logging.yml</code></a>. Read the last completed interval by selecting a configured group and interval:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>event-counts<span class="w"> </span>-g<span class="w"> </span>te<span class="w"> </span>-i<span class="w"> </span>5m
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>event-counts<span class="w"> </span>--group<span class="w"> </span>tasks_by_src<span class="w"> </span>--interval<span class="w"> </span>2h
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>event-counts<span class="w"> </span>-g<span class="w"> </span>secondary_hooks<span class="w"> </span>-i<span class="w"> </span>5m
+</code></pre></div>
+<p>The command defaults to <code>--last</code>. Use <code>--current</code> for the incomplete interval or <code>--both</code> to return both periods:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>event-counts<span class="w"> </span>-g<span class="w"> </span>te<span class="w"> </span>-i<span class="w"> </span>5m<span class="w"> </span>--both
+</code></pre></div>
+<p>The <code>te</code> group contains task-processing and error counters. The <code>tasks_by_src</code> group contains one counter per observed datapoint source. The <code>secondary_hooks</code> group contains task-executor, snapshot, and periodic updater hook statistics described above. Groups and intervals are application-configurable; check <code>event_logging.yml</code> for the available values.</p>
+<p>This command uses the Redis connection from the selected DP³ configuration directory and must run from a host that can reach that Redis instance. Current counts may lag behind workers by each group's configured EventCountLogger synchronization interval. Last counts cover the most recently completed interval.</p>
+<h2 id="7-check-snapshot-processing">7. Check snapshot processing<a class="headerlink" href="#7-check-snapshot-processing" title="Permanent link">&para;</a></h2>
+<p>Use the summary for a quick view of recent snapshot runs:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>snapshot-summary
+</code></pre></div>
+<p>The result reports:</p>
+<ul>
+<li><code>latest_age</code>: seconds since the newest snapshot run started</li>
+<li><code>finished_age</code>: seconds since the newest completed run started</li>
+<li><code>entities</code>: entities handled by that completed run</li>
+<li><code>total_s</code>: duration of that completed run</li>
+</ul>
+<p>Unexpectedly old ages or unusually long durations are a reason to inspect metadata and worker logs. The summary is a formatted view of <code>SnapShooter</code> records in the internal <code>#metadata</code> collection.</p>
+<h2 id="8-investigate-periodic-processes-through-metadata">8. Investigate periodic processes through metadata<a class="headerlink" href="#8-investigate-periodic-processes-through-metadata" title="Permanent link">&para;</a></h2>
+<p>The metadata command gives a lower-level view of records produced by internal periodic processes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>metadata<span class="w"> </span>-m<span class="w"> </span>&lt;MODULE&gt;<span class="w"> </span>-l<span class="w"> </span><span class="m">5</span>
+</code></pre></div>
+<p>It supports module filtering with <code>-m</code>/<code>--module</code>, time bounds with <code>-f</code>/<code>--from</code> and <code>-t</code>/<code>--to</code>, pagination with <code>-s</code>/<code>--skip</code> and <code>-l</code>/<code>--limit</code>, ordering with <code>-S</code>/<code>--sort newest|oldest</code>, and output selection with <code>-F</code>/<code>--format json|ndjson</code>. Its default newline-delimited JSON output works well with <code>jq</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>metadata<span class="w"> </span>-m<span class="w"> </span>SnapShooter<span class="w"> </span>-l<span class="w"> </span><span class="m">5</span><span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;2026-07-30T12:00:00&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;{entities: .entities, components: .components, w_done: .workers_finished, start: .task_creation_start, end: .&quot;#last_update&quot;}&#39;</span><span class="w"> </span>-c
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>metadata<span class="w"> </span>-m<span class="w"> </span>HistoryManager<span class="w"> </span>-l<span class="w"> </span><span class="m">4</span><span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;2026-07-30T12:00:00&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;{id: ._id, entities: .entities, updated: .updated, rev_conflicts: .revision_conflicts, retries: .retries, retry_fail: .retry_exhausted, end: .&quot;#last_update&quot;}&#39;</span><span class="w"> </span>-c
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>metadata<span class="w"> </span>-m<span class="w"> </span>GarbageCollector<span class="w"> </span>-l<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;{id: ._id, etype: .entity, seen: .entities, deleted: .deleted, end: .&quot;#last_update&quot;}&#39;</span><span class="w"> </span>-c
+</code></pre></div>
+<p>Replace the example timestamps with the period you are investigating. For <code>SnapShooter</code>, <code>workers_finished</code> equal to the configured worker count means that all workers finished their part of the run. The snapshot summary treats a run as complete after linked-entity processing has also finished.</p>
+<p>Metadata is an internal diagnostic format, so fields differ by module and may change as the corresponding process evolves.</p>
+<h2 id="related-pages">Related pages<a class="headerlink" href="#related-pages" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../api/">API reference</a></li>
+<li><a href="../deploy-app/">How to deploy a DP³ application</a></li>
+<li><a href="../../configuration/event_logging/">Event logging configuration</a></li>
+<li><a href="../../configuration/processing_core/">Processing core configuration</a></li>
+</ul>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.db81ec45.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.4b2c34cd.min.js"></script>
+      
+        <script src="../../javascripts/mermaid.js"></script>
+      
+    
+  </body>
+</html>

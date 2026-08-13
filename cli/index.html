@@ -1,0 +1,1777 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Dynamic Profile Processing Platform">
+      
+      
+      
+        <link rel="canonical" href="https://cesnet.github.io/dp3/cli/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+        <link rel="next" href="../configuration/">
+      
+      <link rel="icon" href="../img/dp3-favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.0.12">
+    
+    
+      
+        <title>CLI - DP3</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.0d440cfe.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.2505c338.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/slate.css">
+    
+      <link rel="stylesheet" href="../stylesheets/mermaid.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dp3-sh-command-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="DP3" class="md-header__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DP3
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      <form class="md-header__option" data-md-component="palette">
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+          
+            <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+          
+          <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_2">
+          
+            <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12c0-2.42-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69Z"/></svg>
+            </label>
+          
+        
+      </form>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DP3" class="md-nav__button md-logo" aria-label="DP3" data-md-component="logo">
+      
+  <img src="../img/dp3-logo-min.svg" alt="logo">
+
+    </a>
+    DP3
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/CESNET/dp3" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    CESNET/dp3
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../howto/">How-to</a>
+          
+            <label for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          How-to
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/get-started/" class="md-nav__link">
+        Get started
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/add-attribute/" class="md-nav__link">
+        Add an attribute
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/add-input/" class="md-nav__link">
+        Add an input module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/add-module/" class="md-nav__link">
+        Add a secondary module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/test-module/" class="md-nav__link">
+        Test a secondary module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/telemetry/" class="md-nav__link">
+        Inspect telemetry
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/deploy-app/" class="md-nav__link">
+        Deploy an app
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/develop-dp3/" class="md-nav__link">
+        Develop DP3 itself
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../howto/extending/" class="md-nav__link">
+        Extend Docs
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          Concepts
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          Concepts
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        Architecture
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data_model/" class="md-nav__link">
+        Data model
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../history_management/" class="md-nav__link">
+        History management
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hooks/" class="md-nav__link">
+        Hooks
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          CLI
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        CLI
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#health" class="md-nav__link">
+    health
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datapoints" class="md-nav__link">
+    datapoints
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entities" class="md-nav__link">
+    entities
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entity" class="md-nav__link">
+    entity
+  </a>
+  
+    <nav class="md-nav" aria-label="entity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list" class="md-nav__link">
+    list
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#count" class="md-nav__link">
+    count
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#raw" class="md-nav__link">
+    raw
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attr-values" class="md-nav__link">
+    attr-values
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-get" class="md-nav__link">
+    id get
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-master" class="md-nav__link">
+    id master
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-snapshots" class="md-nav__link">
+    id snapshots
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-raw" class="md-nav__link">
+    id raw
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-attr" class="md-nav__link">
+    id attr
+  </a>
+  
+    <nav class="md-nav" aria-label="id attr">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get" class="md-nav__link">
+    get
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set" class="md-nav__link">
+    set
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-ttl" class="md-nav__link">
+    id ttl
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-delete" class="md-nav__link">
+    id delete
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#control" class="md-nav__link">
+    control
+  </a>
+  
+    <nav class="md-nav" aria-label="control">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#make-snapshots" class="md-nav__link">
+    make-snapshots
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refresh-on-entity-creation" class="md-nav__link">
+    refresh-on-entity-creation
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refresh-module-config" class="md-nav__link">
+    refresh-module-config
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#telemetry" class="md-nav__link">
+    telemetry
+  </a>
+  
+    <nav class="md-nav" aria-label="telemetry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sources-validity" class="md-nav__link">
+    sources-validity
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#source-age" class="md-nav__link">
+    source-age
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entities-per-attr" class="md-nav__link">
+    entities-per-attr
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attribute-bson-sizes" class="md-nav__link">
+    attribute-bson-sizes
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-summary" class="md-nav__link">
+    snapshot-summary
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadata" class="md-nav__link">
+    metadata
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rabbitmq-queues" class="md-nav__link">
+    rabbitmq-queues
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-counts" class="md-nav__link">
+    event-counts
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completion" class="md-nav__link">
+    completion
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+      
+      
+      
+        
+        
+        <div class="md-nav__link md-nav__link--index ">
+          <a href="../configuration/">Configuration</a>
+          
+            <label for="__nav_6">
+              <span class="md-nav__icon md-icon"></span>
+            </label>
+          
+        </div>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Configuration
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/api/" class="md-nav__link">
+        API
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/control/" class="md-nav__link">
+        Control
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/database/" class="md-nav__link">
+        Database
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/db_entities/" class="md-nav__link">
+        Database entities
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/lifetimes/" class="md-nav__link">
+        Entity Lifetimes
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/event_logging/" class="md-nav__link">
+        Event logging
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/history_manager/" class="md-nav__link">
+        History manager
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/modules/" class="md-nav__link">
+        Modules
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/processing_core/" class="md-nav__link">
+        Processing core
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/snapshots/" class="md-nav__link">
+        Snapshots
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/telemetry/" class="md-nav__link">
+        Telemetry
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/garbage_collector/" class="md-nav__link">
+        Garbage Collector
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/updater/" class="md-nav__link">
+        Updater
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        Code Reference
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        Scripts
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../grafana_plugin/" class="md-nav__link">
+        Grafana plugin
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#health" class="md-nav__link">
+    health
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datapoints" class="md-nav__link">
+    datapoints
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entities" class="md-nav__link">
+    entities
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entity" class="md-nav__link">
+    entity
+  </a>
+  
+    <nav class="md-nav" aria-label="entity">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list" class="md-nav__link">
+    list
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#count" class="md-nav__link">
+    count
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#raw" class="md-nav__link">
+    raw
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attr-values" class="md-nav__link">
+    attr-values
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-get" class="md-nav__link">
+    id get
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-master" class="md-nav__link">
+    id master
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-snapshots" class="md-nav__link">
+    id snapshots
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-raw" class="md-nav__link">
+    id raw
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-attr" class="md-nav__link">
+    id attr
+  </a>
+  
+    <nav class="md-nav" aria-label="id attr">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get" class="md-nav__link">
+    get
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set" class="md-nav__link">
+    set
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-ttl" class="md-nav__link">
+    id ttl
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id-delete" class="md-nav__link">
+    id delete
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#control" class="md-nav__link">
+    control
+  </a>
+  
+    <nav class="md-nav" aria-label="control">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#make-snapshots" class="md-nav__link">
+    make-snapshots
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refresh-on-entity-creation" class="md-nav__link">
+    refresh-on-entity-creation
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#refresh-module-config" class="md-nav__link">
+    refresh-module-config
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#telemetry" class="md-nav__link">
+    telemetry
+  </a>
+  
+    <nav class="md-nav" aria-label="telemetry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sources-validity" class="md-nav__link">
+    sources-validity
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#source-age" class="md-nav__link">
+    source-age
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entities-per-attr" class="md-nav__link">
+    entities-per-attr
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attribute-bson-sizes" class="md-nav__link">
+    attribute-bson-sizes
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot-summary" class="md-nav__link">
+    snapshot-summary
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadata" class="md-nav__link">
+    metadata
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rabbitmq-queues" class="md-nav__link">
+    rabbitmq-queues
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event-counts" class="md-nav__link">
+    event-counts
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#completion" class="md-nav__link">
+    completion
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+
+<h1 id="dp3-sh-command-reference"><code>dp3 sh</code> command reference<a class="headerlink" href="#dp3-sh-command-reference" title="Permanent link">&para;</a></h1>
+<p><code>dp3 sh</code> is a shell-oriented client for reading from and writing to a running DP³ API. It formats API responses as JSON or newline-delimited JSON and provides commands for datapoints, entities, control actions, telemetry, and shell completion.</p>
+<p>On a deployment host, you can use the generated <code>&lt;APPNAME&gt;sh</code> wrapper in place of <code>dp3 sh</code>. The wrapper supplies the application's configuration directory. Otherwise, select a configuration with <code>--config</code> or <code>DP3_CONFIG_DIR</code>, and use <code>--url</code> when the API is not available through the automatically probed localhost URLs.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>usage: dp3 sh [-h] [-c CONFIG] [-u URL] [-t TIMEOUT]
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>              {health,datapoints,entities,entity,control,telemetry,completion}
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>              ...
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>positional arguments:
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  {health,datapoints,entities,entity,control,telemetry,completion}
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    health              Check whether the API is reachable.
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    datapoints          Post datapoints from JSON input.
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    entities            Return the full entity-type map exposed by the API.
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    entity              Inspect and modify entity data.
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    control             Execute control actions.
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    telemetry           Read operational telemetry.
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    completion          Print shell completion scripts.
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>options:
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>  -c CONFIG, --config CONFIG
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>                        Path to the DP3 configuration directory. Resolution
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>                        order: --config, DP3_CONFIG_DIR, ./config.
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>  -u URL, --url URL     Base URL of the DP3 API. When omitted, localhost
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>                        defaults are probed.
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>  -t TIMEOUT, --timeout TIMEOUT
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>                        HTTP timeout in seconds.
+</code></pre></div>
+<h2 id="health"><code>health</code><a class="headerlink" href="#health" title="Permanent link">&para;</a></h2>
+<p>Check whether the configured DP³ API is reachable.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>usage: dp3 sh health [-h]
+</code></pre></div>
+<h2 id="datapoints"><code>datapoints</code><a class="headerlink" href="#datapoints" title="Permanent link">&para;</a></h2>
+<p>Post a JSON array of datapoints from a file or standard input. Each datapoint must contain <code>type</code>, <code>id</code>, <code>attr</code>, <code>v</code>, and <code>src</code>; observations and time series also require ISO 8601 <code>t1</code> and <code>t2</code> timestamps.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>usage: dp3 sh datapoints [-h] [path]
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>positional arguments:
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  path  Path to a JSON file, or &#39;-&#39; / omitted to read stdin.
+</code></pre></div>
+<h2 id="entities"><code>entities</code><a class="headerlink" href="#entities" title="Permanent link">&para;</a></h2>
+<p>Return the full entity-type map exposed by the API. Pipe the result through <code>jq keys</code> to print only entity type names.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entities<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>keys
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>usage: dp3 sh entities [-h]
+</code></pre></div>
+<h2 id="entity"><code>entity</code><a class="headerlink" href="#entity" title="Permanent link">&para;</a></h2>
+<p>Inspect and modify data for a selected entity type. Use <code>dp3 sh entities</code> to list the available entity types.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>usage: dp3 sh entity [-h] [ENTITY_TYPE] ...
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>positional arguments:
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  ENTITY_TYPE  Entity type.
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  ...
+</code></pre></div>
+<h3 id="list"><code>list</code><a class="headerlink" href="#list" title="Permanent link">&para;</a></h3>
+<p>List latest snapshots for entities of type <code>&lt;ETYPE&gt;</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; list [-h] [-q FULLTEXT_JSON] [-j FILTER_JSON]
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>                                  [-a HAS_ATTR] [-s SKIP] [-l LIMIT]
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>                                  [-F {json,ndjson}]
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>options:
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  -q FULLTEXT_JSON, --fulltext-json FULLTEXT_JSON
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>                        JSON object with fulltext search filters, for example
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>                        `{&quot;name&quot;:&quot;router&quot;}`.
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>  -j FILTER_JSON, --filter-json FILTER_JSON
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>                        JSON object using MongoDB query syntax.
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>  -a HAS_ATTR, --has-attr HAS_ATTR
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>                        Limit results to latest snapshots where the attribute
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>                        has data present.
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>  -s SKIP, --skip SKIP  Skip this many results before returning data.
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>  -l LIMIT, --limit LIMIT
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>                        Return at most this many results.
+<a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>  -F {json,ndjson}, --format {json,ndjson}
+<a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>                        Choose JSON or NDJSON output.
+</code></pre></div>
+<h3 id="count"><code>count</code><a class="headerlink" href="#count" title="Permanent link">&para;</a></h3>
+<p>Count latest snapshots for entities of type <code>&lt;ETYPE&gt;</code>. JSON filters use MongoDB query syntax.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entity<span class="w"> </span>&lt;ETYPE&gt;<span class="w"> </span>count<span class="w"> </span>--filter-json<span class="w"> </span><span class="s1">&#39;{&quot;last.active&quot;:true}&#39;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; count [-h] [-q FULLTEXT_JSON] [-j FILTER_JSON]
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>                                   [-a HAS_ATTR]
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>options:
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>  -q FULLTEXT_JSON, --fulltext-json FULLTEXT_JSON
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>                        JSON object with fulltext search filters, for example
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>                        `{&quot;name&quot;:&quot;router&quot;}`.
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>  -j FILTER_JSON, --filter-json FILTER_JSON
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>                        JSON object using MongoDB query syntax.
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>  -a HAS_ATTR, --has-attr HAS_ATTR
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>                        Limit results to latest snapshots where the attribute
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>                        has data present.
+</code></pre></div>
+<h3 id="raw"><code>raw</code><a class="headerlink" href="#raw" title="Permanent link">&para;</a></h3>
+<p>Browse current raw datapoints for entities of type <code>&lt;ETYPE&gt;</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entity<span class="w"> </span>&lt;ETYPE&gt;<span class="w"> </span>raw<span class="w"> </span>--attr<span class="w"> </span>ATTR<span class="w"> </span>--src<span class="w"> </span>SOURCE<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span><span class="w"> </span>--format<span class="w"> </span>ndjson
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; raw [-h] [-a ATTR] [-r SRC] [-s SKIP] [-l LIMIT]
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>                                 [-F {json,ndjson}]
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>options:
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>  -a ATTR, --attr ATTR  Limit raw datapoints to one attribute.
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>  -r SRC, --src SRC     Limit raw datapoints to one source.
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>  -s SKIP, --skip SKIP  Skip this many raw datapoints before returning data.
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>  -l LIMIT, --limit LIMIT
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>                        Return at most this many raw datapoints.
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>  -F {json,ndjson}, --format {json,ndjson}
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>                        Choose JSON or NDJSON output.
+</code></pre></div>
+<h3 id="attr-values"><code>attr-values</code><a class="headerlink" href="#attr-values" title="Permanent link">&para;</a></h3>
+<p>Get distinct latest values of an attribute across entities of type <code>&lt;ETYPE&gt;</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; attr-values [-h] ATTR
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>positional arguments:
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  ATTR  Attribute to query across the entity type.
+</code></pre></div>
+<h3 id="id-get"><code>id get</code><a class="headerlink" href="#id-get" title="Permanent link">&para;</a></h3>
+<p>Get full data for one entity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID get [-h] [-f DATE_FROM] [-t DATE_TO]
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>options:
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>  -f DATE_FROM, --from DATE_FROM
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>                        ISO 8601 lower timestamp bound of the time range.
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>  -t DATE_TO, --to DATE_TO
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>                        ISO 8601 upper timestamp bound of the time range.
+</code></pre></div>
+<h3 id="id-master"><code>id master</code><a class="headerlink" href="#id-master" title="Permanent link">&para;</a></h3>
+<p>Get the master record for one entity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID master [-h] [-f DATE_FROM] [-t DATE_TO]
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>options:
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>  -f DATE_FROM, --from DATE_FROM
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>                        ISO 8601 lower timestamp bound of the time range.
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>  -t DATE_TO, --to DATE_TO
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>                        ISO 8601 upper timestamp bound of the time range.
+</code></pre></div>
+<h3 id="id-snapshots"><code>id snapshots</code><a class="headerlink" href="#id-snapshots" title="Permanent link">&para;</a></h3>
+<p>Get snapshots for one entity. Time bounds are ISO 8601 timestamps.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entity<span class="w"> </span>&lt;ETYPE&gt;<span class="w"> </span>id<span class="w"> </span>EID<span class="w"> </span>snapshots<span class="w"> </span>--from<span class="w"> </span><span class="m">2024</span>-01-01T00:00:00Z<span class="w"> </span>--to<span class="w"> </span><span class="m">2024</span>-02-01T00:00:00Z<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span><span class="w"> </span>--format<span class="w"> </span>ndjson
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID snapshots [-h] [-f DATE_FROM] [-t DATE_TO]
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>                                              [-s SKIP] [-l LIMIT]
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>                                              [-F {json,ndjson}]
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>options:
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>  -f DATE_FROM, --from DATE_FROM
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>                        ISO 8601 lower timestamp bound of the snapshot time
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>                        range.
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a>  -t DATE_TO, --to DATE_TO
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a>                        ISO 8601 upper timestamp bound of the snapshot time
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a>                        range.
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a>  -s SKIP, --skip SKIP  Skip this many snapshots before returning data.
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>  -l LIMIT, --limit LIMIT
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a>                        Return at most this many snapshots.
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a>  -F {json,ndjson}, --format {json,ndjson}
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a>                        Choose JSON or NDJSON output.
+</code></pre></div>
+<h3 id="id-raw"><code>id raw</code><a class="headerlink" href="#id-raw" title="Permanent link">&para;</a></h3>
+<p>Browse current raw datapoints for one entity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entity<span class="w"> </span>&lt;ETYPE&gt;<span class="w"> </span>id<span class="w"> </span>EID<span class="w"> </span>raw<span class="w"> </span>--attr<span class="w"> </span>ATTR<span class="w"> </span>--src<span class="w"> </span>SOURCE<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span><span class="w"> </span>--format<span class="w"> </span>ndjson
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID raw [-h] [-a ATTR] [-r SRC] [-s SKIP]
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>                                        [-l LIMIT] [-F {json,ndjson}]
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>options:
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>  -a ATTR, --attr ATTR  Limit raw datapoints to one attribute.
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>  -r SRC, --src SRC     Limit raw datapoints to one source.
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>  -s SKIP, --skip SKIP  Skip this many raw datapoints before returning data.
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>  -l LIMIT, --limit LIMIT
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>                        Return at most this many raw datapoints.
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>  -F {json,ndjson}, --format {json,ndjson}
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>                        Choose JSON or NDJSON output.
+</code></pre></div>
+<h3 id="id-attr"><code>id attr</code><a class="headerlink" href="#id-attr" title="Permanent link">&para;</a></h3>
+<p>Get or modify one attribute value for one entity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID attr [-h] ATTR {get,set} ...
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>positional arguments:
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>  ATTR
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>  {get,set}
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    get      Get an entity attribute value.
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    set      Set a current entity attribute value.
+</code></pre></div>
+<h4 id="get"><code>get</code><a class="headerlink" href="#get" title="Permanent link">&para;</a></h4>
+<p>Get one attribute value for one entity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID attr ATTR get [-h] [-f DATE_FROM]
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>                                                  [-t DATE_TO]
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>options:
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>  -f DATE_FROM, --from DATE_FROM
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>                        ISO 8601 lower timestamp bound of the time range.
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>  -t DATE_TO, --to DATE_TO
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>                        ISO 8601 upper timestamp bound of the time range.
+</code></pre></div>
+<h4 id="set"><code>set</code><a class="headerlink" href="#set" title="Permanent link">&para;</a></h4>
+<p>Set the current value of one entity attribute from a JSON literal.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entity<span class="w"> </span>&lt;ETYPE&gt;<span class="w"> </span>id<span class="w"> </span>EID<span class="w"> </span>attr<span class="w"> </span>ATTR<span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="s1">&#39;&quot;value&quot;&#39;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID attr ATTR set [-h] VALUE_JSON
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>positional arguments:
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>  VALUE_JSON  JSON literal value, for example `&quot;hello&quot;`, `42`, `true`, or
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>              `{&quot;k&quot;:1}`.
+</code></pre></div>
+<h3 id="id-ttl"><code>id ttl</code><a class="headerlink" href="#id-ttl" title="Permanent link">&para;</a></h3>
+<p>Extend TTLs for one entity using a JSON request body.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>entity<span class="w"> </span>&lt;ETYPE&gt;<span class="w"> </span>id<span class="w"> </span>EID<span class="w"> </span>ttl<span class="w"> </span>--body-json<span class="w"> </span><span class="s1">&#39;{&quot;manual&quot;:&quot;2030-01-01T00:00:00Z&quot;}&#39;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID ttl [-h] -b BODY_JSON
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>options:
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>  -b BODY_JSON, --body-json BODY_JSON
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>                        JSON body describing the TTL update request.
+</code></pre></div>
+<h3 id="id-delete"><code>id delete</code><a class="headerlink" href="#id-delete" title="Permanent link">&para;</a></h3>
+<p>Delete data for one entity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>usage: dp3 sh entity &lt;ETYPE&gt; id EID delete [-h]
+</code></pre></div>
+<h2 id="control"><code>control</code><a class="headerlink" href="#control" title="Permanent link">&para;</a></h2>
+<p>Execute operational control actions against the DP³ API.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>usage: dp3 sh control [-h]
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>                      {make-snapshots,refresh-on-entity-creation,refresh-module-config}
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>                      ...
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>positional arguments:
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>  {make-snapshots,refresh-on-entity-creation,refresh-module-config}
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>    make-snapshots      Trigger an out-of-order snapshot run.
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>    refresh-on-entity-creation
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>                        Re-run entity creation callbacks for an entity type.
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>    refresh-module-config
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>                        Reload module configuration.
+</code></pre></div>
+<h3 id="make-snapshots"><code>make-snapshots</code><a class="headerlink" href="#make-snapshots" title="Permanent link">&para;</a></h3>
+<p>Trigger an out-of-order snapshot run.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>usage: dp3 sh control make-snapshots [-h]
+</code></pre></div>
+<h3 id="refresh-on-entity-creation"><code>refresh-on-entity-creation</code><a class="headerlink" href="#refresh-on-entity-creation" title="Permanent link">&para;</a></h3>
+<p>Re-run entity-creation callbacks for one entity type.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>usage: dp3 sh control refresh-on-entity-creation [-h] etype
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>positional arguments:
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>  etype
+</code></pre></div>
+<h3 id="refresh-module-config"><code>refresh-module-config</code><a class="headerlink" href="#refresh-module-config" title="Permanent link">&para;</a></h3>
+<p>Reload configuration for one module.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>usage: dp3 sh control refresh-module-config [-h] module
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>positional arguments:
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>  module
+</code></pre></div>
+<h2 id="telemetry"><code>telemetry</code><a class="headerlink" href="#telemetry" title="Permanent link">&para;</a></h2>
+<p>Read operational telemetry from DP³ services.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>usage: dp3 sh telemetry [-h]
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>                        {sources-validity,source-age,entities-per-attr,attribute-bson-sizes,snapshot-summary,metadata,rabbitmq-queues,event-counts}
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>                        ...
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>positional arguments:
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>  {sources-validity,source-age,entities-per-attr,attribute-bson-sizes,snapshot-summary,metadata,rabbitmq-queues,event-counts}
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>    sources-validity    Show source validity timestamps.
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>    source-age          Show source ages.
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>    entities-per-attr   Count entities with data present for each attribute.
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>    attribute-bson-sizes
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>                        Show cached logical BSON-size statistics for
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>                        attributes.
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    snapshot-summary    Show recent snapshot activity summary.
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    metadata            Browse internal metadata records.
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>    rabbitmq-queues     Show RabbitMQ queue telemetry.
+<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>    event-counts        Read EventCountLogger counters from Redis.
+</code></pre></div>
+<h3 id="sources-validity"><code>sources-validity</code><a class="headerlink" href="#sources-validity" title="Permanent link">&para;</a></h3>
+<p>Show the latest datapoint validity timestamp observed for each source.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>usage: dp3 sh telemetry sources-validity [-h]
+</code></pre></div>
+<h3 id="source-age"><code>source-age</code><a class="headerlink" href="#source-age" title="Permanent link">&para;</a></h3>
+<p>Show the age of each source in the selected unit.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>usage: dp3 sh telemetry source-age [-h] [-u {minutes,seconds}]
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>options:
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>  -u {minutes,seconds}, --unit {minutes,seconds}
+</code></pre></div>
+<h3 id="entities-per-attr"><code>entities-per-attr</code><a class="headerlink" href="#entities-per-attr" title="Permanent link">&para;</a></h3>
+<p>Count entities with data present for each configured attribute.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>usage: dp3 sh telemetry entities-per-attr [-h]
+</code></pre></div>
+<h3 id="attribute-bson-sizes"><code>attribute-bson-sizes</code><a class="headerlink" href="#attribute-bson-sizes" title="Permanent link">&para;</a></h3>
+<p>Show cached logical BSON-size statistics for configured attributes.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>usage: dp3 sh telemetry attribute-bson-sizes [-h]
+</code></pre></div>
+<h3 id="snapshot-summary"><code>snapshot-summary</code><a class="headerlink" href="#snapshot-summary" title="Permanent link">&para;</a></h3>
+<p>Show a summary of recent snapshot activity.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>usage: dp3 sh telemetry snapshot-summary [-h]
+</code></pre></div>
+<h3 id="metadata"><code>metadata</code><a class="headerlink" href="#metadata" title="Permanent link">&para;</a></h3>
+<p>Browse diagnostic records produced by internal periodic processes. Time bounds are ISO 8601 timestamps.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>metadata<span class="w"> </span>--module<span class="w"> </span>SnapShooter<span class="w"> </span>--from<span class="w"> </span><span class="m">2024</span>-01-01T00:00:00Z<span class="w"> </span>--sort<span class="w"> </span>oldest<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span><span class="w"> </span>--format<span class="w"> </span>ndjson
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>usage: dp3 sh telemetry metadata [-h] [-m MODULE] [-f DATE_FROM] [-t DATE_TO]
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>                                 [-s SKIP] [-l LIMIT] [-S {newest,oldest}]
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>                                 [-F {json,ndjson}]
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>options:
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>  -m MODULE, --module MODULE
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>                        Limit records to one module.
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>  -f DATE_FROM, --from DATE_FROM
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>                        ISO 8601 lower timestamp bound.
+<a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a>  -t DATE_TO, --to DATE_TO
+<a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a>                        ISO 8601 upper timestamp bound.
+<a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a>  -s SKIP, --skip SKIP  Skip this many records.
+<a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a>  -l LIMIT, --limit LIMIT
+<a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a>                        Return at most this many records.
+<a id="__codelineno-36-15" name="__codelineno-36-15" href="#__codelineno-36-15"></a>  -S {newest,oldest}, --sort {newest,oldest}
+<a id="__codelineno-36-16" name="__codelineno-36-16" href="#__codelineno-36-16"></a>                        Select record ordering.
+<a id="__codelineno-36-17" name="__codelineno-36-17" href="#__codelineno-36-17"></a>  -F {json,ndjson}, --format {json,ndjson}
+<a id="__codelineno-36-18" name="__codelineno-36-18" href="#__codelineno-36-18"></a>                        Choose JSON or NDJSON output.
+</code></pre></div>
+<h3 id="rabbitmq-queues"><code>rabbitmq-queues</code><a class="headerlink" href="#rabbitmq-queues" title="Permanent link">&para;</a></h3>
+<p>Show queue sizes, consumers, and message rates for the application.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>usage: dp3 sh telemetry rabbitmq-queues [-h]
+</code></pre></div>
+<h3 id="event-counts"><code>event-counts</code><a class="headerlink" href="#event-counts" title="Permanent link">&para;</a></h3>
+<p>Read EventCountLogger counters directly from the configured Redis instance.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>telemetry<span class="w"> </span>event-counts<span class="w"> </span>--group<span class="w"> </span>te<span class="w"> </span>--interval<span class="w"> </span>5m<span class="w"> </span>--both
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>usage: dp3 sh telemetry event-counts [-h] -g GROUP -i INTERVAL
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>                                     [--last | --current | --both]
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>options:
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>  -g GROUP, --group GROUP
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>                        Configured event counter group.
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>  -i INTERVAL, --interval INTERVAL
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>                        Configured counter interval.
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>  --last                Show the last completed interval (default).
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>  --current             Show the current incomplete interval.
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>  --both                Show both the last and current intervals.
+</code></pre></div>
+<h2 id="completion"><code>completion</code><a class="headerlink" href="#completion" title="Permanent link">&para;</a></h2>
+<p>Print an argcomplete registration script for the selected shell. Evaluate the output or source it from your shell startup file.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>dp3<span class="w"> </span>sh<span class="w"> </span>completion<span class="w"> </span>bash<span class="w"> </span>--command<span class="w"> </span>dp3
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>usage: dp3 sh completion [-h] [-c COMPLETION_COMMANDS]
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>                         {bash,zsh,fish,tcsh,powershell}
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>positional arguments:
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>  {bash,zsh,fish,tcsh,powershell}
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>                        Shell name.
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>options:
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>  -c COMPLETION_COMMANDS, --command COMPLETION_COMMANDS
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>                        Command name to register completion for. Repeat to
+<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>                        register multiple commands. Use `dp3` for `dp3 sh` and
+<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>                        `&lt;APPNAME&gt;sh` for wrapper commands.
+</code></pre></div>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.db81ec45.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.4b2c34cd.min.js"></script>
+      
+        <script src="../javascripts/mermaid.js"></script>
+      
+    
+  </body>
+</html>

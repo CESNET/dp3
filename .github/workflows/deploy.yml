@@ -18,5 +18,5 @@ jobs:
         with:
           key: ${{ github.ref }}
           path: .cache
-      - run: pip install -r requirements.dev.txt
+      - run: pip install ".[dev]"
       - run: DISABLE_MKDOCS_2_WARNING=true mkdocs gh-deploy --force

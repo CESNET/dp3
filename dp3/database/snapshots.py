@@ -781,7 +781,7 @@ class StringEidSnapshots(TypedSnapshotCollection):
         return {"_id": {"$regex": f"^{re.escape(str(eid))}_#"}}
 
     def _filter_from_eids(self, eids: Iterable[str]) -> dict:
-        return {"_id": {"$regex": "|".join([f"^{re.escape(eid)}_#" for eid in eids])}}
+        return {"$or": [self._filter_from_eid(eid) for eid in eids]}
 
     def _filter_from_bid(self, b_id: str) -> dict:
         eid = self._eid_from_bid(b_id)

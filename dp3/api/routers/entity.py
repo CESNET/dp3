@@ -432,9 +432,10 @@ async def get_entity_type_eids(
 
         # Apply sorting if specified
         if sort_criteria:
-            # 'eid' is a pseudo-attribute: for binary-eid collections the _id prefix
-            # is the packed EID, so sorting by _id matches entity order.
-            # All other attributes live under 'last.'
+            # 'eid' uses snapshot _id storage order so standalone EID sorts can use
+            # the _id index. This intentionally differs from natural EID order for
+            # some strings (bucket suffixes) and signed integers (binary encoding).
+            # Other attributes live under 'last.'
             sort_spec = [
                 ("_id" if attr == "eid" else "last." + attr, direction)
                 for attr, direction in sort_criteria

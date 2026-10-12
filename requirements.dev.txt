@@ -3,7 +3,7 @@ mkdocs-gen-files>=0.4
 mkdocs-literate-nav>=0.6
 mkdocs-llmstxt
 mkdocs-macros-plugin==1.5.0
-mkdocs-material==9.0.12
+mkdocs-material==9.7.7
 mkdocs-section-index>=0.3
 mkdocstrings>=0.19
 mkdocstrings-python>=0.8

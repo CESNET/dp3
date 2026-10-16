@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import requests
@@ -14,6 +15,7 @@ from dp3.common.task import DataPointTask
 from dp3.database.database import EntityDatabase
 
 ATTRIBUTE_BSON_SIZES_TYPE = "attribute_bson_sizes"
+ENTITIES_PER_ATTR_TYPE = "entities_per_attr"
 
 
 class TelemetryConfig(BaseModel):
@@ -22,6 +24,7 @@ class TelemetryConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     attribute_bson_size_schedule: CronExpression = CronExpression(hour=3, minute=15)
+    entities_per_attr_schedule: CronExpression = CronExpression(minute="7,37")
 
 
 class Telemetry:
@@ -38,6 +41,7 @@ class Telemetry:
         self.local_cache = {}
         self.local_cache_lock = threading.Lock()
         self.attribute_bson_size_lock = threading.Lock()
+        self.entities_per_attr_lock = threading.Lock()
 
         # Schedule master document aggregation
         registrar.register_task_hook("on_task_start", self.note_latest_src_timestamp)
@@ -51,31 +55,45 @@ class Telemetry:
         )
 
         if platform_config.process_index == 0:
-            registrar.scheduler_register(
+            self._schedule_collection(
+                registrar,
+                ATTRIBUTE_BSON_SIZES_TYPE,
                 self.collect_attribute_bson_sizes,
-                **self.config.attribute_bson_size_schedule.model_dump(),
+                self.config.attribute_bson_size_schedule,
             )
-            configured_entities = set(self.model_spec.entities)
-            try:
-                cached_entities = set(
-                    self.cache_col.distinct(
-                        "entity_type", {"telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE}
-                    )
-                )
-            except Exception:
-                cached_entities = set()
-                self.log.exception(
-                    "Failed to check the attribute BSON-size cache; scheduling an initial sweep."
-                )
-            if not configured_entities.issubset(cached_entities):
-                registrar.scheduler_register_once(
-                    self.collect_attribute_bson_sizes, misfire_grace_time=300
-                )
+            self._schedule_collection(
+                registrar,
+                ENTITIES_PER_ATTR_TYPE,
+                self.collect_entities_per_attr,
+                self.config.entities_per_attr_schedule,
+            )
         else:
             self.log.debug(
-                "Attribute BSON-size collection is disabled in this worker to avoid duplicate "
-                "full collection scans."
+                "Attribute BSON-size and entity count collection are disabled in this worker "
+                "to avoid duplicate full collection scans."
             )
+
+    def _schedule_collection(
+        self,
+        registrar: CallbackRegistrar,
+        telemetry_type: str,
+        callback: Callable[[], None],
+        schedule: CronExpression,
+    ) -> None:
+        """Schedule periodic collection and an initial sweep if the cache is incomplete."""
+        registrar.scheduler_register(callback, **schedule.model_dump())
+        configured_entities = set(self.model_spec.entities)
+        try:
+            cached_entities = set(
+                self.cache_col.distinct("entity_type", {"telemetry_type": telemetry_type})
+            )
+        except Exception:
+            cached_entities = set()
+            self.log.exception(
+                "Failed to check the %s cache; scheduling an initial sweep.", telemetry_type
+            )
+        if not configured_entities.issubset(cached_entities):
+            registrar.scheduler_register_once(callback, misfire_grace_time=300)
 
     def note_latest_src_timestamp(self, task: DataPointTask):
         """Note the latest timestamp of each source in the task"""
@@ -146,40 +164,48 @@ class Telemetry:
     def collect_attribute_bson_sizes(self):
         """Calculate and atomically publish attribute size statistics per entity type."""
         with self.attribute_bson_size_lock:
-            for entity_type in self.model_spec.entities:
-                start = time.monotonic()
-                try:
-                    attributes = self.db.get_attribute_bson_size_stats(entity_type)
-                    duration = time.monotonic() - start
-                    calculated_at = datetime.now(UTC)
-                    record = {
-                        "_id": {
-                            "telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE,
-                            "entity_type": entity_type,
-                        },
-                        "telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE,
-                        "entity_type": entity_type,
-                        "calculated_at": calculated_at,
-                        "duration_s": duration,
-                        "attributes": attributes,
-                    }
-                    self.cache_col.replace_one({"_id": record["_id"]}, record, upsert=True)
-                    self.log.info(
-                        "Calculated attribute BSON sizes for %s in %.3fs", entity_type, duration
-                    )
-                except Exception:
-                    self.log.exception(
-                        "Failed to calculate attribute BSON sizes for %s; retaining the previous "
-                        "cached result.",
-                        entity_type,
-                    )
+            self._collect_and_save(ATTRIBUTE_BSON_SIZES_TYPE, self.db.get_attribute_bson_size_stats)
 
-            self.cache_col.delete_many(
-                {
-                    "telemetry_type": ATTRIBUTE_BSON_SIZES_TYPE,
-                    "entity_type": {"$nin": list(self.model_spec.entities)},
+    def collect_entities_per_attr(self):
+        """Calculate and atomically publish entity counts per entity type."""
+        with self.entities_per_attr_lock:
+            self._collect_and_save(ENTITIES_PER_ATTR_TYPE, self.db.count_entities_per_attr)
+
+    def _collect_and_save(self, telemetry_type: str, collect: Callable[[str], dict]) -> None:
+        """Publish each entity's telemetry independently, retaining cached results on failure."""
+        for entity_type in self.model_spec.entities:
+            start = time.monotonic()
+            try:
+                attributes = collect(entity_type)
+                duration = time.monotonic() - start
+                record = {
+                    "_id": {
+                        "telemetry_type": telemetry_type,
+                        "entity_type": entity_type,
+                    },
+                    "telemetry_type": telemetry_type,
+                    "entity_type": entity_type,
+                    "calculated_at": datetime.now(UTC),
+                    "duration_s": duration,
+                    "attributes": attributes,
                 }
-            )
+                self.cache_col.replace_one({"_id": record["_id"]}, record, upsert=True)
+                self.log.info(
+                    "Calculated %s for %s in %.3fs", telemetry_type, entity_type, duration
+                )
+            except Exception:
+                self.log.exception(
+                    "Failed to calculate %s for %s; retaining the previous cached result.",
+                    telemetry_type,
+                    entity_type,
+                )
+
+        self.cache_col.delete_many(
+            {
+                "telemetry_type": telemetry_type,
+                "entity_type": {"$nin": list(self.model_spec.entities)},
+            }
+        )
 
 
 class TelemetryReader:
@@ -231,8 +257,11 @@ class TelemetryReader:
         }
 
     def get_entities_per_attr(self) -> dict[str, dict[str, int]]:
-        """Return counts of entities with data present for each configured attribute."""
-        return self.db.count_entities_per_attr()
+        """Return cached counts of entities with data present for each configured attribute."""
+        records = self.cache_col.find({"telemetry_type": ENTITIES_PER_ATTR_TYPE}).sort(
+            [("entity_type", ASCENDING)]
+        )
+        return {record["entity_type"]: record["attributes"] for record in records}
 
     def get_attribute_bson_sizes(self) -> dict[str, dict]:
         """Return the latest cached attribute BSON-size statistics."""

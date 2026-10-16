@@ -674,7 +674,11 @@ Returns age of the latest datapoint from each source.
 
 ## Entities per attribute
 
-Returns counts of entities for which each configured attribute currently has data present.
+Returns cached counts of entities for which each configured attribute has data present.
+API requests only read the cache. Worker process 0 populates an incomplete cache after startup
+and refreshes it every 30 minutes by default, configurable with `entities_per_attr_schedule` in
+[`telemetry.yml`](configuration/telemetry.md). Failed refreshes retain previous counts.
+Entity types without a cached result are omitted; an empty cache returns `{}`.
 
 ### Request
 

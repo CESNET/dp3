@@ -1,3 +1,8 @@
+# Refresh cached entity counts every 30 minutes, offset from five-minute job boundaries.
+# Collection is performed only by worker process 0.
+entities_per_attr_schedule:
+  minute: "7,37"
+
 # Schedule for calculating logical BSON-size statistics for every configured attribute.
 # Collection is performed only by worker process 0 and scans each master collection once.
 attribute_bson_size_schedule:

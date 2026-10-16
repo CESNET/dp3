@@ -1,0 +1,3 @@
+# Short refresh interval so API tests can observe newly ingested data in the cache.
+entities_per_attr_schedule:
+  second: "*/5"

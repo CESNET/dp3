@@ -91,13 +91,18 @@ Use this to find sources that have stopped sending data. Keep these limitations 
 
 ## 4. Check how much data reached the database
 
-Get current entity counts at attribute granularity:
+Get cached entity counts at attribute granularity:
 
 ```shell
 dp3 sh telemetry entities-per-attr
 ```
 
-This answers “how many entities currently have each attribute?”. It counts value presence in the database, rather than the number of datapoints received over time.
+This answers “how many entities had each attribute at the last refresh?”. It counts value presence in the database, rather than the number of datapoints received over time.
+
+API requests only read cached counts. Worker process 0 refreshes them every 30 minutes by default,
+configured by `entities_per_attr_schedule` in [`telemetry.yml`](../configuration/telemetry.md),
+and schedules an initial sweep when the cache is incomplete. Entity types are omitted until their
+first successful refresh; failed refreshes leave previous counts available.
 
 To inspect the logical size of attributes stored in master documents, call:
 

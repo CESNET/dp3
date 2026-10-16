@@ -1021,17 +1021,17 @@ class EntityDatabase:
             self._db["#metadata"].find(query).sort([("#time_created", sort_dir), ("_id", sort_dir)])
         )
 
-    def count_entities_per_attr(self) -> dict[str, dict[str, int]]:
-        """Count entities with data present for each configured attribute per entity type."""
-        counts: dict[str, dict[str, int]] = {}
-        for (etype, attr), spec in self._db_schema_config.attributes.items():
+    def count_entities_per_attr(self, entity_type: str) -> dict[str, int]:
+        """Count entities with data present for each attribute of the given entity type."""
+        self._assert_etype_exists(entity_type)
+        collection = self._master_col(entity_type)
+        counts: dict[str, int] = {}
+        for attr, spec in self._db_schema_config.attribs(entity_type).items():
             if spec.t in AttrType.TIMESERIES | AttrType.OBSERVATIONS:
                 field = f"#min_t2s.{attr}"
             else:
                 field = f"{attr}.ts_last_update"
-            counts.setdefault(etype, {})[attr] = self._master_col(etype).count_documents(
-                {field: {"$exists": True}}
-            )
+            counts[attr] = collection.count_documents({field: {"$exists": True}})
         return counts
 
     def get_attribute_bson_size_stats(self, entity_type: str) -> dict[str, dict]:

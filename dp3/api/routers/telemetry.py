@@ -29,7 +29,7 @@ async def get_sources_age(unit: Literal["minutes", "seconds"] = "minutes") -> di
 
 @router.get("/entities_per_attr")
 async def get_entities_per_attr() -> dict[str, dict[str, int]]:
-    """Get counts of entities with data present for each configured attribute."""
+    """Get cached counts of entities with data present for each configured attribute."""
     return TELEMETRY_READER.get_entities_per_attr()
 
 

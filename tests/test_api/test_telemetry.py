@@ -2,7 +2,7 @@ import datetime
 import json
 import sys
 from datetime import UTC
-from time import sleep
+from time import monotonic, sleep
 
 import common
 
@@ -51,9 +51,14 @@ class TelemetryEndpoints(common.APITest):
         self.assertEqual(data[0]["#module"], "SnapShooter")
 
     def test_entities_per_attr_endpoint(self):
-        response = self.get_request("telemetry/entities_per_attr")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
+        deadline = monotonic() + 30
+        while True:
+            response = self.get_request("telemetry/entities_per_attr")
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            if data.get("A", {}).get("data1", 0) >= 1 or monotonic() >= deadline:
+                break
+            sleep(1)
         self.assertIn("A", data)
         self.assertIn("data1", data["A"])
         self.assertGreaterEqual(data["A"]["data1"], 1)

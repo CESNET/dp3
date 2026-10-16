@@ -220,7 +220,7 @@ class AttributeBsonSizeTelemetryTests(unittest.TestCase):
         self.assertIn("sync_to_db", other_jobs)
         self.assertEqual(
             [callback.__name__ for callback, _options in owner_registrar.one_time_jobs],
-            ["collect_attribute_bson_sizes"],
+            ["collect_attribute_bson_sizes", "collect_entities_per_attr"],
         )
         self.assertEqual(other_registrar.one_time_jobs, [])
 
@@ -241,7 +241,10 @@ class AttributeBsonSizeTelemetryTests(unittest.TestCase):
             registrar,
         )
 
-        self.assertEqual(registrar.one_time_jobs, [])
+        self.assertEqual(
+            [callback.__name__ for callback, _options in registrar.one_time_jobs],
+            ["collect_entities_per_attr"],
+        )
 
     def test_success_is_atomically_published_and_failure_retains_previous_result(self):
         old_b = {

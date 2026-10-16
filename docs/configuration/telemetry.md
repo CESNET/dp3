@@ -2,6 +2,28 @@
 
 Telemetry records operational information and caches statistics used by the telemetry API.
 
+## Entities-per-attribute schedule
+
+`entities_per_attr_schedule` controls refreshes of the cached entity counts for each attribute.
+The default runs every 30 minutes, at minutes 7 and 37 (UTC):
+
+```yaml
+entities_per_attr_schedule:
+  minute: "7,37"
+```
+
+This offset avoids the five-minute boundaries used by the default updater, history maintenance,
+snapshot, and garbage-collection schedules. Long-running jobs can still overlap; adjust the
+schedule to suit deployment-specific load.
+
+Counting can be expensive even with index coverage. API requests only read cached results and
+never trigger counts. Only worker process 0 collects these statistics, with a one-off sweep on
+startup if any configured entity type lacks a cached result. Each entity type is published
+atomically after all its counts succeed; failures are logged and retain the previous result.
+Until a result is available, that entity type is omitted (an empty cache returns `{}`).
+The response format is unchanged, but counts reflect the last successful refresh rather than
+the time of the request.
+
 ## Attribute BSON-size schedule
 
 `attribute_bson_size_schedule` is a cron expression controlling calculation of logical BSON-size

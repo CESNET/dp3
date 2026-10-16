@@ -16,6 +16,10 @@ aggregation_schedule:  # (1)!
 datapoint_cleaning_schedule:  # (2)!
   minute: "*/30"
 
+datapoint_cleaning:  # (8)!
+  chunk_size: 200
+  chunk_pause: 1s
+
 snapshot_cleaning:
   schedule: {minute: "15,45"}  # (3)!
   older_than: 7d  # (4)!
@@ -33,6 +37,7 @@ datapoint_archivation:
 5. Parameter `datapoint_archivation.schedule` sets interval for DP³ to archive datapoints from raw collections.
 6. Parameter `datapoint_archivation.older_than` sets how old must a datapoint be to be archived.
 7. Parameter `datapoint_archivation.archive_dir` sets directory where should be archived old datapoints. If directory doesn't exist, it will be created, but write priviledges must be set correctly. Can be also set to `null` (or not set) to disable archivation and only delete old data.
+8. Optional parameter `datapoint_cleaning` controls the pacing of datapoint cleaning. Master records containing expired datapoints are cleaned in chunks of `chunk_size` records (default `200`), each record is rewritten once for all of its expired attributes. Consecutive chunks are separated by `chunk_pause` (default `1s`, a plain number is interpreted as seconds) to leave room for other database work. On a loaded database, smaller chunks and longer pauses reduce the impact of cleaning on ingestion at the cost of a longer cleaning run. After each run, a summary is logged per entity type with the number of modified records, the time spent updating and paused, and the slowest chunk, which can be used for tuning.
 
 The schedule dictionaries are transformed to cron expressions, see [CronExpression docs][dp3.common.config.CronExpression] for details.
 

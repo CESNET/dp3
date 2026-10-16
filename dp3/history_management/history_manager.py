@@ -2,10 +2,13 @@ import gzip
 import json
 import logging
 import os
-from datetime import UTC, datetime
+import time
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from pymongo.errors import PyMongoError
 
 from dp3.common.attrspec import (
     AttrSpecObservations,
@@ -26,6 +29,8 @@ from dp3.database.database import (
 
 DB_SEND_CHUNK = 100
 AGGREGATION_MAX_RETRIES = 3
+CLEANING_MAX_CURSOR_RESTARTS = 3
+CLEANING_PROGRESS_INTERVAL = 300  # seconds
 
 
 class SnapshotCleaningConfig(BaseModel):
@@ -54,12 +59,27 @@ class DPArchivationConfig(BaseModel):
     archive_dir: str | None = None
 
 
+class DatapointCleaningConfig(BaseModel):
+    """Configuration for pacing of datapoint cleaning.
+
+    Attributes:
+        chunk_size: Number of master records cleaned by a single database update.
+        chunk_pause: Pause between consecutive chunks, to leave room for other database work.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    chunk_size: int = Field(default=200, gt=0)
+    chunk_pause: ParsedTimedelta = timedelta(seconds=1)
+
+
 class HistoryManagerConfig(BaseModel):
     """Configuration for history manager.
 
     Attributes:
         aggregation_schedule: Schedule for master document aggregation.
         datapoint_cleaning_schedule: Schedule for datapoint cleaning.
+        datapoint_cleaning: Pacing of datapoint cleaning.
         mark_datapoints_schedule: Deprecated schedule for marking datapoints in master docs.
         snapshot_cleaning: Configuration for snapshot cleaning.
         datapoint_archivation: Configuration for datapoint archivation.
@@ -69,9 +89,29 @@ class HistoryManagerConfig(BaseModel):
 
     aggregation_schedule: CronExpression
     datapoint_cleaning_schedule: CronExpression
+    datapoint_cleaning: DatapointCleaningConfig = DatapointCleaningConfig()
     mark_datapoints_schedule: CronExpression | None = None
     snapshot_cleaning: SnapshotCleaningConfig
     datapoint_archivation: DPArchivationConfig
+
+
+@dataclass
+class _CleaningStats:
+    """Progress of datapoint cleaning of a single entity type."""
+
+    start: float
+    records: int = 0
+    modified: int = 0
+    chunks: int = 0
+    failed_chunks: int = 0
+    update_time: float = 0.0
+    pause_time: float = 0.0
+    slowest_chunk: float = 0.0
+    cursor_restarts: int = 0
+    last_progress_log: float = 0.0
+
+    def __post_init__(self):
+        self.last_progress_log = self.start
 
 
 class HistoryManager:
@@ -125,27 +165,129 @@ class HistoryManager:
         registrar.scheduler_register(self.archive_old_dps, **archive_config.schedule.model_dump())
 
     def delete_old_dps(self):
-        """Deletes old data points from master collection."""
+        """Deletes old data points from master collection.
+
+        Master records with any expired history are cleaned in chunks, each record is rewritten
+        once for all of its expired histories. Chunks are separated by a configurable pause.
+        """
         self.log.debug("Deleting old records ...")
+        now = datetime.now(UTC)
 
-        for etype_attr, attr_conf in self.model_spec.attributes.items():
-            etype, attr_name = etype_attr
-            max_age = None
+        for etype in self.model_spec.entities:
+            t_olds = {}
+            for attr_name, attr_conf in self.model_spec.entity_attributes[etype].items():
+                max_age = None
+                if attr_conf.t == AttrType.OBSERVATIONS:
+                    max_age = attr_conf.history_params.max_age
+                elif attr_conf.t == AttrType.TIMESERIES:
+                    max_age = attr_conf.timeseries_params.max_age
+                if max_age:
+                    t_olds[attr_name] = now - max_age
 
-            if attr_conf.t == AttrType.OBSERVATIONS:
-                max_age = attr_conf.history_params.max_age
-            elif attr_conf.t == AttrType.TIMESERIES:
-                max_age = attr_conf.timeseries_params.max_age
-
-            if not max_age:
+            if not t_olds:
                 continue
 
-            t_old = datetime.now(UTC) - max_age
-
             try:
-                self.db.delete_old_dps(etype, attr_name, t_old)
-            except DatabaseError as e:
-                self.log.error(e)
+                self._delete_old_dps_of_etype(etype, t_olds)
+            except Exception as e:
+                self.log.exception("Deleting old datapoints of %s failed: %s", etype, e)
+
+    def _delete_old_dps_of_etype(self, etype: str, t_olds: dict[str, datetime]):
+        """Clean all master records of `etype` with datapoints older than `t_olds`.
+
+        Cleaned records no longer match the candidate query, so a lost cursor
+        (e.g. after a database restart) is recovered by simply running the query again.
+        """
+        stats = _CleaningStats(start=time.monotonic())
+        try:
+            while True:
+                try:
+                    self._delete_old_dps_pass(etype, t_olds, stats)
+                    break
+                except PyMongoError as e:
+                    if stats.cursor_restarts >= CLEANING_MAX_CURSOR_RESTARTS:
+                        raise
+                    stats.cursor_restarts += 1
+                    self.log.warning(
+                        "Lost cursor while deleting old datapoints of %s (%s), restarting (%s/%s)",
+                        etype,
+                        e,
+                        stats.cursor_restarts,
+                        CLEANING_MAX_CURSOR_RESTARTS,
+                    )
+        finally:
+            self.log.info(
+                "Deleted old datapoints of %s: %s/%s master records modified in %s chunks "
+                "(%s failed), %.1fs total (%.1fs updating, %.1fs paused, slowest chunk %.1fs), "
+                "%s cursor restarts",
+                etype,
+                stats.modified,
+                stats.records,
+                stats.chunks,
+                stats.failed_chunks,
+                time.monotonic() - stats.start,
+                stats.update_time,
+                stats.pause_time,
+                stats.slowest_chunk,
+                stats.cursor_restarts,
+            )
+
+    def _delete_old_dps_pass(self, etype: str, t_olds: dict[str, datetime], stats: _CleaningStats):
+        chunk_size = self.config.datapoint_cleaning.chunk_size
+        chunk_pause = self.config.datapoint_cleaning.chunk_pause.total_seconds()
+
+        eids = []
+        # Fetching candidates in chunk-sized batches keeps them in cache for the update
+        records_cursor = self.db.get_eids_with_old_dps(etype, t_olds, batch_size=chunk_size)
+        try:
+            for master_record in records_cursor:
+                eids.append(master_record["_id"])
+                if len(eids) < chunk_size:
+                    continue
+                self._delete_old_dps_chunk(etype, eids, t_olds, stats)
+                eids = []
+
+                pause_start = time.monotonic()
+                time.sleep(chunk_pause)
+                stats.pause_time += time.monotonic() - pause_start
+                self._log_cleaning_progress(etype, stats)
+        finally:
+            records_cursor.close()
+
+        if eids:
+            self._delete_old_dps_chunk(etype, eids, t_olds, stats)
+
+    def _delete_old_dps_chunk(
+        self, etype: str, eids: list, t_olds: dict[str, datetime], stats: _CleaningStats
+    ):
+        start = time.monotonic()
+        stats.chunks += 1
+        stats.records += len(eids)
+        try:
+            res = self.db.delete_old_dps_of_eids(etype, eids, t_olds)
+            stats.modified += res.modified_count
+        except DatabaseError as e:
+            stats.failed_chunks += 1
+            self.log.error(e)
+        finally:
+            duration = time.monotonic() - start
+            stats.update_time += duration
+            stats.slowest_chunk = max(stats.slowest_chunk, duration)
+
+    def _log_cleaning_progress(self, etype: str, stats: _CleaningStats):
+        now = time.monotonic()
+        if now - stats.last_progress_log < CLEANING_PROGRESS_INTERVAL:
+            return
+        stats.last_progress_log = now
+        self.log.debug(
+            "Deleting old datapoints of %s: %s/%s master records modified in %s chunks, "
+            "%.0fs elapsed",
+            etype,
+            stats.modified,
+            stats.records,
+            stats.chunks,
+            now - stats.start,
+        )
 
     def delete_old_snapshots(self):
         """Deletes old snapshots."""

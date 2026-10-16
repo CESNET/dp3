@@ -695,8 +695,11 @@ class EntityDatabase:
                 self.log.exception("Error in on_entity_delete_one callback %s: %s", f, e)
 
     @staticmethod
-    def _normalize_history_stage(attr_name: str) -> dict:
-        """Remove an empty history, update its minimum timestamp, and increment revision."""
+    def _normalized_history_fields(attr_name: str) -> dict:
+        """Expressions removing an empty history and recomputing its `#min_t2s` marker.
+
+        The history must be an array.
+        """
         history = f"${attr_name}"
         empty_history = {"$eq": [{"$size": history}, 0]}
         normalized_history = {"$cond": {"if": empty_history, "then": "$$REMOVE", "else": history}}
@@ -707,38 +710,84 @@ class EntityDatabase:
                 "else": {"$min": f"${attr_name}.t2"},
             }
         }
-        next_revision = {"$add": [{"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]}, 1]}
+        return {attr_name: normalized_history, f"#min_t2s.{attr_name}": normalized_min_t2}
 
+    @classmethod
+    def _normalize_history_stage(cls, attr_name: str) -> dict:
+        """Remove an empty history, update its minimum timestamp, and increment revision."""
+        next_revision = {"$add": [{"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]}, 1]}
         return {
-            "$set": {
-                attr_name: normalized_history,
-                f"#min_t2s.{attr_name}": normalized_min_t2,
-                MASTER_REVISION_FIELD: next_revision,
-            }
+            "$set": cls._normalized_history_fields(attr_name)
+            | {MASTER_REVISION_FIELD: next_revision}
         }
 
-    def delete_old_dps(self, etype: str, attr_name: str, t_old: datetime) -> UpdateResult:
-        """Delete old datapoints from master collection.
+    @staticmethod
+    def _expired_history_filter(t_olds: dict[str, datetime]) -> dict:
+        """Match master records with any history containing datapoints older than its `t_old`."""
+        return {"$or": [{f"#min_t2s.{attr}": {"$lt": t_old}} for attr, t_old in t_olds.items()]}
 
-        Periodically called for all `etype`s from HistoryManager.
+    @classmethod
+    def _delete_old_dps_pipeline(cls, t_olds: dict[str, datetime]) -> list[dict]:
+        """Remove old datapoints of all `t_olds` histories in a single document rewrite.
+
+        Only histories whose `#min_t2s` marker is older than their `t_old` are filtered and
+        normalized, other histories are left unchanged. Revision is incremented once.
+        """
+        filtered_histories = {}
+        normalized_histories = {}
+        for attr_name, t_old in t_olds.items():
+            # Both stages see the original marker, as the first stage does not modify it
+            expired = {"$lt": [f"$#min_t2s.{attr_name}", t_old]}
+
+            filtered_history = {
+                "$filter": {
+                    "input": {"$ifNull": [f"${attr_name}", []]},
+                    "cond": {"$gte": ["$$this.t2", t_old]},
+                }
+            }
+            filtered_histories[attr_name] = {
+                "$cond": {"if": expired, "then": filtered_history, "else": f"${attr_name}"}
+            }
+
+            # Expired histories are arrays after the first stage, others are kept as they are
+            for field, normalized in cls._normalized_history_fields(attr_name).items():
+                normalized_histories[field] = {
+                    "$cond": {"if": expired, "then": normalized, "else": f"${field}"}
+                }
+
+        next_revision = {"$add": [{"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]}, 1]}
+        normalized_histories[MASTER_REVISION_FIELD] = next_revision
+        return [{"$set": filtered_histories}, {"$set": normalized_histories}]
+
+    def get_eids_with_old_dps(self, etype: str, t_olds: dict[str, datetime], **kwargs) -> Cursor:
+        """Get cursor of IDs of master records with datapoints older than `t_olds` of any attribute.
+
+        Args:
+            etype: Entity type.
+            t_olds: Mapping of history attribute name -> oldest `t2` to keep.
+            **kwargs: Additional arguments for `pymongo.Collection.find`.
+        """
+        return self._master_col(etype).find(
+            self._expired_history_filter(t_olds), projection={"_id": 1}, **kwargs
+        )
+
+    def delete_old_dps_of_eids(
+        self, etype: str, eids: list[AnyEidT], t_olds: dict[str, datetime]
+    ) -> UpdateResult:
+        """Delete datapoints older than `t_olds` from the given master records.
+
+        All expired histories of a record are cleaned in a single document rewrite.
+
+        Args:
+            etype: Entity type.
+            eids: IDs of the master records to clean.
+            t_olds: Mapping of history attribute name -> oldest `t2` to keep.
         """
         master_col = self._master_col(etype, write_concern=WriteConcern(w=1))
         try:
             return master_col.update_many(
-                {f"#min_t2s.{attr_name}": {"$lt": t_old}},
-                [
-                    {
-                        "$set": {
-                            attr_name: {
-                                "$filter": {
-                                    "input": {"$ifNull": [f"${attr_name}", []]},
-                                    "cond": {"$gte": ["$$this.t2", t_old]},
-                                }
-                            }
-                        }
-                    },
-                    self._normalize_history_stage(attr_name),
-                ],
+                {"_id": {"$in": eids}} | self._expired_history_filter(t_olds),
+                self._delete_old_dps_pipeline(t_olds),
             )
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e

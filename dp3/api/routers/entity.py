@@ -327,7 +327,7 @@ def _validate_sort_params(etype: str, sort: list[str] | None) -> list[tuple[str,
     name="v2_get_entity_type_eids",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
-async def get_entity_type_eids(
+def get_entity_type_eids(
     etype: str,
     fulltext_filters: Json = None,
     generic_filter: Json = None,
@@ -465,7 +465,7 @@ async def get_entity_type_eids(
     name="v2_count_entity_type_eids",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
-async def count_entity_type_eids(
+def count_entity_type_eids(
     etype: str,
     fulltext_filters: Json = None,
     generic_filter: Json = None,
@@ -497,7 +497,7 @@ async def count_entity_type_eids(
     name="v2_get_entity_type_raw_datapoints",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
-async def get_entity_type_raw_datapoints(
+def get_entity_type_raw_datapoints(
     etype: str,
     eid: str | None = None,
     attr: str | None = None,
@@ -532,7 +532,7 @@ async def get_entity_type_raw_datapoints(
 
 
 @router.get("/{etype}/{eid}")
-async def get_eid_data(
+def get_eid_data(
     e: ParsedEid, date_from: AwareDatetime | None = None, date_to: AwareDatetime | None = None
 ) -> EntityEidData:
     """Get data of the entity identified by `etype` and `eid`.
@@ -546,7 +546,7 @@ async def get_eid_data(
 
 
 @router.get("/{etype}/{eid}/master")
-async def get_eid_master_record(
+def get_eid_master_record(
     e: ParsedEid, date_from: AwareDatetime | None = None, date_to: AwareDatetime | None = None
 ) -> EntityEidMasterRecord:
     """Get the master record of the entity identified by `etype` and `eid`."""
@@ -554,7 +554,7 @@ async def get_eid_master_record(
 
 
 @router.get("/{etype}/{eid}/snapshots")
-async def get_eid_snapshots(
+def get_eid_snapshots(
     e: ParsedEid,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
@@ -570,7 +570,7 @@ async def get_eid_snapshots(
 
 
 @router.get("/{etype}/{eid}/get/{attr}")
-async def get_eid_attr_value(
+def get_eid_attr_value(
     e: ParsedEid,
     attr: str,
     date_from: AwareDatetime | None = None,
@@ -601,7 +601,7 @@ async def set_eid_attr_value(e: ParsedEid, attr: str, request: Request) -> Succe
     "/{etype}/_/distinct/{attr}",
     responses={400: {"description": "Query can't be processed", "model": ErrorResponse}},
 )
-async def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, int]:
+def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, int]:
     """Gets distinct attribute values and their counts based on latest snapshots
 
     Useful for displaying `<select>` enumeration fields.
@@ -615,13 +615,13 @@ async def get_distinct_attribute_values(etype: str, attr: str) -> dict[JsonVal, 
 
 
 @router.post("/{etype}/{eid}/ttl")
-async def extend_eid_ttls(e: ParsedEid, body: dict[str, AwareDatetime]) -> SuccessResponse:
+def extend_eid_ttls(e: ParsedEid, body: dict[str, AwareDatetime]) -> SuccessResponse:
     """Extend TTLs of the specified entity"""
     return extend_eid_ttls_handler(e, body)
 
 
 @router.delete("/{etype}/{eid}")
-async def delete_eid_record(e: ParsedEid) -> SuccessResponse:
+def delete_eid_record(e: ParsedEid) -> SuccessResponse:
     """Delete the master record and snapshots of the specified entity.
 
     Notice that this does not delete any raw datapoints,
@@ -643,7 +643,7 @@ def _v2desc(v1_endpoint: Any) -> str:
 
 @v2_router.get("/{etype}", include_in_schema=False, description=_v2desc(get_eid_data))
 @v2_router.get("/{etype}/", description=_v2desc(get_eid_data))
-async def v2_get_eid_data(
+def v2_get_eid_data(
     e: ParsedQueryEid,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
@@ -652,7 +652,7 @@ async def v2_get_eid_data(
 
 
 @v2_router.get("/{etype}/master", description=_v2desc(get_eid_master_record))
-async def v2_get_eid_master_record(
+def v2_get_eid_master_record(
     e: ParsedQueryEid,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
@@ -661,7 +661,7 @@ async def v2_get_eid_master_record(
 
 
 @v2_router.get("/{etype}/snapshots", description=_v2desc(get_eid_snapshots))
-async def v2_get_eid_snapshots(
+def v2_get_eid_snapshots(
     e: ParsedQueryEid,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
@@ -672,7 +672,7 @@ async def v2_get_eid_snapshots(
 
 
 @v2_router.get("/{etype}/attr", description=_v2desc(get_eid_attr_value))
-async def v2_get_eid_attr_value(
+def v2_get_eid_attr_value(
     e: ParsedQueryEid,
     attr: Annotated[str, Query(description="Attribute name")],
     date_from: AwareDatetime | None = None,
@@ -700,7 +700,7 @@ v2_router.add_api_route(
 
 
 @v2_router.post("/{etype}/ttl", description=_v2desc(extend_eid_ttls))
-async def v2_extend_eid_ttls(
+def v2_extend_eid_ttls(
     e: ParsedQueryEid,
     body: dict[str, AwareDatetime],
 ) -> SuccessResponse:
@@ -709,5 +709,5 @@ async def v2_extend_eid_ttls(
 
 @v2_router.delete("/{etype}", include_in_schema=False, description=_v2desc(delete_eid_record))
 @v2_router.delete("/{etype}/", description=_v2desc(delete_eid_record))
-async def v2_delete_eid_record(e: ParsedQueryEid) -> SuccessResponse:
+def v2_delete_eid_record(e: ParsedQueryEid) -> SuccessResponse:
     return delete_eid_record_handler(e)

@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("/sources_validity")
-async def get_sources_validity() -> dict[str, datetime]:
+def get_sources_validity() -> dict[str, datetime]:
     """Get validity of all data sources.
 
     Returns timestamps of current validity of all sources.
@@ -22,31 +22,31 @@ async def get_sources_validity() -> dict[str, datetime]:
 
 
 @router.get("/sources_age")
-async def get_sources_age(unit: Literal["minutes", "seconds"] = "minutes") -> dict[str, int]:
+def get_sources_age(unit: Literal["minutes", "seconds"] = "minutes") -> dict[str, int]:
     """Get current source ages in requested units."""
     return TELEMETRY_READER.get_sources_age(unit)
 
 
 @router.get("/entities_per_attr")
-async def get_entities_per_attr() -> dict[str, dict[str, int]]:
+def get_entities_per_attr() -> dict[str, dict[str, int]]:
     """Get cached counts of entities with data present for each configured attribute."""
     return TELEMETRY_READER.get_entities_per_attr()
 
 
 @router.get("/attribute_bson_sizes")
-async def get_attribute_bson_sizes() -> dict[str, dict]:
+def get_attribute_bson_sizes() -> dict[str, dict]:
     """Get the latest cached logical BSON-size statistics for configured attributes."""
     return TELEMETRY_READER.get_attribute_bson_sizes()
 
 
 @router.get("/snapshot_summary")
-async def get_snapshot_summary() -> dict:
+def get_snapshot_summary() -> dict:
     """Get summary of recent snapshot activity."""
     return TELEMETRY_READER.get_snapshot_summary()
 
 
 @router.get("/metadata")
-async def get_metadata(
+def get_metadata(
     module: str | None = None,
     date_from: AwareDatetime | None = None,
     date_to: AwareDatetime | None = None,
@@ -66,7 +66,7 @@ async def get_metadata(
 
 
 @router.get("/rabbitmq/queues")
-async def get_rabbitmq_queues() -> dict:
+def get_rabbitmq_queues() -> dict:
     """Get RabbitMQ queue telemetry for the running application."""
     try:
         return TELEMETRY_READER.get_rabbitmq_queues()

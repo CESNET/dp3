@@ -28,7 +28,7 @@ async def health_check() -> HealthCheckResponse:
 
 
 @router.post(DATAPOINTS_INGESTION_URL_PATH, tags=["Data ingestion"])
-async def insert_datapoints(dps: list[DataPoint], request: Request) -> SuccessResponse:
+def insert_datapoints(dps: list[DataPoint], request: Request) -> SuccessResponse:
     """Insert datapoints
 
     Validates and pushes datapoints into task queue, so they are processed by one of DP3 workers.
@@ -63,7 +63,7 @@ async def insert_datapoints(dps: list[DataPoint], request: Request) -> SuccessRe
 
 
 @router.get("/entities", tags=["Entity"])
-async def list_entity_types() -> dict[str, EntityState]:
+def list_entity_types() -> dict[str, EntityState]:
     """List entity types
 
     Returns dictionary containing all entity types configured -- their simplified configuration

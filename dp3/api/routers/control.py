@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("/refresh_on_entity_creation")
-async def refresh_on_entity_creation(etype: str) -> SuccessResponse:
+def refresh_on_entity_creation(etype: str) -> SuccessResponse:
     """Sends the action `refresh_on_entity_creation` into execution queue.
 
     This action is only accepted with the `etype` parameter.
@@ -20,7 +20,7 @@ async def refresh_on_entity_creation(etype: str) -> SuccessResponse:
 
 
 @router.get("/refresh_module_config")
-async def refresh_module_config(module: EnabledModules) -> SuccessResponse:
+def refresh_module_config(module: EnabledModules) -> SuccessResponse:
     """Sends the action `refresh_module_config` into execution queue.
 
     This action is only accepted with the `module` parameter.
@@ -32,7 +32,7 @@ async def refresh_module_config(module: EnabledModules) -> SuccessResponse:
 
 
 @router.get("/{action}")
-async def execute_action(action: ControlAction) -> SuccessResponse:
+def execute_action(action: ControlAction) -> SuccessResponse:
     """Sends the given action into execution queue."""
     CONTROL_WRITER.put_task(ControlMessage(action=action))
     return SuccessResponse(detail="Action sent.")

@@ -883,7 +883,22 @@ class EntityDatabase:
         """Checks whether master record for etype/eid exists"""
         with self._master_buffer_locks[etype]:
             in_cache = eid in self._master_buffers[etype]
-        return in_cache or bool(self.get_master_record(etype, eid, projection={"_id": 1}))
+        if in_cache:
+            return True
+
+        self._assert_etype_exists(etype)
+        self._assert_eid_correct_dtype(etype, eid)
+
+        # Hinting the _id index makes this a covered query (IXSCAN + PROJECTION_COVERED),
+        # so the (possibly large) master document is never loaded into the cache.
+        # Without the hint, MongoDB uses the IDHACK plan, which fetches the whole document.
+        cursor = (
+            self._master_col(etype)
+            .find({"_id": eid}, projection={"_id": 1})
+            .hint([("_id", pymongo.ASCENDING)])
+            .limit(1)
+        )
+        return next(cursor, None) is not None
 
     def get_master_records(self, etype: str, **kwargs) -> Cursor:
         """Get cursor to current master records of etype."""

@@ -41,6 +41,19 @@ datapoint_archivation:
 
 The schedule dictionaries are transformed to cron expressions, see [CronExpression docs][dp3.common.config.CronExpression] for details.
 
+## Maintenance metrics in `#metadata`
+
+HistoryManager records run start/end times and metrics in `#metadata`:
+
+- `aggregation_metrics.entity_types`: per-attribute datapoint counts before/after aggregation,
+  alongside the existing record-update and retry counters. Counts describe initial-pass
+  computations, not guaranteed persisted changes; retries are excluded.
+- `cleaning_metrics.entity_types`: per-entity record/chunk counts, failures, cursor restarts,
+  and elapsed/update/pause times (seconds). `records` counts attempts and `modified` counts
+  acknowledged document modifications, not individual datapoints removed.
+
+Metrics add no database reads. Interrupted runs may lack final metrics.
+
 ## Repairing history markers
 
 Master documents use `#min_t2s.<attribute>` markers to select histories that may contain expired

@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -172,6 +172,11 @@ class HistoryManager:
         """
         self.log.debug("Deleting old records ...")
         now = datetime.now(UTC)
+        results = []
+        try:
+            self.db.save_metadata(now, {"cleaning_start": now})
+        except DatabaseError:
+            self.log.exception("Saving cleaning metadata failed")
 
         for etype in self.model_spec.entities:
             t_olds = {}
@@ -187,18 +192,38 @@ class HistoryManager:
             if not t_olds:
                 continue
 
+            stats = _CleaningStats(start=time.monotonic())
+            failed = False
             try:
-                self._delete_old_dps_of_etype(etype, t_olds)
+                self._delete_old_dps_of_etype(etype, t_olds, stats)
             except Exception as e:
+                failed = True
                 self.log.exception("Deleting old datapoints of %s failed: %s", etype, e)
+            result = asdict(stats)
+            result["elapsed_seconds"] = time.monotonic() - result.pop("start")
+            del result["last_progress_log"]
+            results.append(result | {"entity": etype, "failed": failed})
 
-    def _delete_old_dps_of_etype(self, etype: str, t_olds: dict[str, datetime]):
+        try:
+            self.db.update_metadata(
+                now,
+                metadata={
+                    "cleaning_start": now,
+                    "cleaning_end": datetime.now(UTC),
+                    "cleaning_metrics": {"entity_types": results},
+                },
+            )
+        except DatabaseError:
+            self.log.exception("Saving cleaning metadata failed")
+
+    def _delete_old_dps_of_etype(
+        self, etype: str, t_olds: dict[str, datetime], stats: _CleaningStats
+    ):
         """Clean all master records of `etype` with datapoints older than `t_olds`.
 
         Cleaned records no longer match the candidate query, so a lost cursor
         (e.g. after a database restart) is recovered by simply running the query again.
         """
-        stats = _CleaningStats(start=time.monotonic())
         try:
             while True:
                 try:
@@ -401,6 +426,7 @@ class HistoryManager:
             {"aggregation_start": ts} | stats,
         )
 
+        datapoint_counts = []
         for entity in self.model_spec.entities:
             attr_specs = {
                 attr: spec
@@ -410,6 +436,8 @@ class HistoryManager:
             if not attr_specs:
                 continue
 
+            counts = {attr: {"attribute": attr, "before": 0, "after": 0} for attr in attr_specs}
+            datapoint_counts.append({"entity": entity, "datapoints": list(counts.values())})
             projection = {
                 **dict.fromkeys(attr_specs, True),
                 "#ttl": True,
@@ -430,7 +458,12 @@ class HistoryManager:
                         continue  # Avoid expired entities to avoid conflict with garbage collector
 
                     stats["entities"] += 1
+                    before = {attr: len(master_document.get(attr, [])) for attr in attr_specs}
                     fields = self.aggregate_master_doc(attr_specs, master_document)
+                    # Computed initial-pass counts, not confirmed persisted changes.
+                    for attr, count in counts.items():
+                        count["before"] += before[attr]
+                        count["after"] += len(fields.get(attr, master_document.get(attr, [])))
                     if not fields:
                         continue
 
@@ -459,7 +492,10 @@ class HistoryManager:
 
         self.db.update_metadata(
             ts,
-            metadata={"aggregation_end": datetime.now(UTC)},
+            metadata={
+                "aggregation_end": datetime.now(UTC),
+                "aggregation_metrics": {"entity_types": datapoint_counts},
+            },
             increase=stats,
         )
         self.log.debug("Master documents aggregation end: %s", stats)

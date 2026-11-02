@@ -1,4 +1,5 @@
 import logging
+import time
 import unittest
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -13,7 +14,11 @@ from repair_min_t2s import (
 from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
 from dp3.database.encodings import get_codec_options
-from dp3.history_management.history_manager import DatapointCleaningConfig, HistoryManager
+from dp3.history_management.history_manager import (
+    DatapointCleaningConfig,
+    HistoryManager,
+    _CleaningStats,
+)
 
 
 class HistoryMarkers(common.APITest):
@@ -310,7 +315,9 @@ class HistoryMarkers(common.APITest):
         # The first cursor cleans a full chunk of 2 records and is then lost,
         # the restarted query only returns the remaining record, cleaned as a partial chunk
         history_manager._delete_old_dps_of_etype(
-            "test_entity_type", {"test_attr_history": now - timedelta(days=7)}
+            "test_entity_type",
+            {"test_attr_history": now - timedelta(days=7)},
+            _CleaningStats(start=time.monotonic()),
         )
 
         self.assertEqual(len(cursors), 2)

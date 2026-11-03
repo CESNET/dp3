@@ -191,6 +191,10 @@ This is illustrated in the following figure:
   <figcaption>Each value of a multi-value attribute will be merged separately.</figcaption>
 </figure>
 
+Aggregation keeps the history ordered by `t1`. Data points received since the last aggregation
+are appended to its end, so history returned by the API is not guaranteed to be sorted;
+sort the data points by time if you need ordering.
+
 ## Other resources
 
 We hope this cleared up the history aspect of data point handling in DP³. What's next?

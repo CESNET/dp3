@@ -666,11 +666,17 @@ class EntityDatabase:
 
         Each record contains the entity ID, expected revision, creation time, and fields to set.
         Returns the number of records whose expected revision matched.
+
+        Fields are set by a pipeline update, for which MongoDB logs only the difference
+        to the stored document into the oplog (e.g. changed array positions),
+        instead of the whole new value. Values are wrapped in `$literal`,
+        so that stored data is never interpreted as an aggregation expression.
         """
         if not records:
             return 0
 
         master_col = self._master_col(etype)
+        next_revision = {"$add": [{"$ifNull": [f"${MASTER_REVISION_FIELD}", 0]}, 1]}
         try:
             updates = []
             for eid, revision, time_created, fields in records:
@@ -683,15 +689,9 @@ class EntityDatabase:
                         time_created if time_created is not None else {"$exists": False}
                     ),
                 }
-                updates.append(
-                    UpdateOne(
-                        query,
-                        {
-                            "$set": fields,
-                            "$inc": {MASTER_REVISION_FIELD: 1},
-                        },
-                    )
-                )
+                new_values = {field: {"$literal": value} for field, value in fields.items()}
+                new_values[MASTER_REVISION_FIELD] = next_revision
+                updates.append(UpdateOne(query, [{"$set": new_values}]))
 
             res = master_col.bulk_write(updates, ordered=False)
             self.log.debug(

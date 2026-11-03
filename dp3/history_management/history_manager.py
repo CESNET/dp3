@@ -769,6 +769,17 @@ class HistoryManager:
         return aggregated_fields
 
 
+def _restore_stored_order(aggregated: list[dict], original: list[dict]):
+    """Order `aggregated` by `t1`, keeping the stored relative order of equal `t1` datapoints.
+
+    Aggregated datapoints are the original datapoint objects (modified in place),
+    so their original position serves as the tie-breaker. Unlike a `t2` tie-breaker,
+    the position does not change when a merge extends a datapoint's `t2`.
+    """
+    stored_position = {id(dp): i for i, dp in enumerate(original)}
+    aggregated.sort(key=lambda dp: (dp["t1"], stored_position[id(dp)]))
+
+
 def aggregate_multivalue_dp_history_on_equal(
     history: list[dict], spec: AttrSpecObservations
 ) -> tuple[list[dict], bool]:
@@ -778,6 +789,11 @@ def aggregate_multivalue_dp_history_on_equal(
     Avergages the confidence.
     Will keep a pool of "active" datapoints and merge them with the next datapoint
     if they have the same value and overlapping time validity.
+
+    The result is ordered by `t1`, datapoints with equal `t1` keep their stored relative order.
+    Already aggregated datapoints therefore keep their positions between consecutive runs;
+    when newly appended datapoints merge into stored ones, only the merged positions
+    and the array's tail change. Removing or inserting datapoints mid-history shifts the rest.
 
     FIXME:
       The average calculation only works for the current iteration,
@@ -814,6 +830,7 @@ def aggregate_multivalue_dp_history_on_equal(
             current_dp["c"] /= current_dp["cnt"]
             del current_dp["cnt"]
             aggregated_history.append(current_dp)
+        _restore_stored_order(aggregated_history, original_history)
         return aggregated_history, history_was_aggregated(original_history, aggregated_history)
     else:
         current_dps = []
@@ -843,6 +860,7 @@ def aggregate_multivalue_dp_history_on_equal(
             current_dp["c"] /= current_dp["cnt"]
             del current_dp["cnt"]
             aggregated_history.append(current_dp)
+        _restore_stored_order(aggregated_history, original_history)
         return aggregated_history, history_was_aggregated(original_history, aggregated_history)
 
 

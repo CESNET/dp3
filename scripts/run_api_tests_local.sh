@@ -10,29 +10,34 @@ RESET_SERVICES=(mongo rabbitmq redis receiver_api worker)
 RUNNER_PATH=/dp3/scripts/run_api_test_shard.py
 TEST_API_DIR=tests/test_api
 
-PARALLEL_GC_SHARD=(
+# Shard B is listed explicitly; shard A gets every other test module.
+# Keep both shards at roughly equal wall time (the shard runner prints
+# per-module durations at the end of each shard's output).
+PARALLEL_SHARD_B=(
   test_garbage_collector
+  test_get_distinct_attr_values
+  test_telemetry
 )
 
-PARALLEL_NON_GC_SHARD=()
+PARALLEL_SHARD_A=()
 
-build_non_gc_shard() {
-  local gc_module
+build_shard_a() {
+  local b_module
   local module_path
   local module_name
-  declare -A gc_modules=()
+  declare -A b_modules=()
 
-  for gc_module in "${PARALLEL_GC_SHARD[@]}"; do
-    gc_modules["$gc_module"]=1
+  for b_module in "${PARALLEL_SHARD_B[@]}"; do
+    b_modules["$b_module"]=1
   done
 
-  mapfile -t PARALLEL_NON_GC_SHARD < <(
+  mapfile -t PARALLEL_SHARD_A < <(
     find "$TEST_API_DIR" -maxdepth 1 -type f -name 'test_*.py' \
       | sort \
       | while read -r module_path; do
           module_name="${module_path##*/}"
           module_name="${module_name%.py}"
-          if [[ -z "${gc_modules[$module_name]:-}" ]]; then
+          if [[ -z "${b_modules[$module_name]:-}" ]]; then
             printf '%s\n' "$module_name"
           fi
         done
@@ -66,12 +71,12 @@ if [[ "${1:-}" == "cleanup" ]]; then
   exit 0
 fi
 
-build_non_gc_shard
+build_shard_a
 
 echo "Starting local API test run from $ROOT_DIR"
 echo "Recreating: ${RESET_SERVICES[*]}"
-echo "Parallel shard A: ${PARALLEL_NON_GC_SHARD[*]}"
-echo "Parallel shard B: ${PARALLEL_GC_SHARD[*]}"
+echo "Parallel shard A: ${PARALLEL_SHARD_A[*]}"
+echo "Parallel shard B: ${PARALLEL_SHARD_B[*]}"
 
 cleanup_stack
 
@@ -84,30 +89,30 @@ wait
 
 sleep 10
 
-parallel_non_gc_log="$(mktemp)"
-parallel_gc_log="$(mktemp)"
+shard_a_log="$(mktemp)"
+shard_b_log="$(mktemp)"
 cleanup_logs() {
-  rm -f "$parallel_non_gc_log" "$parallel_gc_log"
+  rm -f "$shard_a_log" "$shard_b_log"
 }
 trap cleanup_logs EXIT
 
 set +e
-run_shard "$parallel_non_gc_log" "${PARALLEL_NON_GC_SHARD[@]}" &
-non_gc_pid=$!
-run_shard "$parallel_gc_log" "${PARALLEL_GC_SHARD[@]}" &
-gc_pid=$!
+run_shard "$shard_a_log" "${PARALLEL_SHARD_A[@]}" &
+shard_a_pid=$!
+run_shard "$shard_b_log" "${PARALLEL_SHARD_B[@]}" &
+shard_b_pid=$!
 
-wait $non_gc_pid
-non_gc_status=$?
-wait $gc_pid
-gc_status=$?
+wait $shard_a_pid
+shard_a_status=$?
+wait $shard_b_pid
+shard_b_status=$?
 set -e
 
-cat "$parallel_non_gc_log"
-cat "$parallel_gc_log"
+cat "$shard_a_log"
+cat "$shard_b_log"
 
 status=0
-if [[ $non_gc_status -ne 0 || $gc_status -ne 0 ]]; then
+if [[ $shard_a_status -ne 0 || $shard_b_status -ne 0 ]]; then
   status=1
   echo "API tests failed; recent service logs follow." >&2
   "${COMPOSE[@]}" logs --tail=200 "${RESET_SERVICES[@]}" >&2 || true

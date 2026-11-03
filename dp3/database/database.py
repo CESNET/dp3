@@ -1,21 +1,22 @@
 import inspect
 import logging
+import re
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from typing import TypeVar
 
 import pymongo
 from event_count_logger import DummyEventGroup
 from pydantic import BaseModel
 from pymongo import UpdateMany, UpdateOne, WriteConcern
 from pymongo.collection import Collection
-from pymongo.command_cursor import CommandCursor
 from pymongo.cursor import Cursor
 from pymongo.database import Database
-from pymongo.errors import OperationFailure
-from pymongo.results import DeleteResult, UpdateResult
+from pymongo.errors import ConnectionFailure, OperationFailure
+from pymongo.results import UpdateResult
 
 from dp3.common.attrspec import AttrType, timeseries_types
 from dp3.common.config import HierarchicalDict, ModelSpec
@@ -42,7 +43,84 @@ def get_caller_id():
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 MASTER_REVISION_FIELD = "#revision"
+# Creation time suffix of archive collection names
+ARCHIVE_TIME_FORMAT = "%Y_%m_%d_%H%M%S"
 MasterRecordUpdate = tuple[AnyEidT, int | None, datetime | None, dict]
+
+# Waits (in seconds) before retries after transient database errors,
+# long enough in total to outlast a database server restart or a replica set election
+DB_RETRY_DELAYS = (5, 15, 30, 60, 120)
+# Error codes of operations interrupted by a server shutdown, restart or replica set state change
+TRANSIENT_DB_ERROR_CODES = {
+    6,  # HostUnreachable
+    7,  # HostNotFound
+    43,  # CursorNotFound, cursors are lost on a server restart
+    89,  # NetworkTimeout
+    91,  # ShutdownInProgress
+    189,  # PrimarySteppedDown
+    9001,  # SocketException
+    10107,  # NotWritablePrimary
+    11600,  # InterruptedAtShutdown
+    11602,  # InterruptedDueToReplStateChange
+    13435,  # NotPrimaryNoSecondaryOk
+    13436,  # NotPrimaryOrSecondary
+}
+
+T = TypeVar("T")
+
+
+def is_transient_db_error(error: BaseException) -> bool:
+    """Checks whether `error`, or any error that caused it, is a transient database error.
+
+    Errors wrapped in `DatabaseError` are recognized by their cause.
+    """
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        if isinstance(error, ConnectionFailure):
+            return True
+        if isinstance(error, OperationFailure) and (
+            error.code in TRANSIENT_DB_ERROR_CODES or error.has_error_label("RetryableWriteError")
+        ):
+            return True
+        error = error.__cause__ or error.__context__
+    return False
+
+
+def run_with_db_retries(
+    operation: Callable[[], T],
+    description: str,
+    log: logging.Logger,
+    delays: Sequence[float] | None = None,
+) -> T:
+    """Run `operation`, retrying it after transient database errors.
+
+    Covers e.g. a restart of the database server or a replica set election.
+    The operation must be safe to repeat. Other errors, and the last transient error, are raised.
+
+    Args:
+        operation: Function to run.
+        description: Description of the operation for log messages.
+        log: Logger for retry warnings.
+        delays: Waits (in seconds) before the individual retries, `DB_RETRY_DELAYS` by default.
+    """
+    delays = DB_RETRY_DELAYS if delays is None else delays
+    for attempt in range(len(delays) + 1):
+        try:
+            return operation()
+        except Exception as e:
+            if attempt == len(delays) or not is_transient_db_error(e):
+                raise
+            log.warning(
+                "%s failed (%s), retrying in %ss (%s/%s)",
+                description,
+                e,
+                delays[attempt],
+                attempt + 1,
+                len(delays),
+            )
+            time.sleep(delays[attempt])
+    raise AssertionError("unreachable")
 
 
 class EntityDatabase:
@@ -238,21 +316,37 @@ class EntityDatabase:
             raise DatabaseError(f"Raw datapoint fetch failed: {e}") from e
 
     @staticmethod
-    def _get_new_archive_col_name(entity: str) -> str:
+    def _archive_col_prefix(entity: str) -> str:
+        """Returns the common name prefix of archive collections for `entity`."""
+        return f"{entity}#archive_"
+
+    @classmethod
+    def _get_new_archive_col_name(cls, entity: str) -> str:
         """Returns name of new archive collection for `entity`."""
-        return f"{entity}#archive_{datetime.now(UTC).strftime('%Y_%m_%d_%H%M%S')}"
+        return cls._archive_col_prefix(entity) + datetime.now(UTC).strftime(ARCHIVE_TIME_FORMAT)
 
-    def _archive_col_names(self, entity: str) -> list[str]:
-        """Returns names of archive collections for `entity`."""
-        return self._db.list_collection_names(filter={"name": {"$regex": f"{entity}#archive.*"}})
+    @classmethod
+    def get_archive_col_time(cls, entity: str, archive_col_name: str) -> datetime | None:
+        """Returns the creation time encoded in the archive collection name.
 
-    def _archive_cols(self, entity: str, **kwargs) -> Generator[Collection, None, None]:
-        """Returns archive collections for `entity`.
-
-        **kwargs: additional arguments for `pymongo.Database.get_collection`.
+        Returns `None` if the name does not follow the archive collection naming scheme.
         """
-        for col_name in self._archive_col_names(entity):
-            yield self._db.get_collection(col_name, **kwargs)
+        prefix = cls._archive_col_prefix(entity)
+        if not archive_col_name.startswith(prefix):
+            return None
+        try:
+            created = datetime.strptime(archive_col_name[len(prefix) :], ARCHIVE_TIME_FORMAT)
+        except ValueError:
+            return None
+        return created.replace(tzinfo=UTC)
+
+    def get_archive_col_names(self, entity: str) -> list[str]:
+        """Returns names of archive collections for `entity`, oldest first."""
+        prefix = re.escape(self._archive_col_prefix(entity))
+        try:
+            return sorted(self._db.list_collection_names(filter={"name": {"$regex": f"^{prefix}"}}))
+        except Exception as e:
+            raise DatabaseError(f"Listing of archive collections failed: {e}") from e
 
     def _init_database_schema(self) -> None:
         """Runs full check and update of database schema.
@@ -1316,11 +1410,12 @@ class EntityDatabase:
 
         return result
 
-    def move_raw_to_archive(self, etype: str):
-        """Rename the current raw collection to archive collection.
+    def move_raw_to_archive(self, etype: str) -> str | None:
+        """Rename the current raw collection to a new archive collection.
 
         Multiple archive collections can exist for one entity type,
         though they are exported and dropped over time.
+        Returns the name of the new archive collection, or `None` if there was no raw collection.
         """
         raw_col_name = self._raw_col_name(etype)
         archive_col_name = self._get_new_archive_col_name(etype)
@@ -1332,71 +1427,31 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Move of raw collection failed: {e}") from e
 
-    def get_archive_summary(self, etype: str, before: datetime) -> dict | None:
-        collection_summaries = []
-        for archive_col_name in self._archive_col_names(etype):
-            result_cursor = self._get_archive_summary(archive_col_name, before=before)
-            for summary in result_cursor:
-                collection_summaries.append(summary)
-        if not collection_summaries:
-            return None
-        min_date = min(x["earliest"] for x in collection_summaries)
-        max_date = max(x["latest"] for x in collection_summaries)
-        total_dps = sum(x["count"] for x in collection_summaries)
-        return {"earliest": min_date, "latest": max_date, "count": total_dps}
-
-    def _get_archive_summary(self, archive_col_name: str, before: datetime) -> CommandCursor:
+    def get_archived_dps(self, archive_col_name: str, batch_size: int = 0) -> Cursor:
+        """Get all datapoints of an archive collection."""
         try:
-            return self._db[archive_col_name].aggregate(
-                [
-                    {"$match": {"t1": {"$lt": before}}},
-                    {
-                        "$group": {
-                            "_id": "date_range",
-                            "earliest": {"$min": "$t1"},
-                            "latest": {"$max": "$t1"},
-                            "count": {"$sum": 1},
-                        }
-                    },
-                ]
-            )
+            return self._db[archive_col_name].find({}, batch_size=batch_size)
         except Exception as e:
             raise DatabaseError(f"Archive collection {archive_col_name} fetch failed: {e}") from e
 
-    def get_archive(self, etype: str, after: datetime, before: datetime) -> Iterator[Cursor]:
-        """Get archived raw datapoints where `t1` is in <`after`, `before`).
-
-        All plain datapoints will be returned (default).
-        """
-        query_filter = {"$or": [{"t1": {"$gte": after, "$lt": before}}, {"t1": None}]}
-        for archive_col in self._archive_cols(etype):
-            try:
-                yield archive_col.find(query_filter)
-            except Exception as e:
-                raise DatabaseError(f"Archive collection {archive_col} fetch failed: {e}") from e
-
-    def delete_old_archived_dps(self, etype: str, before: datetime) -> Iterator[DeleteResult]:
-        """Delete archived raw datapoints older than `before`.
-
-        Deletes all plain datapoints if `plain` is `True` (default).
-        """
-        query_filter = {"$or": [{"t1": {"$lt": before}}, {"t1": None}]}
-        for archive_col in self._archive_cols(etype):
-            try:
-                yield archive_col.delete_many(query_filter)
-            except Exception as e:
-                raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
+    def drop_archive(self, archive_col_name: str) -> bool:
+        """Drop an archive collection. Returns `True` once dropped."""
+        try:
+            self._db.drop_collection(archive_col_name)
+            return True
+        except Exception as e:
+            raise DatabaseError(f"Drop of archive {archive_col_name} failed: {e}") from e
 
     def drop_empty_archives(self, etype: str) -> int:
-        """Drop empty archive collections."""
+        """Drop empty archive collections of `etype`."""
         dropped_count = 0
-        for col in self._archive_cols(etype):
+        for col_name in self.get_archive_col_names(etype):
             try:
-                if col.estimated_document_count() < 1000 and col.count_documents({}) == 0:
-                    col.drop()
+                if self._db[col_name].find_one({}, projection={"_id": 1}) is None:
+                    self._db.drop_collection(col_name)
                     dropped_count += 1
             except Exception as e:
-                raise DatabaseError(f"Drop of empty archive failed: {e}") from e
+                raise DatabaseError(f"Drop of empty archive {col_name} failed: {e}") from e
         return dropped_count
 
     def get_module_cache(self, override_called_id: str | None = None):

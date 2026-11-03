@@ -3,9 +3,13 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
+from functools import partial
+from itertools import chain
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 from pymongo.errors import PyMongoError
@@ -25,12 +29,19 @@ from dp3.database.database import (
     DatabaseError,
     EntityDatabase,
     MasterRecordUpdate,
+    run_with_db_retries,
 )
 
 DB_SEND_CHUNK = 100
 AGGREGATION_MAX_RETRIES = 3
 CLEANING_MAX_CURSOR_RESTARTS = 3
 CLEANING_PROGRESS_INTERVAL = 300  # seconds
+# Archive collections created up to this long after the archivation cutoff are processed
+ARCHIVE_TIME_TOLERANCE = timedelta(hours=1)
+ARCHIVE_EXPORT_BATCH_SIZE = 1000
+ARCHIVE_FILE_TIME_FORMAT = "%Y%m%dT%H%M%S"
+
+T = TypeVar("T")
 
 
 class SnapshotCleaningConfig(BaseModel):
@@ -50,7 +61,7 @@ class DPArchivationConfig(BaseModel):
 
     Attributes:
         schedule: Schedule for datapoint archivation.
-        older_than: Datapoints older than this will be archived.
+        older_than: Raw datapoints received longer ago than this will be archived.
         archive_dir: Directory where to archive datapoints. Can be `None` to only delete them.
     """
 
@@ -327,59 +338,252 @@ class HistoryManager:
         self.log.debug("Deleted %s snapshots in total.", deleted_total)
 
     def archive_old_dps(self):
+        """Archives old datapoints from raw collections.
+
+        1. Current raw collections are renamed to new archive collections, each holding the raw
+           datapoints received between two runs.
+        2. Archive collections created more than `older_than` ago are selected, based on
+           the creation time in their name.
+        3. All their datapoints are exported to a compressed file in `archive_dir`
+           (skipped if `archive_dir` is not set), and they are dropped.
+        4. Any other empty archive collections are dropped.
+
+        Transient database errors (e.g. a lost connection) are retried. The export is all or
+        nothing: if it fails, no selected archive collection is dropped and the export is repeated
+        by the next run. Renaming, selection and dropping are done per entity type and per
+        archive collection, so a failure there does not stop the others.
         """
-        Archives old data points from raw collection.
+        start = datetime.now(UTC)
+        t_old = start - self.keep_raw_delta
+        stats = {
+            "archives": 0,
+            "exported": 0,
+            "future_dated": 0,
+            "dropped": 0,
+            "export_failed": False,
+            "failures": 0,
+            "file": None,
+        }
+        self.log.debug("Archiving raw datapoints received before %s ...", t_old)
+        try:
+            self.db.save_metadata(start, {"archivation_start": start})
+        except DatabaseError:
+            self.log.exception("Saving archivation metadata failed")
 
-        Updates already saved archive files, if present.
-        """
+        # Runs a database step with retries, a failed step is logged and counted in `stats`
+        step = partial(self._archivation_step, stats)
 
-        t_old = datetime.now(UTC) - self.keep_raw_delta
-        self.log.debug("Archiving all records before %s ...", t_old)
-
+        archives = {}
         for etype in self.model_spec.entities:
-            res = self.db.move_raw_to_archive(etype)
-            if res:
+            if res := step(f"Move of {etype} raw collection", self.db.move_raw_to_archive, etype):
                 self.log.info("Current %s raw collection was moved to archive: %s", etype, res)
+            archives[etype] = step(
+                f"Listing of {etype} archive collections",
+                self._get_archives_to_process,
+                etype,
+                t_old,
+                start,
+                default=[],
+            )
+            stats["archives"] += len(archives[etype])
 
-        max_date, min_date, total_dps = self._get_raw_dps_summary(t_old)
-        if total_dps == 0:
-            self.log.debug("Found no datapoints to archive.")
-            return
-        self.log.debug(
-            "Found %s datapoints to archive in the range %s - %s", total_dps, min_date, max_date
-        )
-
+        exported = True
         if self.log_dir is None:
-            self.log.debug("No archive directory specified, skipping archivation.")
-        else:
-            min_date_string = min_date.strftime("%Y%m%dT%H%M%S")
-            max_date_string = max_date.strftime("%Y%m%dT%H%M%S")
-            date_logfile = self.log_dir / f"dp-log-{min_date_string}--{max_date_string}.jsonl"
-            datapoints = 0
+            self.log.debug("No archive directory specified, skipping export.")
+        elif stats["archives"]:
+            try:
+                stats["exported"], stats["future_dated"], stats["file"] = self._export_archives(
+                    archives, start
+                )
+            except Exception as e:
+                exported = False
+                stats["export_failed"] = True
+                self.log.exception(
+                    "Export of archived datapoints failed, archive collections are kept "
+                    "for the next run: %s",
+                    e,
+                )
 
-            with open(date_logfile, "w", encoding="utf-8") as logfile:
-                for etype in self.model_spec.entities:
-                    for result_cursor in self.db.get_archive(etype, after=min_date, before=t_old):
-                        for dp in result_cursor:
-                            logfile.write(f"{json.dumps(self._reformat_dp(dp), cls=DP3Encoder)}\n")
-                            datapoints += 1
+        if exported:
+            for archive_col_name in chain.from_iterable(archives.values()):
+                if step(f"Drop of {archive_col_name}", self.db.drop_archive, archive_col_name):
+                    stats["dropped"] += 1
 
-            self.log.info("Archived %s datapoints to %s", datapoints, date_logfile)
-            compress_file(date_logfile)
-            os.remove(date_logfile)
-            self.log.debug("Saved archive was compressed")
-
-        deleted_count = 0
         for etype in self.model_spec.entities:
-            for deleted_res in self.db.delete_old_archived_dps(etype, before=t_old):
-                deleted_count += deleted_res.deleted_count
-        self.log.info("Deleted %s datapoints", deleted_count)
+            stats["dropped"] += step(
+                f"Drop of empty {etype} archive collections",
+                self.db.drop_empty_archives,
+                etype,
+                default=0,
+            )
 
-        dropped_count = 0
-        for etype in self.model_spec.entities:
-            dropped_count += self.db.drop_empty_archives(etype)
-        if dropped_count:
-            self.log.info("Dropped %s empty archive collection(s)", dropped_count)
+        self.log.info(
+            "Archivation done: %s archive collection(s) processed, %s datapoints exported "
+            "(%s future-dated), %s archive collection(s) dropped, %s failure(s)%s",
+            stats["archives"],
+            stats["exported"],
+            stats["future_dated"],
+            stats["dropped"],
+            stats["failures"],
+            ", export failed" if stats["export_failed"] else "",
+        )
+        try:
+            self.db.update_metadata(
+                start,
+                metadata={
+                    "archivation_start": start,
+                    "archivation_end": datetime.now(UTC),
+                    "archivation_metrics": stats,
+                },
+            )
+        except DatabaseError:
+            self.log.exception("Saving archivation metadata failed")
+
+    def _archivation_step(
+        self, stats: dict, description: str, operation: Callable[..., T], *args, default=None
+    ) -> T:
+        """Run a database step of archivation, retrying it after transient errors.
+
+        A failed step is logged and counted in `stats`, and `default` is returned,
+        so that a failure does not stop the remaining steps.
+        """
+        try:
+            return run_with_db_retries(partial(operation, *args), description, self.log)
+        except Exception as e:
+            stats["failures"] += 1
+            self.log.exception("%s failed: %s", description, e)
+            return default
+
+    def _get_archives_to_process(self, etype: str, t_old: datetime, start: datetime) -> list[str]:
+        """Select archive collections of `etype` old enough to be exported and dropped.
+
+        An archive collection holds datapoints received before its creation time,
+        so it is processed once it was created before `t_old`. A tolerance allows
+        for scheduling jitter and schedule changes, so that the archive collection created
+        by the previous run is not left for one more run.
+        Archive collections created by the current run (started at `start`) are never
+        processed, even with a zero `older_than`.
+        Archive collections with unrecognized names are always processed.
+        """
+        tolerance = min(ARCHIVE_TIME_TOLERANCE, self.keep_raw_delta / 2)
+        # Archive names have a second precision
+        run_start = start.replace(microsecond=0)
+        selected = []
+        for archive_col_name in self.db.get_archive_col_names(etype):
+            created = self.db.get_archive_col_time(etype, archive_col_name)
+            if created is None or (created <= t_old + tolerance and created < run_start):
+                selected.append(archive_col_name)
+        return selected
+
+    def _export_archives(
+        self, archives: dict[str, list[str]], start: datetime
+    ) -> tuple[int, int, str | None]:
+        """Export all datapoints of `archives` to a single compressed file in `archive_dir`.
+
+        The file is named by the range of all exported `t1` values, or by the run start
+        if no exported datapoint has a `t1`. Each archive collection is
+        exported with retries; a retried collection is exported again from its beginning.
+        Both the export and the compression are written to temporary files, the compressed file
+        gets its final name only once complete. Temporary files are removed on failure.
+
+        Returns the number of exported and future-dated datapoints, and the name of the file,
+        if any.
+        """
+        partial_file = (
+            self.log_dir / f"dp-log-partial-{start.strftime(ARCHIVE_FILE_TIME_FORMAT)}.jsonl"
+        )
+        partial_compressed = Path(f"{partial_file}.gz")
+        datapoints, future_dated, t_min, t_max = 0, 0, None, None
+        try:
+            with open(partial_file, "wb") as logfile:
+                for etype, archive_col_names in archives.items():
+                    for archive_col_name in archive_col_names:
+                        position = logfile.tell()
+                        count, col_future, col_min, col_max = run_with_db_retries(
+                            partial(
+                                self._export_archive, logfile, position, etype, archive_col_name
+                            ),
+                            f"Export of {archive_col_name}",
+                            self.log,
+                        )
+                        datapoints += count
+                        future_dated += col_future
+                        t_min = min(filter(None, (t_min, col_min)), default=None)
+                        t_max = max(filter(None, (t_max, col_max)), default=None)
+
+            if datapoints == 0:
+                partial_file.unlink()
+                self.log.debug("Found no datapoints to export.")
+                return 0, 0, None
+
+            compress_file(partial_file, partial_compressed)
+            compressed = self._export_file_path(t_min or start, t_max or start)
+            os.replace(partial_compressed, compressed)
+        except BaseException:
+            partial_compressed.unlink(missing_ok=True)
+            raise
+        finally:
+            partial_file.unlink(missing_ok=True)
+
+        self.log.info("Archived %s datapoints to %s", datapoints, compressed)
+        return datapoints, future_dated, str(compressed)
+
+    def _export_archive(
+        self, logfile, position: int, etype: str, archive_col_name: str
+    ) -> tuple[int, int, datetime | None, datetime | None]:
+        """Export all datapoints of one archive collection to `logfile`, starting at `position`.
+
+        Anything after `position` (left by a failed previous attempt) is overwritten.
+        Returns the number of exported datapoints, the number of future-dated ones
+        (`t1` later than the creation of the archive collection), and the range of their
+        `t1` values.
+        """
+        logfile.seek(position)
+        logfile.truncate()
+        count, future_dated, t_min, t_max = 0, 0, None, None
+        created = self.db.get_archive_col_time(etype, archive_col_name)
+        cursor = self.db.get_archived_dps(archive_col_name, batch_size=ARCHIVE_EXPORT_BATCH_SIZE)
+        try:
+            for dp in cursor:
+                t1 = dp.get("t1")
+                if isinstance(t1, datetime):
+                    t_min = t1 if t_min is None else min(t_min, t1)
+                    t_max = t1 if t_max is None else max(t_max, t1)
+                    if created is not None and t1 > created:
+                        future_dated += 1
+                line = json.dumps(self._reformat_dp(dp), cls=DP3Encoder) + "\n"
+                logfile.write(line.encode("utf-8"))
+                count += 1
+        finally:
+            cursor.close()
+        if future_dated:
+            self.log.warning(
+                "%s datapoints of %s have t1 later than the creation of the archive "
+                "collection (%s), at most %s",
+                future_dated,
+                archive_col_name,
+                created,
+                t_max,
+            )
+        return count, future_dated, t_min, t_max
+
+    def _export_file_path(self, t_min: datetime, t_max: datetime) -> Path:
+        """Returns a path of a new compressed export file for the `t_min` - `t_max` range.
+
+        Never returns a path of an existing export file, compressed or not.
+        """
+        base = (
+            f"dp-log-{t_min.strftime(ARCHIVE_FILE_TIME_FORMAT)}"
+            f"--{t_max.strftime(ARCHIVE_FILE_TIME_FORMAT)}"
+        )
+        name = base
+        suffix = 1
+        while (self.log_dir / f"{name}.jsonl").exists() or (
+            self.log_dir / f"{name}.jsonl.gz"
+        ).exists():
+            name = f"{base}-{suffix}"
+            suffix += 1
+        return self.log_dir / f"{name}.jsonl.gz"
 
     @staticmethod
     def _reformat_dp(dp):
@@ -389,21 +593,6 @@ class HistoryManager:
         del dp["eid"]
         del dp["etype"]
         return dp
-
-    def _get_raw_dps_summary(
-        self, before: datetime
-    ) -> tuple[datetime | None, datetime | None, int]:
-        date_ranges = []
-        for etype in self.model_spec.entities:
-            summary = self.db.get_archive_summary(etype, before=before)
-            if summary:
-                date_ranges.append(summary)
-        if not date_ranges:
-            return None, None, 0
-        min_date = min(x["earliest"] for x in date_ranges)
-        max_date = max(x["latest"] for x in date_ranges)
-        total_dps = sum(x["count"] for x in date_ranges)
-        return max_date, min_date, total_dps
 
     @staticmethod
     def _ensure_log_dir(log_dir_path: str):

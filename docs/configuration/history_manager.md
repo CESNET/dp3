@@ -34,12 +34,25 @@ datapoint_archivation:
 2. Parameter `datapoint_cleaning_schedule` sets interval when should DP³ check if any data in master record of observations and timeseries attributes isn't too old and if there's something too old, removes it. To control what is considered as "too old", see parameter `max_age` in *Database entities* configuration.
 3. Parameter `snapshot_cleaning.schedule` sets the interval for DP³ to clean the snapshots collection. Optimally should be scheduled outside the snapshot creation window. See *Snapshots* configuration for more.
 4. Parameter `snapshot_cleaning.older_than` sets how old must a snapshot be to be deleted.
-5. Parameter `datapoint_archivation.schedule` sets interval for DP³ to archive datapoints from raw collections.
-6. Parameter `datapoint_archivation.older_than` sets how old must a datapoint be to be archived.
+5. Parameter `datapoint_archivation.schedule` sets interval for DP³ to archive datapoints from raw collections. Preferably schedule it outside the snapshot creation window.
+6. Parameter `datapoint_archivation.older_than` sets how long ago must raw datapoints have been received to be archived.
 7. Parameter `datapoint_archivation.archive_dir` sets directory where should be archived old datapoints. If directory doesn't exist, it will be created, but write priviledges must be set correctly. Can be also set to `null` (or not set) to disable archivation and only delete old data.
 8. Optional parameter `datapoint_cleaning` controls the pacing of datapoint cleaning. Master records containing expired datapoints are cleaned in chunks of `chunk_size` records (default `200`), each record is rewritten once for all of its expired attributes. Consecutive chunks are separated by `chunk_pause` (default `1s`, a plain number is interpreted as seconds) to leave room for other database work. On a loaded database, smaller chunks and longer pauses reduce the impact of cleaning on ingestion at the cost of a longer cleaning run. After each run, a summary is logged per entity type with the number of modified records, the time spent updating and paused, and the slowest chunk, which can be used for tuning.
 
 The schedule dictionaries are transformed to cron expressions, see [CronExpression docs][dp3.common.config.CronExpression] for details.
+
+## Datapoint archivation
+
+Raw datapoints are archived in batches by the time they were received, not by their `t1`.
+Each run archives the datapoints received in a period between two runs once they are older than
+`older_than`. With a daily schedule and `older_than: 1d`, each run archives the datapoints
+received during the day before the previous run.
+
+Archived datapoints are written to `archive_dir` as `dp-log-<min t1>--<max t1>.jsonl.gz`,
+named by the range of `t1` values in the file. Datapoints dated in the future at the time they
+were received are logged as a warning.
+
+If an archivation run fails, the datapoints are kept in the database and archived by the next run.
 
 ## Maintenance metrics in `#metadata`
 
@@ -51,6 +64,9 @@ HistoryManager records run start/end times and metrics in `#metadata`:
 - `cleaning_metrics.entity_types`: per-entity record/chunk counts, failures, cursor restarts,
   and elapsed/update/pause times (seconds). `records` counts attempts and `modified` counts
   acknowledged document modifications, not individual datapoints removed.
+- `archivation_metrics`: processed and dropped archive collections, exported datapoints
+  (and how many of them were future-dated), the export file, and failures. Run start and end
+  are recorded in `archivation_start` and `archivation_end`.
 
 Metrics add no database reads. Interrupted runs may lack final metrics.
 

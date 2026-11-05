@@ -15,7 +15,7 @@ from pymongo import UpdateMany, UpdateOne, WriteConcern
 from pymongo.collection import Collection
 from pymongo.cursor import Cursor
 from pymongo.database import Database
-from pymongo.errors import ConnectionFailure, OperationFailure
+from pymongo.errors import BulkWriteError, ConnectionFailure, OperationFailure
 from pymongo.results import UpdateResult
 
 from dp3.common.attrspec import AttrType, timeseries_types
@@ -603,7 +603,9 @@ class EntityDatabase:
                     end - locked,
                 )
             except Exception as e:
-                raise DatabaseError(f"Insert of datapoints failed: {e}\n{dps}") from e
+                raise DatabaseError(
+                    f"Insert of {len(dps)} datapoints of {etype} failed: {e}"
+                ) from e
 
     def _push_master(self):
         """Push master changes to database."""
@@ -639,7 +641,11 @@ class EntityDatabase:
                     for eid, changes in master_changes.items()
                 ]
                 updates_ready = time.time()
-                res = master_col.bulk_write(updates, ordered=False)
+                try:
+                    master_col.bulk_write(updates, ordered=False)
+                except BulkWriteError as e:
+                    # The bulk write is unordered, so all other updates were still applied.
+                    self._log_master_write_errors(etype, e.details.get("writeErrors", []))
                 end = time.time()
                 self.log.debug(
                     "Updated %s master records in %.3fs, "
@@ -650,12 +656,37 @@ class EntityDatabase:
                     (updates_ready - locked) * 1000,
                     end - updates_ready,
                 )
-                for error in res.bulk_api_result.get("writeErrors", []):
-                    self.log.error("Error in bulk write: %s", error)
             except Exception as e:
                 raise DatabaseError(
-                    f"Update of master records failed: {e}\n{master_changes}"
+                    f"Update of {len(master_changes)} master records of {etype} failed: {e}"
                 ) from e
+
+    def _log_master_write_errors(self, etype: str, write_errors: list[dict]):
+        """Logs failed master record updates by entity and attribute, without the values."""
+        for error in write_errors:
+            op = error.get("op", {})
+            eid = op.get("q", {}).get("_id")
+            update = op.get("u", {})
+            stages = update if isinstance(update, list) else [update]  # pipeline updates
+            attrs = sorted(
+                {
+                    attr
+                    for stage in stages
+                    for fields in stage.values()
+                    if isinstance(fields, dict)
+                    for attr in fields
+                }
+                - {MASTER_REVISION_FIELD}
+            )
+            self.log.error(
+                "Update of master record %s/%s failed, its changes were dropped "
+                "(code %s: %s). Attributes: %s",
+                etype,
+                eid,
+                error.get("code"),
+                error.get("errmsg"),
+                attrs,
+            )
 
     def update_master_records(
         self,
@@ -693,15 +724,18 @@ class EntityDatabase:
                 new_values[MASTER_REVISION_FIELD] = next_revision
                 updates.append(UpdateOne(query, [{"$set": new_values}]))
 
-            res = master_col.bulk_write(updates, ordered=False)
-            self.log.debug(
-                "Updated %s/%s master records of %s.", res.matched_count, len(records), etype
-            )
-            for error in res.bulk_api_result.get("writeErrors", []):
-                self.log.error("Error in bulk write: %s", error)
-            return res.matched_count
+            try:
+                matched = master_col.bulk_write(updates, ordered=False).matched_count
+            except BulkWriteError as e:
+                # The bulk write is unordered, so all other updates were still applied.
+                self._log_master_write_errors(etype, e.details.get("writeErrors", []))
+                matched = e.details.get("nMatched", 0)
+            self.log.debug("Updated %s/%s master records of %s.", matched, len(records), etype)
+            return matched
         except Exception as e:
-            raise DatabaseError(f"Update of master records failed: {e}\n{records}") from e
+            raise DatabaseError(
+                f"Update of {len(records)} master records of {etype} failed: {e}"
+            ) from e
 
     def extend_ttl(self, etype: str, eid: AnyEidT, ttl_tokens: dict[str, datetime]):
         """Extends TTL of given `etype`:`eid` by `ttl_tokens`."""

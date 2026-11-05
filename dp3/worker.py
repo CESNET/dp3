@@ -296,7 +296,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
         registrar = CallbackRegistrar(global_scheduler, task_executor, snap_shooter, updater)
 
         LinkManager(db, platform_config, registrar)
-        HistoryManager(db, platform_config, registrar)
+        HistoryManager(db, platform_config, registrar, updater)
         Telemetry(db, platform_config, registrar)
         GarbageCollector(db, platform_config, registrar)
 

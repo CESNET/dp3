@@ -1,5 +1,4 @@
 import logging
-import time
 import unittest
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -11,14 +10,11 @@ from repair_min_t2s import (
     missing_marker_filter,
 )
 
+from dp3.core.updater import UpdateBatch, UpdatePeriod
 from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
 from dp3.database.encodings import get_codec_options
-from dp3.history_management.history_manager import (
-    DatapointCleaningConfig,
-    HistoryManager,
-    _CleaningStats,
-)
+from dp3.history_management.history_manager import DatapointCleaningConfig, HistoryManager
 
 
 class HistoryMarkers(common.APITest):
@@ -44,9 +40,9 @@ class HistoryMarkers(common.APITest):
             "repair": "history-marker-repair-regression",
             "multi_cleanup": "history-marker-multi-cleanup-regression",
             "fresh": "history-marker-fresh-regression",
-            "chunk_1": "history-marker-chunk-1-regression",
-            "chunk_2": "history-marker-chunk-2-regression",
-            "chunk_3": "history-marker-chunk-3-regression",
+            "batch_0": "history-marker-batch-0-regression",
+            "batch_1": "history-marker-batch-1-regression",
+            "batch_2": "history-marker-batch-2-regression",
         }
         self.test_master = self.db["test_entity_type#master"]
         self.a_master = self.db["A#master"]
@@ -241,16 +237,13 @@ class HistoryMarkers(common.APITest):
             ]
         )
 
-        candidates = {
-            doc["_id"] for doc in self.entity_db.get_eids_with_old_dps("test_entity_type", t_olds)
-        }
-        self.assertIn(self.eids["multi_cleanup"], candidates)
-        self.assertNotIn(self.eids["fresh"], candidates)
-
-        result = self.entity_db.delete_old_dps_of_eids(
-            "test_entity_type", [self.eids["multi_cleanup"], self.eids["fresh"]], t_olds
+        result = self.entity_db.delete_old_dps(
+            "test_entity_type",
+            t_olds,
+            {"_id": {"$in": [self.eids["multi_cleanup"], self.eids["fresh"]]}},
         )
 
+        self.assertEqual(result.matched_count, 1)
         self.assertEqual(result.modified_count, 1)
         document = self.test_master.find_one({"_id": self.eids["multi_cleanup"]})
         self.assertEqual([dp["v"] for dp in document["test_attr_history"]], [2])
@@ -263,14 +256,15 @@ class HistoryMarkers(common.APITest):
         self.assertEqual(document["#revision"], 2)
         self.assertEqual(self.test_master.find_one({"_id": self.eids["fresh"]})["#revision"], 1)
 
-    def test_history_manager_restarts_lost_cleaning_cursor(self):
+    def test_history_manager_cleans_only_records_of_updater_batch(self):
         now = datetime.now(UTC).replace(microsecond=0)
         old = now - timedelta(days=30)
-        chunk_eids = [self.eids["chunk_1"], self.eids["chunk_2"], self.eids["chunk_3"]]
+        batch_eids = [self.eids["batch_0"], self.eids["batch_1"], self.eids["batch_2"]]
         self.test_master.insert_many(
             [
                 {
                     "_id": eid,
+                    "#hash": record_hash,
                     "test_attr_history": [
                         {"t1": old, "t2": old, "v": 1, "c": 1.0},
                         {"t1": now, "t2": now, "v": 2, "c": 1.0},
@@ -278,52 +272,81 @@ class HistoryMarkers(common.APITest):
                     "#min_t2s": {"test_attr_history": old},
                     "#revision": 1,
                 }
-                for eid in chunk_eids
+                for eid, record_hash in zip(batch_eids, [4, 5, 6], strict=True)
             ]
         )
-        cursors = []
-        cleaned_eids = []
+        history_manager = self._history_manager()
+        period_start = now - timedelta(hours=1)
 
-        def get_eids_with_old_dps(etype, t_olds, **kwargs):
-            cursors.append(self.entity_db.get_eids_with_old_dps(etype, t_olds, **kwargs))
-            return cursors[-1]
+        metrics = history_manager._delete_old_dps_batch(
+            "test_entity_type",
+            UpdateBatch(
+                query_filter={"#hash": {"$mod": [2, 0]}},
+                iteration=0,
+                total_iterations=2,
+                period_start=period_start,
+            ),
+            max_ages={"test_attr_history": timedelta(days=7)},
+        )
 
-        def delete_old_dps_of_eids(etype, eids, t_olds):
-            result = self.entity_db.delete_old_dps_of_eids(etype, eids, t_olds)
-            cleaned_eids.extend(eids)
-            if len(cursors) == 1:
-                # Kill the cursor on the server, as a database restart would
-                self.db.command(
-                    "killCursors", "test_entity_type#master", cursors=[cursors[0].cursor_id]
-                )
-            return result
+        self.assertEqual(metrics, {"batches": 1, "failed_batches": 0, "records": 2, "modified": 2})
+        documents = {d["_id"]: d for d in self.test_master.find({"_id": {"$in": batch_eids}})}
+        for eid in [self.eids["batch_0"], self.eids["batch_2"]]:
+            self.assertEqual([dp["v"] for dp in documents[eid]["test_attr_history"]], [2])
+            self.assertEqual(documents[eid]["#min_t2s"], {"test_attr_history": now})
+            self.assertEqual(documents[eid]["#revision"], 2)
+        # Records of other batches are left for their own batch
+        self.assertEqual(len(documents[self.eids["batch_1"]]["test_attr_history"]), 2)
+        self.assertEqual(documents[self.eids["batch_1"]]["#revision"], 1)
 
+    def _history_manager(self) -> HistoryManager:
         history_manager = HistoryManager.__new__(HistoryManager)
         history_manager.log = logging.getLogger("HistoryManagerTest")
-        history_manager.db = SimpleNamespace(
-            get_eids_with_old_dps=get_eids_with_old_dps,
-            delete_old_dps_of_eids=delete_old_dps_of_eids,
-        )
-        history_manager.config = SimpleNamespace(
-            datapoint_cleaning=DatapointCleaningConfig(chunk_size=2, chunk_pause=0)
-        )
+        history_manager.db = self.entity_db
+        history_manager.config = SimpleNamespace(datapoint_cleaning=DatapointCleaningConfig())
+        return history_manager
 
-        # The first cursor cleans a full chunk of 2 records and is then lost,
-        # the restarted query only returns the remaining record, cleaned as a partial chunk
-        history_manager._delete_old_dps_of_etype(
-            "test_entity_type",
-            {"test_attr_history": now - timedelta(days=7)},
-            _CleaningStats(start=time.monotonic()),
-        )
+    def test_cleaning_period_metadata_is_saved_per_entity(self):
+        # A period start no worker of the running test instance can share
+        period_start = datetime(2001, 1, 1, tzinfo=UTC)
+        metadata = self.db["#metadata"]
+        metadata.delete_many({"cleaning_start": period_start})
+        self.addCleanup(metadata.delete_many, {"cleaning_start": period_start})
 
-        self.assertEqual(len(cursors), 2)
-        self.assertEqual(sorted(eid for eid in cleaned_eids if eid in chunk_eids), chunk_eids)
-        documents = list(self.test_master.find({"_id": {"$in": chunk_eids}}))
-        self.assertEqual(len(documents), len(chunk_eids))
-        for document in documents:
-            self.assertEqual([dp["v"] for dp in document["test_attr_history"]], [2])
-            self.assertEqual(document["#min_t2s"], {"test_attr_history": now})
-            self.assertEqual(document["#revision"], 2)
+        def end_period(etype, batches):
+            self._history_manager()._end_cleaning_period(
+                etype,
+                UpdatePeriod(
+                    period_start=period_start,
+                    period_end=period_start + timedelta(days=1),
+                    runtime_secs=2.0,
+                    slowest_batch_secs=0.5,
+                    metrics={"batches": batches, "failed_batches": 0, "records": 1, "modified": 1},
+                ),
+            )
+
+        # Entity types are registered in any order and their periods may start together
+        end_period("test_entity_type", 3)
+        end_period("A", 4)
+        # After a restart, the end of a period can be saved again with the same totals
+        end_period("A", 4)
+
+        records = {r["entity"]: r for r in metadata.find({"cleaning_start": period_start})}
+        self.assertEqual(sorted(records), ["A", "test_entity_type"])
+        self.assertEqual(records["test_entity_type"]["cleaning_metrics"]["batches"], 3)
+        self.assertEqual(
+            records["A"]["cleaning_metrics"],
+            {
+                "batches": 4,
+                "failed_batches": 0,
+                "records": 1,
+                "modified": 1,
+                "update_time": 2.0,
+                "slowest_batch": 0.5,
+            },
+        )
+        self.assertEqual(records["A"]["cleaning_end"], period_start + timedelta(days=1))
+        self.assertEqual(records["A"]["#module"], "HistoryManager")
 
 
 if __name__ == "__main__":

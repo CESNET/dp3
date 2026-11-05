@@ -13,12 +13,8 @@ Configuration file `history_manager.yml` is very simple:
 aggregation_schedule:  # (1)!
   minute: "*/10"
 
-datapoint_cleaning_schedule:  # (2)!
-  minute: "*/30"
-
-datapoint_cleaning:  # (8)!
-  chunk_size: 200
-  chunk_pause: 1s
+datapoint_cleaning:
+  period: 1d  # (2)!
 
 snapshot_cleaning:
   schedule: {minute: "15,45"}  # (3)!
@@ -31,15 +27,25 @@ datapoint_archivation:
 ```
 
 1. Parameter `aggregation_schedule` sets the interval for DP³ to aggregate observation datapoints in master records. This should be scheduled more often than cleaning of datapoints.
-2. Parameter `datapoint_cleaning_schedule` sets interval when should DP³ check if any data in master record of observations and timeseries attributes isn't too old and if there's something too old, removes it. To control what is considered as "too old", see parameter `max_age` in *Database entities* configuration.
+2. Parameter `datapoint_cleaning.period` (default `1d`) sets how often is each master record checked for datapoints of observations and timeseries attributes that are too old, which are then removed. To control what is considered as "too old", see parameter `max_age` in *Database entities* configuration. See [Datapoint cleaning](#datapoint-cleaning).
 3. Parameter `snapshot_cleaning.schedule` sets the interval for DP³ to clean the snapshots collection. Optimally should be scheduled outside the snapshot creation window. See *Snapshots* configuration for more.
 4. Parameter `snapshot_cleaning.older_than` sets how old must a snapshot be to be deleted.
 5. Parameter `datapoint_archivation.schedule` sets interval for DP³ to archive datapoints from raw collections. Preferably schedule it outside the snapshot creation window.
 6. Parameter `datapoint_archivation.older_than` sets how long ago must raw datapoints have been received to be archived.
 7. Parameter `datapoint_archivation.archive_dir` sets directory where should be archived old datapoints. If directory doesn't exist, it will be created, but write priviledges must be set correctly. Can be also set to `null` (or not set) to disable archivation and only delete old data.
-8. Optional parameter `datapoint_cleaning` controls the pacing of datapoint cleaning. Master records containing expired datapoints are cleaned in chunks of `chunk_size` records (default `200`), each record is rewritten once for all of its expired attributes. Consecutive chunks are separated by `chunk_pause` (default `1s`, a plain number is interpreted as seconds) to leave room for other database work. On a loaded database, smaller chunks and longer pauses reduce the impact of cleaning on ingestion at the cost of a longer cleaning run. After each run, a summary is logged per entity type with the number of modified records, the time spent updating and paused, and the slowest chunk, which can be used for tuning.
 
 The schedule dictionaries are transformed to cron expressions, see [CronExpression docs][dp3.common.config.CronExpression] for details.
+
+## Datapoint cleaning
+
+Expired datapoints are removed continuously: every record is cleaned once per
+`datapoint_cleaning.period`, with the work spread evenly over the period.
+A shorter period keeps master records slimmer, but increases the database load,
+as each cleaned record is rewritten.
+Expired datapoints may remain in a record for up to one `period` past their `max_age`.
+
+The `datapoint_cleaning_schedule`, `datapoint_cleaning.chunk_size` and
+`datapoint_cleaning.chunk_pause` options are deprecated and ignored.
 
 ## Datapoint archivation
 
@@ -61,9 +67,10 @@ HistoryManager records run start/end times and metrics in `#metadata`:
 - `aggregation_metrics.entity_types`: per-attribute datapoint counts before/after aggregation,
   alongside the existing record-update and retry counters. Counts describe initial-pass
   computations, not guaranteed persisted changes; retries are excluded.
-- `cleaning_metrics.entity_types`: per-entity record/chunk counts, failures, cursor restarts,
-  and elapsed/update/pause times (seconds). `records` counts attempts and `modified` counts
-  acknowledged document modifications, not individual datapoints removed.
+- `cleaning_metrics`: one record per entity type and cleaning period, saved when the period
+  ends (`cleaning_start`, `cleaning_end`, `entity`). It contains the number of `batches` and
+  `failed_batches`, the master records with expired datapoints (`records`) and the modified ones
+  (`modified`), the total `update_time` and the `slowest_batch` (seconds).
 - `archivation_metrics`: processed and dropped archive collections, exported datapoints
   (and how many of them were future-dated), the export file, and failures. Run start and end
   are recorded in `archivation_start` and `archivation_end`.

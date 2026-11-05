@@ -934,35 +934,25 @@ class EntityDatabase:
         normalized_histories[MASTER_REVISION_FIELD] = next_revision
         return [{"$set": filtered_histories}, {"$set": normalized_histories}]
 
-    def get_eids_with_old_dps(self, etype: str, t_olds: dict[str, datetime], **kwargs) -> Cursor:
-        """Get cursor of IDs of master records with datapoints older than `t_olds` of any attribute.
-
-        Args:
-            etype: Entity type.
-            t_olds: Mapping of history attribute name -> oldest `t2` to keep.
-            **kwargs: Additional arguments for `pymongo.Collection.find`.
-        """
-        return self._master_col(etype).find(
-            self._expired_history_filter(t_olds), projection={"_id": 1}, **kwargs
-        )
-
-    def delete_old_dps_of_eids(
-        self, etype: str, eids: list[AnyEidT], t_olds: dict[str, datetime]
+    def delete_old_dps(
+        self, etype: str, t_olds: dict[str, datetime], query_filter: dict | None = None
     ) -> UpdateResult:
-        """Delete datapoints older than `t_olds` from the given master records.
+        """Delete datapoints older than `t_olds` from master records matching `query_filter`.
 
-        All expired histories of a record are cleaned in a single document rewrite.
+        Only records with any expired history are modified, all expired histories of a record
+        are cleaned in a single document rewrite.
 
         Args:
             etype: Entity type.
-            eids: IDs of the master records to clean.
             t_olds: Mapping of history attribute name -> oldest `t2` to keep.
+            query_filter: Filter restricting the cleaned master records, e.g. to an Updater batch.
         """
         master_col = self._master_col(etype, write_concern=WriteConcern(w=1))
         try:
-            with self.db_errors.track("datapoint_cleaning", etype, len(eids)):
+            # The number of records matching the filter is not known, a failed update counts once
+            with self.db_errors.track("datapoint_cleaning", etype):
                 return master_col.update_many(
-                    {"_id": {"$in": eids}} | self._expired_history_filter(t_olds),
+                    (query_filter or {}) | self._expired_history_filter(t_olds),
                     self._delete_old_dps_pipeline(t_olds),
                 )
         except Exception as e:
@@ -1201,10 +1191,17 @@ class EntityDatabase:
         master_col = self._master_col(etype)
         return master_col.estimated_document_count({})
 
-    def _get_metadata_id(self, module: str, time: datetime, worker_id: int | None = None) -> str:
-        """Generates unique metadata id based on `module`, `time` and the worker index."""
+    def _get_metadata_id(
+        self, module: str, time: datetime, worker_id: int | None = None, key: str | None = None
+    ) -> str:
+        """Generates unique metadata id based on `module`, `time` and the worker index.
+
+        The optional `key` distinguishes records of the same module, time and worker,
+        e.g. of different entity types.
+        """
         worker_id = self._process_index if worker_id is None else worker_id
-        return f"{module}{time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}w{worker_id}"
+        module_key = module if key is None else f"{module}[{key}]"
+        return f"{module_key}{time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}w{worker_id}"
 
     def save_metadata(self, time: datetime, metadata: dict, worker_id: int | None = None):
         """Saves metadata dict under the caller module and passed timestamp."""
@@ -1220,11 +1217,20 @@ class EntityDatabase:
             raise DatabaseError(f"Insert of metadata failed: {e}\n{metadata}") from e
 
     def update_metadata(
-        self, time: datetime, metadata: dict, increase: dict = None, worker_id: int | None = None
+        self,
+        time: datetime,
+        metadata: dict,
+        increase: dict = None,
+        worker_id: int | None = None,
+        key: str | None = None,
     ):
-        """Updates existing metadata of caller module and passed timestamp."""
+        """Updates existing metadata of caller module and passed timestamp.
+
+        The optional `key` identifies one of several records of the same module, time and worker.
+        If the record does not exist yet, it is created.
+        """
         module = get_caller_id()
-        metadata_id = self._get_metadata_id(module, time, worker_id)
+        metadata_id = self._get_metadata_id(module, time, worker_id, key)
         metadata["#last_update"] = datetime.now(UTC)
 
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}

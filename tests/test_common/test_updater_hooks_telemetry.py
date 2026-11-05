@@ -49,7 +49,7 @@ class TestUpdaterHookTelemetry(unittest.TestCase):
 
         self.updater._register_hook(create_tasks, "create", "device", 60, eid_only=False)
         self.updater._register_hook(fail, "fail", "device", 60, eid_only=False)
-        hooks = self.updater.update_thread_hooks[60, "device", False]
+        hooks = self.updater.update_thread_hooks[60, "device", False, False]
         successful_hook = hooks["create"]
         failing_hook = hooks["fail"]
 
@@ -77,7 +77,7 @@ class TestUpdaterHookTelemetry(unittest.TestCase):
             return [object()]
 
         self.updater._register_hook(create_task, "refresh", "device", 120, eid_only=True)
-        hooks = self.updater.update_thread_hooks[120, "device", True]
+        hooks = self.updater.update_thread_hooks[120, "device", True, False]
         hook = hooks["refresh"]
 
         with patch(
@@ -101,8 +101,8 @@ class TestUpdaterHookTelemetry(unittest.TestCase):
         self.updater._register_hook(hook, "refresh", "device", 60, eid_only=True)
         self.updater._register_hook(hook, "refresh", "device", 120, eid_only=True)
 
-        first = self.updater.update_thread_hooks[60, "device", True]["refresh"]
-        second = self.updater.update_thread_hooks[120, "device", True]["refresh"]
+        first = self.updater.update_thread_hooks[60, "device", True, False]["refresh"]
+        second = self.updater.update_thread_hooks[120, "device", True, False]["refresh"]
         self.assertNotEqual(first.metric_prefix, second.metric_prefix)
 
 

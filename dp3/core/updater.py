@@ -3,12 +3,13 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from typing import Literal
 
 from event_count_logger import DummyEventGroup
-from pydantic import BaseModel, validate_call
+from pydantic import BaseModel, Field, validate_call
 from pymongo.cursor import Cursor
 from pymongo.results import UpdateResult
 
@@ -59,8 +60,11 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
         etype: Entity type.
         period: Period length in seconds.
         eid_only: Whether only eids are passed to hooks.
+        batch: Whether hooks are called once per batch instead of once per record.
         hook_ids: Hook ids.
         runtime_secs: Total hook runtime in seconds.
+        slowest_batch_secs: Runtime of the slowest batch in seconds.
+        metrics: Metrics returned by batch hooks, summed over the period, by hook id.
     """
 
     type: Literal["state"] = "state"
@@ -75,13 +79,23 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
     period: float
     etype: str
     eid_only: bool
+    batch: bool = False
     hook_ids: list[str]
     runtime_secs: float = 0.0
+    slowest_batch_secs: float = 0.0
+    metrics: dict[str, dict[str, float]] = Field(default_factory=dict)
 
     @classmethod
-    def new(cls, hooks: dict, period: float, entity_type: str, eid_only: bool = False):
+    def new(
+        cls,
+        hooks: dict,
+        period: float,
+        entity_type: str,
+        eid_only: bool = False,
+        batch: bool = False,
+    ):
         """Create a new instance initialized with hooks and thread_id components."""
-        now = datetime.now(UTC)
+        now = _now_ms()
         return cls(
             t_created=now,
             t_last_update=now,
@@ -89,29 +103,77 @@ class UpdateThreadState(BaseModel, validate_assignment=True):
             period=period,
             etype=entity_type,
             eid_only=eid_only,
+            batch=batch,
             hook_ids=hooks.keys(),
         )
 
     @staticmethod
     def id_attributes():
         """A list of attributes which identify the state in cache."""
-        return ["type", "period", "etype", "eid_only", "t_created"]
+        return ["type", "period", "etype", "eid_only", "batch", "t_created"]
 
     @property
-    def thread_id(self) -> tuple[float, str, bool]:
-        """A tuple of (period, entity_type, eid_only)."""
-        return self.period, self.etype, self.eid_only
+    def thread_id(self) -> "UpdateThreadId":
+        """A tuple of (period, entity_type, eid_only, batch)."""
+        return self.period, self.etype, self.eid_only, self.batch
 
     def reset(self):
         """Resets counters and timestamps."""
-        now = datetime.now(UTC)
+        now = _now_ms()
         self.t_created = now
         self.t_last_update = now
         self.t_end = now + timedelta(seconds=self.period)
         self.iteration = 0
         self.processed = 0
         self.runtime_secs = 0.0
+        self.slowest_batch_secs = 0.0
+        self.metrics = {}
         self.finished = False
+
+
+def _now_ms() -> datetime:
+    """Current time truncated to milliseconds, the precision of datetimes stored in MongoDB.
+
+    Thread states keep the same `t_created` before and after being saved and loaded again.
+    """
+    now = datetime.now(UTC)
+    return now.replace(microsecond=now.microsecond // 1000 * 1000)
+
+
+@dataclass(frozen=True)
+class UpdateBatch:
+    """A batch of entities passed to an internal batch update hook.
+
+    Attributes:
+        query_filter: Filter selecting the master records of this batch.
+        iteration: Index of this batch within the current period.
+        total_iterations: Number of batches in a period.
+        period_start: Start of the current period, identifies it across restarts.
+    """
+
+    query_filter: dict
+    iteration: int
+    total_iterations: int
+    period_start: datetime
+
+
+@dataclass(frozen=True)
+class UpdatePeriod:
+    """A finished period of a batch update thread, passed to period end callbacks.
+
+    Attributes:
+        period_start: Start of the period.
+        period_end: End of the last batch of the period.
+        runtime_secs: Total runtime of the batches in seconds.
+        slowest_batch_secs: Runtime of the slowest batch in seconds.
+        metrics: Metrics returned by the hook, summed over the batches of the period.
+    """
+
+    period_start: datetime
+    period_end: datetime
+    runtime_secs: float
+    slowest_batch_secs: float
+    metrics: dict[str, float]
 
 
 class UpdaterCache:
@@ -133,6 +195,9 @@ class UpdaterCache:
         """Update or insert a state entry into DB."""
         state_dict = state.model_dump()
         filter_dict = {k: v for k, v in state_dict.items() if k in state.id_attributes()}
+        if not state.batch:
+            # States saved before batch threads were introduced have no `batch` field
+            filter_dict["batch"] = {"$ne": True}
         update_dict = {
             "$set": {k: v for k, v in state_dict.items() if k not in state.id_attributes()}
         }
@@ -164,7 +229,7 @@ class UpdaterCache:
         self._cache.create_index("t_created", background=True)
 
 
-UpdateThreadId = tuple[float, str, bool]
+UpdateThreadId = tuple[float, str, bool, bool]
 
 
 def validate_update_period(period: float, update_batch_period: float) -> None:
@@ -181,7 +246,7 @@ def get_update_thread_hooks(
 ) -> dict:
     """Return the updater thread hook mapping after checking hook ID uniqueness."""
     hooks = update_thread_hooks[thread_id]
-    _period, entity_type, _eid_only = thread_id
+    _period, entity_type, _eid_only, _batch = thread_id
     if hook_id in hooks:
         raise ValueError(f"Hook ID {hook_id} already registered for {entity_type}.")
     return hooks
@@ -223,6 +288,7 @@ class Updater:
         )
 
         self.update_thread_hooks = defaultdict(dict)
+        self._period_end_callbacks: dict[UpdateThreadId, dict[str, Callable]] = defaultdict(dict)
 
     @validate_call
     def register_record_update_hook(
@@ -252,6 +318,45 @@ class Updater:
         """
         self._register_hook(hook, hook_id, entity_type, period.total_seconds(), eid_only=True)
 
+    def register_batch_update_hook(
+        self,
+        hook: Callable[[str, UpdateBatch], dict[str, float]],
+        hook_id: str,
+        entity_type: str,
+        period: timedelta,
+        on_period_end: Callable[[str, UpdatePeriod], None] | None = None,
+    ):
+        """Registers an internal hook called once per batch of entities of the specified type.
+
+        Over the `period`, the hook is called for every batch with a filter selecting its master
+        records, so that the hook can process them all by a single database operation.
+
+        The hook returns metrics of the batch, which are summed over the period and saved
+        with the progress of the thread. After the last batch of a period, `on_period_end`
+        is called with the totals. If the worker stops before the progress is saved,
+        the last batch is repeated and `on_period_end` is called again with the same totals.
+
+        Intended for DP3 maintenance tasks, which have to modify the database directly.
+        Modules should register record or eid update hooks returning datapoints instead.
+        """
+        if not self.enabled:
+            return
+
+        period_secs = period.total_seconds()
+        validate_update_period(period_secs, self.config.update_batch_period.total_seconds())
+
+        thread_id: UpdateThreadId = (period_secs, entity_type, False, True)
+        hooks = get_update_thread_hooks(self.update_thread_hooks, hook_id, thread_id)
+        self.log.info(
+            "Registered batch hook '%s' to thread processing entity '%s' over %.1fs",
+            hook_id,
+            entity_type,
+            period_secs,
+        )
+        hooks[hook_id] = hook
+        if on_period_end is not None:
+            self._period_end_callbacks[thread_id][hook_id] = on_period_end
+
     def _register_hook(self, hook, hook_id: str, entity_type: str, period: float, eid_only: bool):
         if not self.enabled:
             return
@@ -259,7 +364,7 @@ class Updater:
         update_period_secs = self.config.update_batch_period.total_seconds()
         validate_update_period(period, update_period_secs)
 
-        thread_id: UpdateThreadId = (period, entity_type, eid_only)
+        thread_id: UpdateThreadId = (period, entity_type, eid_only, False)
         hooks = get_update_thread_hooks(self.update_thread_hooks, hook_id, thread_id)
         self.log.info(
             "Registered hook '%s' to thread processing entity '%s' over %.1fs, eid_only = %s",
@@ -331,11 +436,14 @@ class Updater:
                 saved_states[thread_id] = state
 
         # Schedule the update threads
-        for (period, entity_type, eid_only), state in saved_states.items():
+        for thread_id, state in saved_states.items():
             if state.finished:
                 continue
-            hooks = self.update_thread_hooks[(period, entity_type, eid_only)]
-            if eid_only:
+            hooks = self.update_thread_hooks[thread_id]
+            _period, entity_type, eid_only, batch = thread_id
+            if batch:
+                processing_func = self._process_batch_hooks
+            elif eid_only:
                 processing_func = self._process_eid_update_batch
             else:
                 processing_func = self._process_update_batch
@@ -405,6 +513,51 @@ class Updater:
             hook_runner=self._run_hooks_eid,
         )
 
+    def _process_batch_hooks(self, entity_type: str, hooks: dict, state: UpdateThreadState):
+        """Calls batch hooks once for a batch of entities of the specified type.
+
+        Args:
+            entity_type: The entity type.
+            hooks: The batch hooks.
+            state: The state of the update process.
+        """
+        if self._retry_finished_save(entity_type, state):
+            return
+        start = datetime.now(UTC)
+        batch = UpdateBatch(
+            query_filter={"#hash": {"$mod": [state.total_iterations, state.iteration]}},
+            iteration=state.iteration,
+            total_iterations=state.total_iterations,
+            period_start=state.t_created,
+        )
+        for hook_id, hook in hooks.items():
+            try:
+                batch_metrics = hook(entity_type, batch)
+            except Exception as e:
+                self.elog.log("module_error")
+                self.log.exception("Error during running batch hook '%s': %s", hook_id, e)
+                continue
+            hook_metrics = state.metrics.setdefault(hook_id, {})
+            for name, value in batch_metrics.items():
+                hook_metrics[name] = hook_metrics.get(name, 0) + value
+        self._finish_batch(entity_type, state, start, on_finished=self._end_batch_period)
+
+    def _end_batch_period(self, entity_type: str, state: UpdateThreadState):
+        """Calls period end callbacks of a batch thread with the totals of the finished period."""
+        for hook_id, callback in self._period_end_callbacks.get(state.thread_id, {}).items():
+            period = UpdatePeriod(
+                period_start=state.t_created,
+                period_end=state.t_last_update,
+                runtime_secs=state.runtime_secs,
+                slowest_batch_secs=state.slowest_batch_secs,
+                metrics=dict(state.metrics.get(hook_id, {})),
+            )
+            try:
+                callback(entity_type, period)
+            except Exception as e:
+                self.elog.log("module_error")
+                self.log.exception("Error during period end of batch hook '%s': %s", hook_id, e)
+
     def _process_batch(
         self,
         entity_type: str,
@@ -423,6 +576,8 @@ class Updater:
                 to access the required record values.
             hook_runner: Callable taking the (hooks, etype, record) and running the hooks.
         """
+        if self._retry_finished_save(entity_type, state):
+            return
         self.log.debug(
             "Processing update batch for '%s' over %.1fs, eid_only = %s",
             entity_type,
@@ -448,10 +603,24 @@ class Updater:
             hook_runner(hooks, entity_type, record)
 
             state.processed += 1
+        self._finish_batch(entity_type, state, start)
+
+    def _finish_batch(
+        self,
+        entity_type: str,
+        state: UpdateThreadState,
+        start: datetime,
+        on_finished: Callable[[str, UpdateThreadState], None] | None = None,
+    ):
+        """Records the batch runtime and advances the state to the next batch.
+
+        `on_finished` is called after the last batch of the period, before the state is saved.
+        """
         state.t_last_update = datetime.now(UTC)
 
-        duration = state.t_last_update - start
-        state.runtime_secs += duration.total_seconds()
+        duration = (state.t_last_update - start).total_seconds()
+        state.runtime_secs += duration
+        state.slowest_batch_secs = max(state.slowest_batch_secs, duration)
 
         if state.runtime_secs > state.period:
             if state.total > 0:
@@ -482,10 +651,16 @@ class Updater:
                     state.processed,
                 )
 
-        state.iteration = iteration + 1
-        if state.iteration >= iteration_cnt:
+        state.iteration += 1
+        if state.iteration >= state.total_iterations:
             state.finished = True
+            if on_finished is not None:
+                on_finished(entity_type, state)
 
+        self._save_state(entity_type, state)
+
+    def _save_state(self, entity_type: str, state: UpdateThreadState):
+        """Saves the state, a finished period is reset to start the next one once it is saved."""
         self.cache.upsert(state)
 
         if state.finished:
@@ -494,6 +669,17 @@ class Updater:
             )
             state.reset()
             state.total = self.db.get_estimated_entity_count(entity_type)
+
+    def _retry_finished_save(self, entity_type: str, state: UpdateThreadState) -> bool:
+        """Retries saving a finished period whose save has failed, returns True if it was needed.
+
+        No batch is processed until then, so that the finished period is not processed again.
+        """
+        if not state.finished:
+            return False
+        self.log.warning("Retrying the failed save of the finished period of '%s'", entity_type)
+        self._save_state(entity_type, state)
+        return True
 
     def _calculate_iteration_count(self, period_seconds: float) -> int:
         total_iterations = int(period_seconds // self.config.update_batch_period.total_seconds())

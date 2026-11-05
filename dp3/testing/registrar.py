@@ -558,7 +558,7 @@ class TestCallbackRegistrar:
         update_period_seconds = self._update_batch_period_seconds()
         if update_period_seconds is not None:
             validate_update_period(period_seconds, update_period_seconds)
-        thread_id: UpdateThreadId = (period_seconds, entity_type, eid_only)
+        thread_id: UpdateThreadId = (period_seconds, entity_type, eid_only, False)
         return get_update_thread_hooks(update_thread_hooks, hook_id, thread_id)
 
     def _update_batch_period_seconds(self) -> float | None:
@@ -583,7 +583,7 @@ class TestCallbackRegistrar:
     @staticmethod
     def _matching_update_hooks(hooks: dict, entity_type: str, hook_id: str | None):
         matches = []
-        for (_, etype, _), thread_hooks in hooks.items():
+        for (_, etype, _, _), thread_hooks in hooks.items():
             if etype != entity_type:
                 continue
             if hook_id is not None:

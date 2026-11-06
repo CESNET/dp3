@@ -1,0 +1,65 @@
+:root {
+  --diagram-action-fill: transparent;
+  --diagram-action-stroke: #6b7280;
+  --diagram-action-text: #111827;
+  --diagram-hook-fill: #eef2ff;
+  --diagram-hook-stroke: #4f46e5;
+  --diagram-hook-text: #111827;
+  --diagram-producer-fill: #fff3cd;
+  --diagram-producer-stroke: #d97706;
+  --diagram-producer-text: #111827;
+}
+
+[data-md-color-scheme="slate"] {
+  --diagram-action-fill: #2f3340;
+  --diagram-action-stroke: #9ca3af;
+  --diagram-action-text: #e5e7eb;
+  --diagram-hook-fill: #1f2540;
+  --diagram-hook-stroke: #a5b4fc;
+  --diagram-hook-text: #f8fafc;
+  --diagram-producer-fill: #4a3410;
+  --diagram-producer-stroke: #fbbf24;
+  --diagram-producer-text: #fff7ed;
+}
+
+.md-typeset .diagram-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0 1rem;
+}
+
+.md-typeset .diagram-legend-label {
+  font-weight: 700;
+}
+
+.md-typeset .diagram-legend-item {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+}
+
+.md-typeset .diagram-legend-item.action {
+  border: 2px dashed var(--diagram-action-stroke);
+  background: var(--diagram-action-fill);
+  color: var(--diagram-action-text);
+  box-sizing: border-box;
+}
+
+.md-typeset .diagram-legend-item.hook {
+  border: 1.5px solid var(--diagram-hook-stroke);
+  background: var(--diagram-hook-fill);
+  color: var(--diagram-hook-text);
+}
+
+.md-typeset .diagram-legend-item.producer {
+  border: 2px solid var(--diagram-producer-stroke);
+  background: var(--diagram-producer-fill);
+  color: var(--diagram-producer-text);
+}
+
+.md-typeset .diagram-legend-item code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}

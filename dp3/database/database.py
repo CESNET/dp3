@@ -947,13 +947,19 @@ class EntityDatabase:
             t_olds: Mapping of history attribute name -> oldest `t2` to keep.
             query_filter: Filter restricting the cleaned master records, e.g. to an Updater batch.
         """
+        query_filter = query_filter or {}
+        # Nearly all records have some expired history, so the `#min_t2s` wildcard index does
+        # not narrow the update down, but the planner may still prefer it and read every record
+        # to match an Updater batch. The `#hash` index reads only the records of the batch.
+        hint = [("#hash", 1)] if "#hash" in query_filter else None
         master_col = self._master_col(etype, write_concern=WriteConcern(w=1))
         try:
             # The number of records matching the filter is not known, a failed update counts once
             with self.db_errors.track("datapoint_cleaning", etype):
                 return master_col.update_many(
-                    (query_filter or {}) | self._expired_history_filter(t_olds),
+                    query_filter | self._expired_history_filter(t_olds),
                     self._delete_old_dps_pipeline(t_olds),
+                    hint=hint,
                 )
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e

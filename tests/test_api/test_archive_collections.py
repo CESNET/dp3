@@ -5,7 +5,6 @@ import common
 
 from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
-from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import get_codec_options
 
 # Not a configured entity type, so the tests never touch collections used by the running workers
@@ -22,9 +21,7 @@ class ArchiveCollections(unittest.TestCase):
         cls.client.admin.command("ping")
         cls.db = cls.client.get_database(db_config.db_name, codec_options=get_codec_options())
 
-        cls.entity_db = EntityDatabase.__new__(EntityDatabase)
-        cls.entity_db.db_errors = DbErrorCounter()
-        cls.entity_db._db = cls.db
+        cls.entity_db = EntityDatabase.bare(common.MODEL_SPEC, cls.db)
 
     @classmethod
     def tearDownClass(cls):

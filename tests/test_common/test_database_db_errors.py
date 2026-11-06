@@ -2,16 +2,30 @@ import logging
 import unittest
 from collections import Counter
 from datetime import UTC, datetime
-from threading import Lock
 from types import SimpleNamespace
 
 from pymongo.errors import AutoReconnect, BulkWriteError
 
+from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
 from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import BSON_MAX_SIZE, get_codec_options
 from dp3.database.exceptions import DatabaseError, SnapshotCollectionError
 from dp3.database.snapshots import SnapshotCollectionContainer, StringEidSnapshots
+
+# Data model with only what the tested code uses
+MODEL_SPEC = SimpleNamespace(entities={"ip": None}, entity_attributes={"ip": {}})
+EMPTY_MODEL_SPEC = SimpleNamespace(entities={})
+DB_CONFIG = MongoConfig.model_validate({"connection": {"mode": "standalone"}})
+
+
+class FakeDb:
+    """Database without a connection, for constructors."""
+
+    codec_options = get_codec_options()
+
+    def with_options(self, **kwargs):
+        return self
 
 
 class RecordingEventGroup:
@@ -37,13 +51,12 @@ def write_error(eid, code, update):
 
 
 def make_database(collection, buffered_eids=()):
-    database = EntityDatabase.__new__(EntityDatabase)
+    database = EntityDatabase.bare(
+        MODEL_SPEC, elog=RecordingEventGroup(), error_elog=RecordingEventGroup()
+    )
     database.log = logging.getLogger("test")
-    database.elog = RecordingEventGroup()
-    database.db_errors = DbErrorCounter(RecordingEventGroup())
     database._master_col = lambda etype, **kwargs: collection
-    database._master_buffer_locks = {"ip": Lock()}
-    database._master_buffers = {"ip": {eid: {"$set": {"plain": 1}} for eid in buffered_eids}}
+    database._master_buffers["ip"] = {eid: {"$set": {"plain": 1}} for eid in buffered_eids}
     return database
 
 
@@ -133,13 +146,11 @@ class WritingCollection:
 
 def make_snapshots(error: Exception | None) -> StringEidSnapshots:
     """Snapshot collection whose normal snapshot bulk write fails with `error`."""
-    collection = StringEidSnapshots.__new__(StringEidSnapshots)
-    collection.entity_type = "ip"
+    collection = StringEidSnapshots(
+        FakeDb(), "ip", DB_CONFIG, MODEL_SPEC, {}, DbErrorCounter(RecordingEventGroup())
+    )
     collection.log = logging.getLogger("test")
-    collection.db_errors = DbErrorCounter(RecordingEventGroup())
-    collection._db = SimpleNamespace(codec_options=get_codec_options())
-    collection._server_max_bson_size = BSON_MAX_SIZE
-    collection._snapshot_bucket_size = 32
+    collection._server_max_bson_size = BSON_MAX_SIZE  # instead of asking the server
     collection._get_state = lambda eids: (sorted(eids), set())  # fixed update order
     collection._snapshot_col = FailingCollection(error)
     collection._oversized_col = RecordingOversizedCollection()
@@ -206,9 +217,10 @@ class TestSnapshotDbErrorCounters(unittest.TestCase):
     def test_save_one_counts_original_exception(self):
         error = SnapshotCollectionError("Insert of snapshot failed")
         error.__cause__ = AutoReconnect()
-        container = SnapshotCollectionContainer.__new__(SnapshotCollectionContainer)
-        container.db_errors = DbErrorCounter(RecordingEventGroup())
-        container._snapshot_collections = {"ip": FailingSnapshots(error)}
+        container = SnapshotCollectionContainer(
+            FakeDb(), DB_CONFIG, EMPTY_MODEL_SPEC, {}, DbErrorCounter(RecordingEventGroup())
+        )
+        container._snapshot_collections["ip"] = FailingSnapshots(error)
 
         with self.assertRaises(SnapshotCollectionError):
             container.save_one("ip", {"eid": "a"}, self.CTIME)

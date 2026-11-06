@@ -148,9 +148,7 @@ class EntityDatabase:
         elog: EventGroupType | None = None,
         error_elog: EventGroupType | None = None,
     ) -> None:
-        self.log = logging.getLogger("EntityDatabase")
-        self.elog = elog or DummyEventGroup()
-        self.db_errors = DbErrorCounter(error_elog)
+        self._init_state(model_spec, num_processes, process_index, elog, error_elog)
 
         db_config = MongoConfig.model_validate(config.get("database", {}))
 
@@ -173,10 +171,6 @@ class EntityDatabase:
                     )
                     time.sleep(delay)
 
-        self._db_schema_config = model_spec
-        self._num_processes = num_processes
-        self._process_index = process_index
-
         # Init and switch to correct database
         codec_opts = get_codec_options()
         self._db = Database(self._db, db_config.db_name, codec_options=codec_opts)
@@ -193,14 +187,6 @@ class EntityDatabase:
             self._db, self.get_module_cache("Schema"), self._db_schema_config, config, self.log
         )
 
-        self._on_entity_delete_one = []
-        self._on_entity_delete_many = []
-
-        self._raw_buffer_locks = {etype: threading.Lock() for etype in model_spec.entities}
-        self._raw_buffers = defaultdict(list)
-        self._master_buffer_locks = {etype: threading.Lock() for etype in model_spec.entities}
-        self._master_buffers = defaultdict(dict)
-
         self._sched = Scheduler()
         seconds = ",".join(
             f"{int(i)}" for i in range(60) if int(i - process_index) % min(num_processes, 3) == 0
@@ -209,6 +195,48 @@ class EntityDatabase:
         self._sched.register(self._push_master, second=seconds, misfire_grace_time=5)
 
         self.log.info("Database successfully initialized!")
+
+    def _init_state(
+        self,
+        model_spec: ModelSpec,
+        num_processes: int = 1,
+        process_index: int = 0,
+        elog: EventGroupType | None = None,
+        error_elog: EventGroupType | None = None,
+    ) -> None:
+        """Initializes the state that does not depend on the database connection."""
+        self.log = logging.getLogger("EntityDatabase")
+        self.elog = elog or DummyEventGroup()
+        self.db_errors = DbErrorCounter(error_elog)
+
+        self._db_schema_config = model_spec
+        self._num_processes = num_processes
+        self._process_index = process_index
+
+        self._on_entity_delete_one = []
+        self._on_entity_delete_many = []
+
+        self._raw_buffer_locks = {etype: threading.Lock() for etype in model_spec.entities}
+        self._raw_buffers = defaultdict(list)
+        self._master_buffer_locks = {etype: threading.Lock() for etype in model_spec.entities}
+        self._master_buffers = defaultdict(dict)
+
+    @classmethod
+    def bare(cls, model_spec: ModelSpec, db: Database | None = None, **kwargs) -> "EntityDatabase":
+        """Creates a database working with `db`, without connecting or any setup.
+
+        Has the state of a constructed instance, but skips schema initialization, snapshots
+        and scheduled pushes of buffered data. Meant for tests, which replace what they need.
+
+        Args:
+            model_spec: Data model, only `entities` is required.
+            db: Database to work with.
+            **kwargs: Other arguments of the constructor, without `config`.
+        """
+        database = cls.__new__(cls)
+        database._init_state(model_spec, **kwargs)
+        database._db = db
+        return database
 
     @staticmethod
     def connect(config: MongoConfig) -> pymongo.MongoClient:

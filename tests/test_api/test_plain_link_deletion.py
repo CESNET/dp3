@@ -8,7 +8,6 @@ from dp3.common.attrspec import AttrType
 from dp3.core.link_manager import LinkManager
 from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
-from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import get_codec_options
 
 
@@ -26,10 +25,8 @@ class PlainLinkDeletion(unittest.TestCase):
             "scalar_link": SimpleNamespace(t=AttrType.PLAIN, is_iterable=False),
             "iterable_link": SimpleNamespace(t=AttrType.PLAIN, is_iterable=True),
         }
-        cls.entity_db = EntityDatabase.__new__(EntityDatabase)
-        cls.entity_db.db_errors = DbErrorCounter()
-        cls.entity_db._db_schema_config = SimpleNamespace(
-            attr=lambda _etype, attr: attr_specs[attr]
+        cls.entity_db = EntityDatabase.bare(
+            SimpleNamespace(entities={}, attr=lambda _etype, attr: attr_specs[attr]), cls.db
         )
         cls.entity_db._master_col = lambda _etype: cls.master
 

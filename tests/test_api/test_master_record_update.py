@@ -1,11 +1,9 @@
-import logging
 from datetime import UTC, datetime, timedelta
 
 import common
 
 from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
-from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import get_codec_options
 
 ETYPE = "test_entity_type"
@@ -22,13 +20,7 @@ class MasterRecordUpdate(common.APITest):
         cls.client = EntityDatabase.connect(db_config)
         cls.db = cls.client.get_database(db_config.db_name, codec_options=get_codec_options())
 
-        cls.entity_db = EntityDatabase.__new__(EntityDatabase)
-        cls.entity_db.db_errors = DbErrorCounter()
-        cls.entity_db.log = logging.getLogger("MasterRecordUpdateTest")
-        cls.entity_db._db_schema_config = common.MODEL_SPEC
-        cls.entity_db._master_col = lambda etype, **kwargs: cls.db.get_collection(
-            f"{etype}#master", **kwargs
-        )
+        cls.entity_db = EntityDatabase.bare(common.MODEL_SPEC, cls.db)
 
     @classmethod
     def tearDownClass(cls):

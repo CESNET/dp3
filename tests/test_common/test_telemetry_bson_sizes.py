@@ -123,8 +123,7 @@ class FakeSchema:
 
 class AttributeBsonSizeDatabaseTests(unittest.TestCase):
     def make_database(self, aggregation_result):
-        database = object.__new__(EntityDatabase)
-        database._db_schema_config = FakeSchema()
+        database = EntityDatabase.bare(FakeSchema())
         collection = FakeMasterCollection(aggregation_result)
         database._master_col = Mock(return_value=collection)
         return database, collection

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from dp3.common.attrspec import AttrType
 from dp3.database.database import EntityDatabase
+from dp3.database.db_errors import DbErrorCounter
 
 
 class RecordingCollection:
@@ -24,6 +25,7 @@ class TestDeleteManyLinkDatapoints(unittest.TestCase):
 
         database = EntityDatabase.__new__(EntityDatabase)
         database._master_col = collections.__getitem__
+        database.db_errors = DbErrorCounter()
         database._db_schema_config = SimpleNamespace(
             attr=lambda etype, attr: SimpleNamespace(t=attr_types[etype, attr], is_iterable=False)
         )

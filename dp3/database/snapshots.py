@@ -23,6 +23,7 @@ from dp3.common.datatype import AnyEidT
 from dp3.common.mac_address import MACAddress
 from dp3.common.utils import bytes2int, int2bytes
 from dp3.database.config import MongoConfig
+from dp3.database.db_errors import DbErrorCounter, FailedWrites
 from dp3.database.encodings import BSON_MAX_SIZE, BSON_OBJECT_TOO_LARGE, get_codec_options
 from dp3.database.exceptions import SnapshotCollectionError
 from dp3.database.magic import search_and_replace
@@ -38,8 +39,10 @@ class TypedSnapshotCollection(abc.ABC):
         db_config: MongoConfig,
         model_spec: ModelSpec,
         snapshots_config: dict,
+        db_errors: DbErrorCounter | None = None,
     ):
         self._db = db.with_options(codec_options=get_codec_options())
+        self.db_errors = db_errors or DbErrorCounter()
 
         if entity_type not in model_spec.entities:
             raise ValueError(f"Entity type '{entity_type}' not found in model spec")
@@ -535,12 +538,13 @@ class TypedSnapshotCollection(abc.ABC):
         self._oversized_snapshot_eids.difference_update(eids)
 
     def _migrate_snapshot_batch(
-        self, eid_snapshots: list[dict], oversized_inserts: list[dict]
+        self, eid_snapshots: list[dict], oversized_inserts: list[dict], failed: FailedWrites
     ) -> None:
         """Move snapshots for one EID to oversized storage, preserving input order."""
         eid = eid_snapshots[0]["eid"]
-        self._migrate_to_oversized(eid, eid_snapshots[-1])
-        oversized_inserts.extend(eid_snapshots[:-1])
+        with failed.suppress():
+            self._migrate_to_oversized(eid, eid_snapshots[-1])
+            oversized_inserts.extend(eid_snapshots[:-1])
 
     def _write_snapshot_upserts(
         self,
@@ -548,8 +552,12 @@ class TypedSnapshotCollection(abc.ABC):
         upserts: list[UpdateOne],
         update_originals: list[list[dict]],
         oversized_inserts: list[dict],
+        failed: FailedWrites,
     ) -> tuple[int, list[Any]]:
-        """Write normal snapshot updates and isolate command-level oversized updates."""
+        """Write normal snapshot updates and isolate command-level oversized updates.
+
+        Failures are collected in `failed`, so that the remaining updates still complete.
+        """
         try:
             result = snapshot_col.bulk_write(upserts, ordered=False)
         except (BulkWriteError, OperationFailure) as error:
@@ -558,9 +566,10 @@ class TypedSnapshotCollection(abc.ABC):
 
             if not write_errors:
                 if error.code != BSON_OBJECT_TOO_LARGE:
-                    raise
+                    failed.add(error, len(upserts))
+                    return 0, []
                 if len(upserts) == 1:
-                    self._migrate_snapshot_batch(update_originals[0], oversized_inserts)
+                    self._migrate_snapshot_batch(update_originals[0], oversized_inserts, failed)
                     return 1, []
 
                 midpoint = len(upserts) // 2
@@ -569,12 +578,14 @@ class TypedSnapshotCollection(abc.ABC):
                     upserts[:midpoint],
                     update_originals[:midpoint],
                     oversized_inserts,
+                    failed,
                 )
                 right_count, right_ids = self._write_snapshot_upserts(
                     snapshot_col,
                     upserts[midpoint:],
                     update_originals[midpoint:],
                     oversized_inserts,
+                    failed,
                 )
                 return left_count + right_count, left_ids + right_ids
 
@@ -584,10 +595,19 @@ class TypedSnapshotCollection(abc.ABC):
                 if write_error["code"] == BSON_OBJECT_TOO_LARGE
             ]
             for index in oversized_indexes:
-                self._migrate_snapshot_batch(update_originals[index], oversized_inserts)
+                self._migrate_snapshot_batch(update_originals[index], oversized_inserts, failed)
 
-            if any(write_error["code"] != BSON_OBJECT_TOO_LARGE for write_error in write_errors):
-                raise
+            unresolved = [
+                write_error
+                for write_error in write_errors
+                if write_error["code"] != BSON_OBJECT_TOO_LARGE
+            ]
+            if unresolved or details.get("writeConcernErrors"):
+                # Updates moved to oversized snapshots are neither failed nor unconfirmed
+                failed.add(
+                    BulkWriteError({**details, "writeErrors": unresolved}),
+                    len(upserts) - len(oversized_indexes),
+                )
 
             upserted_ids = [item["_id"] for item in details.get("upserted", [])]
             processed_count = (
@@ -613,9 +633,6 @@ class TypedSnapshotCollection(abc.ABC):
         for snapshot in snapshots:
             snapshot["_time_created"] = ctime
 
-        snapshot_col = self._col()
-        os_col = self._os_col()
-
         snapshots_by_eid = defaultdict(list)
         for snapshot in snapshots:
             if "eid" not in snapshot:
@@ -623,6 +640,23 @@ class TypedSnapshotCollection(abc.ABC):
             if "_id" in snapshot:
                 del snapshot["_id"]
             snapshots_by_eid[snapshot["eid"]].append(snapshot)
+
+        with self.db_errors.collect(
+            "snapshot_save", self.entity_type, len(snapshots_by_eid)
+        ) as failed:
+            self._write_snapshots(snapshots_by_eid, ctime, failed)
+
+        if failed:
+            raise SnapshotCollectionError(
+                f"Saving snapshots of {self.entity_type} failed: {str(failed.first)[:2048]}"
+            ) from failed.first
+
+    def _write_snapshots(
+        self, snapshots_by_eid: dict[str, list[dict]], ctime: datetime, failed: FailedWrites
+    ):
+        """Writes snapshots grouped by EID, collecting failures so that all writes are tried."""
+        snapshot_col = self._col()
+        os_col = self._os_col()
 
         # Find out if any of the snapshots are oversized
         normal, oversized = self._get_state(set(snapshots_by_eid.keys()))
@@ -655,7 +689,7 @@ class TypedSnapshotCollection(abc.ABC):
                     eid,
                     update_size,
                 )
-                self._migrate_snapshot_batch(eid_snapshots, oversized_inserts)
+                self._migrate_snapshot_batch(eid_snapshots, oversized_inserts, failed)
                 continue
 
             upserts.append(UpdateOne(query, update, upsert=True))
@@ -677,9 +711,9 @@ class TypedSnapshotCollection(abc.ABC):
             )
 
         if upserts:
-            try:
+            with failed.suppress(len(upserts)):
                 processed_count, upserted_ids = self._write_snapshot_upserts(
-                    snapshot_col, upserts, update_originals, oversized_inserts
+                    snapshot_col, upserts, update_originals, oversized_inserts, failed
                 )
 
                 # Unset latest snapshots if new snapshots were inserted
@@ -705,19 +739,13 @@ class TypedSnapshotCollection(abc.ABC):
                         processed_count,
                         len(upserts),
                     )
-            except (BulkWriteError, OperationFailure, SnapshotCollectionError):
-                raise
-            except Exception as e:
-                raise SnapshotCollectionError(f"Upsert of snapshots failed: {str(e)[:2048]}") from e
 
-        # Update the oversized snapshots
+        # Update the oversized snapshots, also when other updates failed
         if oversized_inserts:
-            try:
+            with failed.suppress(len(oversized_inserts)):
                 if oversized_updates:
                     snapshot_col.bulk_write(oversized_updates)
                 os_col.insert_many(oversized_inserts)
-            except Exception as e:
-                raise SnapshotCollectionError(f"Insert of snapshots failed: {str(e)[:2048]}") from e
 
     def delete_old(self, t_old: datetime) -> int:
         """Delete old snapshots.
@@ -863,14 +891,20 @@ class SnapshotCollectionContainer:
     """Container for all required snapshot collections, exposing the public interface."""
 
     def __init__(
-        self, db: Database, db_config: MongoConfig, model_spec: ModelSpec, snapshots_config: dict
+        self,
+        db: Database,
+        db_config: MongoConfig,
+        model_spec: ModelSpec,
+        snapshots_config: dict,
+        db_errors: DbErrorCounter | None = None,
     ):
+        self.db_errors = db_errors or DbErrorCounter()
         self._snapshot_collections = {}
         for entity_type, entity_spec in model_spec.entities.items():
             eid_type_name = entity_spec.id_data_type.root
             typed_collection: type[TypedSnapshotCollection] = entity_type2collection[eid_type_name]
             self._snapshot_collections[entity_type] = typed_collection(
-                db, entity_type, db_config, model_spec, snapshots_config
+                db, entity_type, db_config, model_spec, snapshots_config, self.db_errors
             )
 
         self.log = logging.getLogger("EntityDatabase.SnapshotCollections")
@@ -882,7 +916,8 @@ class SnapshotCollectionContainer:
 
     def save_one(self, entity_type: str, snapshot: dict, ctime: datetime) -> None:
         """Save snapshot to specified entity of current master document."""
-        return self[entity_type].save_one(snapshot, ctime)
+        with self.db_errors.track("snapshot_save", entity_type):
+            return self[entity_type].save_one(snapshot, ctime)
 
     def save_many(self, entity_type: str, snapshots: list[dict], ctime: datetime) -> None:
         """
@@ -993,17 +1028,20 @@ class SnapshotCollectionContainer:
              number of deleted snapshots.
         """
         deleted_total = 0
-        for collection in self._snapshot_collections.values():
+        for entity_type, collection in self._snapshot_collections.items():
             try:
-                deleted_total += collection.delete_old(t_old)
+                with self.db_errors.track("snapshot_cleaning", entity_type):
+                    deleted_total += collection.delete_old(t_old)
             except Exception as e:
                 raise SnapshotCollectionError(f"Delete of old snapshots failed: {e}") from e
         return deleted_total
 
     def delete_eid(self, entity_type: str, eid: AnyEidT) -> int:
         """Delete snapshots of given `eids`."""
-        return self[entity_type].delete_eid(eid)
+        with self.db_errors.track("snapshot_removal", entity_type):
+            return self[entity_type].delete_eid(eid)
 
     def delete_eids(self, entity_type: str, eids: list[Any]) -> int:
         """Delete snapshots of given `eids`."""
-        return self[entity_type].delete_eids(eids)
+        with self.db_errors.track("snapshot_removal", entity_type, len(eids)):
+            return self[entity_type].delete_eids(eids)

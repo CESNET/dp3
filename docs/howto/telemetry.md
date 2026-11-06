@@ -169,6 +169,7 @@ Every standard DP³ deployment has Redis-backed event counters configured throug
 dp3 sh telemetry event-counts -g te -i 5m
 dp3 sh telemetry event-counts --group tasks_by_src --interval 2h
 dp3 sh telemetry event-counts -g secondary_hooks -i 5m
+dp3 sh telemetry event-counts -g db_errors -i 2h
 ```
 
 The command defaults to `--last`. Use `--current` for the incomplete interval or `--both` to return both periods:
@@ -177,9 +178,30 @@ The command defaults to `--last`. Use `--current` for the incomplete interval or
 dp3 sh telemetry event-counts -g te -i 5m --both
 ```
 
-The `te` group contains task-processing and error counters. The `tasks_by_src` group contains one counter per observed datapoint source. The `secondary_hooks` group contains task-executor, snapshot, and periodic updater hook statistics described above. Groups and intervals are application-configurable; check `event_logging.yml` for the available values.
+The `te` group contains task-processing and error counters. The `tasks_by_src` group contains one counter per observed datapoint source. The `secondary_hooks` group contains task-executor, snapshot, and periodic updater hook statistics described above. The `db_errors` group counts failed database writes, see below. Groups and intervals are application-configurable; check `event_logging.yml` for the available values.
 
 This command uses the Redis connection from the selected DP³ configuration directory and must run from a host that can reach that Redis instance. Current counts may lag behind workers by each group's configured EventCountLogger synchronization interval. Last counts cover the most recently completed interval.
+
+### Failed database writes
+
+Some data can fail to be saved even though its task was processed successfully, for example when an entity's record grows past MongoDB's 16 MB limit. Such failures are not counted in `te`; the `db_errors` group counts them instead. An empty group means nothing failed.
+
+Counters are named `<operation>/<entity>/<cause>`, for example `master_push/ip/document_too_large`:
+
+| Operation | What failed |
+|---|---|
+| `master_push` | new data of an entity |
+| `raw_insert` | raw datapoints |
+| `snapshot_save` | snapshots |
+| `history_aggregation` | aggregated history of an entity |
+| `datapoint_cleaning`, `snapshot_cleaning`, `raw_archivation` | removal or archivation of old data, retried on the next run |
+| `entity_removal`, `snapshot_removal`, `link_removal`, `ttl_update` | removal of expired entities and of their snapshots and links |
+
+The cause is the reason of the failure, such as `document_too_large`, or the name of the error. `unconfirmed` means the database did not confirm the write, so the data may or may not have been saved. The worker log has the details, including the affected entities:
+
+```shell
+grep -i 'failed' /var/log/<APPNAME>/worker*.log
+```
 
 ## 7. Check snapshot processing
 

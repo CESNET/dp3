@@ -34,6 +34,12 @@ groups:
     auto_declare_events: true
     intervals: [ "5m", "2h" ]
     sync_interval: 1
+  # Data that could not be written to the database
+  db_errors:
+    events: [ ]
+    auto_declare_events: true
+    intervals: [ "5m", "2h" ]
+    sync_interval: 1
 ```
 
 1. Two intervals - 5 min and 2 hours for longer-term history in Munin/Icinga
@@ -56,6 +62,8 @@ statistics. Hook event names are declared dynamically and use the namespace
 `<hook-family>/<callback>/<context>/<metric>`. The callback is module-qualified but omits bound
 `partial` arguments, while the single context component identifies the hook's entity, attribute,
 or snapshot scope.
+The `db_errors` group counts data that could not be written to the database, see the
+[telemetry guide](../howto/telemetry.md#failed-database-writes).
 EventCountLogger buffers each group's increments in memory and flushes them according to its
 `sync_interval` or `sync_limit` setting. See the
 [telemetry guide](../howto/telemetry.md#5-check-secondary-module-hooks) for the hook metrics and

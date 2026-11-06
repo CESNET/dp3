@@ -31,3 +31,9 @@ groups:
     auto_declare_events: true
     intervals: ["5m", "2h"]
     sync_interval: 1
+  # Records and datapoints whose database write was dropped: <operation>/<entity>/<cause>
+  db_errors:
+    events: []
+    auto_declare_events: true
+    intervals: ["5m", "2h"]
+    sync_interval: 1

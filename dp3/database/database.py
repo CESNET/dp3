@@ -26,6 +26,7 @@ from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
 from dp3.database.config import MongoConfig, MongoReplicaConfig, MongoStandaloneConfig
+from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import get_codec_options
 from dp3.database.exceptions import DatabaseError
 from dp3.database.schema_cleaner import SchemaCleaner
@@ -43,6 +44,7 @@ def get_caller_id():
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
 MASTER_REVISION_FIELD = "#revision"
+
 # Creation time suffix of archive collection names
 ARCHIVE_TIME_FORMAT = "%Y_%m_%d_%H%M%S"
 MasterRecordUpdate = tuple[AnyEidT, int | None, datetime | None, dict]
@@ -133,6 +135,8 @@ class EntityDatabase:
         model_spec: ModelSpec object, configuration of data model (entities and attributes)
         process_index: index of worker process - used for sharding metadata
         num_processes: number of worker processes
+        elog: event group for task execution events (`te`)
+        error_elog: event group counting failed writes (`db_errors`), see `DbErrorCounter`
     """
 
     def __init__(
@@ -142,9 +146,11 @@ class EntityDatabase:
         num_processes: int,
         process_index: int = 0,
         elog: EventGroupType | None = None,
+        error_elog: EventGroupType | None = None,
     ) -> None:
         self.log = logging.getLogger("EntityDatabase")
         self.elog = elog or DummyEventGroup()
+        self.db_errors = DbErrorCounter(error_elog)
 
         db_config = MongoConfig.model_validate(config.get("database", {}))
 
@@ -176,7 +182,7 @@ class EntityDatabase:
         self._db = Database(self._db, db_config.db_name, codec_options=codec_opts)
 
         self.snapshots = SnapshotCollectionContainer(
-            self._db, db_config, model_spec, config.get("snapshots", {})
+            self._db, db_config, model_spec, config.get("snapshots", {}), self.db_errors
         )
         self._snapshot_bucket_size = db_config.storage.snapshot_bucket_size
 
@@ -590,9 +596,10 @@ class EntityDatabase:
                 if not dps:
                     continue
             try:
-                self._raw_col(etype, write_concern=WriteConcern(w=0)).insert_many(
-                    dps, ordered=False
-                )
+                with self.db_errors.track("raw_insert", etype, len(dps)):
+                    self._raw_col(etype, write_concern=WriteConcern(w=1)).insert_many(
+                        dps, ordered=False
+                    )
                 end = time.time()
                 self.log.debug(
                     "Inserted %s raw datapoints to %s in %.3fs, %.3fus lock, %.3fs insert",
@@ -642,10 +649,11 @@ class EntityDatabase:
                 ]
                 updates_ready = time.time()
                 try:
-                    master_col.bulk_write(updates, ordered=False)
+                    with self.db_errors.track("master_push", etype, len(master_changes)):
+                        master_col.bulk_write(updates, ordered=False)
                 except BulkWriteError as e:
                     # The bulk write is unordered, so all other updates were still applied.
-                    self._log_master_write_errors(etype, e.details.get("writeErrors", []))
+                    self._log_bulk_write_error(etype, e.details)
                 end = time.time()
                 self.log.debug(
                     "Updated %s master records in %.3fs, "
@@ -661,9 +669,16 @@ class EntityDatabase:
                     f"Update of {len(master_changes)} master records of {etype} failed: {e}"
                 ) from e
 
-    def _log_master_write_errors(self, etype: str, write_errors: list[dict]):
+    def _log_bulk_write_error(self, etype: str, details: dict):
         """Logs failed master record updates by entity and attribute, without the values."""
-        for error in write_errors:
+        if details.get("writeConcernErrors"):
+            self.log.error(
+                "Write concern of master record updates of %s failed, "
+                "updates not reported as failed may not have been applied: %s",
+                etype,
+                [error.get("errmsg") for error in details["writeConcernErrors"]],
+            )
+        for error in details.get("writeErrors", []):
             op = error.get("op", {})
             eid = op.get("q", {}).get("_id")
             update = op.get("u", {})
@@ -725,10 +740,11 @@ class EntityDatabase:
                 updates.append(UpdateOne(query, [{"$set": new_values}]))
 
             try:
-                matched = master_col.bulk_write(updates, ordered=False).matched_count
+                with self.db_errors.track("history_aggregation", etype, len(records)):
+                    matched = master_col.bulk_write(updates, ordered=False).matched_count
             except BulkWriteError as e:
                 # The bulk write is unordered, so all other updates were still applied.
-                self._log_master_write_errors(etype, e.details.get("writeErrors", []))
+                self._log_bulk_write_error(etype, e.details)
                 matched = e.details.get("nMatched", 0)
             self.log.debug("Updated %s/%s master records of %s.", matched, len(records), etype)
             return matched
@@ -758,26 +774,27 @@ class EntityDatabase:
         """Removes expired TTL of given `etype`:`eid`."""
         master_col = self._master_col(etype)
         try:
-            res = master_col.bulk_write(
-                [
-                    UpdateOne(
-                        {"_id": eid},
-                        {
-                            "$unset": {f"#ttl.{token_name}": "" for token_name in expired_ttls},
-                            "$inc": {MASTER_REVISION_FIELD: 1},
-                        },
-                    )
-                    for eid, expired_ttls in expired_eid_ttls.items()
-                ]
-            )
-            self.log.debug(
-                "Removed expired TTL of %s: (%s, modified %s).",
-                etype,
-                len(expired_eid_ttls),
-                res.modified_count,
-            )
+            with self.db_errors.track("ttl_update", etype, len(expired_eid_ttls)):
+                res = master_col.bulk_write(
+                    [
+                        UpdateOne(
+                            {"_id": eid},
+                            {
+                                "$unset": {f"#ttl.{token_name}": "" for token_name in expired_ttls},
+                                "$inc": {MASTER_REVISION_FIELD: 1},
+                            },
+                        )
+                        for eid, expired_ttls in expired_eid_ttls.items()
+                    ]
+                )
+                self.log.debug(
+                    "Removed expired TTL of %s: (%s, modified %s).",
+                    etype,
+                    len(expired_eid_ttls),
+                    res.modified_count,
+                )
         except Exception as e:
-            raise DatabaseError(f"TTL update failed: {e}") from e
+            raise DatabaseError(f"TTL update of {len(expired_eid_ttls)} records failed: {e}") from e
 
     def delete_eids(self, etype: str, eids: list[AnyEidT]):
         """Delete master record and all snapshots of `etype`:`eids`."""
@@ -787,13 +804,14 @@ class EntityDatabase:
                 if eid in self._master_buffers[etype]:
                     del self._master_buffers[etype][eid]
         try:
-            res = master_col.delete_many({"_id": {"$in": eids}})
-            self.log.debug(
-                "Deleted %s master records of %s (%s).", res.deleted_count, etype, len(eids)
-            )
-            self.elog.log("record_removed", count=res.deleted_count)
+            with self.db_errors.track("entity_removal", etype, len(eids)):
+                res = master_col.delete_many({"_id": {"$in": eids}})
+                self.log.debug(
+                    "Deleted %s master records of %s (%s).", res.deleted_count, etype, len(eids)
+                )
+                self.elog.log("record_removed", count=res.deleted_count)
         except Exception as e:
-            raise DatabaseError(f"Delete of master record failed: {e}\n{eids}") from e
+            raise DatabaseError(f"Delete of {len(eids)} master records failed: {e}") from e
         self.snapshots.delete_eids(etype, eids)
 
         for f in self._on_entity_delete_many:
@@ -809,11 +827,12 @@ class EntityDatabase:
             if eid in self._master_buffers[etype]:
                 del self._master_buffers[etype][eid]
         try:
-            master_col.delete_one({"_id": eid})
-            self.log.debug("Deleted master record of %s/%s.", etype, eid)
-            self.elog.log("record_removed")
+            with self.db_errors.track("entity_removal", etype):
+                master_col.delete_one({"_id": eid})
+                self.log.debug("Deleted master record of %s/%s.", etype, eid)
+                self.elog.log("record_removed")
         except Exception as e:
-            raise DatabaseError(f"Delete of master record failed: {e}\n{eid}") from e
+            raise DatabaseError(f"Delete of master record {eid} failed: {e}") from e
         self.snapshots.delete_eid(etype, eid)
 
         for f in self._on_entity_delete_one:
@@ -913,10 +932,11 @@ class EntityDatabase:
         """
         master_col = self._master_col(etype, write_concern=WriteConcern(w=1))
         try:
-            return master_col.update_many(
-                {"_id": {"$in": eids}} | self._expired_history_filter(t_olds),
-                self._delete_old_dps_pipeline(t_olds),
-            )
+            with self.db_errors.track("datapoint_cleaning", etype, len(eids)):
+                return master_col.update_many(
+                    {"_id": {"$in": eids}} | self._expired_history_filter(t_olds),
+                    self._delete_old_dps_pipeline(t_olds),
+                )
         except Exception as e:
             raise DatabaseError(f"Delete of old datapoints failed: {e}") from e
 
@@ -977,25 +997,26 @@ class EntityDatabase:
         attr_type = self._db_schema_config.attr(etype, attr_name).t
         filter_cond = {"_id": {"$in": affected_eids}}
         try:
-            if attr_type == AttrType.OBSERVATIONS:
-                filter_cond[f"{attr_name}.v.eid"] = eid_to
-                master_col.update_many(
-                    filter_cond,
-                    self._delete_observation_link_pipeline(attr_name, [eid_to]),
-                )
-            elif attr_type == AttrType.PLAIN:
-                attr_spec = self._db_schema_config.attr(etype, attr_name)
-                filter_cond[f"{attr_name}.v.eid"] = eid_to
-                if attr_spec.is_iterable:
-                    update = self._delete_iterable_plain_link_pipeline(attr_name, [eid_to])
+            with self.db_errors.track("link_removal", etype, len(affected_eids)):
+                if attr_type == AttrType.OBSERVATIONS:
+                    filter_cond[f"{attr_name}.v.eid"] = eid_to
+                    master_col.update_many(
+                        filter_cond,
+                        self._delete_observation_link_pipeline(attr_name, [eid_to]),
+                    )
+                elif attr_type == AttrType.PLAIN:
+                    attr_spec = self._db_schema_config.attr(etype, attr_name)
+                    filter_cond[f"{attr_name}.v.eid"] = eid_to
+                    if attr_spec.is_iterable:
+                        update = self._delete_iterable_plain_link_pipeline(attr_name, [eid_to])
+                    else:
+                        update = {
+                            "$unset": {attr_name: ""},
+                            "$inc": {MASTER_REVISION_FIELD: 1},
+                        }
+                    master_col.update_many(filter_cond, update)
                 else:
-                    update = {
-                        "$unset": {attr_name: ""},
-                        "$inc": {MASTER_REVISION_FIELD: 1},
-                    }
-                master_col.update_many(filter_cond, update)
-            else:
-                raise ValueError(f"Unsupported attribute type: {attr_type}")
+                    raise ValueError(f"Unsupported attribute type: {attr_type}")
         except Exception as e:
             raise DatabaseError(f"Delete of link datapoints failed: {e}") from e
 
@@ -1040,7 +1061,8 @@ class EntityDatabase:
                     raise ValueError(f"Unsupported attribute type: {attr_type}")
 
             for etype, updates in updates_by_etype.items():
-                self._master_col(etype).bulk_write(updates)
+                with self.db_errors.track("link_removal", etype, len(updates)):
+                    self._master_col(etype).bulk_write(updates)
         except Exception as e:
             raise DatabaseError(f"Delete of link datapoints failed: {e}") from e
 
@@ -1454,10 +1476,11 @@ class EntityDatabase:
         raw_col_name = self._raw_col_name(etype)
         archive_col_name = self._get_new_archive_col_name(etype)
         try:
-            if self._db.list_collection_names(filter={"name": raw_col_name}):
-                self._db[raw_col_name].rename(archive_col_name)
-                return archive_col_name
-            return None
+            with self.db_errors.track("raw_archivation", etype):
+                if self._db.list_collection_names(filter={"name": raw_col_name}):
+                    self._db[raw_col_name].rename(archive_col_name)
+                    return archive_col_name
+                return None
         except Exception as e:
             raise DatabaseError(f"Move of raw collection failed: {e}") from e
 

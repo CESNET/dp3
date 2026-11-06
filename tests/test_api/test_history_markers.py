@@ -13,6 +13,7 @@ from repair_min_t2s import (
 
 from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
+from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import get_codec_options
 from dp3.history_management.history_manager import (
     DatapointCleaningConfig,
@@ -31,6 +32,7 @@ class HistoryMarkers(common.APITest):
         cls.db = cls.client.get_database(db_config.db_name, codec_options=get_codec_options())
 
         cls.entity_db = EntityDatabase.__new__(EntityDatabase)
+        cls.entity_db.db_errors = DbErrorCounter()
         cls.entity_db._db_schema_config = common.MODEL_SPEC
         cls.entity_db._master_col = lambda etype, **kwargs: cls.db.get_collection(
             f"{etype}#master", **kwargs

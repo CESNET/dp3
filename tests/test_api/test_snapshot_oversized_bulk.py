@@ -12,6 +12,7 @@ from dp3.database import snapshots as snapshots_module
 from dp3.database.config import MongoConfig
 from dp3.database.database import EntityDatabase
 from dp3.database.encodings import BSON_OBJECT_TOO_LARGE
+from dp3.database.exceptions import SnapshotCollectionError
 from dp3.database.snapshots import SnapshotCollectionContainer
 
 
@@ -234,9 +235,11 @@ class OversizedBulkSnapshot(unittest.TestCase):
         with (
             patch.object(snapshots_module, "BSON_MAX_SIZE", 10_000),
             self._fail_first_normal_bulk_write(error),
-            self.assertRaises(OperationFailure),
+            self.assertRaises(SnapshotCollectionError) as raised,
         ):
             self.snapshots.save_many(snapshots, created_at)
+
+        self.assertIs(raised.exception.__cause__, error)
 
         marker = self.snapshots._col().find_one(self.snapshots._filter_from_eid(self.eid))
         self.assertIsNotNone(marker)

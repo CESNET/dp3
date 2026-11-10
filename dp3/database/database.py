@@ -1229,11 +1229,15 @@ class EntityDatabase:
         increase: dict = None,
         worker_id: int | None = None,
         key: str | None = None,
-    ):
+        upsert: bool = True,
+    ) -> bool:
         """Updates existing metadata of caller module and passed timestamp.
 
         The optional `key` identifies one of several records of the same module, time and worker.
-        If the record does not exist yet, it is created.
+        If the record does not exist yet, it is created, unless `upsert` is false.
+
+        Returns:
+            Whether the record existed before the update.
         """
         module = get_caller_id()
         metadata_id = self._get_metadata_id(module, time, worker_id, key)
@@ -1242,12 +1246,13 @@ class EntityDatabase:
         changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}
 
         try:
-            res = self._db["#metadata"].update_one({"_id": metadata_id}, changes, upsert=True)
+            res = self._db["#metadata"].update_one({"_id": metadata_id}, changes, upsert=upsert)
             self.log.debug(
                 "Updated metadata %s, changes: %s, result: %s", metadata_id, changes, res.raw_result
             )
         except Exception as e:
             raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
+        return res.matched_count > 0
 
     def find_metadata(
         self,

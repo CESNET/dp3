@@ -1,5 +1,6 @@
 import logging
 import queue
+import signal
 import threading
 import time
 import unittest
@@ -10,6 +11,8 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 
 from dp3 import worker
 from dp3.common.config import MissingConfigError
+from dp3.core.worker_lifecycle import Worker
+from dp3.database.database import EntityDatabase
 from dp3.task_processing.task_distributor import TaskDistributor
 from dp3.task_processing.task_queue import TaskQueueReader
 
@@ -285,6 +288,90 @@ class TestWorkerLifecycle(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertEqual(len(task_distributors), 1)
         self.assertTrue(task_distributors[0].stopped)
+        # the failed startup is recorded as a stop that wasn't requested
+        db.update_metadata.assert_called_once()
+        self.assertFalse(db.update_metadata.call_args.args[1]["clean_stop"])
+
+    def test_worker_main_records_clean_stop_on_sigterm(self):
+        signal_mock = Mock()
+
+        class SigtermTaskDistributor:
+            def __init__(self, task_executor, platform_config, registrar, daemon_stop_lock):
+                pass
+
+            def start(self):
+                handlers = {c.args[0]: c.args[1] for c in signal_mock.call_args_list}
+                handlers[signal.SIGTERM](signal.SIGTERM, None)
+
+            def stop(self):
+                pass
+
+        db = Mock()
+        ecl = Mock()
+        ecl.get_group.return_value = None
+        control = Mock()
+        control.control_queue = Mock(watchdog=lambda: None)
+
+        original_thread_name = threading.current_thread().name
+        try:
+            with ExitStack() as stack:
+                stack.enter_context(patch("dp3.worker.signal.signal", signal_mock))
+                stack.enter_context(patch("dp3.worker.EventCountLogger", return_value=ecl))
+                stack.enter_context(patch("dp3.worker.EntityDatabase", return_value=db))
+                stack.enter_context(patch("dp3.worker.scheduler.Scheduler", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.TaskExecutor", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.TaskQueueWriter", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.SnapShooter", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.Updater", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.CallbackRegistrar", return_value=Mock()))
+                stack.enter_context(patch("dp3.worker.LinkManager"))
+                stack.enter_context(patch("dp3.worker.HistoryManager"))
+                stack.enter_context(patch("dp3.worker.Telemetry"))
+                stack.enter_context(patch("dp3.worker.GarbageCollector"))
+                stack.enter_context(patch("dp3.worker.load_modules", return_value={}))
+                stack.enter_context(patch("dp3.worker.Control", return_value=control))
+                stack.enter_context(patch("dp3.worker.TaskDistributor", SigtermTaskDistributor))
+                stack.enter_context(patch("dp3.worker.logging.shutdown"))
+
+                exit_code = worker.main("test", "tests/test_config", 0, False)
+        finally:
+            threading.current_thread().name = original_thread_name
+
+        self.assertEqual(exit_code, 0)
+        db.update_metadata.assert_called_once()
+        self.assertTrue(db.update_metadata.call_args.args[1]["clean_stop"])
+
+    def test_worker_records_start_and_stop_in_one_record(self):
+        db = EntityDatabase.__new__(EntityDatabase)
+        db._process_index = 3
+        db.log = logging.getLogger(self.id())
+        collection = Mock()
+        collection.update_one.return_value = Mock(matched_count=1)
+        db._db = {"#metadata": collection}
+
+        lifecycle = Worker(db, db.log)
+        lifecycle.record_start()
+        lifecycle.record_stop(True, timeout=1)
+
+        record = collection.insert_one.call_args.args[0]
+        self.assertEqual(record["#module"], "Worker")
+        self.assertRegex(record["_id"], r"^Worker\d.*w3$")
+        query, changes = collection.update_one.call_args.args
+        self.assertEqual(query, {"_id": record["_id"]})
+        self.assertTrue(changes["$set"]["clean_stop"])
+
+    def test_worker_stop_record_is_bounded(self):
+        release = threading.Event()
+        db = Mock()
+        db.update_metadata.side_effect = lambda *args, **kwargs: release.wait()
+        lifecycle = Worker(db, logging.getLogger(self.id()))
+        lifecycle.record_start()
+        started = time.monotonic()
+
+        lifecycle.record_stop(True, timeout=0.02)
+
+        self.assertLess(time.monotonic() - started, 0.2)
+        release.set()
 
     def test_task_queue_reader_watchdog_does_not_block_on_channel_close(self):
         close_started = threading.Event()

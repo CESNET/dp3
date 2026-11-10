@@ -241,6 +241,13 @@ dp3 sh telemetry metadata -m GarbageCollector -l 12 \
   | jq '{id: ._id, etype: .entity, seen: .entities, deleted: .deleted, end: ."#last_update"}' -c
 ```
 
+Every worker process also saves a `Worker` record when it starts (`worker_start`) and adds `worker_stop` and `clean_stop` when it shuts down. `clean_stop` is `true` when the stop was requested by SIGINT or SIGTERM and `false` after an internal failure. A record without `worker_stop`, followed by a newer record of the same worker (the `w<index>` suffix of `_id`), means that the process was killed, e.g. by SIGKILL, the OOM killer, or a host failure:
+
+```shell
+dp3 sh telemetry metadata -m Worker -l 20 \
+  | jq '{id: ._id, start: .worker_start, stop: .worker_stop, clean: .clean_stop}' -c
+```
+
 Replace the example timestamps with the period you are investigating. For `SnapShooter`, `workers_finished` equal to the configured worker count means that all workers finished their part of the run. The snapshot summary treats a run as complete after linked-entity processing has also finished.
 
 Metadata is an internal diagnostic format, so fields differ by module and may change as the corresponding process evolves.

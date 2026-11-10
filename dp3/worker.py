@@ -28,6 +28,7 @@ from dp3.common.utils import suppress_dependency_loggers
 from dp3.core.collector import GarbageCollector
 from dp3.core.link_manager import LinkManager
 from dp3.core.updater import Updater
+from dp3.core.worker_lifecycle import Worker
 from dp3.history_management.telemetry import Telemetry
 from dp3.task_processing.task_queue import TaskQueueWriter
 
@@ -45,6 +46,8 @@ from .task_processing.task_distributor import TaskDistributor
 from .task_processing.task_executor import TaskExecutor
 
 WORKER_SHUTDOWN_TIME = 60.0
+# Longest wait for the worker stop record, so that an unreachable database doesn't delay shutdown
+WORKER_STOP_RECORD_TIME = 5.0
 
 
 class WorkerConfigurationError(RuntimeError):
@@ -220,6 +223,7 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
     running_core_modules = []  # core modules whose start() was attempted
     signal_handlers_installed = False
     hook_elog = None
+    lifecycle = None  # records the worker start and stop in #metadata
 
     try:
         ##############################################
@@ -274,6 +278,8 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
             db.update_schema()
         else:
             db.await_updated_schema()
+        lifecycle = Worker(db, log)
+        lifecycle.record_start()
 
         global_scheduler = scheduler.Scheduler()
         task_executor = TaskExecutor(db, platform_config, elog, elog_by_src, hook_elog)
@@ -407,6 +413,12 @@ def main(app_name: str, config_dir: str, process_index: int, verbose: bool) -> i
         if running_core_modules or running_modules:
             log.info("Stopping running components ...")
         shutdown_deadline_ts = time.monotonic() + WORKER_SHUTDOWN_TIME
+        if lifecycle is not None:
+            # exit code 0 here means the stop was requested by SIGINT or SIGTERM
+            lifecycle.record_stop(
+                exit_code == 0,
+                timeout=min(WORKER_STOP_RECORD_TIME, _remaining_time(shutdown_deadline_ts)),
+            )
         modules_to_stop = [*reversed(running_core_modules), *reversed(running_modules)]
         for module in modules_to_stop:
             completed, failed = _stop_module(module, _remaining_time(shutdown_deadline_ts), log)

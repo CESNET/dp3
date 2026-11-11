@@ -2,7 +2,9 @@ import gzip
 import json
 import logging
 import os
+import time
 from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from itertools import chain
@@ -20,7 +22,7 @@ from dp3.common.attrspec import (
 from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.types import DP3Encoder, ParsedTimedelta
-from dp3.common.utils import entity_expired
+from dp3.common.utils import entity_expired, error_summary
 from dp3.core.updater import UpdateBatch, UpdatePeriod, Updater
 from dp3.database.database import (
     MASTER_REVISION_FIELD,
@@ -266,16 +268,50 @@ class HistoryManager:
             self.log.exception("Saving cleaning metadata failed")
 
     def delete_old_snapshots(self):
-        """Deletes old snapshots."""
-        t_old = datetime.now(UTC) - self.keep_snapshot_delta
+        """Deletes old snapshots, one entity type after another.
+
+        A failure of one entity type is logged and recorded, the others are still cleaned.
+        """
+        start = datetime.now(UTC)
+        t_old = start - self.keep_snapshot_delta
         self.log.debug("Deleting all snapshots before %s", t_old)
 
-        deleted_total = 0
+        stats = {"buckets": 0, "oversized": 0, "failures": 0}
+        # The snapshots are cleaned also when the run can't be recorded
+        run_end = nullcontext({})
         try:
-            deleted_total = self.db.snapshots.delete_old(t_old)
-        except DatabaseError as e:
-            self.log.exception(e)
-        self.log.debug("Deleted %s snapshots in total.", deleted_total)
+            self.db.metadata.save(
+                start, {"snapshot_cleaning_start": start, "deleted_before": t_old} | stats
+            )
+            run_end = self.db.metadata.record_run_end(start, "snapshot_cleaning_end", stats)
+        except DatabaseError:
+            self.log.exception("Saving snapshot cleaning metadata failed")
+
+        entity_types = []
+        with run_end as end:
+            end["snapshot_cleaning_metrics"] = {"entity_types": entity_types}
+            for etype in self.model_spec.entities:
+                metrics = {"entity": etype}
+                entity_types.append(metrics)
+                etype_start = time.monotonic()
+                try:
+                    deleted = self.db.snapshots.delete_old(etype, t_old)
+                    metrics.update(deleted)
+                    for name, count in deleted.items():
+                        stats[name] += count
+                except DatabaseError as e:
+                    stats["failures"] += 1
+                    metrics["error"] = error_summary(e)
+                    self.log.exception("Deleting old snapshots of %s failed", etype)
+                metrics["duration"] = time.monotonic() - etype_start
+
+        self.log.info(
+            "Snapshot cleaning done: %s snapshot bucket(s) and %s oversized snapshot(s) deleted, "
+            "%s failure(s)",
+            stats["buckets"],
+            stats["oversized"],
+            stats["failures"],
+        )
 
     def archive_old_dps(self):
         """Archives old datapoints from raw collections.

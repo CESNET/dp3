@@ -7,6 +7,7 @@ by a worker restart.
 import logging
 import os
 import unittest
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -110,6 +111,55 @@ class FailedJobEndRecord(unittest.TestCase):
         fields, _ = self.end_record("HistoryManager", "aggregation_end")
         self.assertEqual(fields["error"], "JobFailure: boom")
         self.assertEqual(fields["aggregation_metrics"]["entity_types"][0]["entity"], "ip")
+
+    def test_snapshot_cleaning_continues_after_failed_entity_type(self):
+        manager = HistoryManager.__new__(HistoryManager)
+        manager.log = logging.getLogger(self.id())
+        manager.db = self.db
+        manager.keep_snapshot_delta = timedelta(days=30)
+        manager.model_spec = SimpleNamespace(entities={"ip": None, "asn": None})
+        self.db.snapshots = Mock()
+        self.db.snapshots.delete_old.side_effect = [
+            DatabaseError("boom"),
+            {"buckets": 3, "oversized": 1},
+        ]
+
+        with self.assertLogs(manager.log, logging.ERROR):
+            manager.delete_old_snapshots()
+
+        (started,) = self.metadata.insert_one.call_args.args
+        self.assertEqual(
+            started["snapshot_cleaning_start"] - started["deleted_before"], timedelta(days=30)
+        )
+        fields, counts = self.end_record("HistoryManager", "snapshot_cleaning_end")
+        self.assertNotIn("error", fields)
+        self.assertEqual(counts, {"buckets": 3, "oversized": 1, "failures": 1})
+        failed, cleaned = fields["snapshot_cleaning_metrics"]["entity_types"]
+        self.assertEqual(failed["entity"], "ip")
+        self.assertEqual(failed["error"], "DatabaseError: boom")
+        self.assertEqual(
+            {key: cleaned[key] for key in ("entity", "buckets", "oversized")},
+            {"entity": "asn", "buckets": 3, "oversized": 1},
+        )
+        self.assertGreaterEqual(cleaned["duration"], 0)
+
+    def test_snapshot_cleaning_runs_without_its_start_record(self):
+        manager = HistoryManager.__new__(HistoryManager)
+        manager.log = logging.getLogger(self.id())
+        manager.db = self.db
+        manager.keep_snapshot_delta = timedelta(days=30)
+        manager.model_spec = SimpleNamespace(entities={"ip": None, "asn": None})
+        self.db.snapshots = Mock()
+        self.db.snapshots.delete_old.return_value = {"buckets": 1, "oversized": 0}
+        self.metadata.insert_one.side_effect = RuntimeError("no primary")
+
+        with self.assertLogs(manager.log, logging.ERROR):
+            manager.delete_old_snapshots()
+
+        self.assertEqual(
+            [call.args[0] for call in self.db.snapshots.delete_old.call_args_list], ["ip", "asn"]
+        )
+        self.metadata.update_one.assert_not_called()
 
     def test_snapshot_task_creation(self):
         with (

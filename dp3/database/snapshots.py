@@ -747,22 +747,23 @@ class TypedSnapshotCollection(abc.ABC):
                     snapshot_col.bulk_write(oversized_updates)
                 os_col.insert_many(oversized_inserts)
 
-    def delete_old(self, t_old: datetime) -> int:
+    def delete_old(self, t_old: datetime) -> dict[str, int]:
         """Delete old snapshots.
 
         Periodically called from HistoryManager.
+
+        Returns:
+            The numbers of deleted snapshot `buckets` (each holding up to
+            `snapshot_bucket_size` snapshots) and of deleted `oversized` snapshots.
         """
-        deleted = 0
         try:
-            res = self._col().delete_many(
+            buckets = self._col().delete_many(
                 {"_time_created": {"$lte": t_old - self._bucket_delta}},
             )
-            deleted += res.deleted_count * self._snapshot_bucket_size
-            res = self._os_col().delete_many({"_time_created": {"$lt": t_old}})
-            deleted += res.deleted_count
+            oversized = self._os_col().delete_many({"_time_created": {"$lt": t_old}})
         except Exception as e:
             raise SnapshotCollectionError(f"Delete of olds snapshots failed: {e}") from e
-        return deleted
+        return {"buckets": buckets.deleted_count, "oversized": oversized.deleted_count}
 
     def delete_eid(self, eid: AnyEidT) -> int:
         """Delete all snapshots of `eid`."""
@@ -1020,21 +1021,15 @@ class SnapshotCollectionContainer:
         """
         return self[entity_type].get_distinct_val_count(attr)
 
-    def delete_old(self, t_old: datetime) -> int:
-        """Delete old snapshots, may raise `SnapshotCollectionError`.
+    def delete_old(self, entity_type: str, t_old: datetime) -> dict[str, int]:
+        """Delete old snapshots of `entity_type`, may raise `SnapshotCollectionError`.
 
         Periodically called from HistoryManager.
         Returns:
-             number of deleted snapshots.
+            The numbers of deleted snapshot `buckets` and of deleted `oversized` snapshots.
         """
-        deleted_total = 0
-        for entity_type, collection in self._snapshot_collections.items():
-            try:
-                with self.db_errors.track("snapshot_cleaning", entity_type):
-                    deleted_total += collection.delete_old(t_old)
-            except Exception as e:
-                raise SnapshotCollectionError(f"Delete of old snapshots failed: {e}") from e
-        return deleted_total
+        with self.db_errors.track("snapshot_cleaning", entity_type):
+            return self[entity_type].delete_old(t_old)
 
     def delete_eid(self, entity_type: str, eid: AnyEidT) -> int:
         """Delete snapshots of given `eids`."""

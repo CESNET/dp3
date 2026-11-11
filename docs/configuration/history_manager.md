@@ -74,6 +74,12 @@ HistoryManager records run start/end times and metrics in `#metadata`:
 - `archivation_metrics`: processed and dropped archive collections, exported datapoints
   (and how many of them were future-dated), the export file, and failures. Run start and end
   are recorded in `archivation_start` and `archivation_end`.
+- `snapshot_cleaning_metrics.entity_types`: for each entity type the deleted snapshot `buckets`
+  (each holds up to `snapshot_bucket_size` snapshots), the deleted `oversized` snapshots and the
+  `duration` (seconds). The record also has their totals, the time before which snapshots were
+  deleted (`deleted_before`), and the run start and end in `snapshot_cleaning_start` and
+  `snapshot_cleaning_end`. An entity type which fails has an `error` instead of the counts and
+  is counted in `failures`; the other entity types are still cleaned.
 
 When aggregation raises an error, its end is still recorded, with the counts up to the error and
 an `error` field holding the error type and message. The error is then logged by the scheduler as

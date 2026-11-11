@@ -170,14 +170,37 @@ class GarbageCollector:
         """Deletes weak entities when their last reference has expired."""
         self.log.debug("Starting removal of '%s' weak entities", etype)
         start = datetime.now(UTC)
-        entities = 0
-        deleted = 0
-
-        self.db.save_metadata(
-            start,
-            {"entities": 0, "deleted": 0, "weak_collect_start": start, "entity": etype},
+        counts = {"entities": 0, "deleted": 0}
+        self.db.save_metadata(start, {"weak_collect_start": start, "entity": etype} | counts)
+        with self.db.record_run_end(start, "weak_collect_end", increase=counts):
+            self._collect_weak(etype, counts)
+        self.log.info(
+            "Removal of '%s' weak entities done - %s tracked, %s processed & deleted",
+            etype,
+            counts["entities"],
+            counts["deleted"],
         )
 
+    def _collect_weak(self, etype: str, counts: dict):
+        have_references = self._referenced_eids(etype)
+        counts["entities"] += len(have_references)
+
+        to_delete = []
+        with self.db.get_worker_master_records(
+            self.worker_index,
+            self.num_workers,
+            etype,
+            query_filter={"_id": {"$nin": have_references}},
+        ) as records_cursor:
+            for master_document in records_cursor:
+                counts["entities"] += 1
+                to_delete.append(master_document["_id"])
+                if len(to_delete) >= DB_SEND_CHUNK:
+                    self._delete_eids(etype, to_delete, counts)
+        self._delete_eids(etype, to_delete, counts)
+
+    def _referenced_eids(self, etype: str) -> list:
+        """Returns the ids of `etype` entities referenced by a link in the cache."""
         # Aggregate the cache entities by their "to" field, which contains the entity
         aggregated = self.cache.aggregate(
             [
@@ -185,106 +208,59 @@ class GarbageCollector:
                 {"$group": {"_id": "$to"}},
             ]
         )
-        have_references = parse_eids_from_cache(self.model_spec, [doc["_id"] for doc in aggregated])
-        entities += len(have_references)
-
-        to_delete = []
-        records_cursor = self.db.get_worker_master_records(
-            self.worker_index,
-            self.num_workers,
-            etype,
-            query_filter={"_id": {"$nin": have_references}},
-        )
-        try:
-            for master_document in records_cursor:
-                entities += 1
-                deleted += 1
-                to_delete.append(master_document["_id"])
-
-                if len(to_delete) >= DB_SEND_CHUNK:
-                    self.db.delete_eids(etype, to_delete)
-                    to_delete.clear()
-
-            if to_delete:
-                self.db.delete_eids(etype, to_delete)
-                to_delete.clear()
-
-        finally:
-            records_cursor.close()
-
-        self.db.update_metadata(
-            start,
-            metadata={"weak_collect_end": datetime.now(UTC)},
-            increase={"entities": entities, "deleted": deleted},
-        )
-        self.log.info(
-            "Removal of '%s' weak entities done - %s tracked, %s processed & deleted",
-            etype,
-            entities,
-            deleted,
-        )
+        return parse_eids_from_cache(self.model_spec, [doc["_id"] for doc in aggregated])
 
     def collect_ttl(self, etype: str):
         """Deletes entities after their TTL lifetime has expired."""
         self.log.debug("Starting removal of '%s' entities by TTL", etype)
         now = datetime.now(UTC)
-        entities = 0
-        deleted = 0
-
-        to_delete = []
-        expired_ttls = {}
-
-        self.db.save_metadata(
-            now, {"entities": 0, "deleted": 0, "ttl_collect_start": now, "entity": etype}
-        )
-
-        records_cursor = self.db.get_worker_master_records(
-            self.worker_index, self.num_workers, etype, no_cursor_timeout=True
-        )
-        try:
-            for master_document in records_cursor:
-                entities += 1
-                if "#ttl" not in master_document:
-                    continue  # TTL not set, ignore for now
-
-                if all(ttl < now for ttl in master_document["#ttl"].values()):
-                    deleted += 1
-                    to_delete.append(master_document["_id"])
-                else:
-                    eid_expired_ttls = [
-                        name for name, ttl in master_document["#ttl"].items() if ttl < now
-                    ]
-                    if eid_expired_ttls:
-                        expired_ttls[master_document["_id"]] = eid_expired_ttls
-
-                if len(to_delete) >= DB_SEND_CHUNK:
-                    self.db.delete_eids(etype, to_delete)
-                    to_delete.clear()
-                if len(expired_ttls) >= DB_SEND_CHUNK:
-                    self.db.remove_expired_ttls(etype, expired_ttls)
-                    expired_ttls.clear()
-
-            if to_delete:
-                self.db.delete_eids(etype, to_delete)
-                to_delete.clear()
-            if expired_ttls:
-                self.db.remove_expired_ttls(etype, expired_ttls)
-                expired_ttls.clear()
-
-        finally:
-            records_cursor.close()
-
-        self.db.update_metadata(
-            now,
-            metadata={"ttl_collect_end": datetime.now(UTC)},
-            increase={"entities": entities, "deleted": deleted},
-        )
+        counts = {"entities": 0, "deleted": 0}
+        self.db.save_metadata(now, {"ttl_collect_start": now, "entity": etype} | counts)
+        with self.db.record_run_end(now, "ttl_collect_end", increase=counts):
+            self._collect_ttl(etype, now, counts)
         self.log.info(
             "Removal of '%s' entities by TTL done - %s processed, %s deleted",
             etype,
-            entities,
-            deleted,
+            counts["entities"],
+            counts["deleted"],
         )
+
+    def _collect_ttl(self, etype: str, now: datetime, counts: dict):
+        to_delete = []
+        expired_ttls = {}
+        with self.db.get_worker_master_records(
+            self.worker_index, self.num_workers, etype, no_cursor_timeout=True
+        ) as records_cursor:
+            for master_document in records_cursor:
+                counts["entities"] += 1
+                if "#ttl" not in master_document:
+                    continue  # TTL not set, ignore for now
+
+                expired = [name for name, ttl in master_document["#ttl"].items() if ttl < now]
+                if len(expired) == len(master_document["#ttl"]):
+                    to_delete.append(master_document["_id"])
+                elif expired:
+                    expired_ttls[master_document["_id"]] = expired
+
+                if len(to_delete) >= DB_SEND_CHUNK:
+                    self._delete_eids(etype, to_delete, counts)
+                if len(expired_ttls) >= DB_SEND_CHUNK:
+                    self._remove_expired_ttls(etype, expired_ttls)
+        self._delete_eids(etype, to_delete, counts)
+        self._remove_expired_ttls(etype, expired_ttls)
+
+    def _remove_expired_ttls(self, etype: str, expired_ttls: dict):
+        """Removes the batch of expired TTLs from entities that have other TTLs left."""
+        if expired_ttls:
+            self.db.remove_expired_ttls(etype, expired_ttls)
+            expired_ttls.clear()
+
+    def _delete_eids(self, etype: str, eids: list, counts: dict):
+        """Deletes the batch of entities and counts them as deleted."""
+        if eids:
+            self.db.delete_eids(etype, eids)
+            counts["deleted"] += len(eids)
+            eids.clear()
 
     def extend_plain_ttl(
         self, eid: AnyEidT, dp: DataPointBase, extend_by: timedelta

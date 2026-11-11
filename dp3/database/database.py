@@ -5,6 +5,7 @@ import threading
 import time
 from collections import defaultdict
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from typing import TypeVar
 
@@ -25,6 +26,7 @@ from dp3.common.datatype import AnyEidT
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
+from dp3.common.utils import error_summary
 from dp3.database.config import MongoConfig, MongoReplicaConfig, MongoStandaloneConfig
 from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import get_codec_options
@@ -1239,7 +1241,20 @@ class EntityDatabase:
         Returns:
             Whether the record existed before the update.
         """
-        module = get_caller_id()
+        return self._update_metadata(
+            get_caller_id(), time, metadata, increase, worker_id, key, upsert
+        )
+
+    def _update_metadata(
+        self,
+        module: str,
+        time: datetime,
+        metadata: dict,
+        increase: dict = None,
+        worker_id: int | None = None,
+        key: str | None = None,
+        upsert: bool = True,
+    ) -> bool:
         metadata_id = self._get_metadata_id(module, time, worker_id, key)
         metadata["#last_update"] = datetime.now(UTC)
 
@@ -1253,6 +1268,34 @@ class EntityDatabase:
         except Exception as e:
             raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
         return res.matched_count > 0
+
+    def record_run_end(
+        self, time: datetime, end_field: str, increase: dict = None
+    ) -> AbstractContextManager[dict]:
+        """Records the end of a run started by `save_metadata`, also when the run fails.
+
+        Used as `with db.record_run_end(start, "job_end", increase=counts) as end:`.
+        On exit, the time is saved as `end_field`, together with the fields put in `end`
+        and the final values of the `increase` counters. A failed run also records
+        an `error` field and the exception is re-raised. Failures of the write itself
+        are only logged, so they never hide the outcome of the run.
+        """
+        return self._run_end_record(get_caller_id(), time, end_field, increase)
+
+    @contextmanager
+    def _run_end_record(self, module: str, time: datetime, end_field: str, increase: dict):
+        end = {}
+        try:
+            yield end
+        except Exception as e:
+            end["error"] = error_summary(e)
+            raise
+        finally:
+            end[end_field] = datetime.now(UTC)
+            try:
+                self._update_metadata(module, time, end, increase)
+            except DatabaseError:
+                self.log.exception("Saving the end of a %s run failed", module)
 
     def find_metadata(
         self,

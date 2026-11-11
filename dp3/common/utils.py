@@ -9,6 +9,13 @@ from datetime import datetime, timedelta
 from functools import partial
 from itertools import islice
 
+
+def error_summary(exc: BaseException, limit: int = 500) -> str:
+    """Returns a short description of an exception, e.g. for operational metadata records."""
+    text = f"{type(exc).__name__}: {exc}"
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
 # *** IP conversion functions ***
 ipv4_re = re.compile(r"^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$")
 

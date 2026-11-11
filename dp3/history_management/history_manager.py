@@ -556,78 +556,80 @@ class HistoryManager:
         )
 
         datapoint_counts = []
-        for entity in self.model_spec.entities:
-            attr_specs = {
+        with self.db.record_run_end(ts, "aggregation_end", increase=stats) as end:
+            end["aggregation_metrics"] = {"entity_types": datapoint_counts}
+            for entity, attr_specs in self._aggregated_attr_specs().items():
+                counts = {attr: {"attribute": attr, "before": 0, "after": 0} for attr in attr_specs}
+                datapoint_counts.append({"entity": entity, "datapoints": list(counts.values())})
+                self._aggregate_entity(entity, attr_specs, ts, counts, stats)
+        self.log.debug("Master documents aggregation end: %s", stats)
+
+    def _aggregated_attr_specs(self) -> dict[str, dict]:
+        """Returns the specs of attributes with aggregated history, by entity type."""
+        specs = {
+            entity: {
                 attr: spec
                 for attr, spec in self.model_spec.entity_attributes[entity].items()
                 if spec.t == AttrType.OBSERVATIONS and spec.history_params.aggregate
             }
-            if not attr_specs:
-                continue
+            for entity in self.model_spec.entities
+        }
+        return {entity: attr_specs for entity, attr_specs in specs.items() if attr_specs}
 
-            counts = {attr: {"attribute": attr, "before": 0, "after": 0} for attr in attr_specs}
-            datapoint_counts.append({"entity": entity, "datapoints": list(counts.values())})
-            projection = {
-                **dict.fromkeys(attr_specs, True),
-                "#ttl": True,
-                "#time_created": True,
-                MASTER_REVISION_FIELD: True,
-            }
-            aggregated_records = []
-            records_cursor = self.db.get_worker_master_records(
-                self.worker_index,
-                self.num_workers,
-                entity,
-                projection=projection,
-                no_cursor_timeout=True,
-            )
-            try:
-                for master_document in records_cursor:
-                    if entity_expired(ts, master_document):
-                        continue  # Avoid expired entities to avoid conflict with garbage collector
+    def _aggregate_entity(
+        self, entity: str, attr_specs: dict, ts: datetime, counts: dict, stats: dict
+    ):
+        """Aggregates the datapoints of `attr_specs` in the worker's master records of `entity`."""
+        projection = {
+            **dict.fromkeys(attr_specs, True),
+            "#ttl": True,
+            "#time_created": True,
+            MASTER_REVISION_FIELD: True,
+        }
+        aggregated_records = []
+        with self.db.get_worker_master_records(
+            self.worker_index,
+            self.num_workers,
+            entity,
+            projection=projection,
+            no_cursor_timeout=True,
+        ) as records_cursor:
+            for master_document in records_cursor:
+                if entity_expired(ts, master_document):
+                    continue  # Avoid expired entities to avoid conflict with garbage collector
 
-                    stats["entities"] += 1
-                    before = {attr: len(master_document.get(attr, [])) for attr in attr_specs}
-                    fields = self.aggregate_master_doc(attr_specs, master_document)
-                    # Computed initial-pass counts, not confirmed persisted changes.
-                    for attr, count in counts.items():
-                        count["before"] += before[attr]
-                        count["after"] += len(fields.get(attr, master_document.get(attr, [])))
-                    if not fields:
-                        continue
-
-                    aggregated_records.append(
-                        (
-                            master_document["_id"],
-                            master_document.get(MASTER_REVISION_FIELD),
-                            master_document.get("#time_created"),
-                            fields,
-                        )
-                    )
-
-                    if len(aggregated_records) >= DB_SEND_CHUNK:
-                        self._update_master_records(
-                            entity, attr_specs, projection, ts, aggregated_records, stats
-                        )
-                        aggregated_records.clear()
-
-                if aggregated_records:
+                stats["entities"] += 1
+                if update := self._aggregate_document(attr_specs, master_document, counts):
+                    aggregated_records.append(update)
+                if len(aggregated_records) >= DB_SEND_CHUNK:
                     self._update_master_records(
                         entity, attr_specs, projection, ts, aggregated_records, stats
                     )
                     aggregated_records.clear()
-            finally:
-                records_cursor.close()
 
-        self.db.update_metadata(
-            ts,
-            metadata={
-                "aggregation_end": datetime.now(UTC),
-                "aggregation_metrics": {"entity_types": datapoint_counts},
-            },
-            increase=stats,
+            if aggregated_records:
+                self._update_master_records(
+                    entity, attr_specs, projection, ts, aggregated_records, stats
+                )
+
+    def _aggregate_document(
+        self, attr_specs: dict, master_document: dict, counts: dict
+    ) -> MasterRecordUpdate | None:
+        """Aggregates the datapoints of one master record, returns its update if any changed."""
+        before = {attr: len(master_document.get(attr, [])) for attr in attr_specs}
+        fields = self.aggregate_master_doc(attr_specs, master_document)
+        # Computed initial-pass counts, not confirmed persisted changes.
+        for attr, count in counts.items():
+            count["before"] += before[attr]
+            count["after"] += len(fields.get(attr, master_document.get(attr, [])))
+        if not fields:
+            return None
+        return (
+            master_document["_id"],
+            master_document.get(MASTER_REVISION_FIELD),
+            master_document.get("#time_created"),
+            fields,
         )
-        self.log.debug("Master documents aggregation end: %s", stats)
 
     def _update_master_records(
         self,

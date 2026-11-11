@@ -45,7 +45,7 @@ from dp3.common.task import (
     task_context,
 )
 from dp3.common.types import EventGroupType
-from dp3.common.utils import get_func_name
+from dp3.common.utils import error_summary, get_func_name
 from dp3.database.database import EntityDatabase
 from dp3.snapshots.snapshot_hooks import (
     SnapshotCorrelationHookContainer,
@@ -258,70 +258,54 @@ class SnapShooter:
     def make_snapshots(self):
         """Creates snapshots for all entities currently active in database."""
         time = datetime.now(UTC)
+        counts = {"entities": 0, "components": 0}
         self.db.save_metadata(
             time,
-            {
-                "task_creation_start": time,
-                "entities": 0,
-                "components": 0,
-                "workers_finished": 0,
-                "linked_finished": False,
-            },
+            {"task_creation_start": time, "workers_finished": 0, "linked_finished": False} | counts,
         )
-        # Broadcast run start
-        with entity_type_context(self.model_spec):
-            self.snapshot_queue_writer.broadcast_task(
-                task=Snapshot(type=SnapshotMessageType.run_start, time=time)
-            )
+        with self.db.record_run_end(time, "task_creation_end", increase=counts) as end:
+            self._broadcast(type=SnapshotMessageType.run_start, time=time)
+            self._create_snapshot_tasks(time, counts, end)
+            self._broadcast(type=SnapshotMessageType.run_end, time=time)
 
+    def _create_snapshot_tasks(self, time: datetime, counts: dict, end: dict):
         # distribute list of possibly linked entities to all workers
         cached = self.get_cached_link_entity_ids()
         self.log.debug("Broadcasting %s cached linked entities", len(cached))
-        with entity_type_context(self.model_spec):
-            self.snapshot_queue_writer.broadcast_task(
-                task=Snapshot(entities=cached, time=time, type=SnapshotMessageType.linked_entities)
-            )
+        self._broadcast(entities=cached, time=time, type=SnapshotMessageType.linked_entities)
 
         # Load links only for a reduced set of entities
         self.log.debug("Loading linked entities.")
-
-        times = {}
-        counts = {"entities": 0, "components": 0}
         try:
             linked_entities = self.get_linked_entities(time, cached)
-            times["components_loaded"] = datetime.now(UTC)
-
-            for i, linked_entities_component in enumerate(linked_entities):
-                counts["entities"] += len(linked_entities_component)
-                counts["components"] += 1
-
-                with entity_type_context(self.model_spec):
-                    self.snapshot_queue_writer.put_task(
-                        task=Snapshot(
-                            entities=linked_entities_component,
-                            time=time,
-                            type=SnapshotMessageType.task,
-                            final=(i + 1 == len(linked_entities)),
-                        )
-                    )
-
-            if len(linked_entities) == 0:
-                self.db.update_metadata(time, metadata={"linked_finished": True})
         except pymongo.errors.CursorNotFound as err:
+            # The run ends without linked entity tasks
             self.log.exception(err)
-        finally:
-            times["task_creation_end"] = datetime.now(UTC)
-            self.db.update_metadata(
-                time,
-                metadata=times,
-                increase=counts,
-            )
+            end["error"] = error_summary(err)
+            return
+        end["components_loaded"] = datetime.now(UTC)
 
-        # Broadcast run end
+        for i, linked_entities_component in enumerate(linked_entities):
+            counts["entities"] += len(linked_entities_component)
+            counts["components"] += 1
+            with entity_type_context(self.model_spec):
+                self.snapshot_queue_writer.put_task(
+                    task=Snapshot(
+                        entities=linked_entities_component,
+                        time=time,
+                        type=SnapshotMessageType.task,
+                        final=(i + 1 == len(linked_entities)),
+                    )
+                )
+
+        if len(linked_entities) == 0:
+            self.db.update_metadata(time, metadata={"linked_finished": True})
+
+    def _broadcast(self, **fields):
+        """Broadcasts a snapshot message with `fields` to all workers."""
+        # The message is validated against the entity types, so it is created in their context
         with entity_type_context(self.model_spec):
-            self.snapshot_queue_writer.broadcast_task(
-                task=Snapshot(type=SnapshotMessageType.run_end, time=time)
-            )
+            self.snapshot_queue_writer.broadcast_task(task=Snapshot(**fields))
 
     def get_cached_link_entity_ids(self):
         used = [f"{etype}#{attr}" for etype, attr in self._correlation_hooks.used_links]

@@ -75,7 +75,11 @@ HistoryManager records run start/end times and metrics in `#metadata`:
   (and how many of them were future-dated), the export file, and failures. Run start and end
   are recorded in `archivation_start` and `archivation_end`.
 
-Metrics add no database reads. Interrupted runs may lack final metrics.
+When aggregation raises an error, its end is still recorded, with the counts up to the error and
+an `error` field holding the error type and message. The error is then logged by the scheduler as
+before.
+
+Metrics add no database reads. Runs interrupted by a worker stop may lack final metrics.
 
 ## Repairing history markers
 

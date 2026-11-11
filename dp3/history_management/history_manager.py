@@ -244,7 +244,7 @@ class HistoryManager:
             period.slowest_batch_secs,
         )
         try:
-            self.db.update_metadata(
+            self.db.metadata.update(
                 period.period_start,
                 metadata={
                     "#module": self.__class__.__qualname__,
@@ -306,7 +306,7 @@ class HistoryManager:
         }
         self.log.debug("Archiving raw datapoints received before %s ...", t_old)
         try:
-            self.db.save_metadata(start, {"archivation_start": start})
+            self.db.metadata.save(start, {"archivation_start": start})
         except DatabaseError:
             self.log.exception("Saving archivation metadata failed")
 
@@ -368,7 +368,7 @@ class HistoryManager:
             ", export failed" if stats["export_failed"] else "",
         )
         try:
-            self.db.update_metadata(
+            self.db.metadata.update(
                 start,
                 metadata={
                     "archivation_start": start,
@@ -550,13 +550,13 @@ class HistoryManager:
             "retries": 0,
             "retry_exhausted": 0,
         }
-        self.db.save_metadata(
+        self.db.metadata.save(
             ts,
             {"aggregation_start": ts} | stats,
         )
 
         datapoint_counts = []
-        with self.db.record_run_end(ts, "aggregation_end", increase=stats) as end:
+        with self.db.metadata.record_run_end(ts, "aggregation_end", increase=stats) as end:
             end["aggregation_metrics"] = {"entity_types": datapoint_counts}
             for entity, attr_specs in self._aggregated_attr_specs().items():
                 counts = {attr: {"attribute": attr, "before": 0, "after": 0} for attr in attr_specs}

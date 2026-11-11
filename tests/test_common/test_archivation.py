@@ -49,13 +49,24 @@ class FakeCursor:
         self.closed = True
 
 
+class FakeMetadata:
+    def __init__(self):
+        self.records = {}
+
+    def save(self, time, metadata):
+        self.records[time] = dict(metadata)
+
+    def update(self, time, metadata):
+        self.records.setdefault(time, {}).update(metadata)
+
+
 class FakeDatabase:
     """In-memory stand-in for the archive related part of `EntityDatabase`."""
 
     def __init__(self):
         self.raw = {}
         self.archives = {}
-        self.metadata = {}
+        self.metadata = FakeMetadata()
         self.export_failures = []  # (archive name, fail after n docs, error), consumed in order
         self.rename_errors = {}
         self.cursors = []
@@ -92,12 +103,6 @@ class FakeDatabase:
         for name in empty:
             del self.archives[name]
         return len(empty)
-
-    def save_metadata(self, time, metadata):
-        self.metadata[time] = dict(metadata)
-
-    def update_metadata(self, time, metadata):
-        self.metadata.setdefault(time, {}).update(metadata)
 
 
 class TestArchivation(unittest.TestCase):
@@ -136,7 +141,7 @@ class TestArchivation(unittest.TestCase):
             return [json.loads(line) for line in f]
 
     def metrics(self) -> dict:
-        (metadata,) = self.db.metadata.values()
+        (metadata,) = self.db.metadata.records.values()
         return metadata["archivation_metrics"]
 
     @staticmethod

@@ -25,7 +25,7 @@ class FakeDatabase:
     def __init__(self, records):
         self.records = records
         self.cursors = []
-        self.update_metadata = Mock()
+        self.metadata = Mock()
 
     def get_worker_master_records(self, *args, **kwargs):
         cursor = FakeCursor(self.records)
@@ -59,7 +59,7 @@ class TestSnapShooterRetry(unittest.TestCase):
 
         self.assertEqual(len(snapshooter.db.cursors), 1)
         self.assertTrue(snapshooter.db.cursors[0].closed)
-        snapshooter.db.update_metadata.assert_not_called()
+        snapshooter.db.metadata.update.assert_not_called()
 
     def test_retry_does_not_repeat_records_processed_before_failure(self):
         records = [{"_id": "first"}, {"_id": "second"}]
@@ -84,7 +84,7 @@ class TestSnapShooterRetry(unittest.TestCase):
         self.assertEqual(attempts, 1)
         self.assertEqual(len(processed), len(set(processed)), processed)
         self.assertTrue(snapshooter.db.cursors[0].closed)
-        snapshooter.db.update_metadata.assert_not_called()
+        snapshooter.db.metadata.update.assert_not_called()
 
     def test_failure_does_not_report_worker_completion(self):
         snapshooter = make_snapshooter([{"_id": "first"}])
@@ -96,7 +96,7 @@ class TestSnapShooterRetry(unittest.TestCase):
         self.assertEqual(snapshooter.make_linkless_snapshots.call_count, 1)
         self.assertEqual(len(snapshooter.db.cursors), 1)
         self.assertTrue(all(cursor.closed for cursor in snapshooter.db.cursors))
-        snapshooter.db.update_metadata.assert_not_called()
+        snapshooter.db.metadata.update.assert_not_called()
 
 
 if __name__ == "__main__":

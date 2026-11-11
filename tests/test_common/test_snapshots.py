@@ -6,6 +6,7 @@ import unittest
 from collections.abc import Callable
 from datetime import UTC
 from functools import partial, update_wrapper
+from unittest.mock import Mock
 
 from event_count_logger import DummyEventGroup
 
@@ -94,7 +95,7 @@ class MockDB:
         self.db_content = content
         self.module_cache = module_cache
         self.saved_snapshots = []
-        self.saved_metadata = {}
+        self.metadata = Mock()
 
     def get_master_records(self, etype: str, **kwargs):
         if etype not in self.db_content:
@@ -121,9 +122,6 @@ class MockDB:
     def save_snapshot(self, etype: str, snapshot: dict, time: datetime):
         json.dumps(snapshot)
         self.saved_snapshots.append(snapshot)
-
-    def save_metadata(self, module: str, time: datetime, metadata: dict):
-        self.saved_metadata[module, time] = metadata
 
 
 class MockTaskQueueWriter:

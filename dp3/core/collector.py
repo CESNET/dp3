@@ -171,8 +171,8 @@ class GarbageCollector:
         self.log.debug("Starting removal of '%s' weak entities", etype)
         start = datetime.now(UTC)
         counts = {"entities": 0, "deleted": 0}
-        self.db.save_metadata(start, {"weak_collect_start": start, "entity": etype} | counts)
-        with self.db.record_run_end(start, "weak_collect_end", increase=counts):
+        self.db.metadata.save(start, {"weak_collect_start": start, "entity": etype} | counts)
+        with self.db.metadata.record_run_end(start, "weak_collect_end", increase=counts):
             self._collect_weak(etype, counts)
         self.log.info(
             "Removal of '%s' weak entities done - %s tracked, %s processed & deleted",
@@ -215,8 +215,8 @@ class GarbageCollector:
         self.log.debug("Starting removal of '%s' entities by TTL", etype)
         now = datetime.now(UTC)
         counts = {"entities": 0, "deleted": 0}
-        self.db.save_metadata(now, {"ttl_collect_start": now, "entity": etype} | counts)
-        with self.db.record_run_end(now, "ttl_collect_end", increase=counts):
+        self.db.metadata.save(now, {"ttl_collect_start": now, "entity": etype} | counts)
+        with self.db.metadata.record_run_end(now, "ttl_collect_end", increase=counts):
             self._collect_ttl(etype, now, counts)
         self.log.info(
             "Removal of '%s' entities by TTL done - %s processed, %s deleted",

@@ -771,7 +771,7 @@ Fields may be `null` when the corresponding snapshot run has not been observed y
 Browse records from the internal `#metadata` collection.
 
 This endpoint is useful for operational inspection of metadata written by modules such as
-`SnapShooter`, `HistoryManager`, and other components using `db.save_metadata` / `db.update_metadata`.
+`SnapShooter`, `HistoryManager`, and other components using `db.metadata.save` / `db.metadata.update`.
 
 ### Request
 

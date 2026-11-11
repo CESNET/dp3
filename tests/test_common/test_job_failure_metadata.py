@@ -43,10 +43,7 @@ class FailedJobEndRecord(unittest.TestCase):
     def setUp(self):
         self.metadata = Mock()
         self.metadata.update_one.return_value = Mock(matched_count=1)
-        self.db = EntityDatabase.__new__(EntityDatabase)
-        self.db._process_index = 0
-        self.db.log = logging.getLogger(self.id())
-        self.db._db = {"#metadata": self.metadata}
+        self.db = EntityDatabase.bare(SimpleNamespace(entities={}), {"#metadata": self.metadata})
         self.db.get_worker_master_records = Mock(side_effect=JobFailure("boom"))
         self.db.delete_eids = Mock()
 
@@ -155,7 +152,7 @@ class FailedJobEndRecord(unittest.TestCase):
         self.metadata.update_one.side_effect = DatabaseError("metadata down")
         with (
             patch.object(SnapShooter, "get_cached_link_entity_ids", side_effect=JobFailure("boom")),
-            self.assertLogs(self.db.log, logging.ERROR),
+            self.assertLogs(self.db.metadata.log, logging.ERROR),
             self.assertRaises(JobFailure),
         ):
             self.make_shooter().make_snapshots()

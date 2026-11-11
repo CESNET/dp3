@@ -259,11 +259,11 @@ class SnapShooter:
         """Creates snapshots for all entities currently active in database."""
         time = datetime.now(UTC)
         counts = {"entities": 0, "components": 0}
-        self.db.save_metadata(
+        self.db.metadata.save(
             time,
             {"task_creation_start": time, "workers_finished": 0, "linked_finished": False} | counts,
         )
-        with self.db.record_run_end(time, "task_creation_end", increase=counts) as end:
+        with self.db.metadata.record_run_end(time, "task_creation_end", increase=counts) as end:
             self._broadcast(type=SnapshotMessageType.run_start, time=time)
             self._create_snapshot_tasks(time, counts, end)
             self._broadcast(type=SnapshotMessageType.run_end, time=time)
@@ -299,7 +299,7 @@ class SnapShooter:
                 )
 
         if len(linked_entities) == 0:
-            self.db.update_metadata(time, metadata={"linked_finished": True})
+            self.db.metadata.update(time, metadata={"linked_finished": True})
 
     def _broadcast(self, **fields):
         """Broadcasts a snapshot message with `fields` to all workers."""
@@ -426,7 +426,7 @@ class SnapShooter:
             self.log.error("Worker snapshot creation incomplete; not reporting completion.")
             return
 
-        self.db.update_metadata(
+        self.db.metadata.update(
             task.time,
             metadata={},
             increase={"entities": entity_cnt, "components": entity_cnt, "workers_finished": 1},
@@ -545,7 +545,7 @@ class SnapShooter:
             self.db.snapshots.save_one(rtype, record, task.time)
 
         if task.final:
-            self.db.update_metadata(task.time, metadata={"linked_finished": True}, worker_id=0)
+            self.db.metadata.update(task.time, metadata={"linked_finished": True}, worker_id=0)
 
     @staticmethod
     def _remove_record_from_value(spec: AttrSpecType, value: dict | list[dict]):

@@ -10,7 +10,7 @@ from dp3.database.database import EntityDatabase
 class Worker:
     """Records the start and stop of the worker process in `#metadata`.
 
-    The class name is the `#module` of the records, as `EntityDatabase.save_metadata` takes it
+    The class name is the `#module` of the records, as `MetadataCollection.save` takes it
     from the caller, so renaming the class changes the records and breaks their readers.
 
     Each process saves one record under its start time, with `worker_start`, and adds
@@ -29,7 +29,7 @@ class Worker:
     def record_start(self) -> None:
         """Saves the start record, a failure is logged and doesn't stop the worker."""
         try:
-            self.db.save_metadata(self.started, {"worker_start": self.started})
+            self.db.metadata.save(self.started, {"worker_start": self.started})
             self.recorded = True
         except Exception:
             self.log.exception("Saving worker start metadata failed")
@@ -57,7 +57,7 @@ class Worker:
         an incomplete record that never expires.
         """
         try:
-            found = self.db.update_metadata(
+            found = self.db.metadata.update(
                 self.started, {"worker_stop": datetime.now(UTC), "clean_stop": clean}, upsert=False
             )
         except Exception:

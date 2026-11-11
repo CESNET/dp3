@@ -280,9 +280,9 @@ class TelemetryReader:
     def get_snapshot_summary(self) -> dict:
         """Return summary of latest snapshot activity."""
         now = datetime.now(UTC)
-        latest_started = next(self.db.find_metadata(module="SnapShooter").limit(1), None)
+        latest_started = next(self.db.metadata.find(module="SnapShooter").limit(1), None)
         latest_finished = next(
-            self.db.find_metadata(
+            self.db.metadata.find(
                 module="SnapShooter",
                 extra_filter={"workers_finished": self.num_processes, "linked_finished": True},
             ).limit(1),
@@ -315,7 +315,7 @@ class TelemetryReader:
         limit: int = 0,
     ) -> list[dict]:
         """Return filtered metadata documents."""
-        cursor = self.db.find_metadata(module, date_from, date_to, newest_first)
+        cursor = self.db.metadata.find(module, date_from, date_to, newest_first)
         if skip:
             cursor = cursor.skip(skip)
         if limit:

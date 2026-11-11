@@ -1,11 +1,9 @@
-import inspect
 import logging
 import re
 import threading
 import time
 from collections import defaultdict
 from collections.abc import Callable, Sequence
-from contextlib import AbstractContextManager, contextmanager
 from datetime import UTC, datetime
 from typing import TypeVar
 
@@ -26,22 +24,13 @@ from dp3.common.datatype import AnyEidT
 from dp3.common.scheduler import Scheduler
 from dp3.common.task import HASH
 from dp3.common.types import EventGroupType
-from dp3.common.utils import error_summary
 from dp3.database.config import MongoConfig, MongoReplicaConfig, MongoStandaloneConfig
 from dp3.database.db_errors import DbErrorCounter
 from dp3.database.encodings import get_codec_options
 from dp3.database.exceptions import DatabaseError
+from dp3.database.metadata import MetadataCollection, get_caller_id
 from dp3.database.schema_cleaner import SchemaCleaner
 from dp3.database.snapshots import SnapshotCollectionContainer
-
-
-def get_caller_id():
-    """Returns the name of the caller method's class, or function name if caller is not a method."""
-    caller = inspect.stack()[2]
-    if module := caller.frame.f_locals.get("self"):
-        return module.__class__.__qualname__
-    return caller.function
-
 
 # number of seconds to wait for the i-th attempt to reconnect after error
 RECONNECT_DELAYS = [1, 2, 5, 10, 30]
@@ -181,6 +170,7 @@ class EntityDatabase:
             self._db, db_config, model_spec, config.get("snapshots", {}), self.db_errors
         )
         self._snapshot_bucket_size = db_config.storage.snapshot_bucket_size
+        self.metadata = MetadataCollection(self._db, process_index)
 
         if process_index == 0:
             self._init_database_schema()
@@ -227,8 +217,9 @@ class EntityDatabase:
     def bare(cls, model_spec: ModelSpec, db: Database | None = None, **kwargs) -> "EntityDatabase":
         """Creates a database working with `db`, without connecting or any setup.
 
-        Has the state of a constructed instance, but skips schema initialization, snapshots
-        and scheduled pushes of buffered data. Meant for tests, which replace what they need.
+        Has the state of a constructed instance, including `metadata` when `db` is given,
+        but skips schema initialization, snapshots and scheduled pushes of buffered data.
+        Meant for tests, which replace what they need.
 
         Args:
             model_spec: Data model, only `entities` is required.
@@ -238,6 +229,8 @@ class EntityDatabase:
         database = cls.__new__(cls)
         database._init_state(model_spec, **kwargs)
         database._db = db
+        if db is not None:
+            database.metadata = MetadataCollection(db, database._process_index)
         return database
 
     @staticmethod
@@ -434,10 +427,7 @@ class EntityDatabase:
             # For deleting old snapshots
             snapshot_col.create_index("_time_created", background=True)
 
-        # Create a TTL index for metadata collection
-        self._db["#metadata"].create_index(
-            "#time_created", expireAfterSeconds=60 * 60 * 24 * 30, background=True
-        )
+        self.metadata.create_indexes()
 
         # Master indexes
         for etype in self._db_schema_config.entities:
@@ -1198,130 +1188,6 @@ class EntityDatabase:
 
         master_col = self._master_col(etype)
         return master_col.estimated_document_count({})
-
-    def _get_metadata_id(
-        self, module: str, time: datetime, worker_id: int | None = None, key: str | None = None
-    ) -> str:
-        """Generates unique metadata id based on `module`, `time` and the worker index.
-
-        The optional `key` distinguishes records of the same module, time and worker,
-        e.g. of different entity types.
-        """
-        worker_id = self._process_index if worker_id is None else worker_id
-        module_key = module if key is None else f"{module}[{key}]"
-        return f"{module_key}{time.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}w{worker_id}"
-
-    def save_metadata(self, time: datetime, metadata: dict, worker_id: int | None = None):
-        """Saves metadata dict under the caller module and passed timestamp."""
-        module = get_caller_id()
-        metadata["_id"] = self._get_metadata_id(module, time, worker_id)
-        metadata["#module"] = module
-        metadata["#time_created"] = time
-        metadata["#last_update"] = datetime.now(UTC)
-        try:
-            self._db["#metadata"].insert_one(metadata)
-            self.log.debug("Inserted metadata %s: %s", metadata["_id"], metadata)
-        except Exception as e:
-            raise DatabaseError(f"Insert of metadata failed: {e}\n{metadata}") from e
-
-    def update_metadata(
-        self,
-        time: datetime,
-        metadata: dict,
-        increase: dict = None,
-        worker_id: int | None = None,
-        key: str | None = None,
-        upsert: bool = True,
-    ) -> bool:
-        """Updates existing metadata of caller module and passed timestamp.
-
-        The optional `key` identifies one of several records of the same module, time and worker.
-        If the record does not exist yet, it is created, unless `upsert` is false.
-
-        Returns:
-            Whether the record existed before the update.
-        """
-        return self._update_metadata(
-            get_caller_id(), time, metadata, increase, worker_id, key, upsert
-        )
-
-    def _update_metadata(
-        self,
-        module: str,
-        time: datetime,
-        metadata: dict,
-        increase: dict = None,
-        worker_id: int | None = None,
-        key: str | None = None,
-        upsert: bool = True,
-    ) -> bool:
-        metadata_id = self._get_metadata_id(module, time, worker_id, key)
-        metadata["#last_update"] = datetime.now(UTC)
-
-        changes = {"$set": metadata} if increase is None else {"$set": metadata, "$inc": increase}
-
-        try:
-            res = self._db["#metadata"].update_one({"_id": metadata_id}, changes, upsert=upsert)
-            self.log.debug(
-                "Updated metadata %s, changes: %s, result: %s", metadata_id, changes, res.raw_result
-            )
-        except Exception as e:
-            raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
-        return res.matched_count > 0
-
-    def record_run_end(
-        self, time: datetime, end_field: str, increase: dict = None
-    ) -> AbstractContextManager[dict]:
-        """Records the end of a run started by `save_metadata`, also when the run fails.
-
-        Used as `with db.record_run_end(start, "job_end", increase=counts) as end:`.
-        On exit, the time is saved as `end_field`, together with the fields put in `end`
-        and the final values of the `increase` counters. A failed run also records
-        an `error` field and the exception is re-raised. Failures of the write itself
-        are only logged, so they never hide the outcome of the run.
-        """
-        return self._run_end_record(get_caller_id(), time, end_field, increase)
-
-    @contextmanager
-    def _run_end_record(self, module: str, time: datetime, end_field: str, increase: dict):
-        end = {}
-        try:
-            yield end
-        except Exception as e:
-            end["error"] = error_summary(e)
-            raise
-        finally:
-            end[end_field] = datetime.now(UTC)
-            try:
-                self._update_metadata(module, time, end, increase)
-            except DatabaseError:
-                self.log.exception("Saving the end of a %s run failed", module)
-
-    def find_metadata(
-        self,
-        module: str = None,
-        date_from: datetime = None,
-        date_to: datetime = None,
-        newest_first: bool = True,
-        extra_filter: dict = None,
-    ) -> Cursor:
-        """Find metadata documents with optional filtering."""
-        query = dict(extra_filter or {})
-        if module is not None:
-            query["#module"] = module
-
-        time_filter = {}
-        if date_from is not None:
-            time_filter["$gte"] = date_from
-        if date_to is not None:
-            time_filter["$lte"] = date_to
-        if time_filter:
-            query["#time_created"] = time_filter
-
-        sort_dir = pymongo.DESCENDING if newest_first else pymongo.ASCENDING
-        return (
-            self._db["#metadata"].find(query).sort([("#time_created", sort_dir), ("_id", sort_dir)])
-        )
 
     def count_entities_per_attr(self, entity_type: str) -> dict[str, int]:
         """Count entities with data present for each attribute of the given entity type."""

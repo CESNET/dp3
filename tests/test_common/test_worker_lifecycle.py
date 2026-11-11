@@ -5,6 +5,7 @@ import threading
 import time
 import unittest
 from contextlib import ExitStack, suppress
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from redis.exceptions import ConnectionError as RedisConnectionError
@@ -12,7 +13,7 @@ from redis.exceptions import ConnectionError as RedisConnectionError
 from dp3 import worker
 from dp3.common.config import MissingConfigError
 from dp3.core.worker_lifecycle import Worker
-from dp3.database.database import EntityDatabase
+from dp3.database.metadata import MetadataCollection
 from dp3.task_processing.task_distributor import TaskDistributor
 from dp3.task_processing.task_queue import TaskQueueReader
 
@@ -289,8 +290,8 @@ class TestWorkerLifecycle(unittest.TestCase):
         self.assertEqual(len(task_distributors), 1)
         self.assertTrue(task_distributors[0].stopped)
         # the failed startup is recorded as a stop that wasn't requested
-        db.update_metadata.assert_called_once()
-        self.assertFalse(db.update_metadata.call_args.args[1]["clean_stop"])
+        db.metadata.update.assert_called_once()
+        self.assertFalse(db.metadata.update.call_args.args[1]["clean_stop"])
 
     def test_worker_main_records_clean_stop_on_sigterm(self):
         signal_mock = Mock()
@@ -338,18 +339,15 @@ class TestWorkerLifecycle(unittest.TestCase):
             threading.current_thread().name = original_thread_name
 
         self.assertEqual(exit_code, 0)
-        db.update_metadata.assert_called_once()
-        self.assertTrue(db.update_metadata.call_args.args[1]["clean_stop"])
+        db.metadata.update.assert_called_once()
+        self.assertTrue(db.metadata.update.call_args.args[1]["clean_stop"])
 
     def test_worker_records_start_and_stop_in_one_record(self):
-        db = EntityDatabase.__new__(EntityDatabase)
-        db._process_index = 3
-        db.log = logging.getLogger(self.id())
         collection = Mock()
         collection.update_one.return_value = Mock(matched_count=1)
-        db._db = {"#metadata": collection}
+        db = SimpleNamespace(metadata=MetadataCollection({"#metadata": collection}, 3))
 
-        lifecycle = Worker(db, db.log)
+        lifecycle = Worker(db, logging.getLogger(self.id()))
         lifecycle.record_start()
         lifecycle.record_stop(True, timeout=1)
 
@@ -363,7 +361,7 @@ class TestWorkerLifecycle(unittest.TestCase):
     def test_worker_stop_record_is_bounded(self):
         release = threading.Event()
         db = Mock()
-        db.update_metadata.side_effect = lambda *args, **kwargs: release.wait()
+        db.metadata.update.side_effect = lambda *args, **kwargs: release.wait()
         lifecycle = Worker(db, logging.getLogger(self.id()))
         lifecycle.record_start()
         started = time.monotonic()

@@ -6,8 +6,10 @@ from unittest.mock import Mock
 
 from dp3.common.config import HierarchicalDict
 from dp3.database.database import EntityDatabase
+from dp3.database.metadata import MetadataCollection
 from dp3.history_management.telemetry import (
     ATTRIBUTE_BSON_SIZES_TYPE,
+    ENTITIES_PER_ATTR_TYPE,
     Telemetry,
     TelemetryReader,
 )
@@ -84,6 +86,9 @@ class FakeTelemetryDatabase:
         self.cache = cache
         self.results = results
         self.calls = []
+        self.metadata_col = Mock()
+        self.metadata_col.update_one.return_value = Mock(matched_count=1)
+        self.metadata = MetadataCollection({"#metadata": self.metadata_col}, 0)
 
     def get_module_cache(self, _name):
         return self.cache
@@ -94,6 +99,15 @@ class FakeTelemetryDatabase:
         if isinstance(result, Exception):
             raise result
         return result
+
+    count_entities_per_attr = get_attribute_bson_size_stats
+
+    def collection_record(self) -> tuple[dict, dict, dict]:
+        """Returns the saved start of the collection, the fields set at its end and its counts."""
+        (started,) = self.metadata_col.insert_one.call_args.args
+        query, changes = self.metadata_col.update_one.call_args.args
+        assert query["_id"] == started["_id"]
+        return started, changes["$set"], changes["$inc"]
 
 
 class FakeMasterCollection:
@@ -285,6 +299,67 @@ class AttributeBsonSizeTelemetryTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_collection_is_recorded_in_metadata(self):
+        stats = {
+            "stored": {"count": 2, "min": 10, "mean": 10, "max": 10, "total": 20},
+            "unused": {"count": 0, "min": None, "mean": None, "max": None, "total": 0},
+        }
+        database = FakeTelemetryDatabase(
+            FakeCollection(), {"A": stats, "B": RuntimeError("scan failed")}
+        )
+        telemetry = Telemetry(database, self.make_platform_config(0), FakeRegistrar())
+
+        with self.assertLogs("Telemetry", logging.ERROR):
+            telemetry.collect_attribute_bson_sizes()
+
+        started, end, counts = database.collection_record()
+        self.assertEqual(started["#module"], "Telemetry")
+        self.assertEqual(started["telemetry_type"], ATTRIBUTE_BSON_SIZES_TYPE)
+        self.assertEqual(started["collection_start"], started["#time_created"])
+        self.assertIn("collection_end", end)
+        self.assertNotIn("error", end)
+        self.assertEqual(counts, {"failures": 1})
+        etype_a, etype_b = end["collection_metrics"]["entity_types"]
+        self.assertEqual(
+            {key: etype_a[key] for key in ("entity", "attributes", "stored_attributes")},
+            {"entity": "A", "attributes": 2, "stored_attributes": 1},
+        )
+        self.assertGreaterEqual(etype_a["duration"], 0)
+        self.assertEqual(etype_b["entity"], "B")
+        self.assertEqual(etype_b["error"], "RuntimeError: scan failed")
+        self.assertNotIn("attributes", etype_b)
+
+    def test_entities_per_attr_collection_is_recorded_in_metadata(self):
+        database = FakeTelemetryDatabase(
+            FakeCollection(), {"A": {"stored": 3, "unused": 0}, "B": {"other": 1}}
+        )
+        telemetry = Telemetry(database, self.make_platform_config(0), FakeRegistrar())
+
+        telemetry.collect_entities_per_attr()
+
+        started, end, counts = database.collection_record()
+        self.assertEqual(started["telemetry_type"], ENTITIES_PER_ATTR_TYPE)
+        self.assertEqual(counts, {"failures": 0})
+        self.assertEqual(
+            [
+                (etype["entity"], etype["attributes"], etype["stored_attributes"])
+                for etype in end["collection_metrics"]["entity_types"]
+            ],
+            [("A", 2, 1), ("B", 1, 1)],
+        )
+
+    def test_collection_runs_without_its_start_record(self):
+        cache = FakeCollection()
+        database = FakeTelemetryDatabase(cache, {"A": {"stored": 3}, "B": {"other": 1}})
+        database.metadata_col.insert_one.side_effect = RuntimeError("no primary")
+        telemetry = Telemetry(database, self.make_platform_config(0), FakeRegistrar())
+
+        with self.assertLogs("Telemetry", logging.ERROR):
+            telemetry.collect_entities_per_attr()
+
+        self.assertEqual([record["entity_type"] for _, record, _ in cache.replacements], ["A", "B"])
+        database.metadata_col.update_one.assert_not_called()
 
     def test_reader_uses_only_cached_records(self):
         calculated_at = datetime(2024, 1, 2, tzinfo=UTC)

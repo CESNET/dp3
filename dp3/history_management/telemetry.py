@@ -2,7 +2,9 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import UTC, datetime
+from typing import Any
 
 import requests
 from pydantic import BaseModel, ConfigDict
@@ -12,7 +14,8 @@ from dp3.common.callback_registrar import CallbackRegistrar
 from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.task import DataPointTask
-from dp3.database.database import EntityDatabase
+from dp3.common.utils import error_summary
+from dp3.database.database import DatabaseError, EntityDatabase
 
 ATTRIBUTE_BSON_SIZES_TYPE = "attribute_bson_sizes"
 ENTITIES_PER_ATTR_TYPE = "entities_per_attr"
@@ -164,20 +167,69 @@ class Telemetry:
     def collect_attribute_bson_sizes(self):
         """Calculate and atomically publish attribute size statistics per entity type."""
         with self.attribute_bson_size_lock:
-            self._collect_and_save(ATTRIBUTE_BSON_SIZES_TYPE, self.db.get_attribute_bson_size_stats)
+            self._collect_and_save(
+                ATTRIBUTE_BSON_SIZES_TYPE,
+                self.db.get_attribute_bson_size_stats,
+                lambda stats: stats["count"],
+            )
 
     def collect_entities_per_attr(self):
         """Calculate and atomically publish entity counts per entity type."""
         with self.entities_per_attr_lock:
-            self._collect_and_save(ENTITIES_PER_ATTR_TYPE, self.db.count_entities_per_attr)
+            self._collect_and_save(
+                ENTITIES_PER_ATTR_TYPE, self.db.count_entities_per_attr, lambda count: count
+            )
 
-    def _collect_and_save(self, telemetry_type: str, collect: Callable[[str], dict]) -> None:
+    def _collect_and_save(
+        self,
+        telemetry_type: str,
+        collect: Callable[[str], dict],
+        entity_count: Callable[[Any], int],
+    ) -> None:
+        """Run a collection of `telemetry_type` over all entity types and record it in metadata.
+
+        Args:
+            telemetry_type: Type of the collected telemetry.
+            collect: Collects the telemetry of the attributes of an entity type.
+            entity_count: Gets the number of entities with an attribute from its telemetry.
+        """
+        start = datetime.now(UTC)
+        stats = {"failures": 0}
+        # The telemetry is collected also when the run can't be recorded
+        run_end = nullcontext({})
+        try:
+            self.db.metadata.save(
+                start, {"telemetry_type": telemetry_type, "collection_start": start} | stats
+            )
+            run_end = self.db.metadata.record_run_end(start, "collection_end", stats)
+        except DatabaseError:
+            self.log.exception("Saving %s collection metadata failed", telemetry_type)
+
+        entity_types = []
+        with run_end as end:
+            end["collection_metrics"] = {"entity_types": entity_types}
+            self._collect_entity_types(telemetry_type, collect, entity_count, entity_types, stats)
+
+    def _collect_entity_types(
+        self,
+        telemetry_type: str,
+        collect: Callable[[str], dict],
+        entity_count: Callable[[Any], int],
+        entity_types: list[dict],
+        stats: dict[str, int],
+    ) -> None:
         """Publish each entity's telemetry independently, retaining cached results on failure."""
         for entity_type in self.model_spec.entities:
+            metrics = {"entity": entity_type}
+            entity_types.append(metrics)
             start = time.monotonic()
             try:
                 attributes = collect(entity_type)
                 duration = time.monotonic() - start
+                metrics["attributes"] = len(attributes)
+                metrics["stored_attributes"] = sum(
+                    1 for value in attributes.values() if entity_count(value)
+                )
                 record = {
                     "_id": {
                         "telemetry_type": telemetry_type,
@@ -193,12 +245,15 @@ class Telemetry:
                 self.log.info(
                     "Calculated %s for %s in %.3fs", telemetry_type, entity_type, duration
                 )
-            except Exception:
+            except Exception as e:
+                stats["failures"] += 1
+                metrics["error"] = error_summary(e)
                 self.log.exception(
                     "Failed to calculate %s for %s; retaining the previous cached result.",
                     telemetry_type,
                     entity_type,
                 )
+            metrics["duration"] = time.monotonic() - start
 
         self.cache_col.delete_many(
             {

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Entity attribute-scope commands for the shell-oriented DP3 CLI."""
 
-from dp3.bin.shcmd.common import command_description, common_time_params, print_response_json
+from dp3.bin.shcmd.common import command_description, print_response_json
 
 from .common import (
     add_entity_attr_set_args,
     add_time_range_args,
     complete_entity_attr_names,
+    eid_params,
     handle_attr_set_request,
 )
 
@@ -16,8 +17,8 @@ def handle_get(client, args) -> int:
     return print_response_json(
         client.request(
             "GET",
-            f"/entity/{args.etype}/{args.eid}/get/{args.attr}",
-            params=common_time_params(args),
+            f"/v2/entity/{args.etype}/attr",
+            params=eid_params(args, attr=True, time=True),
         )
     )
 

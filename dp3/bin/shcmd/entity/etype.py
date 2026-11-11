@@ -25,7 +25,7 @@ from .common import (
 
 def handle_list(client, args) -> int:
     """List latest entity snapshots for one type."""
-    path = f"/entity/{args.etype}/get"
+    path = f"/v2/entity/{args.etype}/get"
     params = build_type_query_params(client, args, include_paging=True)
     if args.format == "ndjson":
         base_params = {key: value for key, value in params.items() if key not in {"skip", "limit"}}
@@ -36,13 +36,15 @@ def handle_list(client, args) -> int:
 def handle_count(client, args) -> int:
     """Count latest entity snapshots for one type."""
     params = build_type_query_params(client, args, include_paging=False)
-    return print_response_json(client.request("GET", f"/entity/{args.etype}/count", params=params))
+    return print_response_json(
+        client.request("GET", f"/v2/entity/{args.etype}/count", params=params)
+    )
 
 
 def handle_distinct(client, args) -> int:
     """Get distinct values for one attribute across an entity type."""
     return print_response_json(
-        client.request("GET", f"/entity/{args.etype}/_/distinct/{args.attr}")
+        client.request("GET", f"/v2/entity/{args.etype}/_/distinct/{args.attr}")
     )
 
 

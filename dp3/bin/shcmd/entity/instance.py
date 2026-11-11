@@ -5,7 +5,6 @@ import argparse
 
 from dp3.bin.shcmd.common import (
     command_description,
-    common_time_params,
     print_response_json,
     read_json_value,
     stream_json_pages,
@@ -20,6 +19,7 @@ from .common import (
     add_raw_filter_args,
     add_time_range_args,
     build_time_page_params,
+    eid_params,
     handle_raw,
     suppress_completion,
 )
@@ -28,38 +28,42 @@ from .common import (
 def handle_get(client, args) -> int:
     """Get full entity data."""
     return print_response_json(
-        client.request("GET", f"/entity/{args.etype}/{args.eid}", params=common_time_params(args))
+        client.request("GET", f"/v2/entity/{args.etype}/", params=eid_params(args, time=True))
     )
 
 
 def handle_master(client, args) -> int:
     """Get the master record for one entity."""
     return print_response_json(
-        client.request(
-            "GET", f"/entity/{args.etype}/{args.eid}/master", params=common_time_params(args)
-        )
+        client.request("GET", f"/v2/entity/{args.etype}/master", params=eid_params(args, time=True))
     )
 
 
 def handle_snapshots(client, args) -> int:
     """Get snapshots for one entity."""
-    path = f"/entity/{args.etype}/{args.eid}/snapshots"
+    path = f"/v2/entity/{args.etype}/snapshots"
     if args.format == "ndjson":
-        return stream_json_pages(client, path, common_time_params(args), args.skip, args.limit)
-    return print_response_json(client.request("GET", path, params=build_time_page_params(args)))
+        params = eid_params(args, time=True)
+        return stream_json_pages(client, path, params, args.skip, args.limit)
+    params = {"eid": args.eid, **build_time_page_params(args)}
+    return print_response_json(client.request("GET", path, params=params))
 
 
 def handle_ttl(client, args) -> int:
     """Extend entity TTLs."""
     body = read_json_value(args.body_json)
     return print_response_json(
-        client.request("POST", f"/entity/{args.etype}/{args.eid}/ttl", json_body=body)
+        client.request(
+            "POST", f"/v2/entity/{args.etype}/ttl", params=eid_params(args), json_body=body
+        )
     )
 
 
 def handle_delete(client, args) -> int:
     """Delete entity data."""
-    return print_response_json(client.request("DELETE", f"/entity/{args.etype}/{args.eid}"))
+    return print_response_json(
+        client.request("DELETE", f"/v2/entity/{args.etype}/", params=eid_params(args))
+    )
 
 
 def _add_instance_commands(parser: argparse.ArgumentParser, etype: str) -> None:

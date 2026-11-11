@@ -180,6 +180,20 @@ def build_type_query_params(client, args, *, include_paging: bool) -> dict[str, 
     return params
 
 
+def eid_params(args, *, attr: bool = False, time: bool = False) -> dict[str, Any]:
+    """Build the query parameters which select one entity, optionally one of its attributes.
+
+    The v2 API takes the entity id as a query parameter,
+    so ids containing `/` (such as IP prefixes) can be addressed.
+    """
+    params = {"eid": args.eid}
+    if attr:
+        params["attr"] = args.attr
+    if time:
+        params.update(common_time_params(args))
+    return params
+
+
 def build_raw_params(args) -> dict[str, Any]:
     """Build raw-datapoint query parameters."""
     params = {"skip": args.skip, "limit": args.limit}
@@ -195,7 +209,7 @@ def build_raw_params(args) -> dict[str, Any]:
 def handle_raw(client, args) -> int:
     """Browse current raw datapoints for one type or one entity."""
     params = build_raw_params(args)
-    path = f"/entity/{args.etype}/raw/get"
+    path = f"/v2/entity/{args.etype}/raw/get"
     if args.format == "ndjson":
         base_params = {key: value for key, value in params.items() if key not in {"skip", "limit"}}
         return stream_json_pages(client, path, base_params, args.skip, args.limit)
@@ -211,7 +225,12 @@ def handle_attr_set_request(client, args) -> int:
         raise APIError(JSON_LITERAL_HELP)
     body = {"value": read_json_value(value_json)}
     return print_response_json(
-        client.request("POST", f"/entity/{args.etype}/{args.eid}/set/{args.attr}", json_body=body)
+        client.request(
+            "POST",
+            f"/v2/entity/{args.etype}/attr",
+            params=eid_params(args, attr=True),
+            json_body=body,
+        )
     )
 
 

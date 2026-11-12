@@ -259,11 +259,10 @@ class SnapShooter:
         """Creates snapshots for all entities currently active in database."""
         time = datetime.now(UTC)
         counts = {"entities": 0, "components": 0}
-        self.db.metadata.save(
-            time,
-            {"task_creation_start": time, "workers_finished": 0, "linked_finished": False} | counts,
-        )
-        with self.db.metadata.record_run_end(time, "task_creation_end", increase=counts) as end:
+        started = {"task_creation_start": time, "workers_finished": 0, "linked_finished": False}
+        with self.db.metadata.record_run(
+            time, started | counts, "task_creation_end", increase=counts
+        ) as end:
             self._broadcast(type=SnapshotMessageType.run_start, time=time)
             self._create_snapshot_tasks(time, counts, end)
             self._broadcast(type=SnapshotMessageType.run_end, time=time)
@@ -299,7 +298,7 @@ class SnapShooter:
                 )
 
         if len(linked_entities) == 0:
-            self.db.metadata.update(time, metadata={"linked_finished": True})
+            end["linked_finished"] = True
 
     def _broadcast(self, **fields):
         """Broadcasts a snapshot message with `fields` to all workers."""
@@ -431,6 +430,8 @@ class SnapShooter:
             metadata={},
             increase={"entities": entity_cnt, "components": entity_cnt, "workers_finished": 1},
             worker_id=0,
+            # The run is not recorded when saving its start failed
+            upsert=False,
         )
         self.log.debug("Worker snapshot creation done.")
 
@@ -545,7 +546,9 @@ class SnapShooter:
             self.db.snapshots.save_one(rtype, record, task.time)
 
         if task.final:
-            self.db.metadata.update(task.time, metadata={"linked_finished": True}, worker_id=0)
+            self.db.metadata.update(
+                task.time, metadata={"linked_finished": True}, worker_id=0, upsert=False
+            )
 
     @staticmethod
     def _remove_record_from_value(spec: AttrSpecType, value: dict | list[dict]):

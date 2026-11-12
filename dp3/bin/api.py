@@ -2,6 +2,7 @@
 """
 Run the DP3 API using uvicorn.
 """
+
 import argparse
 import sys
 

@@ -18,6 +18,8 @@ from dp3.database.database import DatabaseError, EntityDatabase
 from dp3.history_management.history_manager import HistoryManager
 from dp3.snapshots.snapshooter import SnapShooter
 
+METADATA_LOG = "EntityDatabase.Metadata"
+
 
 class JobFailure(RuntimeError):
     pass
@@ -153,12 +155,36 @@ class FailedJobEndRecord(unittest.TestCase):
         self.db.snapshots.delete_old.return_value = {"buckets": 1, "oversized": 0}
         self.metadata.insert_one.side_effect = RuntimeError("no primary")
 
-        with self.assertLogs(manager.log, logging.ERROR):
+        with self.assertLogs(METADATA_LOG, logging.ERROR):
             manager.delete_old_snapshots()
 
         self.assertEqual(
             [call.args[0] for call in self.db.snapshots.delete_old.call_args_list], ["ip", "asn"]
         )
+        self.metadata.update_one.assert_not_called()
+
+    def test_collection_runs_without_its_start_record(self):
+        self.metadata.insert_one.side_effect = RuntimeError("no primary")
+        for collect in (self.make_collector().collect_ttl, self.make_collector().collect_weak):
+            self.db.get_worker_master_records = Mock(return_value=FailingCursor([]))
+            with self.subTest(collect.__name__):
+                with self.assertLogs(METADATA_LOG, logging.ERROR), self.assertRaises(JobFailure):
+                    collect("ip")
+                # The collection got to reading the master records
+                self.db.get_worker_master_records.assert_called_once()
+                self.metadata.update_one.assert_not_called()
+
+    def test_snapshot_task_creation_runs_without_its_start_record(self):
+        self.metadata.insert_one.side_effect = RuntimeError("no primary")
+        shooter = self.make_shooter()
+        with (
+            patch.object(SnapShooter, "get_cached_link_entity_ids", return_value=[]),
+            patch.object(SnapShooter, "get_linked_entities", return_value=[]),
+            self.assertLogs(METADATA_LOG, logging.ERROR),
+        ):
+            shooter.make_snapshots()
+        # Run start, linked entities and run end
+        self.assertEqual(shooter.snapshot_queue_writer.broadcast_task.call_count, 3)
         self.metadata.update_one.assert_not_called()
 
     def test_snapshot_task_creation(self):

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """A script runner entrypoint for DP3 scripts."""
+
 import subprocess
 import sys
 from argparse import ArgumentParser

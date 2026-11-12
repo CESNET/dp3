@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Simple datapoint sender script for testing local DP3 instance."""
+
 import gzip
 import json
 import logging

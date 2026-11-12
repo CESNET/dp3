@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Converts legacy CSV DataPoint log format to JSON"""
+
 import argparse
 import gzip
 import ipaddress

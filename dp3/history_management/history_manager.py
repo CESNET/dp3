@@ -4,7 +4,6 @@ import logging
 import os
 import time
 from collections.abc import Callable
-from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from itertools import chain
@@ -277,18 +276,11 @@ class HistoryManager:
         self.log.debug("Deleting all snapshots before %s", t_old)
 
         stats = {"buckets": 0, "oversized": 0, "failures": 0}
-        # The snapshots are cleaned also when the run can't be recorded
-        run_end = nullcontext({})
-        try:
-            self.db.metadata.save(
-                start, {"snapshot_cleaning_start": start, "deleted_before": t_old} | stats
-            )
-            run_end = self.db.metadata.record_run_end(start, "snapshot_cleaning_end", stats)
-        except DatabaseError:
-            self.log.exception("Saving snapshot cleaning metadata failed")
-
+        started = {"snapshot_cleaning_start": start, "deleted_before": t_old} | stats
         entity_types = []
-        with run_end as end:
+        with self.db.metadata.record_run(
+            start, started, "snapshot_cleaning_end", increase=stats
+        ) as end:
             end["snapshot_cleaning_metrics"] = {"entity_types": entity_types}
             for etype in self.model_spec.entities:
                 metrics = {"entity": etype}

@@ -48,7 +48,9 @@ class MetadataCollection:
 
     def save(self, time: datetime, metadata: dict, worker_id: int | None = None):
         """Saves metadata dict under the caller module and passed timestamp."""
-        module = get_caller_id()
+        self._save(get_caller_id(), time, metadata, worker_id)
+
+    def _save(self, module: str, time: datetime, metadata: dict, worker_id: int | None = None):
         metadata["_id"] = self._record_id(module, time, worker_id)
         metadata["#module"] = module
         metadata["#time_created"] = time
@@ -90,6 +92,20 @@ class MetadataCollection:
         are only logged, so they never hide the outcome of the run.
         """
         return self._run_end_record(get_caller_id(), time, end_field, increase)
+
+    def record_run(
+        self, time: datetime, start: dict, end_field: str, increase: dict = None
+    ) -> AbstractContextManager[dict]:
+        """Records a run of the caller module, from its start to its end.
+
+        Used as `with db.metadata.record_run(start, {"job_start": start} | counts, "job_end",
+        increase=counts) as end:`. The `start` record is saved on entry, the end is recorded
+        on exit as by `record_run_end`.
+
+        The run never depends on its record: when the start can't be saved, the failure
+        is logged, the run goes on and its end is not recorded either.
+        """
+        return self._run_record(get_caller_id(), time, start, end_field, increase)
 
     def find(
         self,
@@ -150,6 +166,19 @@ class MetadataCollection:
         except Exception as e:
             raise DatabaseError(f"Update of metadata failed: {e}\n{metadata_id}, {changes}") from e
         return res.matched_count > 0
+
+    @contextmanager
+    def _run_record(
+        self, module: str, time: datetime, start: dict, end_field: str, increase: dict
+    ) -> Iterator[dict]:
+        try:
+            self._save(module, time, start)
+        except DatabaseError:
+            self.log.exception("Saving the start of a %s run failed, it is not recorded", module)
+            yield {}
+            return
+        with self._run_end_record(module, time, end_field, increase) as end:
+            yield end
 
     @contextmanager
     def _run_end_record(

@@ -2,7 +2,6 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from contextlib import nullcontext
 from datetime import UTC, datetime
 from typing import Any
 
@@ -15,7 +14,7 @@ from dp3.common.config import CronExpression, PlatformConfig
 from dp3.common.datapoint import DataPointObservationsBase, DataPointTimeseriesBase
 from dp3.common.task import DataPointTask
 from dp3.common.utils import error_summary
-from dp3.database.database import DatabaseError, EntityDatabase
+from dp3.database.database import EntityDatabase
 
 ATTRIBUTE_BSON_SIZES_TYPE = "attribute_bson_sizes"
 ENTITIES_PER_ATTR_TYPE = "entities_per_attr"
@@ -195,18 +194,9 @@ class Telemetry:
         """
         start = datetime.now(UTC)
         stats = {"failures": 0}
-        # The telemetry is collected also when the run can't be recorded
-        run_end = nullcontext({})
-        try:
-            self.db.metadata.save(
-                start, {"telemetry_type": telemetry_type, "collection_start": start} | stats
-            )
-            run_end = self.db.metadata.record_run_end(start, "collection_end", stats)
-        except DatabaseError:
-            self.log.exception("Saving %s collection metadata failed", telemetry_type)
-
+        started = {"telemetry_type": telemetry_type, "collection_start": start} | stats
         entity_types = []
-        with run_end as end:
+        with self.db.metadata.record_run(start, started, "collection_end", increase=stats) as end:
             end["collection_metrics"] = {"entity_types": entity_types}
             self._collect_entity_types(telemetry_type, collect, entity_count, entity_types, stats)
 

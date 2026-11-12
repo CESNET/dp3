@@ -355,7 +355,7 @@ class AttributeBsonSizeTelemetryTests(unittest.TestCase):
         database.metadata_col.insert_one.side_effect = RuntimeError("no primary")
         telemetry = Telemetry(database, self.make_platform_config(0), FakeRegistrar())
 
-        with self.assertLogs("Telemetry", logging.ERROR):
+        with self.assertLogs("EntityDatabase.Metadata", logging.ERROR):
             telemetry.collect_entities_per_attr()
 
         self.assertEqual([record["entity_type"] for _, record, _ in cache.replacements], ["A", "B"])

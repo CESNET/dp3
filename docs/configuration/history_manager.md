@@ -60,55 +60,31 @@ were received are logged as a warning.
 
 If an archivation run fails, the datapoints are kept in the database and archived by the next run.
 
-## Maintenance metrics in `#metadata`
+## Records of maintenance runs
 
-HistoryManager records run start/end times and metrics in `#metadata`:
-
-- `aggregation_metrics.entity_types`: per-attribute datapoint counts before/after aggregation,
-  alongside the existing record-update and retry counters. Counts describe initial-pass
-  computations, not guaranteed persisted changes; retries are excluded.
-- `cleaning_metrics`: one record per entity type and cleaning period, saved when the period
-  ends (`cleaning_start`, `cleaning_end`, `entity`). It contains the number of `batches` and
-  `failed_batches`, the master records with expired datapoints (`records`) and the modified ones
-  (`modified`), the total `update_time` and the `slowest_batch` (seconds).
-- `archivation_metrics`: processed and dropped archive collections, exported datapoints
-  (and how many of them were future-dated), the export file, and failures. Run start and end
-  are recorded in `archivation_start` and `archivation_end`.
-- `snapshot_cleaning_metrics.entity_types`: for each entity type the deleted snapshot `buckets`
-  (each holds up to `snapshot_bucket_size` snapshots), the deleted `oversized` snapshots and the
-  `duration` (seconds). The record also has their totals, the time before which snapshots were
-  deleted (`deleted_before`), and the run start and end in `snapshot_cleaning_start` and
-  `snapshot_cleaning_end`. An entity type which fails has an `error` instead of the counts and
-  is counted in `failures`; the other entity types are still cleaned.
-
-When aggregation raises an error, its end is still recorded, with the counts up to the error and
-an `error` field holding the error type and message. The error is then logged by the scheduler as
-before.
-
-Metrics add no database reads. Runs interrupted by a worker stop may lack final metrics.
+Each run of aggregation, datapoint cleaning, snapshot cleaning and datapoint archivation is
+recorded with its start and end times, the amount of data it processed and its failures.
+Read the records with `dp3 sh telemetry metadata -m HistoryManager`; the
+[telemetry guide](../howto/telemetry.md) shows how to interpret them.
 
 ## Repairing history markers
-
-Master documents use `#min_t2s.<attribute>` markers to select histories that may contain expired
-datapoints. DP³ initializes these markers when history is appended and updates them when datapoints
-are deleted, so no periodic full-collection marking is required.
 
 The `mark_datapoints_schedule` option is deprecated and ignored. Existing configurations that
 contain it remain valid and produce a deprecation warning; it can be removed when convenient.
 
-After upgrading an existing deployment, deploy the updated workers first and inspect the existing
-master collections:
+Datapoint cleaning relies on markers kept in master records, which records written by older
+DP³ versions may lack. After upgrading an existing deployment, deploy the updated workers first
+and count the records without markers:
 
 ```shell
 python scripts/repair_min_t2s.py <config_dir> count
 ```
 
-Fill markers missing from non-empty histories before relying on regular datapoint cleanup:
+Fill in the missing markers before relying on regular datapoint cleaning:
 
 ```shell
 python scripts/repair_min_t2s.py <config_dir> fill
 ```
 
-Use `--entity-type <entity>` one or more times to restrict either operation. The fill operation is
-atomic per master document and increments `#revision`, so concurrent aggregation detects and retries
-conflicts instead of overwriting the repaired marker.
+Use `--entity-type <entity>` one or more times to restrict either operation. Both are safe to
+run while the workers are running.

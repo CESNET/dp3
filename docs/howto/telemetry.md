@@ -81,7 +81,7 @@ dp3 sh telemetry source-age
 dp3 sh telemetry source-age -u seconds
 ```
 
-`sources-validity` and `source-age` are two views of the same telemetry records. For each datapoint source tag, they show either the latest datapoint validity timestamp (`t2`, or `t1` when `t2` is absent) or its age. The timestamp is recorded by an `on_task_start` hook, before task validation, database insertion, and attribute hooks.
+`sources-validity` and `source-age` are two views of the same telemetry records. For each datapoint source tag, they show either the latest datapoint validity timestamp (`t2`, or `t1` when `t2` is absent) or its age.
 
 Use this to find sources that have stopped sending data. Keep these limitations in mind:
 
@@ -99,10 +99,9 @@ dp3 sh telemetry entities-per-attr
 
 This answers “how many entities had each attribute at the last refresh?”. It counts value presence in the database, rather than the number of datapoints received over time.
 
-API requests only read cached counts. Worker process 0 refreshes them every 30 minutes by default,
-configured by `entities_per_attr_schedule` in [`telemetry.yml`](../configuration/telemetry.md),
-and schedules an initial sweep when the cache is incomplete. Entity types are omitted until their
-first successful refresh; failed refreshes leave previous counts available.
+The counts are cached and refreshed every 30 minutes by default, configured by
+`entities_per_attr_schedule` in [`telemetry.yml`](../configuration/telemetry.md). Entity types
+are omitted until their first successful refresh; failed refreshes leave previous counts available.
 
 To inspect the logical size of attributes stored in master documents, call:
 
@@ -113,18 +112,14 @@ dp3 sh telemetry attribute-bson-sizes
 The equivalent HTTP endpoint is `GET /telemetry/attribute_bson_sizes`.
 
 For each configured attribute, the cached result contains `count`, `min`, `mean`, `max`, and
-`total`, plus the calculation timestamp and sweep duration for its entity type. Only master
-documents where the attribute field is physically present contribute. An attribute with no
+`total`, plus the calculation timestamp and sweep duration for its entity type. Only entities
+which have the attribute contribute. An attribute with no
 values has a zero count and total, with `null` minimum, mean, and maximum.
 
-An attribute's logical contribution is the BSON size of `{attribute_name: attribute_value}` minus
-the shared five-byte BSON document overhead. This measures the complete value as represented in
-the master document: plain attributes therefore include their `{v, ts_last_update}` wrapper, and
-observation and timeseries attributes include their stored history arrays. These values are
-logical BSON bytes, **not** compressed on-disk usage, index size, raw-datapoint storage, or
-snapshot storage. Results come only from the cache; API requests never start a master collection
-scan. Worker process 0 schedules an initial sweep when the cache is incomplete and refreshes it on
-the schedule configured in [`telemetry.yml`](../configuration/telemetry.md).
+The size covers the complete stored value of an attribute, so observation and timeseries
+attributes include their stored history. These values are logical BSON bytes, **not** compressed
+on-disk usage, index size, raw-datapoint storage, or snapshot storage. The results are cached
+and refreshed on the schedule configured in [`telemetry.yml`](../configuration/telemetry.md).
 
 To drill into a particular attribute, list each distinct latest value and its entity count:
 
@@ -142,9 +137,9 @@ Task-executor, snapshot, and periodic updater hooks publish execution statistics
 dp3 sh telemetry event-counts --group secondary_hooks --interval 5m --both
 ```
 
-Counter names use `<hook-family>/<callback>/<context>/<metric>`. The callback is module-qualified, while bound `partial` arguments are omitted so configuration values do not become part of the metric identity. Hooks with the same callback and context therefore share counters even when their bound arguments differ. The context is one parenthesized namespace component identifying the entity, attribute, or snapshot scope. Reserved separators inside components are URL-escaped, including `/` in context values. All tracked hooks report `executions`, `failures`, and `duration_ns`. Hooks that can return datapoint tasks also report `created_tasks` when they create at least one. `allow_entity_creation` hooks instead report `decisions_allowed` or `decisions_denied` for successful calls.
+Counter names use `<hook-family>/<callback>/<context>/<metric>`. The callback is named by its module and function, so hooks registered with the same callback and context share counters. The context is in parentheses and identifies the entity, attribute, or snapshot scope. All tracked hooks report `executions`, `failures`, and `duration_ns`. Hooks that can return datapoint tasks also report `created_tasks` when they create at least one. `allow_entity_creation` hooks instead report `decisions_allowed` or `decisions_denied` for successful calls.
 
-Snapshot telemetry covers timeseries, correlation, snapshot-run initialization, and snapshot-run finalization hooks. Timeseries counter contexts include the entity and attribute. Correlation counter contexts include only the entity type; dependency and changed-attribute declarations are omitted. Correlation hooks run once for each applicable entity, so their execution and task counts can be higher than the number of snapshot runs. Initialization and finalization hooks run once per worker because snapshot-run messages are broadcast to all workers.
+Snapshot telemetry covers timeseries, correlation, snapshot-run initialization, and snapshot-run finalization hooks. Timeseries counter contexts include the entity and attribute. Correlation counter contexts include only the entity type. Correlation hooks run once for each applicable entity, so their execution and task counts can be higher than the number of snapshot runs. Initialization and finalization hooks run once per worker.
 
 Periodic updater telemetry uses separate `periodic_update` and `periodic_eid_update` families. Its counter context contains the entity type, configured hook ID, and update period. Each execution represents one callback invocation for one entity in an updater batch.
 
@@ -218,7 +213,7 @@ The result reports:
 - `entities`: entities handled by that completed run
 - `total_s`: duration of that completed run
 
-Unexpectedly old ages or unusually long durations are a reason to inspect metadata and worker logs. The summary is a formatted view of `SnapShooter` records in the internal `#metadata` collection.
+Unexpectedly old ages or unusually long durations are a reason to inspect metadata and worker logs. The summary is based on the `SnapShooter` records described in the next section.
 
 ## 8. Investigate periodic processes through metadata
 

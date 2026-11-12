@@ -58,16 +58,11 @@ This section describes Redis connection details:
 # Groups
 
 The default groups record task execution, processed tasks by source, and secondary-module hook
-statistics. Hook event names are declared dynamically and use the namespace
-`<hook-family>/<callback>/<context>/<metric>`. The callback is module-qualified but omits bound
-`partial` arguments, while the single context component identifies the hook's entity, attribute,
-or snapshot scope.
+statistics. Hook event names are declared dynamically, see the
+[telemetry guide](../howto/telemetry.md#5-check-secondary-module-hooks) for their format and
+interpretation.
 The `db_errors` group counts data that could not be written to the database, see the
 [telemetry guide](../howto/telemetry.md#failed-database-writes).
-EventCountLogger buffers each group's increments in memory and flushes them according to its
-`sync_interval` or `sync_limit` setting. See the
-[telemetry guide](../howto/telemetry.md#5-check-secondary-module-hooks) for the hook metrics and
-their interpretation.
 
 To learn more about the group configuration for EventCountLogger,
 please refer to the official [documentation](https://github.com/CESNET/EventCountLogger#configuration).
